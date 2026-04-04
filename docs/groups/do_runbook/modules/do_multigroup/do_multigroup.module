@@ -1,0 +1,239 @@
+<?php
+
+/**
+ * @file
+ * Allows content to be posted in multiple groups simultaneously.
+ *
+ * Provides a "Group Audience" fieldset on node forms that lets group members
+ * select which groups their content should be posted to. Also adds
+ * "Posted in" and "Cross-posted from" badges to content display.
+ */
+
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\node\NodeInterface;
+
+/**
+ * Content types that support multi-group posting.
+ */
+const DO_MULTIGROUP_CONTENT_TYPES = [
+  'forum',
+  'documentation',
+  'event',
+  'post',
+  'page',
+];
+
+/**
+ * Implements hook_form_node_form_alter().
+ *
+ * Adds a "Group Audience" fieldset with checkboxes for each group
+ * the current user is a member of.
+ */
+function do_multigroup_form_node_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
+  $node = $form_state->getFormObject()->getEntity();
+  $bundle = $node->bundle();
+
+  if (!in_array($bundle, DO_MULTIGROUP_CONTENT_TYPES)) {
+    return;
+  }
+
+  $account = \Drupal::currentUser();
+  $group_membership_service = \Drupal::service('group.membership_loader');
+  $memberships = $group_membership_service->loadByUser($account);
+
+  if (empty($memberships)) {
+    return;
+  }
+
+  // Build group options from user's memberships.
+  $options = [];
+  $default_values = [];
+
+  foreach ($memberships as $membership) {
+    $group = $membership->getGroup();
+    if ($group->bundle() === 'community_group') {
+      $gid = $group->id();
+      $options[$gid] = $group->label();
+
+      // If editing, check which groups the node is already in.
+      if (!$node->isNew()) {
+        $relationship_type_id = 'community_group-group_node-' . $bundle;
+        $existing = \Drupal::entityTypeManager()
+          ->getStorage('group_relationship')
+          ->loadByProperties([
+            'type' => $relationship_type_id,
+            'entity_id' => $node->id(),
+            'gid' => $gid,
+          ]);
+        if (!empty($existing)) {
+          $default_values[] = $gid;
+        }
+      }
+    }
+  }
+
+  if (empty($options)) {
+    return;
+  }
+
+  // If we're in a group context, pre-select that group.
+  $route_match = \Drupal::routeMatch();
+  $group_from_route = $route_match->getParameter('group');
+  if ($group_from_route && isset($options[$group_from_route->id()])) {
+    $default_values[] = $group_from_route->id();
+  }
+
+  $form['do_multigroup'] = [
+    '#type' => 'details',
+    '#title' => t('Group Audience'),
+    '#open' => TRUE,
+    '#weight' => 90,
+    '#group' => 'advanced',
+  ];
+
+  $form['do_multigroup']['group_ids'] = [
+    '#type' => 'checkboxes',
+    '#title' => t('Post to groups'),
+    '#options' => $options,
+    '#default_value' => array_unique($default_values),
+    '#description' => t('Select the groups this content should be posted to.'),
+  ];
+
+  // Add our custom submit handler.
+  $form['actions']['submit']['#submit'][] = 'do_multigroup_node_form_submit';
+}
+
+/**
+ * Submit handler: syncs group_relationship entries after node save.
+ */
+function do_multigroup_node_form_submit(array &$form, FormStateInterface $form_state) {
+  $node = $form_state->getFormObject()->getEntity();
+  $bundle = $node->bundle();
+
+  if (!in_array($bundle, DO_MULTIGROUP_CONTENT_TYPES)) {
+    return;
+  }
+
+  $selected_gids = array_filter($form_state->getValue(['do_multigroup', 'group_ids'], []));
+  $relationship_type_id = 'community_group-group_node-' . $bundle;
+
+  // Handle abbreviated ID for documentation.
+  if ($bundle === 'documentation') {
+    $relationship_type_id = 'community_group-group_node-doc';
+  }
+
+  $storage = \Drupal::entityTypeManager()->getStorage('group_relationship');
+
+  // Get existing relationships for this node.
+  $existing = $storage->loadByProperties([
+    'type' => $relationship_type_id,
+    'entity_id' => $node->id(),
+  ]);
+
+  $existing_gids = [];
+  foreach ($existing as $relationship) {
+    $existing_gids[$relationship->getGroup()->id()] = $relationship;
+  }
+
+  // Add new relationships.
+  foreach ($selected_gids as $gid) {
+    if (!isset($existing_gids[$gid])) {
+      $group = \Drupal::entityTypeManager()->getStorage('group')->load($gid);
+      if ($group) {
+        $storage->create([
+          'type' => $relationship_type_id,
+          'gid' => $gid,
+          'entity_id' => $node->id(),
+        ])->save();
+      }
+    }
+  }
+
+  // Remove deselected relationships.
+  foreach ($existing_gids as $gid => $relationship) {
+    if (!in_array($gid, $selected_gids)) {
+      $relationship->delete();
+    }
+  }
+}
+
+/**
+ * Implements hook_preprocess_node().
+ *
+ * Adds "Posted in" and "Cross-posted from" badges.
+ */
+function do_multigroup_preprocess_node(array &$variables) {
+  /** @var \Drupal\node\NodeInterface $node */
+  $node = $variables['node'];
+  $bundle = $node->bundle();
+
+  if (!in_array($bundle, DO_MULTIGROUP_CONTENT_TYPES)) {
+    return;
+  }
+
+  $relationship_type_id = 'community_group-group_node-' . $bundle;
+  if ($bundle === 'documentation') {
+    $relationship_type_id = 'community_group-group_node-doc';
+  }
+
+  $storage = \Drupal::entityTypeManager()->getStorage('group_relationship');
+  $relationships = $storage->loadByProperties([
+    'type' => $relationship_type_id,
+    'entity_id' => $node->id(),
+  ]);
+
+  if (empty($relationships)) {
+    return;
+  }
+
+  $groups = [];
+  foreach ($relationships as $relationship) {
+    $group = $relationship->getGroup();
+    if ($group) {
+      $groups[] = [
+        'label' => $group->label(),
+        'url' => $group->toUrl()->toString(),
+      ];
+    }
+  }
+
+  if (empty($groups)) {
+    return;
+  }
+
+  $variables['posted_in_groups'] = $groups;
+
+  // Full view mode: "Posted in: Group A, Group B".
+  if ($variables['view_mode'] === 'full') {
+    $variables['content']['posted_in'] = [
+      '#theme' => 'item_list',
+      '#title' => t('Posted in'),
+      '#items' => array_map(function ($g) {
+        return [
+          '#type' => 'link',
+          '#title' => $g['label'],
+          '#url' => \Drupal\Core\Url::fromUri('internal:' . $g['url']),
+        ];
+      }, $groups),
+      '#weight' => -100,
+      '#attributes' => ['class' => ['do-multigroup-posted-in']],
+    ];
+  }
+
+  // Teaser: "Cross-posted from Group X" badge (only if in multiple groups).
+  if ($variables['view_mode'] === 'teaser' && count($groups) > 1) {
+    $variables['content']['cross_posted'] = [
+      '#markup' => '<span class="do-multigroup-cross-posted">' . t('Cross-posted') . '</span>',
+      '#weight' => -100,
+    ];
+  }
+
+  $variables['#attached']['library'][] = 'do_multigroup/do_multigroup';
+}
+
+/**
+ * Implements hook_page_attachments().
+ */
+function do_multigroup_page_attachments(array &$attachments) {
+  $attachments['#attached']['library'][] = 'do_multigroup/do_multigroup';
+}

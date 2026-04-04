@@ -1,0 +1,25 @@
+uuid: 7581affd-5500-4a01-87d9-185a31b6f6f9
+langcode: en
+status: true
+dependencies:
+  module:
+    - do_profile_stats
+    - system
+  theme:
+    - bluecheese
+id: do_contribution_stats
+theme: bluecheese
+region: content
+weight: 50
+provider: null
+plugin: do_contribution_stats
+settings:
+  id: do_contribution_stats
+  label: 'Contribution Stats'
+  label_display: '0'
+  provider: do_profile_stats
+visibility:
+  request_path:
+    id: request_path
+    negate: false
+    pages: '/user/*'

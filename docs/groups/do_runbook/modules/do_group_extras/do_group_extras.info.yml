@@ -1,0 +1,8 @@
+name: 'DO Group Extras'
+type: module
+description: 'Archive enforcement, submission guidelines, and moderation defaults for groups.'
+core_version_requirement: ^10
+package: 'Custom'
+dependencies:
+  - drupal:taxonomy
+  - drupal:group

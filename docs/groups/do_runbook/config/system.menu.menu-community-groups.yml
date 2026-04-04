@@ -1,0 +1,8 @@
+uuid: 591d5284-e597-4901-93cf-f08964b9b095
+langcode: en
+status: true
+dependencies: {  }
+id: menu-community-groups
+label: 'Community Groups'
+description: ''
+locked: false

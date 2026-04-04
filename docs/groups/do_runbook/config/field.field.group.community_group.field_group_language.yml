@@ -1,0 +1,19 @@
+uuid: 8b5edbc8-4ef2-4a87-884b-880581c4f4c2
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.group.field_group_language
+    - group.type.community_group
+id: group.community_group.field_group_language
+field_name: field_group_language
+entity_type: group
+bundle: community_group
+label: 'Group Language'
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: language

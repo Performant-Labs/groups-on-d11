@@ -1,0 +1,30 @@
+uuid: cd64d7e6-52b0-49d9-82ac-81fefd73ae08
+langcode: en
+status: true
+dependencies:
+  module:
+    - taxonomy
+_core:
+  default_config_hash: co1lJ9rrFC_cmFgskgHGyw_OxSswlRCkFyfv4yt8bew
+id: follow_term
+label: 'Follow term'
+bundles: {  }
+entity_type: taxonomy_term
+global: false
+weight: 0
+flag_short: Follow
+flag_long: ''
+flag_message: ''
+unflag_short: Unfollow
+unflag_long: ''
+unflag_message: ''
+unflag_denied_text: ''
+flag_type: 'entity:taxonomy_term'
+link_type: ajax_link
+flagTypeConfig:
+  show_in_links: {  }
+  show_as_field: false
+  show_on_form: false
+  show_contextual_link: false
+  extra_permissions: {  }
+linkTypeConfig: {  }

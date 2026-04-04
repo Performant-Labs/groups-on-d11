@@ -1,0 +1,81 @@
+<?php
+
+/**
+ * @file
+ * Content pinning within groups.
+ */
+
+use Drupal\views\ViewExecutable;
+use Drupal\node\NodeInterface;
+
+/**
+ * Implements hook_page_attachments().
+ */
+function do_group_pin_page_attachments(array &$attachments) {
+  $attachments['#attached']['library'][] = 'do_group_pin/do_group_pin';
+}
+
+/**
+ * Implements hook_preprocess_node().
+ */
+function do_group_pin_preprocess_node(array &$variables) {
+  $node = $variables['node'] ?? NULL;
+  if (!$node instanceof NodeInterface) {
+    return;
+  }
+
+  try {
+    $flag_count = \Drupal::service('flag.count');
+    $counts = $flag_count->getEntityFlagCounts($node);
+    if (!empty($counts['pin_in_group']) && $counts['pin_in_group'] > 0) {
+      $variables['pinned'] = TRUE;
+      $variables['attributes']['class'][] = 'node--pinned';
+      $variables['title_suffix']['pin_badge'] = [
+        '#markup' => '<span class="pin-badge">' . t('Pinned') . '</span>',
+        '#weight' => -100,
+      ];
+    }
+  }
+  catch (\Exception $e) {
+    // Flag module may not be available.
+  }
+}
+
+/**
+ * Implements hook_views_query_alter().
+ *
+ * LEFT JOINs the flagging table to the group content stream View.
+ * Adds a sort that places pinned content (with pin_in_group flag) first.
+ */
+function do_group_pin_views_query_alter(ViewExecutable $view, $query) {
+  if ($view->id() !== 'group_content_stream') {
+    return;
+  }
+
+  // LEFT JOIN flagging table for pin_in_group.
+  $definition = [
+    'type' => 'LEFT',
+    'table' => 'flagging',
+    'field' => 'entity_id',
+    'left_table' => 'node_field_data',
+    'left_field' => 'nid',
+    'extra' => [
+      [
+        'field' => 'flag_id',
+        'value' => 'pin_in_group',
+      ],
+      [
+        'field' => 'entity_type',
+        'value' => 'node',
+      ],
+    ],
+  ];
+
+  $join = \Drupal::service('plugin.manager.views.join')
+    ->createInstance('standard', $definition);
+
+  $query->addRelationship('pin_flagging', $join, 'flagging');
+
+  // Add sort: pinned items first (CASE WHEN ... IS NOT NULL THEN 1 ELSE 0).
+  $query->addOrderBy(NULL, 'CASE WHEN pin_flagging.id IS NOT NULL THEN 1 ELSE 0 END', 'DESC', 'pin_sort');
+}

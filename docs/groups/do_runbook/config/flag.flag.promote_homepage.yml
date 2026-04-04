@@ -1,0 +1,35 @@
+uuid: e899b477-4200-4f3f-a9c3-f76ac3b9b5f0
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+_core:
+  default_config_hash: Jc34gNQYFfLjDOy9JOwFg0zIOQZ9AccfysqaT_djN5Y
+id: promote_homepage
+label: 'Promote to homepage'
+bundles:
+  - documentation
+  - event
+  - forum
+  - page
+  - post
+entity_type: node
+global: true
+weight: 0
+flag_short: 'Promote to homepage'
+flag_long: 'Promote this content to the front page'
+flag_message: 'Content promoted to homepage'
+unflag_short: 'Remove from homepage'
+unflag_long: 'Remove this content from the homepage'
+unflag_message: 'Content removed from homepage'
+unflag_denied_text: ''
+flag_type: 'entity:node'
+link_type: reload
+flagTypeConfig:
+  show_in_links: {  }
+  show_as_field: true
+  show_on_form: false
+  show_contextual_link: false
+  extra_permissions: {  }
+linkTypeConfig: {  }

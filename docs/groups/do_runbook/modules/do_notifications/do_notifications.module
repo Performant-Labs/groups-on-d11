@@ -1,0 +1,160 @@
+<?php
+
+/**
+ * @file
+ * Per-post notification opt-out and notification event recording.
+ */
+
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\node\NodeInterface;
+use Drupal\comment\CommentInterface;
+
+/**
+ * Implements hook_form_BASE_FORM_ID_alter() for node_form.
+ *
+ * Adds a "Do not send notifications" checkbox to node forms
+ * for group-postable content types.
+ */
+function do_notifications_form_node_form_alter(array &$form, FormStateInterface $form_state, $form_id) {
+  $node = $form_state->getFormObject()->getEntity();
+  $bundle = $node->bundle();
+
+  // Only add to group-postable content types.
+  if (!in_array($bundle, ['forum', 'documentation', 'event', 'post', 'page'])) {
+    return;
+  }
+
+  $form['do_notifications_suppress'] = [
+    '#type' => 'checkbox',
+    '#title' => t('Do not send notifications for this post'),
+    '#description' => t('Check this box to prevent notification emails from being sent for this content.'),
+    '#default_value' => FALSE,
+    '#weight' => 100,
+    '#group' => 'advanced',
+  ];
+
+  $form['actions']['submit']['#submit'][] = 'do_notifications_node_form_submit';
+}
+
+/**
+ * Submit handler — stores the per-post suppression flag.
+ */
+function do_notifications_node_form_submit(array &$form, FormStateInterface $form_state) {
+  $node = $form_state->getFormObject()->getEntity();
+  $suppress = $form_state->getValue('do_notifications_suppress');
+
+  if ($suppress) {
+    \Drupal::state()->set('do_notifications_suppress_' . $node->id(), TRUE);
+  }
+  else {
+    \Drupal::state()->delete('do_notifications_suppress_' . $node->id());
+  }
+}
+
+/**
+ * Implements hook_node_insert().
+ *
+ * Records a notification event when a node is created.
+ * External system handles recipient resolution and delivery.
+ */
+function do_notifications_node_insert(NodeInterface $node) {
+  if (!$node->isPublished()) {
+    return;
+  }
+
+  $bundle = $node->bundle();
+  if (!in_array($bundle, ['forum', 'documentation', 'event', 'post', 'page'])) {
+    return;
+  }
+
+  _do_notifications_record_event('node_created', $node);
+}
+
+/**
+ * Implements hook_comment_insert().
+ *
+ * Records a notification event when a comment is posted.
+ * Also auto-subscribes the commenter to the thread via follow_content flag.
+ */
+function do_notifications_comment_insert(CommentInterface $comment) {
+  // Record the event.
+  $item = [
+    'event'       => 'comment_created',
+    'entity_type' => 'comment',
+    'entity_id'   => $comment->id(),
+    'bundle'      => $comment->bundle(),
+    'author_uid'  => $comment->getOwnerId(),
+    'parent_entity_type' => $comment->getCommentedEntityTypeId(),
+    'parent_entity_id'   => $comment->getCommentedEntityId(),
+    'group_ids'   => [],
+    'timestamp'   => \Drupal::time()->getRequestTime(),
+  ];
+
+  // Find group IDs if the parent is a node.
+  if ($comment->getCommentedEntityTypeId() === 'node') {
+    $parent = $comment->getCommentedEntity();
+    if ($parent) {
+      $item['group_ids'] = _do_notifications_get_group_ids($parent);
+    }
+  }
+
+  \Drupal::queue('do_notifications')->createItem($item);
+
+  // Auto-subscribe the commenter to the thread.
+  try {
+    $flag_service = \Drupal::service('flag');
+    $flag = $flag_service->getFlagById('follow_content');
+    if ($flag && $comment->getCommentedEntityTypeId() === 'node') {
+      $entity = $comment->getCommentedEntity();
+      $account = \Drupal\user\Entity\User::load($comment->getOwnerId());
+      if ($entity && $account && !$flag_service->getFlagging($flag, $entity, $account)) {
+        $flag_service->flag($flag, $entity, $account);
+      }
+    }
+  }
+  catch (\Exception $e) {
+    // Silently fail — auto-subscribe is a convenience, not critical.
+    \Drupal::logger('do_notifications')->notice('Auto-subscribe failed: @message', ['@message' => $e->getMessage()]);
+  }
+}
+
+/**
+ * Records a notification event to the queue.
+ *
+ * One item per triggering event (not per recipient).
+ * External system resolves recipients from flags/subscriptions.
+ */
+function _do_notifications_record_event(string $event, $entity): void {
+  $item = [
+    'event'       => $event,
+    'entity_type' => $entity->getEntityTypeId(),
+    'entity_id'   => $entity->id(),
+    'bundle'      => $entity->bundle(),
+    'author_uid'  => $entity->getOwnerId(),
+    'group_ids'   => _do_notifications_get_group_ids($entity),
+    'timestamp'   => \Drupal::time()->getRequestTime(),
+  ];
+  \Drupal::queue('do_notifications')->createItem($item);
+}
+
+/**
+ * Returns group IDs this entity belongs to (via group_relationship).
+ */
+function _do_notifications_get_group_ids($entity): array {
+  if ($entity->getEntityTypeId() !== 'node') {
+    return [];
+  }
+
+  try {
+    $relationships = \Drupal::entityTypeManager()
+      ->getStorage('group_relationship')
+      ->loadByProperties([
+        'entity_id' => $entity->id(),
+        'type' => 'community_group-group_node-' . $entity->bundle(),
+      ]);
+    return array_map(fn($r) => $r->getGroup()->id(), $relationships);
+  }
+  catch (\Exception $e) {
+    return [];
+  }
+}

@@ -1,0 +1,9 @@
+uuid: null
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node.stream_card
+label: 'Stream Card'
+targetEntityType: node

@@ -1,0 +1,29 @@
+uuid: 1cd3893d-cf08-4293-93a9-d4a497719331
+langcode: en
+status: true
+dependencies:
+  config:
+    - node.type.book_listing
+    - node.type.casestudy
+    - node.type.changenotice
+    - node.type.organization
+  module:
+    - contact
+    - node
+id: community
+label: community
+weight: 5
+is_admin: null
+permissions:
+  - 'access site-wide contact form'
+  - 'access user contact forms'
+  - 'create book_listing content'
+  - 'create casestudy content'
+  - 'create changenotice content'
+  - 'create organization content'
+  - 'delete own organization content'
+  - 'edit any changenotice content'
+  - 'edit own book_listing content'
+  - 'edit own casestudy content'
+  - 'edit own changenotice content'
+  - 'edit own organization content'

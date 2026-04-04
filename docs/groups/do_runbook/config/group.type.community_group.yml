@@ -1,0 +1,12 @@
+uuid: 625aa94c-99a4-4716-8af1-a3a7bbae789a
+langcode: en
+status: true
+dependencies: {  }
+id: community_group
+label: 'Community Group'
+description: 'A community group for collaboration, discussion, and coordination'
+new_revision: true
+creator_membership: true
+creator_wizard: true
+creator_roles:
+  - community_group-admin

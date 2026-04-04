@@ -1,0 +1,87 @@
+uuid: 0789fe14-79c2-4b3b-84b9-02e666a0082a
+langcode: en
+status: true
+dependencies:
+  module:
+    - group
+id: groups
+label: Groups
+module: views
+description: 'Listing of community groups'
+tag: ''
+base_table: groups_field_data
+base_field: id
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      title: Groups
+      fields:
+        label:
+          id: label
+          table: groups_field_data
+          field: label
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: group
+          entity_field: label
+          plugin_id: field
+          label: 'Group Name'
+          settings:
+            link_to_entity: true
+        created:
+          id: created
+          table: groups_field_data
+          field: created
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: group
+          entity_field: created
+          plugin_id: field
+          label: Created
+          date_format: medium
+      pager:
+        type: full
+        options:
+          pagination_heading_level: h4
+          items_per_page: 25
+      sorts:
+        created:
+          id: created
+          table: groups_field_data
+          field: created
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: group
+          entity_field: created
+          plugin_id: date
+          order: DESC
+      filters:
+        status:
+          id: status
+          table: groups_field_data
+          field: status
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: group
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+      style:
+        type: default
+      row:
+        type: fields
+  page_1:
+    id: page_1
+    display_title: Page
+    display_plugin: page
+    position: 1
+    display_options:
+      path: groups

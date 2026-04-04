@@ -1,0 +1,8 @@
+name: 'DO Multi-Group Posting'
+type: module
+description: 'Allows content to be posted in multiple groups simultaneously.'
+core_version_requirement: ^10
+package: 'Custom'
+dependencies:
+  - drupal:node
+  - drupal:group

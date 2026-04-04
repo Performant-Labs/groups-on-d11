@@ -1,0 +1,8 @@
+name: DO Group Language
+type: module
+description: 'Group-level language negotiation. Sets the interface language based on the group context.'
+core_version_requirement: ^10
+package: Custom
+dependencies:
+  - drupal:language
+  - drupal:group
