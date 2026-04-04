@@ -1495,11 +1495,42 @@ ddev describe | grep -i rabbit
 > [!NOTE]
 > pl-drupalorg has **RabbitMQ** available as a DDEV service. **Email is never sent by Drupal.** Drupal only enqueues notification items (queue table or RabbitMQ). An external system consumes the queue and handles actual email delivery.
 
-## Step 510 — Install Flag Module Follow Flags
+## Step 510 — Import Follow Flags
 
-Flag (from Phase 4) is already installed. Create the follow flags:
+Flag (from Phase 4) is already installed. All flag YAMLs exist in `docs/groups/config/`. Batch-import:
 
-### 510a — Follow Content flag
+```bash
+cp docs/groups/config/flag.flag.follow_content.yml config/sync/
+cp docs/groups/config/flag.flag.follow_user.yml config/sync/
+cp docs/groups/config/flag.flag.follow_term.yml config/sync/
+cp docs/groups/config/flag.flag.mute_group_notifications.yml config/sync/
+cp docs/groups/config/system.action.flag_action.follow_content_flag.yml config/sync/
+cp docs/groups/config/system.action.flag_action.follow_content_unflag.yml config/sync/
+cp docs/groups/config/system.action.flag_action.follow_user_flag.yml config/sync/
+cp docs/groups/config/system.action.flag_action.follow_user_unflag.yml config/sync/
+cp docs/groups/config/system.action.flag_action.follow_term_flag.yml config/sync/
+cp docs/groups/config/system.action.flag_action.follow_term_unflag.yml config/sync/
+cp docs/groups/config/system.action.flag_action.mute_group_notifications_flag.yml config/sync/
+cp docs/groups/config/system.action.flag_action.mute_group_notifications_unflag.yml config/sync/
+ddev drush config:import -y
+ddev drush config:export -y
+```
+
+> [!CAUTION]
+> **`entity:profile` → `entity:user`**: `follow_user` uses `entity:user` (not `entity:profile`) because pl-drupalorg uses standard Drupal user entities, not the contributed `profile` module.
+
+> [!CAUTION]
+> **`show_in_links` view mode adaption**: `mute_group_notifications` uses `full: full, teaser: teaser` (not `hero: hero, teaser: teaser`) because the `hero` view mode doesn't exist in Olivero/Claro.
+
+### 510e — Grant flag permissions
+
+```bash
+ddev drush role:perm:add authenticated "flag follow_content,unflag follow_content"
+ddev drush role:perm:add authenticated "flag follow_user,unflag follow_user"
+ddev drush role:perm:add authenticated "flag follow_term,unflag follow_term"
+ddev drush role:perm:add authenticated "flag mute_group_notifications,unflag mute_group_notifications"
+ddev drush config:export -y
+```
 
 Create `web/modules/custom/do_notifications/config/install/flag.flag.follow_content.yml`:
 
@@ -1668,36 +1699,41 @@ ddev drush config:export -y
 
 Per-post opt-out, follow subscriptions, and subscription management page.
 
-**Source files** (already in repo):
-- [do_notifications.info.yml](modules/do_notifications/do_notifications.info.yml)
-- [do_notifications.module](modules/do_notifications/do_notifications.module) — per-post opt-out checkbox, submit handler
-- [do_notifications.routing.yml](modules/do_notifications/do_notifications.routing.yml) — user settings + admin defaults routes
-- [do_notifications.links.task.yml](modules/do_notifications/do_notifications.links.task.yml) — "Notifications" tab on user profiles
-- [NotificationSettingsController.php](modules/do_notifications/src/Controller/NotificationSettingsController.php) — subscription management page (229 lines)
-- [CancelAllSubscriptionsForm.php](modules/do_notifications/src/Form/CancelAllSubscriptionsForm.php) — confirmation form (110 lines)
-- [NotificationDefaultsForm.php](modules/do_notifications/src/Form/NotificationDefaultsForm.php) — admin defaults form
-- [do_notifications.settings.yml](modules/do_notifications/config/install/do_notifications.settings.yml) — default config
+> [!IMPORTANT]
+> **Enable `comment` module before enabling `do_notifications`.** The module's `commentInsert` hook depends on comment entities. (Comment was already enabled in Phase 4 for activity_stream view.)
 
-**Bundled flag configs** (in `config/install/`):
-- [follow_content.yml](modules/do_notifications/config/install/flag.flag.follow_content.yml)
-- [follow_term.yml](modules/do_notifications/config/install/flag.flag.follow_term.yml)
-- [follow_user.yml](modules/do_notifications/config/install/flag.flag.follow_user.yml)
-- [mute_group_notifications.yml](modules/do_notifications/config/install/flag.flag.mute_group_notifications.yml)
+**Source files** (in repo at `docs/groups/modules/do_notifications/`, deployed to `web/modules/custom/do_notifications/`):
+- `do_notifications.info.yml` — `core_version_requirement: ^10 || ^11`; depends on `drupal:flag`, `drupal:node`, `drupal:user`
+- `do_notifications.services.yml` — registers `DoNotificationsHooks` service
+- `src/Hook/DoNotificationsHooks.php` — `hook_form_node_form_alter`, `hook_node_insert`, `hook_comment_insert` via `#[Hook]`
+- `do_notifications.module` — empty (`@file` docblock)
+- `do_notifications.routing.yml` — 3 routes (settings, cancel, admin defaults)
+- `do_notifications.links.task.yml` — "Notifications" tab on user profiles
+- `src/Controller/NotificationSettingsController.php` — subscription management page
+- `src/Form/CancelAllSubscriptionsForm.php` — cancel-all confirmation form
+- `src/Form/NotificationDefaultsForm.php` — admin defaults config form
+- `config/optional/do_notifications.settings.yml` — default config (frequency, auto-subscribe)
+- `config/optional/flag.flag.*.yml` — follow flags (skipped if already active)
 
-**Routes**:
+> [!IMPORTANT]
+> This module uses the **Drupal 11 `#[Hook]` attribute system**. All hook logic is in `src/Hook/DoNotificationsHooks.php`.
 
-| Route | Path |
-|---|---|
-| Notification settings | `/user/{user}/notification-settings` |
-| Cancel all | `/user/{user}/notification-settings/cancel-all` |
-| Admin defaults | `/admin/config/people/notification-defaults` |
+> [!CAUTION]
+> **`config/optional/` vs `config/install/`**: Flag configs are in `config/optional/` (not `config/install/`). If the flags are already in active config (imported globally in Step 510), `config/install/` would throw a `PreExistingConfigException`. `config/optional/` silently skips them.
+
+> [!CAUTION]
+> **DI type-check gotcha**: `FlagServiceInterface` cannot be injected into `hook_implementations`-tagged services — Drupal's `DefinitionErrorExceptionPass` rejects interface types it can't alias. Use `\Drupal::service('flag')` statically in the method body. This is a **known pattern** documented in the DI autowire gotcha note in Phase 4.
 
 ### Enable
 
 ```bash
+# Step 1: Copy module from docs to web
+rm -rf web/modules/custom/do_notifications
+cp -r docs/groups/modules/do_notifications web/modules/custom/
+# Step 2: Enable module
 ddev drush en do_notifications -y
-ddev restart
-ddev drush cr
+# Step 3: Export config
+ddev drush config:export -y
 ```
 
 Verify:
@@ -1751,7 +1787,14 @@ Access: `administer site configuration` permission.
 
 ### 540b — Per-user notification frequency field
 
-Add a `field_notification_frequency` field to the `user` entity *(admin UI: `/admin/config/people/accounts/fields/add`)*:
+YAML exists in `docs/groups/config/`. Import it alongside the flag configs in Step 510:
+
+```bash
+cp docs/groups/config/field.storage.user.field_notification_frequency.yml config/sync/
+cp docs/groups/config/field.field.user.user.field_notification_frequency.yml config/sync/
+ddev drush config:import -y
+ddev drush config:export -y
+```
 
 | Setting | Value |
 |---|---|
@@ -1759,25 +1802,24 @@ Add a `field_notification_frequency` field to the `user` entity *(admin UI: `/ad
 | **Label** | Notification frequency |
 | **Machine name** | `field_notification_frequency` |
 | **Allowed values** | `immediately\|Immediately`, `daily\|Daily digest`, `weekly\|Weekly digest` |
-| **Default value** | Inherited from `do_notifications.settings.default_frequency` |
-| **Required** | Yes |
 
-**Script**: [step_520.php](scripts/step_520.php) — creates field storage and instance with idempotent checks
-
+Verify:
 ```bash
-ddev drush php:script docs/groups/scripts/step_520.php
+ddev drush php:eval '\Drupal\field\Entity\FieldStorageConfig::loadByName("user", "field_notification_frequency") ? print "OK\n" : print "MISSING\n";'
 ```
 
-The per-user settings page (`/user/{uid}/notification-settings`) displays this field alongside the subscription management UI. When the user has not explicitly set a preference, the admin default is used.
-
-```bash
-ddev drush config:export -y
-```
-
-## Step 550 — Implement Notification Event Recording
+## Step 550 — Notification Event Recording
 
 > [!IMPORTANT]
-> These hooks go in `do_notifications.module`. They only record what happened — **no follower lookups, no suppression checks, no email.**
+> All hook logic is in `DoNotificationsHooks` via `#[Hook]`. The `.module` file is intentionally empty. The hooks only record what happened — **no follower lookups, no suppression checks, no email.**
+
+**Hooks implemented in `DoNotificationsHooks`**:
+- `formNodeFormAlter` — adds "Do not send notifications" checkbox to group-postable node forms
+- `nodeFormSubmit` (static) — stores suppression flag per-node in State API
+- `nodeInsert` — queues `node_created` event for published group-postable content
+- `commentInsert` — queues `comment_created` event; auto-subscribes commenter via `follow_content` flag
+
+**Drupal only records what happened** (one queue item per event, not per recipient):
 
 ```php
 /**
@@ -1913,25 +1955,33 @@ npx playwright test tests/e2e/phase5.spec.ts
 ### Custom module files (Phase 5)
 
 ```
-web/modules/custom/do_notifications/
+docs/groups/modules/do_notifications/   ← source of truth
 ├── config/
-│   └── install/
-│       ├── do_notifications.settings.yml        (admin defaults: frequency, auto-subscribe)
+│   └── optional/               ← skipped if flags already in active config
+│       ├── do_notifications.settings.yml
 │       ├── flag.flag.follow_content.yml
 │       ├── flag.flag.follow_user.yml
 │       ├── flag.flag.follow_term.yml
 │       └── flag.flag.mute_group_notifications.yml
 ├── src/
 │   ├── Controller/
-│   │   └── NotificationSettingsController.php  (229 lines, subscription management)
-│   └── Form/
-│       ├── CancelAllSubscriptionsForm.php      (110 lines, confirm form)
-│       └── NotificationDefaultsForm.php        (admin defaults config form)
+│   │   └── NotificationSettingsController.php
+│   ├── Form/
+│   │   ├── CancelAllSubscriptionsForm.php
+│   │   └── NotificationDefaultsForm.php
+│   └── Hook/
+│       └── DoNotificationsHooks.php    ← #[Hook] form_alter, node_insert, comment_insert
 ├── do_notifications.info.yml
-├── do_notifications.links.task.yml             (user profile tab)
-├── do_notifications.module                     (form alter + event recording)
-└── do_notifications.routing.yml                (3 routes: settings, cancel, admin defaults)
+├── do_notifications.links.task.yml
+├── do_notifications.module             ← empty (@file docblock)
+├── do_notifications.routing.yml
+└── do_notifications.services.yml       ← registers DoNotificationsHooks service
+
+web/modules/custom/do_notifications/    ← deployed copy (synced via rm -rf + cp -r)
 ```
+
+> [!NOTE]
+> **`config/optional/` vs `config/install/`**: Use `config/optional/` for flag configs that may already exist in active config. `config/install/` would throw `PreExistingConfigException` if the flags were imported globally before the module was enabled.
 
 ### Key Adaptations from Open Social (Phase 5)
 
