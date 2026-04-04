@@ -1,0 +1,9 @@
+# Drupal .gitignore
+/vendor/
+/.ddev/
+/web/sites/default/files/
+/web/sites/default/settings.php
+/web/sites/default/services.yml
+/web/sites/default/default.services.yml
+/web/sites/default/default.settings.php
+/composer.lock
