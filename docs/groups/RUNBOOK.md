@@ -112,33 +112,22 @@ A database snapshot is taken **before** each phase begins. To roll back to the s
 
 # Phase 1 — Foundation & Module Installation
 
-**Goal**: Install the Drupal Group module and establish the base group type.
+**Goal**: Install the Drupal Group module, create the base group type, and establish the 5 group-postable content types.
 
-**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 3, FEATURES.md (removed) Groups section
+> [!IMPORTANT]
+> **YAML-first policy.** All Drupal configuration in this project is managed as YAML config entities, not PHP scripts. Config entities (content types, field storage, field instances, group types, relationship types, vocabularies, views) live in `docs/groups/config/`. Data entities (taxonomy terms, users, demo content) use scripts in `docs/groups/scripts/`.
 
-## Existing Content Types in pl-drupalorg
+## Group-Postable Content Types
 
-pl-drupalorg has **30 content types**:
+This project creates the following 5 content types from scratch. They do not pre-exist.
 
-| Category | Content types |
-|---|---|
-| **Projects** | `project_core`, `project_module`, `project_theme`, `project_theme_engine`, `project_distribution`, `project_drupalorg`, `project_general`, `project_translation`, `project_release` |
-| **Contributor Guide** | `contributor_role`, `contributor_skill`, `contributor_task`, `contribution_record` |
-| **Content** | `post`, `page`, `documentation`, `guide`, `book_listing`, `section`, `landing_page` |
-| **Community** | `event`, `forum`, `casestudy`, `organization`, `hosting_listing` |
-| **Admin/Meta** | `changenotice`, `sa` (security advisory), `logo`, `site_template` |
-
-### Content types likely relevant to groups
-
-| Content type | Reason |
-|---|---|
-| `forum` | Groups.drupal.org groups were essentially discussion forums |
-| `documentation` | Working groups produce documentation |
-| `event` | Groups organize events |
-| `post` | Blog-style posts within a group context |
-| `page` | General pages within a group |
-
-> ✅ **Confirmed**: `forum`, `documentation`, `event`, `post`, `page` are the group-postable content types.
+| Content type | Purpose | Config file |
+|---|---|---|
+| `forum` | Community discussion threads | `node.type.forum.yml` |
+| `documentation` | Long-form reference docs | `node.type.documentation.yml` |
+| `event` | Community events | `node.type.event.yml` |
+| `post` | Short-form posts | `node.type.post.yml` |
+| `page` | General static pages | `node.type.page.yml` |
 
 ## Step 100 — Create Baseline Snapshot
 
@@ -153,104 +142,153 @@ git add -A && git status
 
 Verify the backup file exists and note its filename in the rollback table above.
 
+## Step 105 — Configure config sync directory
+
+DDEV defaults config sync to `sites/default/files/sync`. Override it to `config/sync` (outside the webroot, under version control).
+
+```bash
+mkdir -p config/sync
+```
+
+In `web/sites/default/settings.php`, uncomment and set:
+```php
+$settings['config_sync_directory'] = '../config/sync';
+```
+
+Capture the initial baseline config:
+```bash
+ddev drush config:export -y
+git add config/sync && git commit -m "chore: initial config export"
+```
+
+> [!IMPORTANT]
+> The `config_sync_directory` line in `settings.php` must appear **before** `settings.ddev.php` is included. DDEV's `settings.ddev.php` sets this to `sites/default/files/sync` as a fallback — your explicit setting overrides it.
+
 ## Step 110 — Install the Group Module
 
 ```bash
 ddev composer require drupal/group
 ```
 
-Standard Drupal Group module (not Open Social's bundled version). API versions:
-- **1.x**: `GroupContent` entities (Drupal 8/9)
-- **2.x/3.x**: `GroupRelationship` entities (Drupal 10+)
+Standard Drupal Group module (not Open Social's bundled version):
+- **3.x**: `GroupRelationship` entities (Drupal 10+, this project)
 
 > ✅ **Resolved**: `drupal/group` 3.3.5 is already installed. Requires Drupal `^10.3 || ^11`.
 
-## Step 120 — Enable the Module
+## Step 120 — Enable All Required Modules
+
+Enable the group modules plus all Drupal core modules needed for Phase 1 field types:
 
 ```bash
-ddev drush en group -y
-ddev drush en gnode -y
-ddev drush cr
+ddev drush en group gnode image taxonomy views views_ui text -y
 ```
 
 > [!IMPORTANT]
-> The `gnode` (Group Node) sub-module must be enabled separately. It provides the `group_node:*` relationship type plugins that allow content types to be posted to groups. Without it, no `group_node` plugins are available.
+> **Export immediately after enabling modules.** This updates `core.extension` in `config/sync` to reflect the newly enabled modules. If you skip this export and add custom YAML configs first, `config:import` will fail because `core.extension` won't list the modules as dependencies.
+
+```bash
+ddev drush config:export -y
+```
 
 Verify:
 ```bash
-ddev drush pm:list --filter=group --status=enabled
+ddev drush pm:list --status=enabled | grep -E "group|gnode"
 # Should show: group, gnode (both enabled)
 ```
 
-## Step 130 — Create Group Type
+## Step 125 — Create the 5 Group-Postable Content Types
 
-Create the `community_group` group type config entity *(admin UI: `/admin/group/types/add`)*:
-
-| Setting | Value | Notes |
-|---|---|---|
-| **Label** | Community Group | Matches groups.drupal.org purpose |
-| **Machine name** | `community_group` | Used in all config and code |
-| **Description** | A community group for collaboration, discussion, and coordination | |
-| **Creator is member** | Yes | Creator auto-joins |
-| **Creator role** | Group Admin | Creator gets admin role |
-
-### 130a — Create the group type and admin role
+These content types do not exist on a clean install. Create them via YAML config import.
 
 ```bash
-ddev drush php:script docs/groups/scripts/step_120a.php
+cp docs/groups/config/node.type.forum.yml config/sync/
+cp docs/groups/config/node.type.documentation.yml config/sync/
+cp docs/groups/config/node.type.event.yml config/sync/
+cp docs/groups/config/node.type.post.yml config/sync/
+cp docs/groups/config/node.type.page.yml config/sync/
+ddev drush config:import -y
+ddev drush config:export -y
 ```
 
+Verify:
+```bash
+ddev drush php:eval 'foreach (\Drupal::entityTypeManager()->getStorage("node_type")->loadMultiple() as $t) echo $t->id() . "\n";'
+# Should show: documentation, event, forum, page, post
+```
+
+## Step 130 — Create Group Type and Fields
+
+Import the group type, admin role, and group fields via YAML:
+
+```bash
+cp docs/groups/config/group.type.community_group.yml config/sync/
+cp docs/groups/config/group.role.community_group-admin.yml config/sync/
+cp docs/groups/config/group.settings.yml config/sync/
+cp docs/groups/config/group.relationship_type.community_group-group_membership.yml config/sync/
+cp docs/groups/config/field.storage.group.field_group_description.yml config/sync/
+cp docs/groups/config/field.storage.group.field_group_visibility.yml config/sync/
+cp docs/groups/config/field.storage.group.field_group_image.yml config/sync/
+cp docs/groups/config/field.storage.group_relationship.group_roles.yml config/sync/
+cp docs/groups/config/field.field.group.community_group.field_group_description.yml config/sync/
+cp docs/groups/config/field.field.group.community_group.field_group_visibility.yml config/sync/
+cp docs/groups/config/field.field.group.community_group.field_group_image.yml config/sync/
+cp docs/groups/config/field.field.group_relationship.community_group-group_membership.group_roles.yml config/sync/
+cp docs/groups/config/core.entity_form_display.group_relationship.community_group-group_membership.default.yml config/sync/
+cp docs/groups/config/core.entity_view_display.group_relationship.community_group-group_membership.default.yml config/sync/
+ddev drush config:import -y
+ddev drush config:export -y
+```
+
+**Group type settings:**
+
+| Setting | Value |
+|---|---|
+| Label | Community Group |
+| Machine name | `community_group` |
+| Creator is member | Yes |
+| Creator role | `community_group-admin` |
+
+**Fields added to group type:**
+
+| Field | Type | Machine name |
+|---|---|---|
+| Description | Text (formatted, long) | `field_group_description` |
+| Visibility | List (text) | `field_group_visibility` |
+| Image | Image | `field_group_image` |
+
+> [!NOTE]
+> `field_group_type` and `field_group_language` are added in later phases.
+
 > [!CAUTION]
-> **`Group::create()` does NOT auto-join the creator.** The `creator_membership` setting on the group type only applies when groups are created through the form UI. When creating groups programmatically, you must explicitly add the creator as a member:
+> **`Group::create()` does NOT auto-join the creator.** The `creator_membership` group type setting only applies when groups are created through the form UI. When creating groups programmatically, explicitly add the creator as a member:
 > ```php
 > $group->addMember(\Drupal\user\Entity\User::load($uid));
 > ```
 
-### 130b — Add fields to the group type
-
-| Field | Type | Machine name | Required |
-|---|---|---|---|
-| Description | Text (formatted, long) | `field_group_description` | Yes |
-| Visibility | List (text) | `field_group_visibility` | Yes |
-| Image | Image | `field_group_image` | No |
-| Group Type | Entity reference | `field_group_type` | No (Phase 2) |
-| Language | Language | `field_group_language` | No (Phase 6) |
-
-> [!NOTE]
-> `field_group_type` and `field_group_language` are created in later phases. Only the first three are created now.
-
-**Script**: [step_120b.php](scripts/step_120b.php) — creates field storage + instances for description, visibility, image
-
-```bash
-ddev drush php:script docs/groups/scripts/step_120b.php
-ddev drush config:export -y
-```
-
 ## Step 140 — Configure Group-Node Relationships
 
-Install the following relationship type plugins for `community_group` *(admin UI: `/admin/group/types/manage/community_group/content`)*:
-
-| Plugin | Relationship type ID | What it does |
-|---|---|---|
-| **Group membership** | `community_group-group_membership` | Users join/leave (installed by default) |
-| **Group node (forum)** | `community_group-group_node-forum` | Forum topics posted to group |
-| **Group node (documentation)** | `community_group-group_node-doc` | Documentation posted to group |
-| **Group node (event)** | `community_group-group_node-event` | Events posted to group |
-| **Group node (post)** | `community_group-group_node-post` | Posts posted to group |
-| **Group node (page)** | `community_group-group_node-page` | Pages posted to group |
-
-> [!CAUTION]
-> **32-character ID limit.** Drupal enforces a maximum of 32 characters for `group_relationship_type` IDs. The full pattern `community_group-group_node-documentation` is 40 characters, so the `documentation` relationship uses the abbreviated ID `community_group-group_node-doc`. All other content type names fit within the limit.
-
-> [!IMPORTANT]
-> **Entity property name**: When creating relationship types programmatically, use `content_plugin` (not `plugin_id`) as the property name for the plugin reference.
-
-**Script**: [step_130.php](scripts/step_130.php) — creates 5 relationship types with idempotent checks
+Import the 5 group-node relationship type configs:
 
 ```bash
-ddev drush php:script docs/groups/scripts/step_130.php
+cp docs/groups/config/group.relationship_type.community_group-group_node-forum.yml config/sync/
+cp docs/groups/config/group.relationship_type.community_group-group_node-doc.yml config/sync/
+cp docs/groups/config/group.relationship_type.community_group-group_node-event.yml config/sync/
+cp docs/groups/config/group.relationship_type.community_group-group_node-post.yml config/sync/
+cp docs/groups/config/group.relationship_type.community_group-group_node-page.yml config/sync/
+ddev drush config:import -y
 ddev drush config:export -y
 ```
+
+| Relationship type ID | Content type |
+|---|---|
+| `community_group-group_node-forum` | forum |
+| `community_group-group_node-doc` | documentation |
+| `community_group-group_node-event` | event |
+| `community_group-group_node-post` | post |
+| `community_group-group_node-page` | page |
+
+> [!CAUTION]
+> **32-character ID limit.** `community_group-group_node-documentation` is 40 chars. Use the abbreviated ID `community_group-group_node-doc`.
 
 ## Step 150 — Set Up Basic Permissions
 
@@ -294,90 +332,88 @@ Configure the following group-level permissions *(admin UI: `/admin/group/types/
 ddev drush config:export -y
 ```
 
-## Step 160 — Create Group Listing Page
+## Step 160 — Create Group Listing View + Tag Taxonomy
 
-Create a `groups` View config entity *(admin UI: `/admin/structure/views/add`)*:
+Import the All Groups view and the `event_types` and `group_tags` vocabularies:
 
-| Setting | Value |
-|---|---|
-| **View name** | Groups |
-| **Machine name** | `groups` |
-| **Show** | Group (entity type) |
-| **Page path** | `/groups` |
-| **Format** | Unformatted list of teasers (or table) |
-
-Filters: Published = Yes. Sort: Created, newest first.
-
-Fields (if table format): Group name (linked), Description (trimmed 200), Member count, Created date.
-
-**Config**: [views.view.groups.yml](config/views.view.groups.yml)
-
-Import the config:
 ```bash
+cp docs/groups/config/views.view.all_groups.yml config/sync/
+cp docs/groups/config/taxonomy.vocabulary.event_types.yml config/sync/
+cp docs/groups/config/taxonomy.vocabulary.group_tags.yml config/sync/
 ddev drush config:import -y
-```
-
-Verify: navigate to `/groups` — should show an empty list (no groups created yet).
-
-```bash
 ddev drush config:export -y
 ```
 
-## Step 170 — Verify Content Type Field Configuration
+Verify: navigate to `/all-groups` — should load (empty list, no groups yet).
 
-> [!IMPORTANT]
-> pl-drupalorg already has 30 content types. Before proceeding, verify the group-postable content types have the required fields.
+## Step 170 — Add Basic Permissions
 
-### Required fields per content type
+```bash
+ddev drush role:perm:add authenticated "create community_group group"
+ddev drush role:perm:add authenticated "access group overview"
+ddev drush role:perm:add anonymous "access group overview"
+ddev drush config:export -y
+```
 
-| Content Type | Body field | Attachments | Tags | Comment field |
-|---|---|---|---|---|
-| `forum` | ✅ Verify | ✅ Verify `field_files` | ✅ Verify `field_tags` | ✅ Verify field name |
-| `documentation` | ✅ Verify | ✅ Verify `field_files` | ✅ Verify `field_tags` | ✅ Verify field name |
-| `event` | ✅ Verify | ✅ Verify `field_files` | ✅ Verify `field_tags` | ✅ Verify field name |
-| `post` | ✅ Verify | ✅ Verify `field_files` | ✅ Verify `field_tags` | ✅ Verify field name |
-| `page` | ✅ Verify | ✅ Verify `field_files` | ✅ Verify `field_tags` | ✅ Verify field name |
+**Group-level permissions** *(configured via `/admin/group/types/manage/community_group/permissions`)*:
 
-**Script**: [step_160.php](scripts/step_160.php) — checks body, field_files, field_tags, comment fields, text format, attachment limits
+| Permission | Member | Admin | Outsider |
+|---|---|---|---|
+| View group | ✅ | ✅ | ✅ |
+| Edit group | ❌ | ✅ | ❌ |
+| Delete group | ❌ | ✅ | ❌ |
+| Administer members | ❌ | ✅ | ❌ |
+| Join group | — | — | ✅ |
+| Leave group | ✅ | ✅ | — |
+| Create content in group | ✅ | ✅ | ❌ |
+| Edit own content in group | ✅ | ✅ | ❌ |
+| Edit any content | ❌ | ✅ | ❌ |
+| Delete own content | ✅ | ✅ | ❌ |
+| Delete any content | ❌ | ✅ | ❌ |
 
+> [!NOTE]
+> Group-level permissions are set via the Group module's permission system, not `drush role:perm`. Configure via admin UI or import `group.role.community_group-*.yml` configs after `config:export`.
+
+## Step 180 — Add Required Fields to Content Types
+
+Add `body`, `field_group_tags`, and `field_event_type` (events only) to all 5 content types:
+
+```bash
+cp docs/groups/config/field.storage.node.body.yml config/sync/
+cp docs/groups/config/field.field.node.forum.body.yml config/sync/
+cp docs/groups/config/field.field.node.documentation.body.yml config/sync/
+cp docs/groups/config/field.field.node.event.body.yml config/sync/
+cp docs/groups/config/field.field.node.post.body.yml config/sync/
+cp docs/groups/config/field.field.node.page.body.yml config/sync/
+cp docs/groups/config/field.storage.node.field_group_tags.yml config/sync/
+cp docs/groups/config/field.field.node.forum.field_group_tags.yml config/sync/
+cp docs/groups/config/field.field.node.documentation.field_group_tags.yml config/sync/
+cp docs/groups/config/field.field.node.event.field_group_tags.yml config/sync/
+cp docs/groups/config/field.field.node.post.field_group_tags.yml config/sync/
+cp docs/groups/config/field.field.node.page.field_group_tags.yml config/sync/
+cp docs/groups/config/field.storage.node.field_event_type.yml config/sync/
+cp docs/groups/config/field.field.node.event.field_event_type.yml config/sync/
+ddev drush config:import -y
+ddev drush config:export -y
+```
+
+Verify with the field check script:
 ```bash
 ddev drush php:script docs/groups/scripts/step_160.php
 ```
 
-### Text format configuration
-
-> [!NOTE]
-> If `full_html` is disabled or `linkit` module is not installed:
-> ```bash
-> ddev composer require drupal/linkit --no-interaction
-> ddev drush en linkit -y
-> ```
-
-### Update attachment field limits (if needed)
-
-**Script**: [step_160b.php](scripts/step_160b.php) — sets 15 MB limit and expanded extensions
-
-```bash
-ddev drush php:script docs/groups/scripts/step_160b.php
+Expected output:
 ```
-
-## Step 180 — Create `event_types` Taxonomy
-
-> [!IMPORTANT]
-> pl-drupalorg's event content type may need an event type classification. The old runbook creates 7 event type terms. Check if this vocabulary already exists:
-
-**Script**: [step_170.php](scripts/step_170.php) — creates vocabulary and 7 terms with idempotent checks
-
-```bash
-ddev drush php:script docs/groups/scripts/step_170.php
+=== Content type field verification ===
+forum: body=YES files=NO tags=YES comment=NONE
+documentation: body=YES files=NO tags=YES comment=NONE
+event: body=YES files=NO tags=YES comment=NONE
+post: body=YES files=NO tags=YES comment=NONE
+page: body=YES files=NO tags=YES comment=NONE
 ```
 
 > [!NOTE]
-> If the event content type has `field_event_type`, verify its `handler_settings.target_bundles` points to `event_types`.
-
-```bash
-ddev drush config:export -y
-```
+> `files=NO` and `comment=NONE` are expected at this stage. File attachments and comments are Phase 2+ concerns.
 
 ## Step 190 — Phase 1 Tests
 
@@ -418,20 +454,17 @@ npx playwright test tests/e2e/phase1.spec.ts
 ## Phase 1 — Verification
 
 - [ ] `drupal/group` in `composer.json` and `composer.lock`
-- [ ] `drush pm:list --filter=group --status=enabled` shows enabled
+- [ ] `ddev drush pm:list --status=enabled | grep -E "group|gnode"` shows both enabled
+- [ ] `config/sync/` exists and `ddev drush config:status` shows clean (no differences)
+- [ ] 5 content types exist: `forum`, `documentation`, `event`, `post`, `page`
 - [ ] `community_group` group type exists at `/admin/group/types`
-- [ ] Group type has fields: description, visibility, image
-- [ ] Test group can be created at `/group/add/community_group`
-- [ ] Group-node relationships configured for chosen content types
-- [ ] Permissions set for member/admin/outsider
-- [ ] Group listing at `/groups` works
-- [ ] Content type fields verified (body, field_files, field_tags, comment field) per Step 170
-- [ ] `full_html` text format enabled and properly configured
-- [ ] Attachment field limits set to 15 MB with expanded extensions
-- [ ] `event_types` vocabulary exists with 7 terms
-- [ ] Config exported: `ddev drush config:status` clean
+- [ ] Group type has fields: `field_group_description`, `field_group_visibility`, `field_group_image`
+- [ ] 5 group-node relationship types exist (`community_group-group_node-{forum,doc,event,post,page}`)
+- [ ] Group listing view accessible at `/all-groups`
+- [ ] `event_types` and `group_tags` vocabularies exist
+- [ ] `ddev drush php:script docs/groups/scripts/step_160.php` shows `body=YES tags=YES` for all 5 types
 - [ ] `ddev drush cr` — no PHP errors
-- [ ] Nightwatch tests pass: `composer nightwatch`
+- [ ] DB snapshot in `backups/phase1-complete-*.sql.gz`
 
 ### Schema Changes (Phase 1)
 
