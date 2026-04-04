@@ -3,20 +3,20 @@
 Extract procedural hook logic into OOP service classes with dependency injection. Five phases, one module per phase, each with explicit test coverage.
 
 > [!CAUTION]
-> **MANDATORY READING**: Before starting ANY phase of this refactoring, you **MUST** read and understand [os_HANGING_PROCESSES.md](os_HANGING_PROCESSES.md). It documents 21 categories of process hangs that can occur during Drupal development/testing workflow. Ignoring it will lead to wasted hours debugging phantom freezes. **Read it. Know it. Follow it.**
+> **MANDATORY READING**: Before starting ANY phase of this refactoring, you **MUST** read and understand [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md). It documents 21 categories of process hangs that can occur during Drupal development/testing workflow. Ignoring it will lead to wasted hours debugging phantom freezes. **Read it. Know it. Follow it.**
 
 ---
 
 ## Pre-Phase Checklist (Do This Before EVERY Phase)
 
 > [!WARNING]
-> **Reference: [os_HANGING_PROCESSES.md](os_HANGING_PROCESSES.md)** — Follow the Diagnostic Checklist and cleanup steps documented there before starting each phase.
+> **Reference: [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md)** — Follow the Diagnostic Checklist and cleanup steps documented there before starting each phase.
 
-1. **Kill zombie processes** — Run `kill-zombies.sh` (see [HANGING_PROCESSES §3, §12](os_HANGING_PROCESSES.md))
-2. **Verify DDEV is healthy** — `ddev describe` (see [HANGING_PROCESSES §4, §11](os_HANGING_PROCESSES.md))
-3. **Stop unused DDEV projects** — `ddev list` and stop any you're not using (see [HANGING_PROCESSES §11](os_HANGING_PROCESSES.md))
-4. **Flush opcache** — `ddev restart` after adding/moving PHP files (see [HANGING_PROCESSES §10](os_HANGING_PROCESSES.md)). `ddev drush cr` alone is NOT enough.
-5. **Use `SafeToAutoRun: true`** for non-destructive commands (see [HANGING_PROCESSES §21](os_HANGING_PROCESSES.md))
+1. **Kill zombie processes** — Run `kill-zombies.sh` (see [HANGING_PROCESSES §3, §12](../../ai_guidance/TROUBLESHOOTING.md))
+2. **Verify DDEV is healthy** — `ddev describe` (see [HANGING_PROCESSES §4, §11](../../ai_guidance/TROUBLESHOOTING.md))
+3. **Stop unused DDEV projects** — `ddev list` and stop any you're not using (see [HANGING_PROCESSES §11](../../ai_guidance/TROUBLESHOOTING.md))
+4. **Flush opcache** — `ddev restart` after adding/moving PHP files (see [HANGING_PROCESSES §10](../../ai_guidance/TROUBLESHOOTING.md)). `ddev drush cr` alone is NOT enough.
+5. **Use `SafeToAutoRun: true`** for non-destructive commands (see [HANGING_PROCESSES §21](../../ai_guidance/TROUBLESHOOTING.md))
 
 ---
 
@@ -35,7 +35,7 @@ Extract procedural hook logic into OOP service classes with dependency injection
 ## Phase R1 — `do_multigroup` (D → A)
 
 > [!IMPORTANT]
-> After creating `MultigroupManager.php`, you **MUST** run `ddev restart` — not just `ddev drush cr`. New PHP classes require an opcache flush. See [HANGING_PROCESSES §10 — PHP Opcode Cache Stale Class](os_HANGING_PROCESSES.md).
+> After creating `MultigroupManager.php`, you **MUST** run `ddev restart` — not just `ddev drush cr`. New PHP classes require an opcache flush. See [HANGING_PROCESSES §10 — PHP Opcode Cache Stale Class](../../ai_guidance/TROUBLESHOOTING.md).
 
 ### Changes
 
@@ -66,14 +66,14 @@ ddev exec bash -c "cd /var/www/html/web/core && php ../../vendor/bin/phpunit --c
 ```
 
 > [!WARNING]
-> If `ddev exec` hangs with no output, check [HANGING_PROCESSES §4](os_HANGING_PROCESSES.md) and [§21](os_HANGING_PROCESSES.md). Verify DDEV is running with `ddev describe` first.
+> If `ddev exec` hangs with no output, check [HANGING_PROCESSES §4](../../ai_guidance/TROUBLESHOOTING.md) and [§21](../../ai_guidance/TROUBLESHOOTING.md). Verify DDEV is running with `ddev describe` first.
 
 ---
 
 ## Phase R2 — `do_notifications` (C → A)
 
 > [!IMPORTANT]
-> After creating `NotificationEventRecorder.php`, run `ddev restart` to flush opcache. See [HANGING_PROCESSES §10](os_HANGING_PROCESSES.md).
+> After creating `NotificationEventRecorder.php`, run `ddev restart` to flush opcache. See [HANGING_PROCESSES §10](../../ai_guidance/TROUBLESHOOTING.md).
 
 ### Changes
 
@@ -106,7 +106,7 @@ ddev exec bash -c "cd /var/www/html/web/core && php ../../vendor/bin/phpunit --c
 ## Phase R3 — `do_group_extras` (C → B+)
 
 > [!IMPORTANT]
-> After creating new PHP classes, run `ddev restart` to flush opcache. See [HANGING_PROCESSES §10](os_HANGING_PROCESSES.md).
+> After creating new PHP classes, run `ddev restart` to flush opcache. See [HANGING_PROCESSES §10](../../ai_guidance/TROUBLESHOOTING.md).
 
 ### Changes
 
@@ -139,7 +139,7 @@ ddev exec bash -c "cd /var/www/html/web/core && php ../../vendor/bin/phpunit --c
 ## Phase R4 — `do_group_pin` (C → B)
 
 > [!IMPORTANT]
-> After creating `PinDetector.php`, run `ddev restart` to flush opcache. See [HANGING_PROCESSES §10](os_HANGING_PROCESSES.md).
+> After creating `PinDetector.php`, run `ddev restart` to flush opcache. See [HANGING_PROCESSES §10](../../ai_guidance/TROUBLESHOOTING.md).
 
 ### Changes
 
@@ -171,7 +171,7 @@ ddev exec bash -c "cd /var/www/html/web/core && php ../../vendor/bin/phpunit --c
 ## Phase R5 — `do_discovery` (B → A)
 
 > [!IMPORTANT]
-> After creating `HotScoreCalculator.php`, run `ddev restart` to flush opcache. See [HANGING_PROCESSES §10](os_HANGING_PROCESSES.md).
+> After creating `HotScoreCalculator.php`, run `ddev restart` to flush opcache. See [HANGING_PROCESSES §10](../../ai_guidance/TROUBLESHOOTING.md).
 
 ### Changes
 
@@ -214,4 +214,4 @@ ddev exec bash -c "cd /var/www/html/web/core && php ../../vendor/bin/phpunit --c
 > These are **code-only refactors** — no config changes expected. Each phase is independent and committed separately. If any regression test fails, the refactor is rolled back before proceeding.
 
 > [!CAUTION]
-> **REMINDER**: Consult [os_HANGING_PROCESSES.md](os_HANGING_PROCESSES.md) at the first sign of any freeze, hang, or "class not found" error. The answers are already documented there. Do not waste time re-debugging known issues.
+> **REMINDER**: Consult [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) at the first sign of any freeze, hang, or "class not found" error. The answers are already documented there. Do not waste time re-debugging known issues.
