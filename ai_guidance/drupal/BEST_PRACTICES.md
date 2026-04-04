@@ -111,3 +111,94 @@ These must exist before `config:import` runs, because Open Social fires hooks du
 ### The fix
 
 The `ddev post-install` script pre-creates both field storages via `FieldStorageConfig::create()` inside the retry loop, before each `config:import` call. See `.ddev/commands/web/post-install`.
+
+---
+
+## Custom Module Architecture: Services over Hooks
+
+Always write Drupal custom module logic using OOP service classes with dependency injection. **Never** place business logic directly in `.module` hook callbacks. This is the architectural pattern required on all Performant Labs Drupal projects.
+
+### The Rule
+
+| ❌ Wrong | ✅ Correct |
+|---|---|
+| Logic in `hook_node_insert()` directly | Logic in `MyService::recordEvent()` called from the hook |
+| `\Drupal::entityTypeManager()` in a hook | `EntityTypeManagerInterface` injected via constructor |
+| 30-line hook function | 1–3 line hook wrapper calling service method |
+
+### Structure for every custom module
+
+```
+my_module/
+├── my_module.info.yml
+├── my_module.services.yml       ← registers the service
+├── my_module.module             ← thin hook wrappers only (1–3 lines each)
+└── src/
+    └── MyModuleManager.php      ← all logic lives here
+```
+
+### Service class pattern
+
+```php
+// src/MyModuleManager.php
+class MyModuleManager {
+  public function __construct(
+    private readonly EntityTypeManagerInterface $entityTypeManager,
+    private readonly AccountInterface $currentUser,
+  ) {}
+
+  public function doWork(NodeInterface $node): void {
+    // all logic here
+  }
+}
+```
+
+```yaml
+# my_module.services.yml
+services:
+  my_module.manager:
+    class: Drupal\my_module\MyModuleManager
+    arguments:
+      - '@entity_type.manager'
+      - '@current_user'
+```
+
+```php
+// my_module.module — nothing but thin wrappers
+function my_module_node_insert(NodeInterface $node): void {
+  \Drupal::service('my_module.manager')->doWork($node);
+}
+```
+
+### Testing
+
+Every service class must have a corresponding unit test using mocked dependencies:
+
+```php
+// tests/src/Unit/MyModuleManagerTest.php
+class MyModuleManagerTest extends UnitTestCase {
+  public function testDoWork(): void {
+    $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+    $currentUser = $this->createMock(AccountInterface::class);
+    $manager = new MyModuleManager($entityTypeManager, $currentUser);
+    // assert behaviour
+  }
+}
+```
+
+Run unit tests (no DDEV install needed):
+```bash
+ddev exec bash -c "cd /var/www/html && vendor/bin/phpunit web/modules/custom/my_module/tests/src/Unit/"
+```
+
+### Pre-phase checklist (before any module work)
+
+1. **Flush opcache after adding PHP files** — `ddev restart`, not just `ddev drush cr`
+2. **Verify DDEV is healthy** — `ddev describe`
+3. **Check for zombie processes** — run `kill-zombies.sh`
+
+> [!IMPORTANT]
+> `ddev drush cr` clears Drupal's cache but does **not** flush PHP's opcache. After creating or moving `.php` files, always run `ddev restart`. See TROUBLESHOOTING.md §10.
+
+> [!CAUTION]
+> These are **code-only** architectural changes. Each module should be independently committable and testable. If a regression test fails, roll back that module before proceeding to the next.
