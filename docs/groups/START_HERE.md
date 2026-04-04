@@ -39,3 +39,4 @@ This directory contains everything needed for a clean-room installation of Drupa
 - All configuration is managed as YAML, never through the Drupal UI
 - Custom modules follow the **Services over Hooks** pattern — see [`ai_guidance/drupal/BEST_PRACTICES.md`](../../ai_guidance/drupal/BEST_PRACTICES.md)
 - If something hangs or behaves unexpectedly, consult [`ai_guidance/TROUBLESHOOTING.md`](../../ai_guidance/TROUBLESHOOTING.md)
+- Before committing documentation changes, run through the checklist in [`ai_guidance/technical_writing/documentation_guidance.md`](../../ai_guidance/technical_writing/documentation_guidance.md)
