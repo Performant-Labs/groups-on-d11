@@ -1,0 +1,146 @@
+uuid: fed1b01c-b4b5-47e1-9c51-fb9d346b17e3
+langcode: en
+status: true
+dependencies:
+  module:
+    - comment
+    - node
+    - user
+id: activity_stream
+label: 'Activity Stream'
+module: views
+description: 'Sitewide reverse-chronological feed of all group content with stream_card rendering'
+tag: ''
+base_table: node_field_data
+base_field: nid
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      title: 'Activity Stream'
+      fields: {  }
+      pager:
+        type: full
+        options:
+          offset: 0
+          pagination_heading_level: h4
+          items_per_page: 10
+      access:
+        type: perm
+        options:
+          perm: 'access content'
+      cache:
+        type: tag
+        options: {  }
+      empty:
+        area_text_custom:
+          id: area_text_custom
+          table: views
+          field: area_text_custom
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: text_custom
+          empty: true
+          content: 'No content has been posted yet. Join a group and start contributing!'
+      sorts:
+        last_comment_timestamp:
+          id: last_comment_timestamp
+          table: comment_entity_statistics
+          field: last_comment_timestamp
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: date
+          order: DESC
+          granularity: second
+      filters:
+        status:
+          id: status
+          table: node_field_data
+          field: status
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+          group: 1
+          expose:
+            operator: ''
+        type:
+          id: type
+          table: node_field_data
+          field: type
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: type
+          plugin_id: bundle
+          value:
+            forum: forum
+            documentation: documentation
+            event: event
+            post: post
+            page: page
+          group: 1
+          expose:
+            operator: ''
+      filter_groups:
+        operator: AND
+        groups:
+          1: AND
+      style:
+        type: default
+        options:
+          grouping: {  }
+          row_class: stream-card-wrapper
+          default_row_class: true
+      row:
+        type: 'entity:node'
+        options:
+          relationship: none
+          view_mode: stream_card
+      query:
+        type: views_query
+        options:
+          query_comment: ''
+          disable_sql_rewrite: false
+          distinct: true
+          replica: false
+          query_tags: {  }
+      relationships: {  }
+      css_class: activity-stream
+      use_ajax: true
+      header: {  }
+      footer: {  }
+  block_1:
+    id: block_1
+    display_title: 'Stream Block'
+    display_plugin: block
+    position: 2
+    display_options:
+      pager:
+        type: some
+        options:
+          offset: 0
+          items_per_page: 5
+      block_description: 'Activity Stream'
+  page_1:
+    id: page_1
+    display_title: 'Stream Page'
+    display_plugin: page
+    position: 1
+    display_options:
+      path: stream
+      menu:
+        type: normal
+        title: Stream
+        description: 'Sitewide activity stream'
+        weight: 5
+        menu_name: main

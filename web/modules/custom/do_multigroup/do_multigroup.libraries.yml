@@ -1,0 +1,4 @@
+do_multigroup:
+  css:
+    theme:
+      css/do_multigroup.css: {}

@@ -1,9 +1,7 @@
-uuid: 5697d3f8-ecb4-49d7-a58f-0783d2e1a1c5
+uuid: 1a0df15d-892f-4d17-aa48-4fda360ec280
 langcode: en
 status: true
 dependencies:
-  config:
-    - field.storage.group_relationship.group_roles
   module:
     - group
     - user
@@ -210,6 +208,15 @@ display:
             date_format: short
             custom_date_format: ''
             timezone: ''
+            tooltip:
+              date_format: ''
+              custom_date_format: ''
+            time_diff:
+              enabled: false
+              future_format: '@interval hence'
+              past_format: '@interval ago'
+              granularity: 2
+              refresh: 60
           group_column: value
           group_columns: {  }
           group_rows: true
@@ -277,6 +284,15 @@ display:
             date_format: short
             custom_date_format: ''
             timezone: ''
+            tooltip:
+              date_format: ''
+              custom_date_format: ''
+            time_diff:
+              enabled: false
+              future_format: '@interval hence'
+              past_format: '@interval ago'
+              granularity: 2
+              refresh: 60
           group_column: value
           group_columns: {  }
           group_rows: true
@@ -504,6 +520,7 @@ display:
         type: full
         options:
           offset: 0
+          pagination_heading_level: h4
           items_per_page: 50
           total_pages: null
           id: 0
