@@ -1,0 +1,32 @@
+uuid: a29df158-b06b-42b6-89a3-eab3bc6f7f08
+langcode: en
+status: true
+dependencies:
+  module:
+    - user
+_core:
+  default_config_hash: K7J-YzxMKRyIO6uhZD6XckQcajFSoQ10hdfr4G2hK9Y
+id: follow_user
+label: 'Follow user'
+bundles: {  }
+entity_type: user
+global: false
+flag_short: Follow
+flag_long: ''
+flag_message: ''
+unflag_short: Unfollow
+unflag_long: ''
+unflag_message: ''
+unflag_denied_text: ''
+weight: 0
+flag_type: 'entity:user'
+link_type: ajax_link
+flagTypeConfig:
+  show_in_links: {  }
+  show_as_field: true
+  show_on_form: false
+  show_contextual_link: false
+  extra_permissions:
+    owner: '0'
+  show_on_profile: true
+linkTypeConfig: {  }

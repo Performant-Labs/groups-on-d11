@@ -7,6 +7,7 @@ module:
   do_discovery: 0
   do_group_extras: 0
   do_multigroup: 0
+  do_notifications: 0
   dynamic_page_cache: 0
   field: 0
   file: 0
