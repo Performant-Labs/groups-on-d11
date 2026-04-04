@@ -502,59 +502,58 @@ npx playwright test tests/e2e/phase1.spec.ts
 ddev export-db --file=backups/pre-phase2-$(date +%Y%m%d-%H%M).sql.gz
 ```
 
-## Step 200 — Create `group_type` Taxonomy Vocabulary
+## Step 200 — Create `group_type` Taxonomy Vocabulary + Terms
 
-Create the `group_type` taxonomy vocabulary config entity *(admin UI: `/admin/structure/taxonomy/add`)*:
-
-| Setting | Value |
-|---|---|
-| **Name** | Group Type |
-| **Machine name** | `group_type` |
-
-
-**Script**: [step_200.php](scripts/step_200.php) — creates vocabulary and 5 terms with idempotent checks
+`group_type` is a config entity (vocabulary) plus data entities (terms). Import the vocabulary via YAML, then create terms via script:
 
 ```bash
+cp docs/groups/config/taxonomy.vocabulary.group_type.yml config/sync/
+ddev drush config:import -y
+ddev drush config:export -y
+
+# Create the 5 terms (data entities — script is appropriate here)
 ddev drush php:script docs/groups/scripts/step_200.php
 ```
 
-> [!NOTE]
-> Terms live in the database, not config YAML. Tids will vary per environment.
-
-```bash
-ddev drush config:export -y
+Expected output:
 ```
+group_type vocabulary already exists
+Created: Geographical (tid=1)
+Created: Working group (tid=2)
+Created: Distribution (tid=3)
+Created: Event planning (tid=4)
+Created: Archive (tid=5)
+5 group_type terms total
+```
+
+> [!NOTE]
+> Terms are data entities (not config YAML). TIDs will vary per environment. The script is idempotent — safe to re-run.
 
 ## Step 210 — Add `field_group_type` to Group Entity
 
-Add a `field_group_type` field to `community_group` *(admin UI: `/admin/group/types/manage/community_group/fields/add`)*:
-
-| Setting | Value |
-|---|---|
-| **Field type** | Entity reference |
-| **Label** | Group Type |
-| **Machine name** | `field_group_type` |
-| **Reference type** | Taxonomy term |
-| **Vocabulary** | Group Type (`group_type`) |
-| **Required** | No |
-| **Cardinality** | 1 |
-
-**Script**: [step_220.php](scripts/step_220.php) — creates field storage and instance with idempotent checks
+Import the field storage and instance via YAML:
 
 ```bash
-ddev drush php:script docs/groups/scripts/step_220.php
-```
-
-> [!IMPORTANT]
-> Verify `handler_settings.target_bundles` is set to `group_type` in the YAML. Mismatch causes empty dropdowns.
-
-```bash
+cp docs/groups/config/field.storage.group.field_group_type.yml config/sync/
+cp docs/groups/config/field.field.group.community_group.field_group_type.yml config/sync/
+ddev drush config:import -y
 ddev drush config:export -y
 ```
 
+| Setting | Value |
+|---|---|
+| Field type | Entity reference |
+| Machine name | `field_group_type` |
+| Reference type | Taxonomy term → `group_type` vocabulary |
+| Required | No |
+| Cardinality | 1 |
+
+> [!IMPORTANT]
+> Verify `handler_settings.target_bundles` is set to `group_type` in `field.field.group.community_group.field_group_type.yml`. Mismatch causes empty dropdowns.
+
 ## Step 220 — Configure Membership Models
 
-The `field_group_visibility` field controls join behaviour:
+The `field_group_visibility` field (added in Phase 1 via YAML) controls join behaviour:
 
 | Membership model | `field_group_visibility` value | Join behaviour |
 |---|---|---|
@@ -562,122 +561,59 @@ The `field_group_visibility` field controls join behaviour:
 | **Moderated** | `moderated` | Request → approval |
 | **Invite Only** | `invite_only` | Admin-managed |
 
-Group-level permissions for each model are configured at `/admin/group/types/manage/community_group/permissions`:
-
-| Permission | Member | Admin | Outsider |
-|---|---|---|---|
-| Join group | — | — | ✅ (open groups) |
-| Request group membership | — | — | ✅ (moderated groups) |
-| Administer members | ❌ | ✅ | ❌ (invite-only) |
-
-```bash
-ddev drush config:export -y
-```
+Group-level permissions for each model are configured at `/admin/group/types/manage/community_group/permissions`.
 
 ## Step 230 — Build Group Directory View
 
-Create an `all_groups` View config entity *(admin UI: `/admin/structure/views/add`)*:
-
-| Setting | Value |
-|---|---|
-| **View name** | All Groups |
-| **Machine name** | `all_groups` |
-| **Show** | Group (entity type) |
-| **Page path** | `/all-groups` |
-| **Format** | Unformatted list |
-
-**Fields**: Group name (linked), Description (trimmed 200), Created date.
-
-**Exposed filters**: Keyword search (title contains).
-
-**Non-exposed filters**: Published = Yes.
-
-**Sort**: Created, newest first.
-
-**Config**: [views.view.all_groups.yml](config/views.view.all_groups.yml)
-
-```bash
-ddev drush config:import -y
-```
-
-Verify: navigate to `/all-groups` — should show an empty directory with a search filter.
-
-```bash
-ddev drush config:export -y
-```
-
-Archived groups appear only when "Archive" is selected from the Group Type filter.
-
-```bash
-ddev drush config:export -y
-```
+> ✅ **Already done in Phase 1 Step 160.** `views.view.all_groups.yml` was imported at `/all-groups`. No action needed here.
 
 ## Step 240 — Enable `do_group_extras` Module
 
 Archive enforcement, submission guidelines, and moderation defaults for groups.
 
-**Source files** (already in repo):
-- [do_group_extras.info.yml](modules/do_group_extras/do_group_extras.info.yml)
-- [do_group_extras.module](modules/do_group_extras/do_group_extras.module) — hooks for archive, guidelines, moderation
-- [do_group_extras.libraries.yml](modules/do_group_extras/do_group_extras.libraries.yml)
-- [css/do_group_extras.css](modules/do_group_extras/css/do_group_extras.css)
+**Source files** (in repo at `docs/groups/modules/do_group_extras/`, deployed to `web/modules/custom/do_group_extras/`):
+- `do_group_extras.info.yml`
+- `do_group_extras.services.yml` — registers `DoGroupExtrasHooks` service
+- `src/Hook/DoGroupExtrasHooks.php` — all hook implementations as `#[Hook]` attributed methods
+- `do_group_extras.module` — empty (just `@file` docblock)
+- `do_group_extras.libraries.yml`
+- `css/do_group_extras.css`
+
+> [!IMPORTANT]
+> This module uses the **Drupal 11 `#[Hook]` attribute system** (OOP service-based hooks). All hook logic is in `src/Hook/DoGroupExtrasHooks.php`. The `.module` file is intentionally empty. This complies with BEST_PRACTICES.md.
 
 ### Enable
 
 > [!CAUTION]
-> **Order of operations matters.** You must `config:export` after enabling a new module BEFORE running `config:import` to add View YAML. If you add View YAML to `config/sync/` and run `config:import` before exporting the module's extension entry, the import will **uninstall the module** because the sync directory doesn't know about it yet.
+> **Order of operations matters.** Enable the module and export BEFORE adding any View YAMLs. If you add View YAML to `config/sync/` and run `config:import` before exporting the module's extension entry, the import will **uninstall the module**.
 
 ```bash
-# Step 1: Enable module
+# Step 1: Copy module from docs to web
+cp -r docs/groups/modules/do_group_extras web/modules/custom/
+# Step 2: Enable module
 ddev drush en do_group_extras -y
-# Step 2: Restart to flush opcode cache (required for new modules with plugin classes)
-ddev restart
-# Step 3: Export config — this captures the module in core.extension.yml
+# Step 3: Export to capture module in core.extension.yml
 ddev drush config:export -y
-# Step 4: NOW it's safe to add View YAML files and run config:import
+# Step 4: Clear cache
 ddev drush cr
 ```
 
-Module hooks:
-- `hook_form_alter()` — submission guidelines on group form; blocks content creation in archived groups
-- `hook_entity_presave()` — non-admin groups default to unpublished
-- `hook_entity_insert()` — queues notification for `site_moderator` users when group is pending (actual email delivery is handled by an external system)
-- `hook_preprocess_group()` — "Archived" badge
-- `hook_node_access()` — denies content creation in archive groups
+Hook implementations (all in `DoGroupExtrasHooks`):
+- `formAlter` — submission guidelines on group create/edit forms
+- `entityPresave` — non-admin groups default to unpublished
+- `entityInsert` — queues pending notification for `site_moderator`
+- `preprocessGroup` — "Archived" badge on archived groups
+- `nodeAccess` — denies content creation in archived groups
 
 ## Step 250 — Create Pending Groups View
 
-Create a `pending_groups` View config entity *(admin UI: `/admin/structure/views/add`)*:
-
-| Setting | Value |
-|---|---|
-| **View name** | Pending Groups |
-| **Machine name** | `pending_groups` |
-| **Show** | Group (entity type) |
-| **Page path** | `/admin/groups/pending` |
-| **Format** | Table |
-| **Access** | Permission: `administer group` |
-
-**Fields**: Group name (linked), Author, Created date.
-
-**Filters**: Published = No (shows only unpublished/pending groups).
-
-**Sort**: Created, oldest first (FIFO moderation queue).
-
-**Config**: [views.view.pending_groups.yml](config/views.view.pending_groups.yml)
-
-> [!IMPORTANT]
-> Only run `config:import` for this View **after** you have exported `do_group_extras` in Step 240. Otherwise the import will uninstall the module.
-
 ```bash
+cp docs/groups/config/views.view.pending_groups.yml config/sync/
 ddev drush config:import -y
+ddev drush config:export -y
 ```
 
 Verify: navigate to `/admin/groups/pending` — should show an empty table (requires `administer group` permission).
-
-```bash
-ddev drush config:export -y
-```
 
 ## Step 260 — Evaluate `do_wiki` Module
 
