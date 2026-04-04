@@ -742,56 +742,31 @@ ddev export-db --file=backups/pre-phase3-$(date +%Y%m%d-%H%M).sql.gz
 
 ## Step 300 — Configure Relationship Cardinality for Multi-Group Posting
 
-Edit each relationship type config to set `entity_cardinality: 0` *(admin UI: `/admin/group/types/manage/community_group/content`)*:
+> ✅ **Already done in Phase 1.** All 5 relationship type YAMLs were written with `entity_cardinality: 0` from the start. No script needed.
 
-| Relationship type | Entity cardinality → |
-|---|---|
-| `community_group-group_node-forum` | 0 (unlimited) |
-| `community_group-group_node-doc` | 0 (unlimited) |
-| `community_group-group_node-event` | 0 (unlimited) |
-| `community_group-group_node-post` | 0 (unlimited) |
-| `community_group-group_node-page` | 0 (unlimited) |
-
-> [!IMPORTANT]
-> Note the `doc` abbreviation for the documentation relationship type — this was established in Step 140 due to the 32-character ID limit.
-
-> [!CAUTION]
-> **Breaking change**: `entity_cardinality: 0` allows a node to belong to unlimited groups. Ensure all group stream Views use `distinct: true`.
-
-**Script**: [step_300.php](scripts/step_300.php) — sets `entity_cardinality=0` on all 5 relationship types
-
-> [!CAUTION]
-> **`ddev drush cim` resets cardinality.** Importing View YAML in Steps 310–320 will overwrite the relationship type configs with their YAML defaults, resetting `entity_cardinality` back to 1. You **must** re-run this script after ALL `cim` imports in Phase 3:
-> ```bash
-> # Run FIRST to set cardinality:
-> ddev drush php:script docs/groups/scripts/step_300.php
-> # ... do all Steps 310-340 imports ...
-> # Re-run LAST to fix cardinality:
-> ddev drush php:script docs/groups/scripts/step_300.php
-> ddev drush config:export -y
-> ```
-
+Verify:
 ```bash
-ddev drush php:script docs/groups/scripts/step_300.php
-ddev drush config:export -y
+ddev drush php:eval 'echo \Drupal::entityTypeManager()->getStorage("group_relationship_type")->load("community_group-group_node-forum")->getPlugin()->getConfiguration()["entity_cardinality"] . "\n";'
 ```
+Expected: `0`
 
 ## Step 310 — Build Group Stream Views
 
-### Group Content Stream
+All three view YAMLs exist in `docs/groups/config/`. Batch-import:
 
-| Setting | Value |
-|---|---|
-| **View name** | Group Content Stream |
-| **Machine name** | `group_content_stream` |
-| **Show** | Content (nodes) |
-| **Format** | Unformatted list of teasers |
+```bash
+cp docs/groups/config/views.view.group_content_stream.yml config/sync/
+cp docs/groups/config/views.view.group_events.yml config/sync/
+cp docs/groups/config/views.view.group_members.yml config/sync/
+ddev drush config:import -y
+ddev drush config:export -y
+```
 
-**Relationship**: Group relationship → Entity type = Content, Group type = Community Group.
-
-**Contextual filter**: Group ID from URL.
-
-**Filters**: Published = Yes, Content type = forum, documentation, event, post, page.
+| View | Machine name | URL |
+|---|---|---|
+| Group Content Stream | `group_content_stream` | `/group/{gid}/stream` |
+| Group Events | `group_events` | `/group/{gid}/events` |
+| Group Members | `group_members` | `/group/{gid}/members` |
 
 **Sort**: Created, newest first. **Settings**: `distinct: true`, Use AJAX = Yes.
 
@@ -821,30 +796,34 @@ ddev drush config:export -y
 
 ## Step 320 — Sitewide Activity Stream (Post Wall)
 
-> [!IMPORTANT]
-> This is the **homepage equivalent** of Open Social's "continuous post wall" — a reverse-chronological feed of all group content with the last 2-3 comments shown inline on each card. In Open Social this is powered by `Activity` entities; in standard Drupal we build it as a View of nodes sorted by last activity.
-
 ### 320a — Create `stream_card` view mode
 
-The stream card view mode controls how each node renders in the activity stream: author info, trimmed body, group badge, tags, and inline comments.
-
-**Script**: [step_315.php](scripts/step_315.php) — creates view mode, enables it for all 5 content types, configures field displays (body, author, date, tags, comments)
-
-> [!CAUTION]
-> **Must run before importing `activity_stream` view.** The activity stream view depends on the `stream_card` view mode. Either run this script first, or import [core.entity_view_mode.node.stream_card.yml](config/core.entity_view_mode.node.stream_card.yml) before importing the view:
-> ```bash
-> cp docs/groups/config/core.entity_view_mode.node.stream_card.yml config/sync/
-> ddev drush cim -y
-> ```
-
 ```bash
-ddev drush php:script docs/groups/scripts/step_315.php
+cp docs/groups/config/core.entity_view_mode.node.stream_card.yml config/sync/
+ddev drush config:import -y
 ddev drush config:export -y
 ```
 
-### 320b — (Intentional gap — no step 320b)
+> [!CAUTION]
+> **Must import `stream_card` view mode BEFORE importing `activity_stream` view.** The view depends on the view mode existing.
+
+### 320b — (Intentional gap)
 
 ### 320c — Create the Activity Stream View
+
+> [!IMPORTANT]
+> Enable `comment` module BEFORE importing this view — the view has a comment join.
+>
+> ```bash
+> ddev drush en comment -y
+> ddev drush config:export -y
+> ```
+
+```bash
+cp docs/groups/config/views.view.activity_stream.yml config/sync/
+ddev drush config:import -y
+ddev drush config:export -y
+```
 
 | Setting | Value |
 |---|---|
@@ -954,66 +933,62 @@ ddev drush config:export -y
 Allows content to be posted in multiple groups simultaneously.
 
 > [!IMPORTANT]
-> Adaptation difficulty: 🔴 High. Deeply uses `group_relationship` API; plugin IDs change with group type.
+> Adaptation difficulty: 🔴 High (moved to ✅ Done). Deeply uses `group_relationship` API; `group.membership_loader` service **does not exist** in Group 3.x — replaced with a direct `group_relationship` entity storage query.
 
-**Source files** (already in repo):
-- [do_multigroup.info.yml](modules/do_multigroup/do_multigroup.info.yml)
-- [do_multigroup.module](modules/do_multigroup/do_multigroup.module) — form alter, submit handler, preprocess (283 lines)
-- [do_multigroup.libraries.yml](modules/do_multigroup/do_multigroup.libraries.yml)
-- [css/do_multigroup.css](modules/do_multigroup/css/do_multigroup.css)
+**Source files** (in repo at `docs/groups/modules/do_multigroup/`, deployed to `web/modules/custom/do_multigroup/`):
+- `do_multigroup.info.yml`
+- `do_multigroup.services.yml` — registers `DoMultigroupHooks` service
+- `src/Hook/DoMultigroupHooks.php` — all hook implementations as `#[Hook]` attributed methods
+- `do_multigroup.module` — empty (`@file` docblock only)
+- `do_multigroup.libraries.yml`
+- `css/do_multigroup.css`
 
-> [!CAUTION]
-> **`group_content` → `group_relationship` rename**: In Group 3.x the entity was renamed. The module uses `group_relationship` throughout. Using the old name causes `EntityStorageException`.
+> [!IMPORTANT]
+> **Group 3.x migration note**: `group.membership_loader` service was removed in Group 3.x. User memberships are now loaded by querying `group_relationship` storage directly:
+> ```php
+> // Group 3.x — load memberships for current user:
+> $memberships = $this->entityTypeManager
+>   ->getStorage('group_relationship')
+>   ->loadByProperties([
+>     'entity_id' => $account->id(),
+>     'type' => 'community_group-group_membership',
+>   ]);
+> ```
 
-Module hooks:
-- `hook_form_node_form_alter()` — "Group Audience" fieldset with checkboxes
-- `do_multigroup_node_form_submit()` — syncs group_relationship entries post-save
-- `hook_preprocess_node()` — "Posted in" (full) and "Cross-posted from" (teaser)
-- `hook_page_attachments()` — attaches CSS
+> [!IMPORTANT]
+> This module uses the **Drupal 11 `#[Hook]` attribute system**. All hook logic is in `src/Hook/DoMultigroupHooks.php`. The `.module` file is intentionally empty.
 
 ### Enable
 
 ```bash
+# Step 1: Copy module from docs to web
+cp -r docs/groups/modules/do_multigroup web/modules/custom/
+# Step 2: Enable module
 ddev drush en do_multigroup -y
-ddev restart
+# Step 3: Export config
+ddev drush config:export -y
+# Step 4: Clear cache
 ddev drush cr
 ```
 
 ## Step 340 — Enable Tags on Group Content
 
-### Verify tags vocabulary
+> ✅ **Already done in Phase 1.** `taxonomy.vocabulary.group_tags` and `field_group_tags` on all 5 content types were imported via YAML in Steps 170–180.
 
-**Script**: [step_330.php](scripts/step_330.php) — creates `group_tags` vocabulary, `tags` vocabulary (if missing), and `field_group_tags` on all 5 content types
-
-> [!WARNING]
-> **Opcode cache after `ddev restart`.** If Step 330 required a `ddev restart`, the PHP opcode cache is cold. The script may report "Created" but the entities may not persist. **Verify** with:
-> ```bash
-> ddev drush php:eval '\Drupal\field\Entity\FieldStorageConfig::loadByName("node","field_group_tags") ? print "OK" : print "MISSING";'
-> ```
-> If MISSING, re-run the script:
-> ```bash
-> ddev drush php:script docs/groups/scripts/step_330.php
-> ```
-
+Verify:
 ```bash
-ddev drush php:script docs/groups/scripts/step_330.php
-ddev drush config:export -y
+ddev drush php:eval '\Drupal\field\Entity\FieldStorageConfig::loadByName("node", "field_group_tags") ? print "OK\n" : print "MISSING\n";'
 ```
 
 ## Step 350 — Tags Aggregation View
 
-| Setting | Value |
-|---|---|
-| **View name** | Tags |
-| **Machine name** | `tags_aggregation` |
-| **Show** | Content |
-| **Page path** | `/tags/[term-name]` (contextual argument) |
-
-**Contextual filter**: Taxonomy term name from URL, vocabulary = Group Tags. **Sort**: Created, newest first.
-
 ```bash
+cp docs/groups/config/views.view.tags_aggregation.yml config/sync/
+ddev drush config:import -y
 ddev drush config:export -y
 ```
+
+Verify: `/tags/{term-name}` returns content tagged with that term.
 
 ## Step 360 — Phase 3 Tests
 
@@ -1113,19 +1088,23 @@ npx playwright test tests/e2e/phase3.spec.ts
 ### Custom module files (Phase 3)
 
 ```
-web/modules/custom/do_multigroup/
-├── css/do_multigroup.css
+docs/groups/modules/do_multigroup/   ← source of truth
+├── src/Hook/DoMultigroupHooks.php   ← all #[Hook] logic
+├── do_multigroup.services.yml
 ├── do_multigroup.info.yml
 ├── do_multigroup.libraries.yml
-└── do_multigroup.module
+├── do_multigroup.module             ← empty (@file docblock)
+└── css/do_multigroup.css
+
+web/modules/custom/do_multigroup/    ← deployed copy (synced via cp -r)
 ```
 
 ### Open Questions (Phase 3)
 
-1. Does Group 3.x use `group_relationship_type.{group_type}-group_node-{bundle}.yml` format? ⏳ **Deferred** — verify from exported config at implementation time
+1. ~~Does Group 3.x use `group_relationship_type.{group_type}-group_node-{bundle}.yml` format?~~ ✅ Confirmed: yes, exact format.
 2. ~~Should all 5 content types support multi-group posting, or only a subset?~~ ✅ Confirmed: all 5 (`forum`, `documentation`, `event`, `post`, `page`)
-3. ~~Do any content types already have a tags field?~~ ✅ Resolved: `documentation` and `guide` already have `field_tags` → sitewide `tags` vocabulary. Groups will use a **separate** `group_tags` vocabulary with `field_group_tags` field.
-4. Does Group 3.x still provide `group.membership_loader` service? ⏳ **Deferred** — check installed code at implementation time
+3. ~~Do any content types already have a tags field?~~ ✅ Resolved: `documentation` has `field_tags` → sitewide `tags`. Groups use a **separate** `group_tags` vocabulary with `field_group_tags`.
+4. ~~Does Group 3.x still provide `group.membership_loader` service?~~ ✅ **No.** Removed in Group 3.x. Use `group_relationship` storage query: `loadByProperties(['entity_id' => $uid, 'type' => 'community_group-group_membership'])` instead.
 
 ---
 
@@ -1144,37 +1123,35 @@ web/modules/custom/do_multigroup/
 ddev export-db --file=backups/pre-phase4-$(date +%Y%m%d-%H%M).sql.gz
 ```
 
-## Step 400 — Enable Statistics Module
+## Step 400 — Statistics Module
 
-```bash
-ddev drush en statistics -y
-ddev drush cr
-```
-
-Statistics provides the `node_counter` table with page view counts, which feeds the hot content scoring formula.
-
-> [!WARNING]
-> **Deprecation**: `statistics` was deprecated in Drupal 10.3.0 and removed from core in 11.0.0. On Drupal 10.3+ or 11.x, install from contrib instead:
+> ⚠️ **Removed from Drupal 11 core.** The `statistics` module was deprecated in Drupal 10.3 and removed from core in 11.0.
+>
+> `do_discovery` checks for `node_counter` table gracefully (using `tableExists()`) and falls back to `view_count = 0` if the table is missing. For now, view counting is deactivated and only comment counts drive hot scores.
+>
+> If view counting is needed, install the ––––– contrib module:
 > ```bash
 > ddev composer require drupal/statistics
 > ddev drush en statistics -y
 > ```
-> See [drupal.org/project/statistics](https://www.drupal.org/project/statistics).
 
-Verify:
-```bash
-ddev drush pm:list --filter=statistics --status=enabled
-```
+Note: `drupal:statistics` was removed from the `do_discovery.info.yml` hard-dependency list so the module can be enabled on Drupal 11 without the statistics contrib module.
 
 ## Step 410 — Install Flag Module
 
+> [!CAUTION]
+> **Pre-flight**: If `composer.json` has `drush/drush: ^12` but the lock file has `13.x`, Composer will refuse to install new packages. Fix the constraint first:
+> ```bash
+> sed -i '' 's/"drush\/drush": "\^12"/"drush\/drush": "^13"/' composer.json
+> ```
+
 ```bash
-ddev composer require drupal/flag
+ddev composer require "drupal/flag:^4.0" --no-interaction
 ddev drush en flag flag_count -y
-ddev drush cr
+ddev drush config:export -y
 ```
 
-Flag provides the flagging API used for "Promote to homepage", content following, and content pinning (Phase 6).
+Version installed: `drupal/flag` 4.0.0-beta7 (compatible with Drupal 11).
 
 Verify:
 ```bash
@@ -1185,98 +1162,86 @@ ddev drush pm:list --filter=flag --status=enabled
 
 Hot content scoring, iCal feeds, promoted content, and per-group RSS.
 
-**Source files** (already in repo):
-- [do_discovery.info.yml](modules/do_discovery/do_discovery.info.yml)
-- [do_discovery.install](modules/do_discovery/do_discovery.install) — creates `do_discovery_hot_score` table
-- [do_discovery.module](modules/do_discovery/do_discovery.module) — `hook_cron()` for score computation, `hook_views_data()`, `hook_node_insert()`
-- [do_discovery.routing.yml](modules/do_discovery/do_discovery.routing.yml) — iCal endpoints
-- [IcalController.php](modules/do_discovery/src/Controller/IcalController.php) — site/group/user iCal feeds (212 lines)
-- [flag.flag.promote_homepage.yml](modules/do_discovery/config/install/flag.flag.promote_homepage.yml) — bundled flag config
+**Source files** (in repo at `docs/groups/modules/do_discovery/`, deployed to `web/modules/custom/do_discovery/`):
+- `do_discovery.info.yml` — `core_version_requirement: ^10 || ^11`; depends on `drupal:views`, `drupal:node`, `drupal:taxonomy`, `drupal:flag` (NOT `drupal:statistics` — removed, handled gracefully)
+- `do_discovery.install` — `hook_schema()` creates `do_discovery_hot_score` table
+- `do_discovery.services.yml` — registers `DoDiscoveryHooks` service
+- `src/Hook/DoDiscoveryHooks.php` — `hook_cron`, `hook_views_data`, `hook_node_insert` via `#[Hook]`
+- `do_discovery.module` — empty (`@file` docblock)
+- `do_discovery.routing.yml` — 3 iCal routes
+- `src/Controller/IcalController.php` — 3 iCal endpoints
+- `config/install/flag.flag.promote_homepage.yml` — bundled flag (auto-imports on enable)
 
-**Hot score formula**: `Score = (comment_count × 3) + (view_count × 0.5)`
+> [!IMPORTANT]
+> **Enable `comment` module BEFORE enabling `do_discovery`.** The `activity_stream` view (already in config/sync) has a comment join; if comment is not enabled, `config:import` will fail. Enable in this sequence:
+> ```bash
+> ddev drush en comment -y && ddev drush config:export -y
+> ```
 
-**Database table**: `do_discovery_hot_score` (columns: `nid`, `score`, `computed`)
-
-**iCal routes**:
-
-| Route | Path |
-|---|---|
-| Site events | `/upcoming-events/ical` |
-| Group events | `/group/{group}/events/ical` |
-| User events | `/user/{user}/events/ical` |
-
-> [!CAUTION]
-> **`loadUserEvents()` rewrite**: Open Social's `event_enrollment` entity does not exist in standard Drupal. The controller uses Flag module's `rsvp_event` flag to find events the user has RSVP'd to.
-
-> [!NOTE]
-> **Event date field**: pl-drupalorg uses `field_date_of_event` (not `field_event_date`). The controller has been adapted for this.
+> [!IMPORTANT]
+> This module uses the **Drupal 11 `#[Hook]` attribute system**. All hook logic is in `src/Hook/DoDiscoveryHooks.php`.
 
 ### Enable
 
 ```bash
+# Step 1: Copy module from docs to web
+cp -r docs/groups/modules/do_discovery web/modules/custom/
+# Step 2: Enable module (also auto-installs flag.flag.promote_homepage)
 ddev drush en do_discovery -y
-ddev restart
-ddev drush cr
-```
-
-> [!CAUTION]
-> `ddev restart` required after enabling custom modules with controller classes (`src/Controller/`) to flush the PHP opcode cache.
-
-Verify the database table was created:
-```bash
+# Step 3: Export config (captures module + promote_homepage flag)
+ddev drush config:export -y
+# Step 4: Verify hot_score table was created
 ddev drush sqlq "SHOW TABLES LIKE 'do_discovery%'"
 ```
 Expected: `do_discovery_hot_score`
 
 ## Step 430 — Create RSVP Flag (for iCal user events)
 
-If event enrollment via Flag is the chosen approach (see Step 420e), create an RSVP flag:
+`rsvp_event` flag YAML exists in `docs/groups/config/`. Import it alongside its system actions after enabling `do_discovery`:
 
-Create an `rsvp_event` flag config entity *(admin UI: `/admin/structure/flags/add`)*:
+```bash
+cp docs/groups/config/flag.flag.rsvp_event.yml config/sync/
+cp docs/groups/config/system.action.flag_action.rsvp_event_flag.yml config/sync/
+cp docs/groups/config/system.action.flag_action.rsvp_event_unflag.yml config/sync/
+ddev drush config:import -y
+ddev drush config:export -y
+```
+
+**Flag spec**:
 
 | Setting | Value |
 |---|---|
-| **Label** | RSVP for event |
-| **Machine name** | `rsvp_event` |
-| **Flag type** | Content (Node) |
-| **Bundles** | Event only |
-| **Global** | No (per-user flagging) |
-| **Flag short** | RSVP |
-| **Unflag short** | Cancel RSVP |
+| Label | RSVP for event |
+| Machine name | `rsvp_event` |
+| Flag type | Content (Node) |
+| Bundles | Event only |
+| Global | No (per-user) |
 
-Grant flag/unflag permissions to `authenticated` role.
-
+Grant permissions:
 ```bash
+ddev drush role:perm:add authenticated "flag rsvp_event,unflag rsvp_event"
 ddev drush config:export -y
 ```
 
 ## Step 440 — Grant Flag Permissions
 
-Grant promote_homepage flag permissions to appropriate roles:
+Promote homepage flag permissions were auto-imported with `do_discovery` (bundled config). Grant them to the appropriate roles:
 
 ```bash
 ddev drush role:perm:add content_administrator "flag promote_homepage,unflag promote_homepage"
 ddev drush role:perm:add site_moderator "flag promote_homepage,unflag promote_homepage"
-```
-
-> [!NOTE]
-> pl-drupalorg uses `content_administrator` and `site_moderator` roles, not Open Social's `contentmanager` and `sitemanager`.
-
-```bash
 ddev drush config:export -y
 ```
 
 ## Step 450 — Hot Content View
 
-Create a `hot_content` View config entity *(admin UI: `/admin/structure/views/add`)*:
+```bash
+cp docs/groups/config/views.view.hot_content.yml config/sync/
+ddev drush config:import -y
+ddev drush config:export -y
+```
 
-| Setting | Value |
-|---|---|
-| **View name** | Hot Content |
-| **Machine name** | `hot_content` |
-| **Show** | Content |
-| **Page path** | `/hot` |
-| **Format** | Unformatted list of teasers |
+Verify: navigate to `/hot`.
 
 ### Relationship
 
@@ -1323,81 +1288,23 @@ ddev drush config:export -y
 
 ## Step 460 — Promoted Content View
 
-Create a View:
-
-| Setting | Value |
-|---|---|
-| **View name** | Promoted Content |
-| **Machine name** | `promoted_content` |
-| **Show** | Content |
-| **Page display** | `/admin/content/promoted` (admin management page) |
-| **Block display** | Front page promoted content block |
-
-### Page Display (admin)
-
-**Relationship**: Flag — `promote_homepage` (required = yes, limits to flagged nodes).
-
-**Fields**: Title (linked), Content type, Flagged date, Author, Operations.
-
-**Sort**: Flagged date descending.
-
-**Access**: Permission `flag promote_homepage`.
-
-### Block Display (front page)
-
-**Relationship**: Same flag relationship.
-
-**Fields**: Title (linked), Teaser body (trimmed 200), Created date.
-
-**Sort**: Flagged date descending.
-
-**Items to display**: 5.
-
-**Block visibility**: Front page only (or configure in block placement).
-
 ```bash
+cp docs/groups/config/views.view.promoted_content.yml config/sync/
+ddev drush config:import -y
 ddev drush config:export -y
 ```
+
+Verify: `/admin/content/promoted` (page) and front page block.
 
 ## Step 470 — Group RSS Feed
 
-Create a View:
-
-| Setting | Value |
-|---|---|
-| **View name** | Group RSS Feed |
-| **Machine name** | `group_rss_feed` |
-| **Show** | Content |
-
-### Default Display
-
-**Relationship**: Group relationship (entity type = Content, group type = Community Group).
-
-**Contextual filter**: Group ID (`gid`), from URL.
-
-**Fields**: Title, Created date.
-
-**Filter criteria**: Published = Yes.
-
-**Sort**: Created descending.
-
-### Feed Display
-
-| Setting | Value |
-|---|---|
-| **Display type** | Feed |
-| **Path** | `/group/%/stream/feed` |
-| **Row style** | Content (RSS) |
-| **Sitename title** | Yes |
-
-**Contextual filter**: Same `gid` from URL, position 2 (matches `%` in path).
-
-> [!NOTE]
-> The Open Social `group_rss_feed` View uses the `group_relationship` Views plugin to join nodes to groups. Verify this plugin exists in your `drupal/group` version. The relationship should join `node_field_data` → `group_relationship_field_data.entity_id` with a contextual filter on `group_relationship_field_data.gid`.
-
 ```bash
+cp docs/groups/config/views.view.group_rss_feed.yml config/sync/
+ddev drush config:import -y
 ddev drush config:export -y
 ```
+
+Verify: `/group/{gid}/stream/feed` returns valid RSS XML.
 
 ## Step 480 — iCal Feed Verification
 
@@ -1445,9 +1352,9 @@ Create `web/modules/custom/do_discovery/tests/src/Kernel/DiscoveryTest.php`:
 
 Create `web/modules/custom/do_tests/tests/src/Kernel/Phase4Test.php`:
 
-- `testFlagsExist()` — `rsvp_event`, `promote_to_homepage` flags exist
+- `testFlagsExist()` — `rsvp_event`, `promote_homepage` flags exist (note: RUNBOOK previously used `promote_to_homepage` — correct machine name is `promote_homepage`)
 - `testHotContentView()` — `hot_content` View config exists with expected filters
-- `testStatisticsEnabled()` — `statistics` module enabled
+- ~~`testStatisticsEnabled()`~~ — **Skip** — statistics module not available for Drupal 11
 
 ```bash
 ddev exec phpunit web/modules/custom/do_tests/tests/src/Kernel/Phase4Test.php
@@ -1510,18 +1417,25 @@ npx playwright test tests/e2e/phase4.spec.ts
 ### Custom module files (Phase 4)
 
 ```
-web/modules/custom/do_discovery/
-├── config/
-│   └── install/
-│       └── flag.flag.promote_homepage.yml
+docs/groups/modules/do_discovery/   ← source of truth
+├── config/install/
+│   └── flag.flag.promote_homepage.yml  ← auto-imported on module enable
 ├── src/
-│   └── Controller/
-│       └── IcalController.php    (212 lines, 3 endpoints)
+│   ├── Controller/
+│   │   └── IcalController.php         ← 3 iCal endpoints (site/group/user)
+│   └── Hook/
+│       └── DoDiscoveryHooks.php       ← #[Hook] cron, views_data, node_insert
 ├── do_discovery.info.yml
-├── do_discovery.install          (hook_schema — 42 lines)
-├── do_discovery.module           (hook_cron, hook_views_data, hook_node_insert — 135 lines)
-└── do_discovery.routing.yml      (3 iCal routes — 24 lines)
+├── do_discovery.install            ← hook_schema (hot_score table)
+├── do_discovery.module             ← empty (@file docblock)
+├── do_discovery.routing.yml        ← 3 iCal routes
+└── do_discovery.services.yml       ← registers DoDiscoveryHooks service
+
+web/modules/custom/do_discovery/    ← deployed copy (synced via cp -r)
 ```
+
+> [!NOTE]
+> **DI autowire gotcha (Drupal 11)**: Do NOT use `Psr\Log\LoggerInterface` or `Drupal\Core\Logger\LoggerChannelInterface` as constructor argument type hints in `hook_implementations`-tagged services — Drupal's `DefinitionErrorExceptionPass` validates the type hint even when `autowire: false` is set. Use `\Drupal::logger()` statically in private helper methods instead.
 
 ### Key Adaptations from Open Social (Phase 4)
 
@@ -1536,10 +1450,10 @@ web/modules/custom/do_discovery/
 
 ### Open Questions (Phase 4)
 
-1. ~~**Event date field type**~~: ✅ Resolved — keep existing `field_date_of_event` (`datetime`) for current functionality. Use `drupal/smart_date` module for new group event features (provides start+end in one field, all-day toggle, recurring events, better formatting).
-2. **Event RSVP mechanism**: Should event RSVP use the Flag module (`rsvp_event` flag), the Registration module (`drupal/registration`), or a custom entity? Flag is simplest and already installed.
-3. ~~**Hot content "In my groups" filter**~~: ✅ Confirmed: implement as a custom Views filter plugin.
-4. ~~**Statistics module deprecation**~~: ✅ Resolved — deprecation warning added in Step 400. On Drupal ≤10.2, `statistics` is still in core.
+1. ~~**Event date field type**~~: ✅ Resolved — keep existing `field_date_of_event` (`datetime`).
+2. ~~**Event RSVP mechanism**~~: ✅ Resolved — Flag module (`rsvp_event` flag). Simple, already installed.
+3. ~~**Hot content "In my groups" filter**~~: ✅ Confirmed — implement as a custom Views filter plugin (Phase 6 scope).
+4. ~~**Statistics module deprecation**~~: ✅ Resolved — removed as hard dep. `do_discovery` handles missing `node_counter` table gracefully with a `tableExists()` guard.
 
 ---
 
