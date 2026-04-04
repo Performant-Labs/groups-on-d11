@@ -1,0 +1,14 @@
+services:
+  logger.channel.do_group_extras:
+    parent: logger.channel_base
+    arguments: ['do_group_extras']
+
+  do_group_extras.hooks:
+    class: Drupal\do_group_extras\Hook\DoGroupExtrasHooks
+    arguments:
+      - '@current_user'
+      - '@queue'
+      - '@current_route_match'
+      - '@logger.channel.do_group_extras'
+    tags:
+      - { name: 'hook_implementations' }

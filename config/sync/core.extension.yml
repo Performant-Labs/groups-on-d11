@@ -3,6 +3,7 @@ _core:
 module:
   block: 0
   dblog: 0
+  do_group_extras: 0
   dynamic_page_cache: 0
   field: 0
   file: 0
