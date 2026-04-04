@@ -28,9 +28,9 @@ This directory contains everything needed for a clean-room installation of Drupa
 
 | Directory | Contents |
 |---|---|
-| `config/` | 40+ Drupal YAML config files — group types, roles, flags, views, taxonomies, field storage. Imported during the runbook build. |
-| `modules/` | 9 custom `do_` modules — complete source code. Copied into `web/modules/custom/` during setup. |
-| `scripts/` | 13 PHP scripts run via `ddev drush php:script` — one per runbook step, creates entities programmatically. |
+| `config/` | Drupal YAML config files — group types, roles, flags, views, taxonomies, field storage. Imported during the runbook build. |
+| `modules/` | Custom `do_` modules — complete source code. Copy each into `web/modules/custom/` before enabling. |
+| `scripts/` | PHP scripts run via `ddev drush php:script` — one per runbook step, creates entities programmatically. |
 
 ---
 

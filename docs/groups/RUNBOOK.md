@@ -19,12 +19,12 @@
 > 1. **Install modules** (`ddev drush en <module> -y`) — registers the module in `core.extension`
 > 2. **Run setup scripts** (`ddev drush php:script ...`) — creates entities programmatically
 > 3. **Export config** (`ddev drush config:export -y`) — captures new entities as YAML
-> 4. **Copy pre-made YAML** from `do_runbook/config/` to `config/sync/` only when the runbook explicitly says to
+> 4. **Copy pre-made YAML** from `docs/groups/config/` to `config/sync/` only when the runbook explicitly says to
 > 5. **Import config** (`ddev drush cim -y`) — only when the runbook explicitly says to
 >
 > Never run `cim` before the required modules are installed — Drupal will reject YAML that depends on uninstalled modules.
 >
-> All `do_runbook/config/` YAML files are reference copies. The scripts create the same entities. You only need the YAML for verification or to restore state.
+> All `docs/groups/config/` YAML files are reference copies. The scripts create the same entities. You only need the YAML for verification or to restore state.
 
 > [!IMPORTANT]
 > **Checkpoint after every phase.** After completing all steps and verification for a phase, stop and check in with the user before proceeding to the next phase.
@@ -32,7 +32,15 @@
 > [!IMPORTANT]
 > **Prefer contributed modules over custom code.** Before porting any custom module from Open Social, search [drupal.org/project](https://www.drupal.org/project/project_module) for an existing contributed module that provides the same functionality. Only write custom code when no suitable contributed module exists or when the contributed options are unmaintained / incompatible with Drupal 10 + Group 3.x. Document the search results and rationale for each decision.
 
-This runbook documents the step-by-step process for adding groups functionality to the standard Drupal 10 codebase (pl-drupalorg). It is the pl-drupalorg counterpart to [RUNBOOK.md](RUNBOOK.md), which documents the original Open Social (pl-opensocial) build.
+> [!IMPORTANT]
+> **Copy module source before enabling.** Custom module source files live in `docs/groups/modules/`. Before running `ddev drush en <module>` for any `do_*` module, copy its directory into `web/modules/custom/`:
+> ```bash
+> cp -r docs/groups/modules/do_group_extras web/modules/custom/
+> ```
+> Each phase notes which module to copy. Do this before the `ddev drush en` command for that module.
+
+This runbook documents the step-by-step process for adding groups functionality to the standard Drupal 10 codebase (pl-drupalorg).
+
 
 See [GROUPS_CONVERSION_PLAN.md](GROUPS_CONVERSION_PLAN.md) for the gap analysis, key differences between the projects, and the overall phase plan.
 
@@ -56,6 +64,7 @@ All contributed modules referenced in this runbook, verified on drupal.org:
 | Module | Composer package | drupal.org | Used in | Notes |
 |---|---|---|---|---|
 | Group | `drupal/group` | [drupal.org/project/group](https://www.drupal.org/project/group) | Phase 1 | Core dependency; use `^3.0` for `group_relationship` API |
+| Group Node (gnode) | sub-module of `drupal/group` | — | Phase 1 | Sub-module bundled with Group; enables `group_node:*` relationship plugins |
 | Flag | `drupal/flag` | [drupal.org/project/flag](https://www.drupal.org/project/flag) | Phase 4 | Includes `flag_count` sub-module (not a separate package) |
 | Linkit | `drupal/linkit` | [drupal.org/project/linkit](https://www.drupal.org/project/linkit) | Phase 1 | Optional — inline autocomplete linking |
 | Search API | `drupal/search_api` | [drupal.org/project/search_api](https://www.drupal.org/project/search_api) | Phase 7 | Required by Search API Solr |
@@ -184,7 +193,7 @@ Create the `community_group` group type config entity *(admin UI: `/admin/group/
 ### 120a — Create the group type and admin role
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_120a.php
+ddev drush php:script docs/groups/scripts/step_120a.php
 ```
 
 > [!CAUTION]
@@ -209,7 +218,7 @@ ddev drush php:script docs/groups/do_runbook/scripts/step_120a.php
 **Script**: [step_120b.php](scripts/step_120b.php) — creates field storage + instances for description, visibility, image
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_120b.php
+ddev drush php:script docs/groups/scripts/step_120b.php
 ddev drush config:export -y
 ```
 
@@ -235,7 +244,7 @@ Install the following relationship type plugins for `community_group` *(admin UI
 **Script**: [step_130.php](scripts/step_130.php) — creates 5 relationship types with idempotent checks
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_130.php
+ddev drush php:script docs/groups/scripts/step_130.php
 ddev drush config:export -y
 ```
 
@@ -328,7 +337,7 @@ ddev drush config:export -y
 **Script**: [step_160.php](scripts/step_160.php) — checks body, field_files, field_tags, comment fields, text format, attachment limits
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_160.php
+ddev drush php:script docs/groups/scripts/step_160.php
 ```
 
 ### Text format configuration
@@ -345,7 +354,7 @@ ddev drush php:script docs/groups/do_runbook/scripts/step_160.php
 **Script**: [step_160b.php](scripts/step_160b.php) — sets 15 MB limit and expanded extensions
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_160b.php
+ddev drush php:script docs/groups/scripts/step_160b.php
 ```
 
 ## Step 170 — Create `event_types` Taxonomy
@@ -356,7 +365,7 @@ ddev drush php:script docs/groups/do_runbook/scripts/step_160b.php
 **Script**: [step_170.php](scripts/step_170.php) — creates vocabulary and 7 terms with idempotent checks
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_170.php
+ddev drush php:script docs/groups/scripts/step_170.php
 ```
 
 > [!NOTE]
@@ -369,7 +378,7 @@ ddev drush config:export -y
 ## Step 180 — Phase 1 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Integration (`do_tests`)
 
@@ -469,7 +478,7 @@ Create the `group_type` taxonomy vocabulary config entity *(admin UI: `/admin/st
 **Script**: [step_200.php](scripts/step_200.php) — creates vocabulary and 5 terms with idempotent checks
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_200.php
+ddev drush php:script docs/groups/scripts/step_200.php
 ```
 
 > [!NOTE]
@@ -496,7 +505,7 @@ Add a `field_group_type` field to `community_group` *(admin UI: `/admin/group/ty
 **Script**: [step_220.php](scripts/step_220.php) — creates field storage and instance with idempotent checks
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_220.php
+ddev drush php:script docs/groups/scripts/step_220.php
 ```
 
 > [!IMPORTANT]
@@ -547,7 +556,7 @@ Create an `all_groups` View config entity *(admin UI: `/admin/structure/views/ad
 **Non-exposed filters**: Published = Yes.
 
 **Sort**: Created, newest first.
-s
+
 **Config**: [views.view.all_groups.yml](config/views.view.all_groups.yml)
 
 ```bash
@@ -650,7 +659,8 @@ If needed:
 mkdir -p web/modules/custom/do_wiki/src/Plugin/Filter
 ```
 
-Copy from the [Open Social version](file:///Users/andreangelantoni/Sites/pl-opensocial/web/modules/custom/do_wiki). **No code changes needed.**
+> [!WARNING]
+> `do_wiki` is **not** in `docs/groups/modules/` — it was not ported as part of this project's runbook. If needed, source it from the `pl-opensocial` repo or write it from scratch using the description above. No code changes are needed from the Open Social version beyond updating the `.info.yml` metadata.
 
 ```bash
 ddev drush en do_wiki -y
@@ -666,7 +676,7 @@ Then add the WikiLink filter to `full_html` text format at `/admin/config/conten
 ## Step 280 — Phase 2 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Module: `do_group_extras`
 
@@ -781,15 +791,15 @@ Edit each relationship type config to set `entity_cardinality: 0` *(admin UI: `/
 > **`ddev drush cim` resets cardinality.** Importing View YAML in Steps 310–315 will overwrite the relationship type configs with their YAML defaults, resetting `entity_cardinality` back to 1. You **must** re-run this script after ALL `cim` imports in Phase 3:
 > ```bash
 > # Run FIRST to set cardinality:
-> ddev drush php:script docs/groups/do_runbook/scripts/step_300.php
+> ddev drush php:script docs/groups/scripts/step_300.php
 > # ... do all Steps 310-340 imports ...
 > # Re-run LAST to fix cardinality:
-> ddev drush php:script docs/groups/do_runbook/scripts/step_300.php
+> ddev drush php:script docs/groups/scripts/step_300.php
 > ddev drush config:export -y
 > ```
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_300.php
+ddev drush php:script docs/groups/scripts/step_300.php
 ddev drush config:export -y
 ```
 
@@ -850,14 +860,16 @@ The stream card view mode controls how each node renders in the activity stream:
 > [!CAUTION]
 > **Must run before importing `activity_stream` view.** The activity stream view depends on the `stream_card` view mode. Either run this script first, or import [core.entity_view_mode.node.stream_card.yml](config/core.entity_view_mode.node.stream_card.yml) before importing the view:
 > ```bash
-> cp docs/groups/do_runbook/config/core.entity_view_mode.node.stream_card.yml config/sync/
+> cp docs/groups/config/core.entity_view_mode.node.stream_card.yml config/sync/
 > ddev drush cim -y
 > ```
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_315.php
+ddev drush php:script docs/groups/scripts/step_315.php
 ddev drush config:export -y
 ```
+
+### 315b — (No step 315b — numbering gap from original plan)
 
 ### 315c — Create the Activity Stream View
 
@@ -881,7 +893,7 @@ ddev drush config:export -y
 **Config**: [views.view.activity_stream.yml](config/views.view.activity_stream.yml) — page at `/stream` (10 items) + block display (5 items)
 
 ```bash
-cp docs/groups/do_runbook/config/views.view.activity_stream.yml config/sync/
+cp docs/groups/config/views.view.activity_stream.yml config/sync/
 ddev drush cim -y
 ```
 
@@ -1007,11 +1019,11 @@ ddev drush cr
 > ```
 > If MISSING, re-run the script:
 > ```bash
-> ddev drush php:script docs/groups/do_runbook/scripts/step_330.php
+> ddev drush php:script docs/groups/scripts/step_330.php
 > ```
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_330.php
+ddev drush php:script docs/groups/scripts/step_330.php
 ddev drush config:export -y
 ```
 
@@ -1033,7 +1045,7 @@ ddev drush config:export -y
 ## Step 350 — Phase 3 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Module: `do_multigroup`
 
@@ -1444,13 +1456,13 @@ curl -k https://drupalorg.ddev.site/user/{uid}/events/ical
 ## Step 490 — Phase 4 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Module: `do_discovery`
 
 Create `web/modules/custom/do_discovery/tests/src/Kernel/DiscoveryTest.php`:
 
-- `testModuleEnabled()` — `do_discovery` module enabled; `do_hot_scores` table exists
+- `testModuleEnabled()` — `do_discovery` module enabled; `do_discovery_hot_score` table exists
 - `testHotScoreCalculation()` — create node with views/comments, run cron, verify hot score > 0
 - `testICalRoute()` — `/group/{gid}/events/ical` route is registered
 - `testICalController()` — controller returns valid iCal response for group events
@@ -1866,7 +1878,7 @@ Add a `field_notification_frequency` field to the `user` entity *(admin UI: `/ad
 **Script**: [step_520.php](scripts/step_520.php) — creates field storage and instance with idempotent checks
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_520.php
+ddev drush php:script docs/groups/scripts/step_520.php
 ```
 
 The per-user settings page (`/user/{uid}/notification-settings`) displays this field alongside the subscription management UI. When the user has not explicitly set a preference, the admin default is used.
@@ -1933,7 +1945,7 @@ function _do_notifications_get_group_ids($entity): array {
 ## Step 560 — Phase 5 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Module: `do_notifications`
 
@@ -2122,7 +2134,7 @@ if (!$block_storage->load("do_profile_completeness")) {
   $block_storage->create([
     "id" => "do_profile_completeness",
     "plugin" => "do_profile_completeness",
-    "region" => "sidebar_first",
+    "region" => "content",
     "theme" => "bluecheese",
     "weight" => 10,
     "settings" => [
@@ -2280,7 +2292,7 @@ Features:
 **Script**: [step_620c.php](scripts/step_620c.php) — places block in `sidebar_first` with `/group/*` visibility
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_620c.php
+ddev drush php:script docs/groups/scripts/step_620c.php
 ```
 
 > [!NOTE]
@@ -2327,7 +2339,7 @@ Check if the field exists, create if missing:
 **Script**: [step_630d.php](scripts/step_630d.php) — creates field storage, instance, and form display component
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_630d.php
+ddev drush php:script docs/groups/scripts/step_630d.php
 ```
 
 > [!NOTE]
@@ -2369,7 +2381,7 @@ Add languages matching g.d.o's multilingual needs:
 **Script**: [step_640.php](scripts/step_640.php) — adds 14 languages, configures negotiation chain, enables content translation for all 5 types
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_640.php
+ddev drush php:script docs/groups/scripts/step_640.php
 ```
 
 Expected: 15 languages total (14 + English)
@@ -2398,7 +2410,7 @@ ddev drush config:export -y
 ## Step 650 — Phase 6 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Module: `do_profile_stats`
 
@@ -2418,6 +2430,9 @@ Create `web/modules/custom/do_group_pin/tests/src/Kernel/GroupPinTest.php`:
 ddev exec phpunit web/modules/custom/do_group_pin/tests/src/Kernel/GroupPinTest.php
 ```
 
+### PHPUnit — Module: `do_group_mission`
+
+Create `web/modules/custom/do_group_mission/tests/src/Kernel/GroupMissionTest.php`:
 
 - `testMissionBlock()` — block plugin exists; reads `field_group_description`
 - `testTruncation()` — description truncated at 300 chars with "Read more" link
@@ -2438,7 +2453,7 @@ ddev exec phpunit web/modules/custom/do_group_language/tests/src/Kernel/GroupLan
 ```
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Integration (`do_tests`)
 
@@ -2589,7 +2604,7 @@ web/modules/custom/do_group_language/
 
 **Goal**: Populate the site with realistic test data — users, groups, content, comments, flags — to validate all features from Phases 1–6.
 
-**Source**: DEMO_DATA_PLAN.md (removed — was Open Social version) (1,334 lines — Open Social version), [RUNBOOK.md](RUNBOOK.md) Steps 1200–1400
+**Source**: DEMO_DATA_PLAN.md (removed — was Open Social version, 1,334 lines), [RUNBOOK.md](RUNBOOK.md) Steps 1200–1400
 
 > [!WARNING]
 > The existing `DEMO_DATA_PLAN.md` (removed) was written for Open Social's data model. It must be adapted for pl-drupalorg's entity types, field names, content type names, and relationship patterns. This section documents the required adaptations phase by phase.
@@ -2620,7 +2635,7 @@ Creates:
 All operations are idempotent (safe to re-run).
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_700_demo_data.php
+ddev drush php:script docs/groups/scripts/step_700_demo_data.php
 ```
 
 > [!NOTE]
@@ -2634,7 +2649,7 @@ ddev drush php:script docs/groups/do_runbook/scripts/step_700_demo_data.php
 **Script**: [step_760.php](scripts/step_760.php) — sets group languages, creates French/German content, verifies all multilingual data
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_760.php
+ddev drush php:script docs/groups/scripts/step_760.php
 ```
 
 > [!NOTE]
@@ -2696,7 +2711,7 @@ Expected results:
 **Script**: [step_770.php](scripts/step_770.php) — checks existing config and creates Solr server
 
 ```bash
-ddev drush php:script docs/groups/do_runbook/scripts/step_770.php
+ddev drush php:script docs/groups/scripts/step_770.php
 ```
 
 Generate and upload Drupal configset to Solr:
@@ -2897,6 +2912,9 @@ Take screenshots of the bluecheese-themed site using the demo data from Phase 7.
 | 5 | Forum topics listing | `/all-topics` or equivalent | Topic cards, filters, multilingual content |
 | 6 | Topic detail | `/node/{nid}` | Pinned badge, tags, comments, follow button |
 | 7 | Events listing | `/all-events` or equivalent | Event cards with dates, event type facets |
+
+> [!NOTE]
+> `/all-topics` and `/all-events` listing Views are not created in this runbook. Before Phase 8, either create them as new Views (machine names `all_topics` and `all_events`, similar to `all_groups`) or substitute with existing Views (e.g. the activity stream at `/stream` for topics, and the site events iCal-backed page for events). Update the screenshot table above once decided.
 | 8 | User profile | `/user/{maria_uid}` | Contribution stats, completeness, follow button |
 | 9 | Notification settings | `/user/{uid}/notification-settings` | Subscriptions table, disable toggle |
 | 10 | Archived group | `/group/{legacy_gid}` | Archive badge, read-only indicator |
@@ -3079,7 +3097,7 @@ Everything added across all 8 phases:
 |---|---|---|---|
 | `group` | `community_group` | 1 | Via `drupal/group ^3.0` |
 | `group_role` | `community_group-{admin,member,outsider}` | 1 | 3 roles |
-| `group_relationship_type` | `community_group-group_node-{forum,documentation,event,post,page}` | 1 | 5 content types |
+| `group_relationship_type` | `community_group-group_node-{forum,doc,event,post,page}` | 1 | 5 content types |
 | `group_relationship_type` | `community_group-group_membership` | 1 | User membership |
 
 ## Fields
@@ -3162,7 +3180,7 @@ Everything added across all 8 phases:
 
 | Package | Module(s) enabled | Phase |
 |---|---|---|
-| `drupal/group` | `group` | 1 |
+| `drupal/group` | `group`, `gnode` | 1 |
 | `drupal/linkit` | `linkit` | 1 (optional) |
 | `drupal/flag` | `flag`, `flag_count` | 4 |
 | `drupal/statistics` | `statistics` | 4 |
@@ -3170,6 +3188,7 @@ Everything added across all 8 phases:
 | `drupal/search_api_solr` | `search_api_solr` | 7 (optional) |
 | `drupal/message` | `message` | 5 (optional) |
 | `drupal/message_notify` | `message_notify` | 5 (optional) |
+| `drupal/asset_injector` | `asset_injector` | 7 |
 | (core) | `language`, `locale`, `interface_translation`, `config_translation`, `content_translation` | 6 |
 
 ## Custom Modules
