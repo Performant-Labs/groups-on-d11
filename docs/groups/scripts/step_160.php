@@ -9,7 +9,7 @@ foreach (["forum", "documentation", "event", "post", "page"] as $type) {
   $fields = \Drupal::service("entity_field.manager")->getFieldDefinitions("node", $type);
   $body = isset($fields["body"]) ? "YES" : "NO";
   $files = isset($fields["field_files"]) ? "YES" : "NO";
-  $tags = isset($fields["field_tags"]) ? "YES" : "NO";
+  $tags = isset($fields["field_group_tags"]) ? "YES" : "NO";
   $comment = "";
   foreach ($fields as $name => $def) {
     if ($def->getType() === "comment") { $comment = $name; break; }
