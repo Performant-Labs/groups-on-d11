@@ -945,5 +945,8 @@ When something appears stuck, check in this order:
 
 ### Git Environments
 20. **Subtree fetch missing recent files?** → Verify the source repository has been explicitly committed and pushed to the remote origin.
-21. **Agent hung on `git log`?** → The agent forgot to bypass the terminal pager. Cancel it and tell it to use `git --no-pager log`.
+21. **Agent hung on `git log`?** → The agent forgot to bypass the terminal pager. Cancel it and tell it to use `git --no-pager log`
 22. **Multi-repo loop appears hung?** → Sequential SSH handshakes naturally take ~35 seconds. Wait 60s before intervening.
+
+### Agent / Shell
+23. **Heredoc command hangs or terminal stalls when writing file content?** → Never use `cat > file << 'EOF'` heredocs for writing files. Use the `write_to_file` tool instead — it is always reliable and does not interact with the terminal state.

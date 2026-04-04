@@ -1,0 +1,16 @@
+uuid: dbfa5ee3-63d5-4bfc-b33c-66964b594564
+langcode: en
+status: true
+dependencies:
+  module:
+    - group
+    - system
+_core:
+  default_config_hash: j5zLMOdJBqC0bMvSdth5UebkprJB8g_2FXHqhfpJzow
+id: anonymous
+label: 'Anonymous user'
+weight: 0
+is_admin: false
+permissions:
+  - 'access content'
+  - 'access group overview'

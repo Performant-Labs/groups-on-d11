@@ -1,0 +1,11 @@
+uuid: 2460a2a2-ca4a-4294-a6b8-326d1274eda8
+langcode: en
+status: true
+dependencies: {  }
+name: Page
+type: page
+description: 'General-purpose static pages.'
+help: ''
+new_revision: false
+preview_mode: 1
+display_submitted: true

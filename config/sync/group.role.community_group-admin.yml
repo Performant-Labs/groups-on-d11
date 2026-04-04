@@ -1,0 +1,14 @@
+uuid: ac35a34d-cdbe-47f5-8ab4-9ce2f3715ed5
+langcode: en
+status: true
+dependencies:
+  config:
+    - group.type.community_group
+id: community_group-admin
+label: Admin
+weight: 0
+admin: true
+scope: individual
+global_role: null
+group_type: community_group
+permissions: {  }

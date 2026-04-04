@@ -1,0 +1,11 @@
+uuid: 10a42104-5adf-4398-ab74-d8687a2c2261
+langcode: en
+status: true
+dependencies: {  }
+name: Forum
+type: forum
+description: 'Community discussion threads.'
+help: ''
+new_revision: false
+preview_mode: 1
+display_submitted: true

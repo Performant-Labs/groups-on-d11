@@ -54,7 +54,7 @@ See [GROUPS_CONVERSION_PLAN.md](GROUPS_CONVERSION_PLAN.md) for the gap analysis,
 
 - DDEV running (`ddev status` shows all services healthy)
 - Site accessible at `https://drupalorg.ddev.site`
-- Git working tree clean on `aa/groups-conversion-plan` branch
+- Git working tree clean on `aa/initial-plan` branch
 
 > [!IMPORTANT]
 > Before running any commands or tests, review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) for known gotchas with DDEV, Playwright, Drupal configuration, and process cleanup. Many of the issues documented there (opcode cache staleness, port variability, `networkidle` hangs, config import locks) apply to this project.
