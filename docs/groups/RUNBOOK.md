@@ -102,7 +102,7 @@ A database snapshot is taken **before** each phase begins. To roll back to the s
 | `pre-phase7-*.sql.gz` | Phase 7 (Demo Data) |
 | `pre-phase8-*.sql.gz` | Phase 8 (Feature Tour) |
 | `demo-empty-*.sql.gz` | After clean slate (Step 700) |
-| `demo-complete-*.sql.gz` | After full demo data (Step 780) |
+| `demo-complete-*.sql.gz` | After full demo data (Step 730) |
 
 ---
 
@@ -136,7 +136,7 @@ pl-drupalorg has **30 content types**:
 
 > ✅ **Confirmed**: `forum`, `documentation`, `event`, `post`, `page` are the group-postable content types.
 
-## Step 10 — Create Baseline Snapshot
+## Step 100 — Create Baseline Snapshot
 
 > [!IMPORTANT]
 > This must be the **first step** before ANY changes. It captures the pristine state of the site for rollback.
@@ -149,7 +149,7 @@ git add -A && git status
 
 Verify the backup file exists and note its filename in the rollback table above.
 
-## Step 100 — Install the Group Module
+## Step 110 — Install the Group Module
 
 ```bash
 ddev composer require drupal/group
@@ -161,7 +161,7 @@ Standard Drupal Group module (not Open Social's bundled version). API versions:
 
 > ✅ **Resolved**: `drupal/group` 3.3.5 is already installed. Requires Drupal `^10.3 || ^11`.
 
-## Step 110 — Enable the Module
+## Step 120 — Enable the Module
 
 ```bash
 ddev drush en group -y
@@ -178,7 +178,7 @@ ddev drush pm:list --filter=group --status=enabled
 # Should show: group, gnode (both enabled)
 ```
 
-## Step 120 — Create Group Type
+## Step 130 — Create Group Type
 
 Create the `community_group` group type config entity *(admin UI: `/admin/group/types/add`)*:
 
@@ -190,7 +190,7 @@ Create the `community_group` group type config entity *(admin UI: `/admin/group/
 | **Creator is member** | Yes | Creator auto-joins |
 | **Creator role** | Group Admin | Creator gets admin role |
 
-### 120a — Create the group type and admin role
+### 130a — Create the group type and admin role
 
 ```bash
 ddev drush php:script docs/groups/scripts/step_120a.php
@@ -202,7 +202,7 @@ ddev drush php:script docs/groups/scripts/step_120a.php
 > $group->addMember(\Drupal\user\Entity\User::load($uid));
 > ```
 
-### 120b — Add fields to the group type
+### 130b — Add fields to the group type
 
 | Field | Type | Machine name | Required |
 |---|---|---|---|
@@ -222,7 +222,7 @@ ddev drush php:script docs/groups/scripts/step_120b.php
 ddev drush config:export -y
 ```
 
-## Step 130 — Configure Group-Node Relationships
+## Step 140 — Configure Group-Node Relationships
 
 Install the following relationship type plugins for `community_group` *(admin UI: `/admin/group/types/manage/community_group/content`)*:
 
@@ -248,7 +248,7 @@ ddev drush php:script docs/groups/scripts/step_130.php
 ddev drush config:export -y
 ```
 
-## Step 140 — Set Up Basic Permissions
+## Step 150 — Set Up Basic Permissions
 
 ### Drupal-level permissions
 
@@ -290,7 +290,7 @@ Configure the following group-level permissions *(admin UI: `/admin/group/types/
 ddev drush config:export -y
 ```
 
-## Step 150 — Create Group Listing Page
+## Step 160 — Create Group Listing Page
 
 Create a `groups` View config entity *(admin UI: `/admin/structure/views/add`)*:
 
@@ -319,7 +319,7 @@ Verify: navigate to `/groups` — should show an empty list (no groups created y
 ddev drush config:export -y
 ```
 
-## Step 160 — Verify Content Type Field Configuration
+## Step 170 — Verify Content Type Field Configuration
 
 > [!IMPORTANT]
 > pl-drupalorg already has 30 content types. Before proceeding, verify the group-postable content types have the required fields.
@@ -357,7 +357,7 @@ ddev drush php:script docs/groups/scripts/step_160.php
 ddev drush php:script docs/groups/scripts/step_160b.php
 ```
 
-## Step 170 — Create `event_types` Taxonomy
+## Step 180 — Create `event_types` Taxonomy
 
 > [!IMPORTANT]
 > pl-drupalorg's event content type may need an event type classification. The old runbook creates 7 event type terms. Check if this vocabulary already exists:
@@ -375,7 +375,7 @@ ddev drush php:script docs/groups/scripts/step_170.php
 ddev drush config:export -y
 ```
 
-## Step 180 — Phase 1 Tests
+## Step 190 — Phase 1 Tests
 
 > [!WARNING]
 > Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
@@ -421,7 +421,7 @@ npx playwright test tests/e2e/phase1.spec.ts
 - [ ] Group-node relationships configured for chosen content types
 - [ ] Permissions set for member/admin/outsider
 - [ ] Group listing at `/groups` works
-- [ ] Content type fields verified (body, field_files, field_tags, comment field) per Step 160
+- [ ] Content type fields verified (body, field_files, field_tags, comment field) per Step 170
 - [ ] `full_html` text format enabled and properly configured
 - [ ] Attachment field limits set to 15 MB with expanded extensions
 - [ ] `event_types` vocabulary exists with 7 terms
@@ -457,7 +457,7 @@ npx playwright test tests/e2e/phase1.spec.ts
 
 **Goal**: Configure group types, membership models, group directory, and the `do_group_extras` module.
 
-**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 3, [RUNBOOK.md](RUNBOOK.md) Steps 300–370
+**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 3
 
 ## Pre-Phase 2 Snapshot
 
@@ -488,7 +488,7 @@ ddev drush php:script docs/groups/scripts/step_200.php
 ddev drush config:export -y
 ```
 
-## Step 220 — Add `field_group_type` to Group Entity
+## Step 210 — Add `field_group_type` to Group Entity
 
 Add a `field_group_type` field to `community_group` *(admin UI: `/admin/group/types/manage/community_group/fields/add`)*:
 
@@ -515,7 +515,7 @@ ddev drush php:script docs/groups/scripts/step_220.php
 ddev drush config:export -y
 ```
 
-## Step 230 — Configure Membership Models
+## Step 220 — Configure Membership Models
 
 The `field_group_visibility` field controls join behaviour:
 
@@ -537,7 +537,7 @@ Group-level permissions for each model are configured at `/admin/group/types/man
 ddev drush config:export -y
 ```
 
-## Step 240 — Build Group Directory View
+## Step 230 — Build Group Directory View
 
 Create an `all_groups` View config entity *(admin UI: `/admin/structure/views/add`)*:
 
@@ -575,7 +575,7 @@ Archived groups appear only when "Archive" is selected from the Group Type filte
 ddev drush config:export -y
 ```
 
-## Step 250 — Enable `do_group_extras` Module
+## Step 240 — Enable `do_group_extras` Module
 
 Archive enforcement, submission guidelines, and moderation defaults for groups.
 
@@ -608,7 +608,7 @@ Module hooks:
 - `hook_preprocess_group()` — "Archived" badge
 - `hook_node_access()` — denies content creation in archive groups
 
-## Step 260 — Create Pending Groups View
+## Step 250 — Create Pending Groups View
 
 Create a `pending_groups` View config entity *(admin UI: `/admin/structure/views/add`)*:
 
@@ -630,7 +630,7 @@ Create a `pending_groups` View config entity *(admin UI: `/admin/structure/views
 **Config**: [views.view.pending_groups.yml](config/views.view.pending_groups.yml)
 
 > [!IMPORTANT]
-> Only run `config:import` for this View **after** you have exported `do_group_extras` in Step 250. Otherwise the import will uninstall the module.
+> Only run `config:import` for this View **after** you have exported `do_group_extras` in Step 240. Otherwise the import will uninstall the module.
 
 ```bash
 ddev drush config:import -y
@@ -642,7 +642,7 @@ Verify: navigate to `/admin/groups/pending` — should show an empty table (requ
 ddev drush config:export -y
 ```
 
-## Step 270 — Evaluate `do_wiki` Module
+## Step 260 — Evaluate `do_wiki` Module
 
 > **Decision needed**: Should `[[Title]]` wiki-link syntax be supported in pl-drupalorg?
 
@@ -673,7 +673,7 @@ ddev drush cr
 
 Then add the WikiLink filter to `full_html` text format at `/admin/config/content/formats/manage/full_html`.
 
-## Step 280 — Phase 2 Tests
+## Step 270 — Phase 2 Tests
 
 > [!WARNING]
 > Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
@@ -759,7 +759,7 @@ npx playwright test tests/e2e/phase2.spec.ts
 
 **Goal**: Enable posting content to groups, build group streams, port multi-group posting, enable tags.
 
-**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 5, [RUNBOOK.md](RUNBOOK.md) Steps 700–760
+**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 5
 
 ## Pre-Phase 3 Snapshot
 
@@ -780,7 +780,7 @@ Edit each relationship type config to set `entity_cardinality: 0` *(admin UI: `/
 | `community_group-group_node-page` | 0 (unlimited) |
 
 > [!IMPORTANT]
-> Note the `doc` abbreviation for the documentation relationship type — this was established in Step 130 due to the 32-character ID limit.
+> Note the `doc` abbreviation for the documentation relationship type — this was established in Step 140 due to the 32-character ID limit.
 
 > [!CAUTION]
 > **Breaking change**: `entity_cardinality: 0` allows a node to belong to unlimited groups. Ensure all group stream Views use `distinct: true`.
@@ -788,7 +788,7 @@ Edit each relationship type config to set `entity_cardinality: 0` *(admin UI: `/
 **Script**: [step_300.php](scripts/step_300.php) — sets `entity_cardinality=0` on all 5 relationship types
 
 > [!CAUTION]
-> **`ddev drush cim` resets cardinality.** Importing View YAML in Steps 310–315 will overwrite the relationship type configs with their YAML defaults, resetting `entity_cardinality` back to 1. You **must** re-run this script after ALL `cim` imports in Phase 3:
+> **`ddev drush cim` resets cardinality.** Importing View YAML in Steps 310–320 will overwrite the relationship type configs with their YAML defaults, resetting `entity_cardinality` back to 1. You **must** re-run this script after ALL `cim` imports in Phase 3:
 > ```bash
 > # Run FIRST to set cardinality:
 > ddev drush php:script docs/groups/scripts/step_300.php
@@ -846,12 +846,12 @@ Fields: Username (linked), Avatar, Group role, Joined date.
 ddev drush config:export -y
 ```
 
-## Step 315 — Sitewide Activity Stream (Post Wall)
+## Step 320 — Sitewide Activity Stream (Post Wall)
 
 > [!IMPORTANT]
 > This is the **homepage equivalent** of Open Social's "continuous post wall" — a reverse-chronological feed of all group content with the last 2-3 comments shown inline on each card. In Open Social this is powered by `Activity` entities; in standard Drupal we build it as a View of nodes sorted by last activity.
 
-### 315a — Create `stream_card` view mode
+### 320a — Create `stream_card` view mode
 
 The stream card view mode controls how each node renders in the activity stream: author info, trimmed body, group badge, tags, and inline comments.
 
@@ -869,9 +869,9 @@ ddev drush php:script docs/groups/scripts/step_315.php
 ddev drush config:export -y
 ```
 
-### 315b — (No step 315b — numbering gap from original plan)
+### 320b — (Intentional gap — no step 320b)
 
-### 315c — Create the Activity Stream View
+### 320c — Create the Activity Stream View
 
 | Setting | Value |
 |---|---|
@@ -904,7 +904,7 @@ ddev drush cim -y
 > ```
 > Alternatively, keep the existing front page and place the stream View as a block.
 
-### 315d — Add "Group badge" to stream cards
+### 320d — Add "Group badge" to stream cards
 
 Each stream card should show which group(s) the content belongs to. Create a Views field or custom preprocess function that queries `group_relationship` for each node and renders the group name(s) as linked badges.
 
@@ -950,7 +950,7 @@ Then in `templates/node--stream-card.html.twig` (theme template):
 {% endif %}
 ```
 
-### 315e — Verify the activity stream
+### 320e — Verify the activity stream
 
 ```bash
 # Verify view mode exists:
@@ -976,7 +976,7 @@ echo "stream_card view mode: " . ($vm ? "OK" : "MISSING") . "\n";
 ddev drush config:export -y
 ```
 
-## Step 320 — Enable `do_multigroup` Module
+## Step 330 — Enable `do_multigroup` Module
 
 Allows content to be posted in multiple groups simultaneously.
 
@@ -1006,14 +1006,14 @@ ddev restart
 ddev drush cr
 ```
 
-## Step 330 — Enable Tags on Group Content
+## Step 340 — Enable Tags on Group Content
 
 ### Verify tags vocabulary
 
 **Script**: [step_330.php](scripts/step_330.php) — creates `group_tags` vocabulary, `tags` vocabulary (if missing), and `field_group_tags` on all 5 content types
 
 > [!WARNING]
-> **Opcode cache after `ddev restart`.** If Step 320 required a `ddev restart`, the PHP opcode cache is cold. The script may report "Created" but the entities may not persist. **Verify** with:
+> **Opcode cache after `ddev restart`.** If Step 330 required a `ddev restart`, the PHP opcode cache is cold. The script may report "Created" but the entities may not persist. **Verify** with:
 > ```bash
 > ddev drush php:eval '\Drupal\field\Entity\FieldStorageConfig::loadByName("node","field_group_tags") ? print "OK" : print "MISSING";'
 > ```
@@ -1027,7 +1027,7 @@ ddev drush php:script docs/groups/scripts/step_330.php
 ddev drush config:export -y
 ```
 
-## Step 340 — Tags Aggregation View
+## Step 350 — Tags Aggregation View
 
 | Setting | Value |
 |---|---|
@@ -1042,7 +1042,7 @@ ddev drush config:export -y
 ddev drush config:export -y
 ```
 
-## Step 350 — Phase 3 Tests
+## Step 360 — Phase 3 Tests
 
 > [!WARNING]
 > Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
@@ -1111,7 +1111,7 @@ npx playwright test tests/e2e/phase3.spec.ts
 - [ ] `group_tags` vocabulary exists
 - [ ] `field_group_tags` on all 5 content types
 - [ ] Tags aggregation page at `/tags/{term-name}` works
-- [ ] **Activity Stream** (Step 315):
+- [ ] **Activity Stream** (Step 320):
   - [ ] `stream_card` view mode exists
   - [ ] `stream_card` display enabled for `forum`, `documentation`, `event`, `post`, `page`
   - [ ] `activity_stream` View exists at `/stream`
@@ -1160,7 +1160,7 @@ web/modules/custom/do_multigroup/
 
 **Goal**: Document hot content scoring, promoted content, RSS feeds, and iCal feeds.
 
-**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 4, [RUNBOOK.md](RUNBOOK.md) Steps 500–630
+**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 4
 
 > [!IMPORTANT]
 > Adaptation difficulty: 🟢 Low for the core scoring module. 🟡 Medium for the iCal controller (Open Social-specific event fields and enrollment entity must be adapted).
@@ -1574,7 +1574,7 @@ web/modules/custom/do_discovery/
 
 **Goal**: Document follow/subscription infrastructure, per-post notification opt-out, subscription management page, and mute capabilities.
 
-**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 6, [RUNBOOK.md](RUNBOOK.md) Steps 800–850
+**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 6
 
 > [!NOTE]
 > **Drupal does NOT send email.** Drupal only records notification events ("what happened"). An external system reads the queue and handles all recipient resolution, suppression checks, frequency batching, and email delivery.
@@ -1932,7 +1932,7 @@ function _do_notifications_get_group_ids($entity): array {
     ->getStorage('group_relationship')
     ->loadByProperties([
       'entity_id' => $entity->id(),
-      // Step 130 abbreviated documentation→doc for the 32-char ID limit.
+      // Step 140 abbreviated documentation→doc for the 32-char ID limit.
       'type' => 'community_group-group_node-' . ($entity->bundle() === 'documentation' ? 'doc' : $entity->bundle()),
     ]);
   return array_map(fn($r) => $r->getGroup()->id(), $relationships);
@@ -2070,7 +2070,7 @@ web/modules/custom/do_notifications/
 
 **Goal**: Port profile contribution stats, content pinning within groups, group mission sidebar, and group-level language negotiation.
 
-**Source**: IMPLEMENTATION_PLAN.md (removed) Phases 7–8, [RUNBOOK.md](RUNBOOK.md) Steps 915–1100
+**Source**: IMPLEMENTATION_PLAN.md (removed) Phases 7–8
 
 ## Pre-Phase 6 Snapshot
 
@@ -2594,7 +2594,7 @@ web/modules/custom/do_group_language/
 
 1. **Profile completeness fields**: Which pl-drupalorg user fields should be checked? ⏳ **Deferred** — research step 600e-pre added: investigate current groups.drupal.org and Open Social before deciding.
 2. ~~**Contribution stats expansion**~~: ✅ Confirmed: count all 5 group-postable content types (forum, documentation, event, post, page) plus comments, groups, and days active.
-3. ~~**Group mission field**~~: ✅ Resolved: `field_group_description` is defined in Step 120 as a required field on `community_group`. The mission block reads from this field.
+3. ~~**Group mission field**~~: ✅ Resolved: `field_group_description` is defined in Step 130 as a required field on `community_group`. The mission block reads from this field.
 4. ~~**Group language**~~: ✅ Confirmed: multilingual is **required** for groups. Enable `do_group_language` and add `field_group_language` to the group entity.
 5. ~~**Pin permissions**~~: ✅ Confirmed: group admins (`community_group-admin` role) can pin/unpin in their own groups, in addition to site-wide `site_moderator` and `administrator`.
 
@@ -2604,7 +2604,7 @@ web/modules/custom/do_group_language/
 
 **Goal**: Populate the site with realistic test data — users, groups, content, comments, flags — to validate all features from Phases 1–6.
 
-**Source**: DEMO_DATA_PLAN.md (removed — was Open Social version, 1,334 lines), [RUNBOOK.md](RUNBOOK.md) Steps 1200–1400
+**Source**: DEMO_DATA_PLAN.md (removed — was Open Social version, 1,334 lines)
 
 > [!WARNING]
 > The existing `DEMO_DATA_PLAN.md` (removed) was written for Open Social's data model. It must be adapted for pl-drupalorg's entity types, field names, content type names, and relationship patterns. This section documents the required adaptations phase by phase.
@@ -2641,7 +2641,7 @@ ddev drush php:script docs/groups/scripts/step_700_demo_data.php
 > [!NOTE]
 > **Architecture change**: Open Social uses a custom `EventEnrollment` entity type for event signups. pl-drupalorg uses the `rsvp_event` Flag (from Phase 4 Step 430) for the same purpose.
 
-## Step 760 — Multilingual Demo Data
+## Step 710 — Multilingual Demo Data
 
 > [!IMPORTANT]
 > The multilingual infrastructure was set up in Phase 6 (Step 640), but it must be exercised with demo data. Without this step, the 14 languages, `do_group_language` module, and content translation settings remain untested.
@@ -2655,7 +2655,7 @@ ddev drush php:script docs/groups/scripts/step_760.php
 > [!NOTE]
 > Nodes are created with `langcode => "fr"`/`"de"` so they are natively in that language. When visiting `/group/{gid}`, the `do_group_language` plugin switches the interface language.
 
-### 760e — Download locale translation strings
+### 710e — Download locale translation strings
 
 ```bash
 ddev drush locale:check
@@ -2666,7 +2666,7 @@ ddev drush cr
 > [!NOTE]
 > This downloads translation strings for all 17 enabled languages (~139k strings, 1-2 minutes).
 
-### 760f — Verify multilingual demo data
+### 710f — Verify multilingual demo data
 
 ```bash
 # Verify group languages are set:
@@ -2701,12 +2701,12 @@ Expected results:
 - de-language nodes: ≥2
 - Translation strings: >0 (typically thousands)
 
-## Step 770 — Search Setup (Solr or Core)
+## Step 720 — Search Setup (Solr or Core)
 
 > [!IMPORTANT]
 > pl-drupalorg may already have a search backend configured. Check current status before setting up Solr.
 
-### 770a — Check existing search configuration
+### 720a — Check existing search configuration
 
 **Script**: [step_770.php](scripts/step_770.php) — checks existing config and creates Solr server
 
@@ -2724,7 +2724,7 @@ ddev solr zk upconfig -n drupal -d /tmp/solr-configset
 ddev solr create -c drupal -n drupal
 ```
 
-### 770c — Option B: Core Search (minimal setup)
+### 720c — Option B: Core Search (minimal setup)
 
 If Solr is not needed, enable core search:
 ```bash
@@ -2732,7 +2732,7 @@ ddev drush en search -y
 ddev drush search:index
 ```
 
-### 770d — Index all content
+### 720d — Index all content
 
 ```bash
 ddev drush cron
@@ -2745,14 +2745,14 @@ Verify search works:
 ddev drush search-api:status  # should show 0 items remaining
 ```
 
-## Step 780 — Final Snapshot
+## Step 730 — Final Snapshot
 
 Snapshot complete demo database:
 ```bash
 ddev export-db --file=backups/demo-complete-$(date +%Y%m%d-%H%M).sql.gz
 ```
 
-## Step 790 — Phase 7 Tests
+## Step 740 — Phase 7 Tests
 
 ### PHPUnit — Integration (`do_tests`)
 
@@ -2807,7 +2807,7 @@ npx playwright test tests/e2e/phase7.spec.ts
 - [ ] `follow_user` flagging: 1 (ravi → maria)
 - [ ] `rsvp_event` flaggings: ≥7
 - [ ] Legacy Infrastructure archived (status=0)
-- [ ] **Multilingual** (Step 760):
+- [ ] **Multilingual** (Step 710):
   - [ ] Drupal France `field_group_language` = `fr`
   - [ ] Drupal Deutschland `field_group_language` = `de`
   - [ ] `field_group_language` widget visible on group add/edit form
@@ -2834,7 +2834,7 @@ npx playwright test tests/e2e/phase7.spec.ts
 | **Data** | ~22 taxonomy terms | Tags on content |
 | **Data** | Translation strings | Downloaded via `drush locale:update` for 17 languages |
 | **Config** | `field_group_language` form widget | Language select on group add/edit form |
-| **Config** | Search API server + index | If Solr chosen (Step 770) |
+| **Config** | Search API server + index | If Solr chosen (Step 720) |
 | **Snapshot** | `demo-empty-*.sql.gz` | After clean slate |
 | **Snapshot** | `demo-complete-*.sql.gz` | After full population |
 
@@ -2865,7 +2865,7 @@ npx playwright test tests/e2e/phase7.spec.ts
 
 ---
 
-## Step 795 — Install Asset Injector
+## Step 750 — Install Asset Injector
 
 Install the `asset_injector` module to allow adding custom CSS and JS snippets via the admin UI. This is useful for quick theming adjustments (e.g. hiding the drupal.org mega-menu on a development instance) without modifying theme files.
 
