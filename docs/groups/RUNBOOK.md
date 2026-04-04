@@ -45,7 +45,7 @@ See [GROUPS_CONVERSION_PLAN.md](GROUPS_CONVERSION_PLAN.md) for the gap analysis,
 - Git working tree clean on `aa/groups-conversion-plan` branch
 
 > [!IMPORTANT]
-> Before running any commands or tests, review [os_HANGING_PROCESSES.md](./os_HANGING_PROCESSES.md) for known gotchas with DDEV, Playwright, Drupal configuration, and process cleanup. Many of the issues documented there (opcode cache staleness, port variability, `networkidle` hangs, config import locks) apply to this project.
+> Before running any commands or tests, review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) for known gotchas with DDEV, Playwright, Drupal configuration, and process cleanup. Many of the issues documented there (opcode cache staleness, port variability, `networkidle` hangs, config import locks) apply to this project.
 
 ---
 
@@ -101,7 +101,7 @@ A database snapshot is taken **before** each phase begins. To roll back to the s
 
 **Goal**: Install the Drupal Group module and establish the base group type.
 
-**Source**: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) Phase 3, [FEATURES.md](FEATURES.md) Groups section
+**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 3, FEATURES.md (removed) Groups section
 
 ## Existing Content Types in pl-drupalorg
 
@@ -369,7 +369,7 @@ ddev drush config:export -y
 ## Step 180 — Phase 1 Tests
 
 > [!WARNING]
-> Review [os_HANGING_PROCESSES.md](./os_HANGING_PROCESSES.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
 
 ### PHPUnit — Integration (`do_tests`)
 
@@ -448,7 +448,7 @@ npx playwright test tests/e2e/phase1.spec.ts
 
 **Goal**: Configure group types, membership models, group directory, and the `do_group_extras` module.
 
-**Source**: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) Phase 3, [RUNBOOK.md](RUNBOOK.md) Steps 300–370
+**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 3, [RUNBOOK.md](RUNBOOK.md) Steps 300–370
 
 ## Pre-Phase 2 Snapshot
 
@@ -666,7 +666,7 @@ Then add the WikiLink filter to `full_html` text format at `/admin/config/conten
 ## Step 280 — Phase 2 Tests
 
 > [!WARNING]
-> Review [os_HANGING_PROCESSES.md](./os_HANGING_PROCESSES.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
 
 ### PHPUnit — Module: `do_group_extras`
 
@@ -749,7 +749,7 @@ npx playwright test tests/e2e/phase2.spec.ts
 
 **Goal**: Enable posting content to groups, build group streams, port multi-group posting, enable tags.
 
-**Source**: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) Phase 5, [RUNBOOK.md](RUNBOOK.md) Steps 700–760
+**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 5, [RUNBOOK.md](RUNBOOK.md) Steps 700–760
 
 ## Pre-Phase 3 Snapshot
 
@@ -1033,7 +1033,7 @@ ddev drush config:export -y
 ## Step 350 — Phase 3 Tests
 
 > [!WARNING]
-> Review [os_HANGING_PROCESSES.md](./os_HANGING_PROCESSES.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
 
 ### PHPUnit — Module: `do_multigroup`
 
@@ -1148,7 +1148,7 @@ web/modules/custom/do_multigroup/
 
 **Goal**: Document hot content scoring, promoted content, RSS feeds, and iCal feeds.
 
-**Source**: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) Phase 4, [RUNBOOK.md](RUNBOOK.md) Steps 500–630
+**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 4, [RUNBOOK.md](RUNBOOK.md) Steps 500–630
 
 > [!IMPORTANT]
 > Adaptation difficulty: 🟢 Low for the core scoring module. 🟡 Medium for the iCal controller (Open Social-specific event fields and enrollment entity must be adapted).
@@ -1444,7 +1444,7 @@ curl -k https://drupalorg.ddev.site/user/{uid}/events/ical
 ## Step 490 — Phase 4 Tests
 
 > [!WARNING]
-> Review [os_HANGING_PROCESSES.md](./os_HANGING_PROCESSES.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
 
 ### PHPUnit — Module: `do_discovery`
 
@@ -1562,7 +1562,7 @@ web/modules/custom/do_discovery/
 
 **Goal**: Document follow/subscription infrastructure, per-post notification opt-out, subscription management page, and mute capabilities.
 
-**Source**: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) Phase 6, [RUNBOOK.md](RUNBOOK.md) Steps 800–850
+**Source**: IMPLEMENTATION_PLAN.md (removed) Phase 6, [RUNBOOK.md](RUNBOOK.md) Steps 800–850
 
 > [!NOTE]
 > **Drupal does NOT send email.** Drupal only records notification events ("what happened"). An external system reads the queue and handles all recipient resolution, suppression checks, frequency batching, and email delivery.
@@ -1933,7 +1933,7 @@ function _do_notifications_get_group_ids($entity): array {
 ## Step 560 — Phase 5 Tests
 
 > [!WARNING]
-> Review [os_HANGING_PROCESSES.md](./os_HANGING_PROCESSES.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
 
 ### PHPUnit — Module: `do_notifications`
 
@@ -2058,7 +2058,7 @@ web/modules/custom/do_notifications/
 
 **Goal**: Port profile contribution stats, content pinning within groups, group mission sidebar, and group-level language negotiation.
 
-**Source**: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) Phases 7–8, [RUNBOOK.md](RUNBOOK.md) Steps 915–1100
+**Source**: IMPLEMENTATION_PLAN.md (removed) Phases 7–8, [RUNBOOK.md](RUNBOOK.md) Steps 915–1100
 
 ## Pre-Phase 6 Snapshot
 
@@ -2398,7 +2398,7 @@ ddev drush config:export -y
 ## Step 650 — Phase 6 Tests
 
 > [!WARNING]
-> Review [os_HANGING_PROCESSES.md](./os_HANGING_PROCESSES.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
 
 ### PHPUnit — Module: `do_profile_stats`
 
@@ -2438,7 +2438,7 @@ ddev exec phpunit web/modules/custom/do_group_language/tests/src/Kernel/GroupLan
 ```
 
 > [!WARNING]
-> Review [os_HANGING_PROCESSES.md](./os_HANGING_PROCESSES.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `bash scripts/kill-zombies.sh`
 
 ### PHPUnit — Integration (`do_tests`)
 
@@ -2589,10 +2589,10 @@ web/modules/custom/do_group_language/
 
 **Goal**: Populate the site with realistic test data — users, groups, content, comments, flags — to validate all features from Phases 1–6.
 
-**Source**: [DEMO_DATA_PLAN.md](DEMO_DATA_PLAN.md) (1,334 lines — Open Social version), [RUNBOOK.md](RUNBOOK.md) Steps 1200–1400
+**Source**: DEMO_DATA_PLAN.md (removed — was Open Social version) (1,334 lines — Open Social version), [RUNBOOK.md](RUNBOOK.md) Steps 1200–1400
 
 > [!WARNING]
-> The existing `DEMO_DATA_PLAN.md` was written for Open Social's data model. It must be adapted for pl-drupalorg's entity types, field names, content type names, and relationship patterns. This section documents the required adaptations phase by phase.
+> The existing `DEMO_DATA_PLAN.md` (removed) was written for Open Social's data model. It must be adapted for pl-drupalorg's entity types, field names, content type names, and relationship patterns. This section documents the required adaptations phase by phase.
 
 ## Pre-Phase 7 Snapshot
 
@@ -2869,9 +2869,9 @@ ddev drush cr
 
 # Phase 8 — Feature Tour
 
-**Goal**: Create a visual feature tour document with screenshots from the bluecheese theme, modelled on the [Open Social Feature Tour](feature_tour/FEATURE_TOUR.md).
+**Goal**: Create a visual feature tour document with screenshots from the bluecheese theme, modelled on the Open Social Feature Tour (reference only — not in this repo).
 
-**Source**: [feature_tour/FEATURE_TOUR.md](feature_tour/FEATURE_TOUR.md) (245 lines, 7 screenshots), bluecheese theme
+**Source**: feature_tour/FEATURE_TOUR.md (reference only — not in this repo) (245 lines, 7 screenshots), bluecheese theme
 
 > [!NOTE]
 > The existing feature tour at `feature_tour/FEATURE_TOUR.md` documents the **Open Social** (socialblue theme) platform. The new tour will document the **pl-drupalorg** (bluecheese theme) platform with updated screenshots and adapted descriptions.
