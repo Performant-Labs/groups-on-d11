@@ -2,13 +2,17 @@ _core:
   default_config_hash: 4GIX5Esnc_umpXUBj4IIocRX7Mt5fPhm4AgXfE3E56E
 module:
   block: 0
+  comment: 0
   dblog: 0
+  do_discovery: 0
   do_group_extras: 0
   do_multigroup: 0
   dynamic_page_cache: 0
   field: 0
   file: 0
   filter: 0
+  flag: 0
+  flag_count: 0
   gnode: 0
   group: 0
   image: 0

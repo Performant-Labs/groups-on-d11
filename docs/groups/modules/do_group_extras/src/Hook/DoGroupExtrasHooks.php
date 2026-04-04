@@ -12,7 +12,6 @@ use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\group\Entity\GroupInterface;
 use Drupal\node\NodeInterface;
-use Psr\Log\LoggerInterface;
 
 /**
  * Hook implementations for do_group_extras.
@@ -26,11 +25,10 @@ class DoGroupExtrasHooks {
     private readonly AccountInterface $currentUser,
     private readonly QueueFactory $queueFactory,
     private readonly RouteMatchInterface $routeMatch,
-    private readonly LoggerInterface $logger,
   ) {}
 
   /**
-   * Adds submission guidelines to group forms; blocks archived group forms.
+   * Adds submission guidelines to group forms.
    */
   #[Hook('form_alter')]
   public function formAlter(
@@ -84,11 +82,9 @@ class DoGroupExtrasHooks {
   public function preprocessGroup(array &$variables): void {
     /** @var \Drupal\group\Entity\GroupInterface $group */
     $group = $variables['group'];
-
     if (!$group->hasField('field_group_type')) {
       return;
     }
-
     $group_type_ref = $group->get('field_group_type')->entity;
     if ($group_type_ref && $group_type_ref->getName() === 'Archive') {
       $variables['attributes']['class'][] = 'group--archived';
@@ -109,18 +105,15 @@ class DoGroupExtrasHooks {
     if ($op !== 'create') {
       return AccessResult::neutral();
     }
-
     $group = $this->routeMatch->getParameter('group');
     if (!($group instanceof GroupInterface) || !$group->hasField('field_group_type')) {
       return AccessResult::neutral();
     }
-
     $group_type_ref = $group->get('field_group_type')->entity;
     if ($group_type_ref && $group_type_ref->getName() === 'Archive') {
       return AccessResult::forbidden('This group is archived. No new content can be created.')
         ->addCacheableDependency($group);
     }
-
     return AccessResult::neutral();
   }
 
@@ -128,6 +121,7 @@ class DoGroupExtrasHooks {
    * Queues a pending-group notification for site_moderator users.
    *
    * Records to a queue only — actual email delivery is handled externally.
+   * Logger uses \Drupal::logger() — acceptable for a private helper method.
    */
   private function notifyModerators(GroupInterface $group): void {
     $queue = $this->queueFactory->get('do_group_extras_pending_notification');
@@ -137,7 +131,7 @@ class DoGroupExtrasHooks {
       'author_uid' => $group->getOwnerId(),
       'timestamp' => \Drupal::time()->getRequestTime(),
     ]);
-    $this->logger->notice(
+    \Drupal::logger('do_group_extras')->notice(
       'Pending group notification queued for group %label (gid=%gid)',
       ['%label' => $group->label(), '%gid' => $group->id()],
     );

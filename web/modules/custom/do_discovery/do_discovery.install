@@ -1,0 +1,42 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the DO Discovery module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function do_discovery_schema() {
+  $schema['do_discovery_hot_score'] = [
+    'description' => 'Stores computed hot content scores for nodes.',
+    'fields' => [
+      'nid' => [
+        'description' => 'The node ID.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'score' => [
+        'description' => 'The computed hot score.',
+        'type' => 'float',
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+      'computed' => [
+        'description' => 'UNIX timestamp of the last computation.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+    ],
+    'primary key' => ['nid'],
+    'indexes' => [
+      'score' => ['score'],
+    ],
+  ];
+
+  return $schema;
+}

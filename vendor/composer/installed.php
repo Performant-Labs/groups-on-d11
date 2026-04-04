@@ -3,7 +3,7 @@
         'name' => 'drupal/recommended-project',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '7607d953279c9be6f9691f5873028cd8c9551e37',
+        'reference' => '87163c82f94ee6abf43b9ecd6f3e2384ddfdca31',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -325,6 +325,15 @@
                 0 => '11.3.5',
             ),
         ),
+        'drupal/flag' => array(
+            'pretty_version' => '4.0.0-beta7',
+            'version' => '4.0.0.0-beta7',
+            'reference' => '8.x-4.0-beta7',
+            'type' => 'drupal-module',
+            'install_path' => __DIR__ . '/../../web/modules/contrib/flag',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
         'drupal/group' => array(
             'pretty_version' => 'dev-4.0.x',
             'version' => 'dev-4.0.x',
@@ -339,7 +348,7 @@
         'drupal/recommended-project' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '7607d953279c9be6f9691f5873028cd8c9551e37',
+            'reference' => '87163c82f94ee6abf43b9ecd6f3e2384ddfdca31',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

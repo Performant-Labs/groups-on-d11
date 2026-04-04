@@ -1,0 +1,13 @@
+services:
+  logger.channel.do_discovery:
+    parent: logger.channel_base
+    arguments: ['do_discovery']
+
+  do_discovery.hooks:
+    class: Drupal\do_discovery\Hook\DoDiscoveryHooks
+    autowire: false
+    arguments:
+      - '@database'
+      - '@entity_type.manager'
+    tags:
+      - { name: 'hook_implementations' }

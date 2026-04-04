@@ -1,0 +1,89 @@
+uuid: e907f920-dd96-4f4d-aad6-9ebcafbae9bd
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: promoted_content
+label: 'Promoted Content'
+module: views
+description: 'Content flagged as Promote to homepage'
+tag: ''
+base_table: node_field_data
+base_field: nid
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      title: 'Promoted Content'
+      fields:
+        title:
+          id: title
+          table: node_field_data
+          field: title
+          entity_type: node
+          entity_field: title
+          plugin_id: field
+          label: ''
+          type: string
+          settings:
+            link_to_entity: true
+      pager:
+        type: full
+        options:
+          pagination_heading_level: h4
+          items_per_page: 25
+      sorts:
+        created:
+          id: created
+          table: node_field_data
+          field: created
+          entity_type: node
+          entity_field: created
+          plugin_id: date
+          order: DESC
+      filters:
+        status:
+          id: status
+          table: node_field_data
+          field: status
+          entity_type: node
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+      style:
+        type: table
+      row:
+        type: fields
+      display_extenders: {  }
+    cache_metadata:
+      max-age: -1
+      contexts:
+        - 'languages:language_content'
+        - 'languages:language_interface'
+        - url.query_args
+        - 'user.node_grants:view'
+      tags: {  }
+  page_1:
+    id: page_1
+    display_title: 'Admin Page'
+    display_plugin: page
+    position: 1
+    display_options:
+      access:
+        type: perm
+        options:
+          perm: 'flag promote_homepage'
+      display_extenders: {  }
+      path: admin/content/promoted
+    cache_metadata:
+      max-age: -1
+      contexts:
+        - 'languages:language_content'
+        - 'languages:language_interface'
+        - url.query_args
+        - 'user.node_grants:view'
+      tags: {  }

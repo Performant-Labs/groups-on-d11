@@ -3,6 +3,7 @@ langcode: en
 status: true
 dependencies:
   module:
+    - flag
     - group
     - system
 _core:
@@ -15,3 +16,5 @@ permissions:
   - 'access content'
   - 'access group overview'
   - 'create community_group group'
+  - 'flag rsvp_event'
+  - 'unflag rsvp_event'

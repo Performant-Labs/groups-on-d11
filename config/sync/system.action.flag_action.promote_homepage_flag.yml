@@ -1,0 +1,15 @@
+uuid: d0a64069-4055-4aaf-8e18-f6a10501ecff
+langcode: en
+status: true
+dependencies:
+  config:
+    - flag.flag.promote_homepage
+  module:
+    - flag
+id: flag_action.promote_homepage_flag
+label: 'Promote to homepage'
+type: node
+plugin: 'flag_action:promote_homepage_flag'
+configuration:
+  flag_id: promote_homepage
+  flag_action: flag

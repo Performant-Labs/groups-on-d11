@@ -5,6 +5,7 @@ services:
 
   do_multigroup.hooks:
     class: Drupal\do_multigroup\Hook\DoMultigroupHooks
+    autowire: false
     arguments:
       - '@current_user'
       - '@entity_type.manager'
