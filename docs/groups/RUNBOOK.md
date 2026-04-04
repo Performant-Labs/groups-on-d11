@@ -39,10 +39,14 @@
 > ```
 > Each phase notes which module to copy. Do this before the `ddev drush en` command for that module.
 
+> [!IMPORTANT]
+> **All custom modules must follow the Services over Hooks pattern.** Before writing or porting any custom module, read [`ai_guidance/drupal/BEST_PRACTICES.md`](../../ai_guidance/drupal/BEST_PRACTICES.md). Procedural hook-based modules are not acceptable in this project.
+
 This runbook documents the step-by-step process for adding groups functionality to the standard Drupal 10 codebase (pl-drupalorg).
 
 
 See [GROUPS_CONVERSION_PLAN.md](GROUPS_CONVERSION_PLAN.md) for the gap analysis, key differences between the projects, and the overall phase plan.
+
 
 ---
 

@@ -1,5 +1,11 @@
 # Groups on Drupal — Start Here
 
+> [!IMPORTANT]
+> **Read these before doing anything else:**
+> - [`ai_guidance/TROUBLESHOOTING.md`](../../ai_guidance/TROUBLESHOOTING.md) — process hangs, DDEV gotchas, config import locks, opcode cache issues. Consult this before debugging any unexpected behaviour.
+> - [`ai_guidance/drupal/BEST_PRACTICES.md`](../../ai_guidance/drupal/BEST_PRACTICES.md) — mandatory module architecture standard (Services over Hooks). All custom modules in this project must follow this pattern.
+> - [`ai_guidance/technical_writing/documentation_guidance.md`](../../ai_guidance/technical_writing/documentation_guidance.md) — documentation review checklist. Run through this before committing any doc changes.
+
 This directory contains everything needed for a clean-room installation of Drupal Groups on `pl-groups-on-d11` (standard Drupal 11, no distribution).
 
 ---
