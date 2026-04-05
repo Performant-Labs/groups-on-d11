@@ -1,0 +1,49 @@
+services:
+  web:
+    image: ghcr.io/performant-labs/groups-on-d11:latest
+    container_name: groups-on-d11-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8084:8080"
+    environment:
+      - MYSQL_HOST=db
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-groups_on_d11}
+      - MYSQL_USER=${MYSQL_USER:-drupal}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - DRUPAL_HASH_SALT=${DRUPAL_HASH_SALT}
+    volumes:
+      - drupal-files:/var/www/html/web/sites/default/files
+      - drupal-private:/var/www/html/private
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+
+  db:
+    image: mariadb:10.11
+    container_name: groups-on-d11-db
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-groups_on_d11}
+      - MYSQL_USER=${MYSQL_USER:-drupal}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+volumes:
+  drupal-files:
+  drupal-private:
+  db-data:
+
+networks:
+  internal:
+    driver: bridge
