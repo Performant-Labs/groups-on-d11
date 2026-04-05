@@ -1,0 +1,14 @@
+uuid: c3d4e5f6-a7b8-9012-cdef-123456789012
+langcode: en
+status: true
+dependencies:
+  config:
+    - group.type.community_group
+id: community_group-anonymous
+label: Anonymous
+weight: 0
+admin: false
+scope: individual
+global_role: null
+group_type: community_group
+permissions: {  }

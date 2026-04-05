@@ -85,7 +85,10 @@ foreach ($group_defs as [$label, $desc]) {
     "field_group_description" => ["value" => $desc, "format" => "basic_html"],
   ]);
   $group->save();
-  $group->addMember(\Drupal\user\Entity\User::load(1));
+  // Add admin with the group admin role so Group 3.x access policy grants full access.
+  // NOTE: bypass_node_access alone does NOT override Group 3.x entity access policies.
+  $admin_user = \Drupal\user\Entity\User::load(1);
+  $group->addMember($admin_user, ['group_roles' => ['community_group-admin']]);
   echo "Created gid=" . $group->id() . " $label\n";
 }
 
