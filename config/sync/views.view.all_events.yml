@@ -47,8 +47,6 @@ display:
           entity_field: field_date_of_event
           plugin_id: field
           label: 'Event Date'
-          settings:
-            format_type: medium
         name:
           id: name
           table: users_field_data
