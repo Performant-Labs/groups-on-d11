@@ -2019,23 +2019,36 @@ ddev export-db --file=backups/pre-phase6-$(date +%Y%m%d-%H%M).sql.gz
 
 Contribution stats block and profile completeness indicator for user profiles.
 
-> [!IMPORTANT]
-> Adaptation difficulty: 🟡 Medium. ContributionStatsBlock has one bundle name change (`topic` → `forum`). ProfileCompletenessBlock was rewritten to use `user` entity instead of Open Social's `profile` entity.
-
-**Source files** (already in repo):
-- [do_profile_stats.info.yml](modules/do_profile_stats/do_profile_stats.info.yml)
-- [do_profile_stats.module](modules/do_profile_stats/do_profile_stats.module) — theme hooks and CSS attachment (42 lines)
-- [do_profile_stats.libraries.yml](modules/do_profile_stats/do_profile_stats.libraries.yml)
-- [ContributionStatsBlock.php](modules/do_profile_stats/src/Plugin/Block/ContributionStatsBlock.php) — counts topics, events, comments, groups, days active
-- [ProfileCompletenessBlock.php](modules/do_profile_stats/src/Plugin/Block/ProfileCompletenessBlock.php) — profile completion percentage
-- [pl-contribution-stats.html.twig](modules/do_profile_stats/templates/pl-contribution-stats.html.twig)
-- [pl-profile-completeness.html.twig](modules/do_profile_stats/templates/pl-profile-completeness.html.twig)
-- [do_profile_stats.css](modules/do_profile_stats/css/do_profile_stats.css)
+**Source files** (in repo at `docs/groups/modules/do_profile_stats/`, deployed to `web/modules/custom/do_profile_stats/`):
+- `do_profile_stats.info.yml` — `core_version_requirement: ^10 || ^11`
+- `do_profile_stats.services.yml` — registers `DoProfileStatsHooks` service
+- `src/Hook/DoProfileStatsHooks.php` — `hook_theme`, `hook_page_attachments` via `#[Hook]`
+- `do_profile_stats.module` — empty (`@file` docblock)
+- `do_profile_stats.libraries.yml`
+- `src/Plugin/Block/ContributionStatsBlock.php` — counts topics, events, comments, groups, days active (`topic` → `forum`)
+- `src/Plugin/Block/ProfileCompletenessBlock.php` — uses `user` entity (not Open Social `profile`)
+- `templates/pl-contribution-stats.html.twig`
+- `templates/pl-profile-completeness.html.twig`
+- `css/do_profile_stats.css`
 
 > [!WARNING]
-> **Profile completeness fields**: The `$fields_to_check` array in `ProfileCompletenessBlock.php` must be finalized after research (600e-pre). Current placeholder list may not match actual user fields.
+> **Profile completeness fields**: Update the `$fields_to_check` array in `ProfileCompletenessBlock.php` after researching which user fields actually exist on this site.
+
+### Enable
+
+```bash
+# Step 1: Copy module from docs to web
+cp -r docs/groups/modules/do_profile_stats web/modules/custom/
+# Step 2: Enable module
+ddev drush en do_profile_stats -y
+# Step 3: Export config
+ddev drush config:export -y
+```
 
 ### 600h — Place blocks in bluecheese
+
+> [!NOTE]
+> Replace `"theme" => "bluecheese"` with the actual active theme name if different.
 
 ```bash
 ddev drush php:eval '
@@ -2090,212 +2103,129 @@ if (!$block_storage->load("do_profile_completeness")) {
   ])->save();
   echo "Profile Completeness block placed\n";
 }
+```
+
+ddev drush config:export -y
+
+## Step 610 — Enable `do_group_pin` Module
+
+Content pinning within groups. Allows group managers to pin topics above the chronological stream.
+
+**Source files** (in repo at `docs/groups/modules/do_group_pin/`, deployed to `web/modules/custom/do_group_pin/`):
+- `do_group_pin.info.yml` — `core_version_requirement: ^10 || ^11`; depends on `drupal:flag`, `drupal:views`
+- `do_group_pin.services.yml` — registers `DoGroupPinHooks` service
+- `src/Hook/DoGroupPinHooks.php` — `hook_page_attachments`, `hook_preprocess_node`, `hook_views_query_alter` via `#[Hook]`
+- `do_group_pin.module` — empty (`@file` docblock)
+- `do_group_pin.libraries.yml`
+- `css/do_group_pin.css` — `.pin-badge` and `.node--pinned` styles
+- `config/optional/flag.flag.pin_in_group.yml` — bundled flag (skipped if already in active config)
+
+> [!CAUTION]
+> **View ID must match**: `DoGroupPinHooks::viewsQueryAlter()` checks `$view->id() === 'group_content_stream'`. Open Social used `group_topics`; this implementation already targets `group_content_stream` (from Phase 3 Step 310). ✅ Already correct.
+
+> [!CAUTION]
+> **`config/optional/`**: `pin_in_group` flag is imported globally before the module is enabled (from `docs/groups/config/`). Module uses `config/optional/` to avoid `PreExistingConfigException`. Same pattern as Phases 4 and 5.
+
+### 610c — Import `pin_in_group` flag
+
+```bash
+cp docs/groups/config/flag.flag.pin_in_group.yml config/sync/
+cp docs/groups/config/system.action.flag_action.pin_in_group_flag.yml config/sync/
+cp docs/groups/config/system.action.flag_action.pin_in_group_unflag.yml config/sync/
+ddev drush config:import -y
+ddev drush config:export -y
+```
+
+### 610e — Grant permissions
+
+```bash
+# Remove role:perm add for roles that don't exist yet:
+# site_moderator and content_administrator are NOT yet created.
+# Permissions will be assigned after roles are created in Phase 7.
+# For now, only administrator can pin.
+ddev drush config:export -y
+```
+
+> [!IMPORTANT]
+> **Roles**: Only `anonymous` and `authenticated` roles exist in this installation. `content_administrator` and `site_moderator` were referenced in the RUNBOOK but never created. Create them before assigning pin permissions:
+> ```bash
+> ddev drush role:create content_administrator 'Content Administrator'
+> ddev drush role:create site_moderator 'Site Moderator'
+> ddev drush role:perm:add content_administrator "flag pin_in_group,unflag pin_in_group"
+> ddev drush role:perm:add site_moderator "flag pin_in_group,unflag pin_in_group"
+> ddev drush config:export -y
+> ```
+
+### Enable
+
+```bash
+# Step 1: Copy module from docs to web
+cp -r docs/groups/modules/do_group_pin web/modules/custom/
+# Step 2: Enable module
+ddev drush en do_group_pin -y
+# Step 3: Export config
+ddev drush config:export -y
+```
+## Step 620 — Enable `do_group_mission` Module
+
+Group mission statement sidebar block. Displays a summary of the group description on all group pages.
+
+**Source files** (in repo at `docs/groups/modules/do_group_mission/`, deployed to `web/modules/custom/do_group_mission/`):
+- `do_group_mission.info.yml` — `core_version_requirement: ^10 || ^11`; depends on `drupal:group`
+- `src/Plugin/Block/GroupMissionBlock.php` — context-aware block, reads `field_group_description` (129 lines, no changes from OS version)
+
+> [!NOTE]
+> **Prerequisite**: `field_group_description` must exist on `community_group` (created in Phase 1 Step 130).
+
+```bash
+ddev drush php:eval '
+$field = \Drupal\field\Entity\FieldConfig::loadByName("group", "community_group", "field_group_description");
+echo $field ? "field_group_description exists\n" : "field_group_description MISSING\n";
 '
 ```
 
 ### Enable
 
 ```bash
-ddev drush en do_profile_stats -y
-ddev restart
-ddev drush cr
-```
-
-```bash
+cp -r docs/groups/modules/do_group_mission web/modules/custom/
+ddev drush en do_group_mission -y
 ddev drush config:export -y
 ```
 
-## Step 610 — Enable `do_group_pin` Module
-
-Content pinning within groups. Allows group managers to pin topics above the chronological stream.
-
-> [!IMPORTANT]
-> Adaptation difficulty: 🟡 Medium. The Views query alter targets `group_content_stream` (was `group_topics` in Open Social).
-
-**Source files** (already in repo):
-- [do_group_pin.info.yml](modules/do_group_pin/do_group_pin.info.yml)
-- [do_group_pin.module](modules/do_group_pin/do_group_pin.module) — preprocess for pin badge, Views query alter for pin sorting (106 lines)
-- [do_group_pin.libraries.yml](modules/do_group_pin/do_group_pin.libraries.yml)
-- [css/do_group_pin.css](modules/do_group_pin/css/do_group_pin.css)
-- [flag.flag.pin_in_group.yml](modules/do_group_pin/config/install/flag.flag.pin_in_group.yml) — bundled flag config
-
-Module hooks:
-- `hook_page_attachments()` — attaches CSS library globally
-- `hook_preprocess_node()` — adds `pinned` variable and `node--pinned` CSS class when flagged
-- `hook_views_query_alter()` — LEFT JOINs `flagging` table on `group_content_stream` View for pin-first sorting
-
-> [!CAUTION]
-> **View ID must match**: The `hook_views_query_alter()` checks `$view->id()` against a specific View machine name. Open Social uses `group_topics`; pl-drupalorg's equivalent View (from Phase 3 Step 310) is `group_content_stream`. Verify the exact View ID:
-> ```bash
-> ddev drush config:list | grep views.view.group
-> ```
-
-### 610c — Create `pin_in_group` flag config
-
-Create `web/modules/custom/do_group_pin/config/install/flag.flag.pin_in_group.yml`:
-
-```yaml
-langcode: en
-status: true
-dependencies:
-  module:
-    - node
-id: pin_in_group
-label: 'Pin in group'
-bundles: {}
-entity_type: node
-global: true
-weight: 0
-flag_short: 'Pin in group'
-flag_long: 'Pin this content to the top of the group stream'
-flag_message: 'Content pinned'
-unflag_short: Unpin
-unflag_long: 'Remove pin from this content'
-unflag_message: 'Content unpinned'
-unflag_denied_text: ''
-flag_type: 'entity:node'
-link_type: reload
-flagTypeConfig:
-  show_in_links: {}
-  show_as_field: true
-  show_on_form: false
-  show_contextual_link: false
-linkTypeConfig: {}
-```
-
-> [!NOTE]
-> The flag is `global: true` (any user with permission can pin/unpin). Grant permissions only to group admins and site moderators:
-> ```bash
-> ddev drush role:perm:add site_moderator "flag pin_in_group,unflag pin_in_group"
-> ddev drush role:perm:add content_administrator "flag pin_in_group,unflag pin_in_group"
-> ```
-
-### 610d — CSS, libraries
-
-Create `web/modules/custom/do_group_pin/do_group_pin.libraries.yml`:
-
-```yaml
-do_group_pin:
-  version: 1.x
-  css:
-    theme:
-      css/do_group_pin.css: {}
-```
-
-Create `web/modules/custom/do_group_pin/css/do_group_pin.css`:
-
-- [css/do_group_pin.css](modules/do_group_pin/css/do_group_pin.css) — generic `.pin-badge` and `.node--pinned` styles
-
-### Enable
-
-```bash
-ddev drush en do_group_pin -y
-ddev restart
-ddev drush cr
-```
-
-```bash
-ddev drush config:export -y
-```
-
-## Step 620 — Enable `do_group_mission` Module
-
-Group mission statement sidebar block. Displays a summary of the group description on all group pages.
-
-> [!IMPORTANT]
-> Adaptation difficulty: 🟢 Low. Block plugin is entirely Drupal-generic. Only block *placement* needs the bluecheese region name.
-
-**Source files** (already in repo):
-- [do_group_mission.info.yml](modules/do_group_mission/do_group_mission.info.yml)
-- [GroupMissionBlock.php](modules/do_group_mission/src/Plugin/Block/GroupMissionBlock.php) — context-aware block (129 lines)
-
-Features:
-- Context-aware (works via block context or route parameter)
-- Reads `field_group_description`, truncates to 300 chars
-- Graceful fallback when group or description missing
-- Cache tags from group entity
-
-> [!NOTE]
-> **Prerequisite**: The group entity must have a `field_group_description` field. This should have been created in Phase 1 when setting up the `community_group` type. Verify:
-> ```bash
-> ddev drush php:eval '
-> $field = \Drupal\field\Entity\FieldConfig::loadByName("group", "community_group", "field_group_description");
-> echo $field ? "field_group_description exists\n" : "field_group_description MISSING\n";
-> '
-> ```
-
-### 620c — Place block in bluecheese sidebar
-
-**Script**: [step_620c.php](scripts/step_620c.php) — places block in `sidebar_first` with `/group/*` visibility
+### 620c — Place block in sidebar
 
 ```bash
 ddev drush php:script docs/groups/scripts/step_620c.php
-```
-
-> [!NOTE]
-> Open Social places this block in the `complementary_bottom` region (socialblue theme). bluecheese uses `sidebar_first` for equivalent sidebar content.
-
-### Enable
-
-```bash
-ddev drush en do_group_mission -y
-ddev restart
-ddev drush cr
-```
-
-```bash
 ddev drush config:export -y
 ```
+## Step 630 — Enable `do_group_language` Module (optional)
 
-## Step 630 — Enable `do_group_language` Module
+> **Deferred**: Group-level language switching — confirm whether drupal.org groups need this feature before enabling.
 
-> **Decision needed**: Is group-level language switching needed for drupal.org groups?
-
-> [!IMPORTANT]
-> Adaptation difficulty: 🟢 Low. The language negotiation plugin is entirely Drupal-generic. **No code changes needed.**
-
-**Source files** (already in repo):
-- [do_group_language.info.yml](modules/do_group_language/do_group_language.info.yml)
-- [do_group_language.services.yml](modules/do_group_language/do_group_language.services.yml) — registers plugin as negotiation method
-- [LanguageNegotiationGroup.php](modules/do_group_language/src/Plugin/LanguageNegotiation/LanguageNegotiationGroup.php) — negotiation plugin (67 lines)
-
-Plugin logic:
-1. Parses `$request->getPathInfo()` with regex `#^/group/(\d+)#` to extract group ID
-2. Loads the group entity
-3. Reads `field_group_language` value
-4. Returns the langcode (falls through if `und` or `zxx`)
-5. Weight: 5 (runs before URL/session negotiation but after browser)
+**Source files** (already copied to `web/modules/custom/do_group_language/` but not yet enabled):
+- `do_group_language.info.yml`
+- `do_group_language.services.yml` — registers `LanguageNegotiationGroup` plugin
+- `src/Plugin/LanguageNegotiation/LanguageNegotiationGroup.php` — raw path parsing for group ID (67 lines, no changes needed)
 
 > [!IMPORTANT]
 > **Why raw path parsing?** Language negotiation runs **before** Drupal's route matching. `\Drupal::routeMatch()->getParameter('group')` is always NULL at negotiation time. This is by design.
 
-### 630d — Prerequisites: Create `field_group_language`
-
-Check if the field exists, create if missing:
-
-**Script**: [step_630d.php](scripts/step_630d.php) — creates field storage, instance, and form display component
+### 630d — Create `field_group_language` (if enabling)
 
 ```bash
 ddev drush php:script docs/groups/scripts/step_630d.php
-```
-
-> [!NOTE]
-> The field uses `type: language` (core Language field type), not an entity reference. The `language_override` setting defaults to `und` (undefined), meaning groups inherit the site default unless explicitly set.
-
-After enabling, configure language negotiation order at `/admin/config/regional/language/detection`:
-- Set "Group language" weight to 5 (above URL but below Session)
-
-### 630e — Enable (if needed)
-
-```bash
-ddev drush en do_group_language -y
-ddev drush cr
-```
-
-```bash
 ddev drush config:export -y
 ```
 
+### 630e — Enable (when confirmed needed)
+
+```bash
+cp -r docs/groups/modules/do_group_language web/modules/custom/
+ddev drush en do_group_language -y
+ddev drush config:export -y
+```
+
+After enabling, configure language negotiation at `/admin/config/regional/language/detection` — set "Group language" weight to 5.
 ## Step 640 — Multilingual Infrastructure
 
 > [!IMPORTANT]
@@ -2303,13 +2233,13 @@ ddev drush config:export -y
 
 ### 640a — Enable core translation modules
 
-```bash
-ddev drush en language locale interface_translation config_translation content_translation -y
-ddev drush cr
-```
+> [!CAUTION]
+> **`interface_translation` does not exist** as a standalone Drupal 11 module. The correct module list is: `language`, `locale`, `config_translation`, `content_translation`. The `locale` module provides interface translation.
 
-> [!NOTE]
-> Open Social has a `social_language` convenience module that enables all 4 translation modules and grants Site Manager translation permissions in one step. Standard Drupal requires enabling them individually.
+```bash
+ddev drush en language locale config_translation content_translation -y
+ddev drush config:export -y
+```
 
 ### 640b — Add languages
 
@@ -2335,12 +2265,16 @@ ddev drush locale:update
 
 ### 640e — Grant translation permissions
 
+> [!IMPORTANT]
+> **Roles do not yet exist.** At this point only `anonymous` and `authenticated` roles are in the site. `content_administrator` and `site_moderator` must be created first:
+> ```bash
+> ddev drush role:create content_administrator 'Content Administrator'
+> ddev drush role:create site_moderator 'Site Moderator'
+> ```
+
 ```bash
 ddev drush role:perm:add site_moderator "translate any entity,create content translations,update content translations,delete content translations"
 ddev drush role:perm:add content_administrator "translate any entity,create content translations,update content translations,delete content translations"
-```
-
-```bash
 ddev drush config:export -y
 ```
 
@@ -2469,50 +2403,51 @@ npx playwright test tests/e2e/phase6.spec.ts
 | **Module** | `do_group_pin` | Pin flag + Views query alter + badge |
 | **Module** | `do_group_mission` | Mission sidebar block |
 | **Module** | `do_group_language` | Language negotiation plugin |
-| **Module** | `language`, `locale`, `interface_translation`, `config_translation`, `content_translation` | Core multilingual stack |
+| **Module** | `language`, `locale`, `config_translation`, `content_translation` | Core multilingual stack (`interface_translation` does not exist in D11) |
 
 ### Custom module files (Phase 6)
 
 ```
-web/modules/custom/do_profile_stats/
-├── css/
-│   └── do_profile_stats.css              (97 lines)
+docs/groups/modules/do_profile_stats/   ← source of truth
+├── css/do_profile_stats.css
 ├── src/
-│   └── Plugin/
-│       └── Block/
-│           ├── ContributionStatsBlock.php (140 lines — 1 bundle change)
-│           └── ProfileCompletenessBlock.php (123 lines — profile→user rewrite)
+│   ├── Hook/
+│   │   └── DoProfileStatsHooks.php     ← #[Hook] theme, page_attachments
+│   └── Plugin/Block/
+│       ├── ContributionStatsBlock.php  ← topic → forum adaptation
+│       └── ProfileCompletenessBlock.php ← profile → user entity
 ├── templates/
-│   ├── pl-contribution-stats.html.twig   (26 lines)
-│   └── pl-profile-completeness.html.twig (20 lines)
+│   ├── pl-contribution-stats.html.twig
+│   └── pl-profile-completeness.html.twig
 ├── do_profile_stats.info.yml
 ├── do_profile_stats.libraries.yml
-└── do_profile_stats.module               (42 lines)
+├── do_profile_stats.module             ← empty (@file docblock)
+└── do_profile_stats.services.yml       ← registers DoProfileStatsHooks
 
-web/modules/custom/do_group_pin/
-├── config/
-│   └── install/
-│       └── flag.flag.pin_in_group.yml
-├── css/
-│   └── do_group_pin.css                  (18 lines)
+docs/groups/modules/do_group_pin/       ← source of truth
+├── config/optional/
+│   └── flag.flag.pin_in_group.yml      ← global node flag (skipped if already active)
+├── css/do_group_pin.css
+├── src/Hook/
+│   └── DoGroupPinHooks.php             ← #[Hook] page_attachments, preprocess_node, views_query_alter
 ├── do_group_pin.info.yml
 ├── do_group_pin.libraries.yml
-└── do_group_pin.module                   (106 lines — 1 view ID change)
+├── do_group_pin.module                 ← empty (@file docblock)
+└── do_group_pin.services.yml           ← registers DoGroupPinHooks
 
-web/modules/custom/do_group_mission/
-├── src/
-│   └── Plugin/
-│       └── Block/
-│           └── GroupMissionBlock.php      (129 lines — no changes)
+docs/groups/modules/do_group_mission/   ← source of truth
+├── src/Plugin/Block/
+│   └── GroupMissionBlock.php           ← no changes from OS version
 └── do_group_mission.info.yml
 
-web/modules/custom/do_group_language/
-├── src/
-│   └── Plugin/
-│       └── LanguageNegotiation/
-│           └── LanguageNegotiationGroup.php (67 lines — no changes)
+docs/groups/modules/do_group_language/  ← source of truth (not yet enabled)
+├── src/Plugin/LanguageNegotiation/
+│   └── LanguageNegotiationGroup.php    ← raw path parsing (no changes)
 ├── do_group_language.info.yml
 └── do_group_language.services.yml
+
+web/modules/custom/{do_profile_stats,do_group_pin,do_group_mission,do_group_language}/
+  ← deployed copies (synced via cp -r)
 ```
 
 ### Key Adaptations from Open Social (Phase 6)
@@ -2529,11 +2464,12 @@ web/modules/custom/do_group_language/
 
 ### Open Questions (Phase 6)
 
-1. **Profile completeness fields**: Which pl-drupalorg user fields should be checked? ⏳ **Deferred** — research step 600e-pre added: investigate current groups.drupal.org and Open Social before deciding.
+1. ~~**Profile completeness fields**~~: ⏳ Still deferred — research which `user` fields this site actually uses and update `$fields_to_check` in `ProfileCompletenessBlock.php`.
 2. ~~**Contribution stats expansion**~~: ✅ Confirmed: count all 5 group-postable content types (forum, documentation, event, post, page) plus comments, groups, and days active.
-3. ~~**Group mission field**~~: ✅ Resolved: `field_group_description` is defined in Step 130 as a required field on `community_group`. The mission block reads from this field.
-4. ~~**Group language**~~: ✅ Confirmed: multilingual is **required** for groups. Enable `do_group_language` and add `field_group_language` to the group entity.
-5. ~~**Pin permissions**~~: ✅ Confirmed: group admins (`community_group-admin` role) can pin/unpin in their own groups, in addition to site-wide `site_moderator` and `administrator`.
+3. ~~**Group mission field**~~: ✅ Resolved: `field_group_description` defined in Step 130 as a required field on `community_group`.
+4. ~~**Group language**~~: ⏳ Deferred — `do_group_language` copied to web but NOT enabled pending decision on whether d.o. groups need per-group language switching.
+5. ~~**Pin permissions**~~: ✅ Note: only `anonymous` and `authenticated` roles currently exist. `content_administrator` and `site_moderator` must be created before assigning pin permissions. Role creation added to Step 640e.
+6. ~~**`interface_translation` module**~~: ✅ Resolved — this module does **not** exist in Drupal 11. Correct list: `language locale config_translation content_translation`.
 
 ---
 
