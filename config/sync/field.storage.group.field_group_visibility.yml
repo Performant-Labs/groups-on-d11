@@ -1,0 +1,30 @@
+uuid: e142be94-67cc-4515-90a0-ba98a61d3655
+langcode: en
+status: true
+dependencies:
+  module:
+    - group
+    - options
+id: group.field_group_visibility
+field_name: field_group_visibility
+entity_type: group
+type: list_string
+settings:
+  allowed_values:
+    -
+      value: open
+      label: Open
+    -
+      value: moderated
+      label: Moderated
+    -
+      value: invite_only
+      label: 'Invite Only'
+  allowed_values_function: ''
+module: options
+locked: false
+cardinality: 1
+translatable: true
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

@@ -21,7 +21,7 @@
         "drupal/core-recipe-unpack": "^11.3",
         "drupal/core-recommended": "^11.3",
         "drupal/flag": "^4.0",
-        "drupal/group": "^4.0",
+        "drupal/group": "^3.3",
         "drush/drush": "^13"
     },
     "conflict": {

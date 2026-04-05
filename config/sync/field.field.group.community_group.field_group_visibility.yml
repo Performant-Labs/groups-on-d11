@@ -1,0 +1,23 @@
+uuid: 1d4bb57b-3f12-4c14-965b-8035196a0fd6
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.group.field_group_visibility
+    - group.type.community_group
+  module:
+    - options
+id: group.community_group.field_group_visibility
+field_name: field_group_visibility
+entity_type: group
+bundle: community_group
+label: Visibility
+description: ''
+required: true
+translatable: true
+default_value:
+  -
+    value: open
+default_value_callback: ''
+settings: {  }
+field_type: list_string
