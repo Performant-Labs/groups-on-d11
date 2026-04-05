@@ -1,0 +1,9 @@
+uuid: e4768268-abc9-4b61-b520-75e0e2e21790
+langcode: en
+status: true
+dependencies: {  }
+id: zh-hans
+label: null
+direction: ltr
+weight: 0
+locked: false

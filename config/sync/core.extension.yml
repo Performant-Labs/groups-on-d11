@@ -3,11 +3,15 @@ _core:
 module:
   block: 0
   comment: 0
+  config_translation: 0
   dblog: 0
   do_discovery: 0
   do_group_extras: 0
+  do_group_mission: 0
+  do_group_pin: 0
   do_multigroup: 0
   do_notifications: 0
+  do_profile_stats: 0
   dynamic_page_cache: 0
   field: 0
   file: 0
@@ -17,6 +21,8 @@ module:
   gnode: 0
   group: 0
   image: 0
+  language: 0
+  locale: 0
   mysql: 0
   node: 0
   options: 0
@@ -28,6 +34,7 @@ module:
   update: 0
   user: 0
   views_ui: 0
+  content_translation: 10
   views: 10
   minimal: 1000
 theme:
