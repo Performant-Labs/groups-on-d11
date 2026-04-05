@@ -53,7 +53,7 @@ See [GROUPS_CONVERSION_PLAN.md](GROUPS_CONVERSION_PLAN.md) for the gap analysis,
 ## Prerequisites (all phases)
 
 - DDEV running (`ddev status` shows all services healthy)
-- Site accessible at `https://drupalorg.ddev.site`
+- Site accessible at `https://pl-groups-on-d11.ddev.site:8493`
 - Git working tree clean on `aa/initial-plan` branch
 
 > [!IMPORTANT]
