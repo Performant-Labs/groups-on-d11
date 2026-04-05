@@ -1,28 +1,28 @@
-uuid: 24827b99-e845-4194-af38-b403f6d4b131
+uuid: ec97af87-e05a-4ab5-9b74-2c7979012194
 langcode: en
 status: true
 dependencies:
+  config:
+    - filter.format.basic_html
   module:
-    - flag
-    - group
+    - comment
+    - file
+    - filter
+    - search
+    - shortcut
     - system
 _core:
-  default_config_hash: dJ0L2DNSj5q6XVZAGsuVDpJTh5UeYkIPwKrUOOpr8YI
+  default_config_hash: hcfESiA8tr3D1muRk2KF7tbcun16ZJlG1R5SzKGed6g
 id: authenticated
 label: 'Authenticated user'
 weight: 1
 is_admin: false
 permissions:
+  - 'access comments'
   - 'access content'
-  - 'access group overview'
-  - 'create community_group group'
-  - 'flag follow_content'
-  - 'flag follow_term'
-  - 'flag follow_user'
-  - 'flag mute_group_notifications'
-  - 'flag rsvp_event'
-  - 'unflag follow_content'
-  - 'unflag follow_term'
-  - 'unflag follow_user'
-  - 'unflag mute_group_notifications'
-  - 'unflag rsvp_event'
+  - 'access shortcuts'
+  - 'delete own files'
+  - 'post comments'
+  - 'search content'
+  - 'skip comment approval'
+  - 'use text format basic_html'

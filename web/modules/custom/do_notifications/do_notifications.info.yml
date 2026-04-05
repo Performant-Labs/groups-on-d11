@@ -1,9 +1,0 @@
-name: DO Notifications
-type: module
-description: 'Per-post opt-out, follow subscriptions, and subscription management page.'
-core_version_requirement: ^10 || ^11
-package: Custom
-dependencies:
-  - drupal:flag
-  - drupal:node
-  - drupal:user

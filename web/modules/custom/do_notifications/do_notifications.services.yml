@@ -1,9 +1,0 @@
-services:
-  do_notifications.hooks:
-    class: Drupal\do_notifications\Hook\DoNotificationsHooks
-    autowire: false
-    arguments:
-      - '@entity_type.manager'
-      - '@queue'
-    tags:
-      - { name: 'hook_implementations' }

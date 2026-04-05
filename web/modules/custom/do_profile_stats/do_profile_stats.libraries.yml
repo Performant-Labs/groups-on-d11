@@ -1,5 +1,0 @@
-do_profile_stats:
-  version: 1.x
-  css:
-    theme:
-      css/do_profile_stats.css: {}

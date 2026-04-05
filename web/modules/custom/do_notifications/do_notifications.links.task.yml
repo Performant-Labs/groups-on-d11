@@ -1,5 +1,0 @@
-do_notifications.notification_settings:
-  route_name: do_notifications.notification_settings
-  title: 'Notifications'
-  base_route: entity.user.canonical
-  weight: 10

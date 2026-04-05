@@ -1,5 +1,0 @@
-services:
-  language_negotiation_group:
-    class: Drupal\do_group_language\Plugin\LanguageNegotiation\LanguageNegotiationGroup
-    tags:
-      - { name: language_negotiation_method, method_id: language-group }

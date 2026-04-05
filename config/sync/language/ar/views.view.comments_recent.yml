@@ -1,9 +1,0 @@
-display:
-  default:
-    display_title: الافتراضي
-    display_options:
-      empty:
-        area_text_custom:
-          content: 'لا تعليقات.'
-  block_1:
-    display_title: صندوق

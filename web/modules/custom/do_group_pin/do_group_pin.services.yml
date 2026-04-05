@@ -1,6 +1,0 @@
-services:
-  do_group_pin.hooks:
-    class: Drupal\do_group_pin\Hook\DoGroupPinHooks
-    autowire: false
-    tags:
-      - { name: 'hook_implementations' }

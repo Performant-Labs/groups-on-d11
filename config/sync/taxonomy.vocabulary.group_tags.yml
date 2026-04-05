@@ -1,9 +1,0 @@
-uuid: ee20e22c-5190-4885-b97b-7ad9cf7a7094
-langcode: en
-status: true
-dependencies: {  }
-name: 'Group Tags'
-vid: group_tags
-description: 'Tags for group content'
-weight: 0
-new_revision: false
