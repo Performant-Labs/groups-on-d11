@@ -1,10 +1,6 @@
 FROM drupal:11-php8.3-fpm-alpine AS base
 
-# Install nginx inside the container (combined php-fpm + nginx image)
-RUN apk add --no-cache nginx
-
-# Copy nginx config
-COPY deploy/nginx-drupal.conf /etc/nginx/http.d/default.conf
+# php-fpm only — reverse proxying is handled by the shared host nginx on Spiderman
 
 WORKDIR /var/www/html
 
@@ -20,10 +16,10 @@ COPY config/ config/
 RUN mkdir -p web/sites/default/files web/sites/default/private \
     && chown -R www-data:www-data web/sites web/sites/default/files
 
-# Expose port for host nginx to proxy to
-EXPOSE 8080
+# Expose php-fpm port
+EXPOSE 9000
 
-# Entrypoint generates settings.php from env vars, then starts php-fpm + nginx
+# Entrypoint generates settings.php from env vars, then starts php-fpm
 COPY deploy/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 CMD ["/entrypoint.sh"]

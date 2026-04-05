@@ -4,7 +4,7 @@ services:
     container_name: groups-on-d11-web
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8084:8080"
+      - "127.0.0.1:8084:9000"
     environment:
       - MYSQL_HOST=db
       - MYSQL_DATABASE=${MYSQL_DATABASE:-groups_on_d11}
