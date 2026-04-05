@@ -11,4 +11,9 @@ admin: false
 scope: individual
 global_role: null
 group_type: community_group
-permissions: {  }
+permissions:
+  - 'view group_node:documentation entity'
+  - 'view group_node:event entity'
+  - 'view group_node:forum entity'
+  - 'view group_node:page entity'
+  - 'view group_node:post entity'
