@@ -2806,6 +2806,24 @@ ddev drush cr
 ddev export-db --file=backups/pre-phase8-$(date +%Y%m%d-%H%M).sql.gz
 ```
 
+## Step 790 — Create All Topics and All Events Views
+
+> [!IMPORTANT]
+> These views are prerequisites for Phase 8 screenshots. They were intentionally deferred from earlier phases. Create them now via config import before capturing screenshots.
+
+The YAML files are already in `config/sync/`:
+- `views.view.all_topics.yml` — Forum topic listing at `/all-topics`
+- `views.view.all_events.yml` — Event listing at `/all-events`
+
+```bash
+ddev drush cim -y
+ddev drush cr
+```
+
+**Verify:**
+- `/all-topics` loads and shows forum nodes
+- `/all-events` loads and shows event nodes sorted by date
+
 ## Step 800 — Capture Screenshots
 
 Take screenshots of the bluecheese-themed site using the demo data from Phase 7.
@@ -2820,10 +2838,10 @@ Take screenshots of the bluecheese-themed site using the demo data from Phase 7.
 | 4 | Group page | `/group/{portland_gid}` | Member count, tabs, mission sidebar, pinned content |
 | 5 | Forum topics listing | `/all-topics` or equivalent | Topic cards, filters, multilingual content |
 | 6 | Topic detail | `/node/{nid}` | Pinned badge, tags, comments, follow button |
-| 7 | Events listing | `/all-events` or equivalent | Event cards with dates, event type facets |
+| 7 | Events listing | `/all-events` | Event cards with dates, event type facets |
 
 > [!NOTE]
-> `/all-topics` and `/all-events` listing Views are not created in this runbook. Before Phase 8, either create them as new Views (machine names `all_topics` and `all_events`, similar to `all_groups`) or substitute with existing Views (e.g. the activity stream at `/stream` for topics, and the site events iCal-backed page for events). Update the screenshot table above once decided.
+> `/all-topics` and `/all-events` are created in Step 790 (Pre-Phase 8). Ensure Step 790 has been run before capturing these screenshots.
 | 8 | User profile | `/user/{maria_uid}` | Contribution stats, completeness, follow button |
 | 9 | Notification settings | `/user/{uid}/notification-settings` | Subscriptions table, disable toggle |
 | 10 | Archived group | `/group/{legacy_gid}` | Archive badge, read-only indicator |
