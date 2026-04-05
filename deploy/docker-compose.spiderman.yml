@@ -4,11 +4,11 @@ services:
     container_name: groups-on-d11-web
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8084:9000"
+      - "127.0.0.1:8084:8080"   # nginx inside container on 8080; host nginx proxy_pass here
     environment:
       - MYSQL_HOST=db
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-groups_on_d11}
-      - MYSQL_USER=${MYSQL_USER:-drupal}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - DRUPAL_HASH_SALT=${DRUPAL_HASH_SALT}
     volumes:
@@ -26,8 +26,8 @@ services:
     restart: unless-stopped
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-groups_on_d11}
-      - MYSQL_USER=${MYSQL_USER:-drupal}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
     volumes:
       - db-data:/var/lib/mysql

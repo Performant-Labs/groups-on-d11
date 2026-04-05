@@ -3,11 +3,8 @@ set -e
 
 SETTINGS="/var/www/html/web/sites/default/settings.php"
 
-# Ensure sites/default is writable so we can write settings.php
 chmod 755 /var/www/html/web/sites/default 2>/dev/null || true
 
-# Generate settings.php from environment variables at container startup.
-# Credentials are never baked into the image — they come from .env at runtime.
 cat > "$SETTINGS" <<PHPEOF
 <?php
 \$databases['default']['default'] = [
@@ -33,5 +30,6 @@ PHPEOF
 
 echo "Generated settings.php from environment variables"
 
-# Start php-fpm in the foreground — host nginx on Spiderman proxies to this
-exec php-fpm -F
+# Start php-fpm in background, then nginx in the foreground
+php-fpm -D
+exec nginx -g 'daemon off;'

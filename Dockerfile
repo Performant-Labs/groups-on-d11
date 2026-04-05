@@ -1,25 +1,25 @@
 FROM drupal:11-php8.3-fpm-alpine AS base
 
-# php-fpm only — reverse proxying is handled by the shared host nginx on Spiderman
+# Add nginx to serve static files from the container webroot
+RUN apk add --no-cache nginx
 
 WORKDIR /var/www/html
 
-# Install Composer dependencies (production only)
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# Copy application code and config
 COPY web/ web/
 COPY config/ config/
 
-# Ensure files directory exists with correct ownership
 RUN mkdir -p web/sites/default/files web/sites/default/private \
-    && chown -R www-data:www-data web/sites web/sites/default/files
+    && chown -R www-data:www-data web/sites web/sites/default/files \
+    && mkdir -p /run/nginx
 
-# Expose php-fpm port
-EXPOSE 9000
+# Internal nginx config: nginx listens on 8080, proxies PHP to php-fpm on 9000
+COPY deploy/nginx-drupal.conf /etc/nginx/http.d/default.conf
 
-# Entrypoint generates settings.php from env vars, then starts php-fpm
+EXPOSE 8080
+
 COPY deploy/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 CMD ["/entrypoint.sh"]
