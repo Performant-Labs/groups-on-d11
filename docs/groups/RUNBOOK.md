@@ -2488,52 +2488,86 @@ web/modules/custom/{do_profile_stats,do_group_pin,do_group_mission,do_group_lang
 ddev export-db --file=backups/pre-phase7-$(date +%Y%m%d-%H%M).sql.gz
 ```
 
+## Pre-Phase 7 Prerequisites
+
+> [!CAUTION]
+> **`language.content_settings` malformed config**: `step_640.php` stores content language settings without `target_entity_type_id`, which crashes Drupal during bootstrap. Fix BEFORE creating roles or running demo data:
+>
+> ```bash
+> for bundle in forum documentation event post page; do
+> cat > config/sync/language.content_settings.node.${bundle}.yml << YAML
+> langcode: en
+> status: true
+> dependencies:
+>   config:
+>     - node.type.${bundle}
+>   module:
+>     - content_translation
+> id: node.${bundle}
+> target_entity_type_id: node
+> target_bundle: ${bundle}
+> default_langcode: site_default
+> language_alterable: false
+> third_party_settings:
+>   content_translation:
+>     enabled: true
+> YAML
+> done
+> ddev mysql -e "DELETE FROM config WHERE name LIKE 'language.content_settings%'"
+> ddev mysql -e "TRUNCATE TABLE cache_bootstrap; TRUNCATE TABLE cache_config; TRUNCATE TABLE cache_container; TRUNCATE TABLE cache_data; TRUNCATE TABLE cache_default; TRUNCATE TABLE cache_discovery; TRUNCATE TABLE cache_entity; TRUNCATE TABLE cachetags;"
+> ddev drush config:import -y
+> ```
+
+> [!CAUTION]
+> **`language-group` plugin not found**: `language.types` negotiation config references `language-group` (set by step_640.php) but `do_group_language` must be enabled first. Enable it BEFORE creating roles:
+> ```bash
+> ddev drush en do_group_language -y
+> ```
+
+> [!CAUTION]
+> **Roles don't exist yet**: `content_administrator` and `site_moderator` must be created BEFORE running `step_700_demo_data.php`. Create them and export to config/sync first — otherwise config:import after demo data will delete them:
+> ```bash
+> ddev drush role:create content_administrator "Content Administrator"
+> ddev drush role:create site_moderator "Site Moderator"
+> ddev drush role:perm:add content_administrator "flag pin_in_group,unflag pin_in_group,flag promote_homepage,unflag promote_homepage,translate any entity,create content translations,update content translations,delete content translations"
+> ddev drush role:perm:add site_moderator "flag pin_in_group,unflag pin_in_group,flag promote_homepage,unflag promote_homepage,translate any entity,create content translations,update content translations,delete content translations"
+> ddev drush config:export -y
+> ```
+
 ## Steps 700–750 — Create Demo Data
 
-**Script**: [step_700_demo_data.php](scripts/step_700_demo_data.php) — comprehensive demo data script (all-in-one)
-
-Creates:
-- **6 users**: maria_chen, james_okafor, elena_garcia, ravi_patel, sophie_mueller, alex_novak
-- **User profiles**: first/last name on each
-- **20 taxonomy tags**: sprint, drupalcon, logistics, core, roadmap, etc.
-- **8 groups**: DrupalCon Portland 2026, Drupal France, Core Committers, Thunder Distribution, Leadership Council, Camp Organizers EMEA, Drupal Deutschland, Legacy Infrastructure
-- **Memberships**: users assigned to appropriate groups
-- **12 forum topics**: distributed across groups with tags
-- **5 events**: with future dates
-- **6 comments**: threaded on forum topics
-- **Flags**: pin (Sprint Planning), promote (2 topics), follow content/term/user
-- **RSVP**: event enrollments via `rsvp_event` flag
-- **Archive**: Legacy Infrastructure group set to unpublished
-
-All operations are idempotent (safe to re-run).
+**Script**: `docs/groups/scripts/step_700_demo_data.php` — all-in-one idempotent demo data
 
 ```bash
 ddev drush php:script docs/groups/scripts/step_700_demo_data.php
 ```
 
 > [!NOTE]
-> **Architecture change**: Open Social uses a custom `EventEnrollment` entity type for event signups. pl-drupalorg uses the `rsvp_event` Flag (from Phase 4 Step 430) for the same purpose.
+> **Known miss**: `ERROR: No comment field on forum nodes` is expected. Forum content type does not have a comment field configured yet. Comments work on other content types.
+
+Creates (all idempotent):
+- **6 users**: maria_chen, james_okafor, elena_garcia, ravi_patel, sophie_mueller, alex_novak
+- **20 taxonomy tags**: sprint, drupalcon, logistics, core, roadmap, etc.
+- **8 groups**: DrupalCon Portland 2026, Drupal France, Core Committers, Thunder Distribution, Leadership Council, Camp Organizers EMEA, Drupal Deutschland, Legacy Infrastructure
+- **~17 nodes**: forum topics + events across groups
+- **Flags**: pin (Sprint Planning), promote (2 topics), follow content/term/user, 9 RSVPs
+- **Archive**: Legacy Infrastructure group set to unpublished
 
 ## Step 710 — Multilingual Demo Data
 
 > [!IMPORTANT]
-> The multilingual infrastructure was set up in Phase 6 (Step 640), but it must be exercised with demo data. Without this step, the 14 languages, `do_group_language` module, and content translation settings remain untested.
-
-**Script**: [step_760.php](scripts/step_760.php) — sets group languages, creates French/German content, verifies all multilingual data
+> `do_group_language` **must be enabled** before Step 710 or the language negotiation plugin (`language-group`) registered by step_640.php will be missing, causing a Drupal bootstrap crash.
 
 ```bash
 ddev drush php:script docs/groups/scripts/step_760.php
 ```
-
-> [!NOTE]
-> Nodes are created with `langcode => "fr"`/`"de"` so they are natively in that language. When visiting `/group/{gid}`, the `do_group_language` plugin switches the interface language.
 
 ### 710e — Download locale translation strings
 
 ```bash
 ddev drush locale:check
 ddev drush locale:update
-ddev drush cr
+ddev drush config:export -y
 ```
 
 > [!NOTE]
@@ -2730,11 +2764,13 @@ npx playwright test tests/e2e/phase7.spec.ts
 
 ### Open Questions (Phase 7)
 
-1. **Profile fields**: Does pl-drupalorg have `field_organization` or equivalent for job title/org?
-2. **Tag vocabulary**: What is the correct taxonomy vocabulary machine name for content tags?
-3. **Comment field name**: What is the comment field machine name on the `forum` content type?
-4. ~~**Event date field type**~~: ✅ Resolved — keep existing `datetime`, use Smart Date for group events.
-5. **Group visibility**: How is group access control configured in `community_group` (Group module access plugins vs. custom field)?
+1. ~~**Profile fields**~~: ⏳ Still open — does pl-drupalorg have `field_organization` or equivalent? Check via `ddev drush php:eval '\Drupal\field\Entity\FieldStorageConfig::loadByName("user", "field_organization") ? print "yes" : print "no";'`
+2. ~~**Tag vocabulary**~~: ✅ Confirmed — machine name is `tags` (sitewide) and `group_tags` (group-specific). Demo data uses `group_tags`.
+3. ~~**Comment field name**~~: ✅ Confirmed — **no comment field on forum nodes**. `ERROR: No comment field on forum nodes` in demo script is expected. Comment field not yet configured for forum content type.
+4. ~~**Event date field type**~~: ✅ Resolved — `field_date_of_event` (`datetime`).
+5. ~~**Group visibility**~~: ⏳ Deferred — group access control via Group module policies, not custom field.
+6. ~~**`language.content_settings` malformed**~~: ✅ Fixed — step_640.php stored only `third_party_settings`; corrected YAMLs add required `target_entity_type_id`, `target_bundle`, `default_langcode`, `language_alterable` keys.
+7. ~~**Roles bootstrap issue**~~: ✅ Fixed — create roles AFTER clearing all caches + fixing content settings, BEFORE running config:import.
 
 ---
 
