@@ -1,0 +1,63 @@
+display:
+  default:
+    display_options:
+      title: Nodes
+      fields:
+        title:
+          label: Titel
+          separator: ', '
+        type:
+          label: Inhoudstype
+          separator: ', '
+        status:
+          label: Status
+          settings:
+            format_custom_false: 'Niet gepubliceerd'
+            format_custom_true: Gepubliceerd
+          separator: ', '
+        changed:
+          label: Bijgewerkt
+          separator: ', '
+        dropbutton:
+          label: Bewerkingen
+      pager:
+        options:
+          tags:
+            next: ››
+            previous: ‹‹
+            first: '« Eerste'
+            last: 'Laatste »'
+          expose:
+            items_per_page_label: 'Items per pagina'
+            items_per_page_options_all_label: '- Alle -'
+            offset_label: Offset
+      exposed_form:
+        options:
+          submit_button: Toepassen
+          reset_button_label: 'Opnieuw instellen'
+          exposed_sorts_label: 'Sorteren op'
+          sort_asc_label: Oplopend
+          sort_desc_label: Aflopend
+      arguments:
+        gid:
+          exception:
+            title: Alle
+      filters:
+        status:
+          expose:
+            label: Publicatiestatus
+          group_info:
+            label: Publicatiestatus
+            group_items:
+              1:
+                title: Gepubliceerd
+              2:
+                title: 'Niet gepubliceerd'
+        type:
+          expose:
+            label: Type
+  page_1:
+    display_title: Pagina
+    display_options:
+      menu:
+        title: Nodes

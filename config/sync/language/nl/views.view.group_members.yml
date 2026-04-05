@@ -1,0 +1,41 @@
+display:
+  default:
+    display_options:
+      fields:
+        name:
+          label: Gebruiker
+          separator: ', '
+        group_roles:
+          label: Rollen
+          separator: ', '
+        changed:
+          label: Bijgewerkt
+          separator: ', '
+        created:
+          separator: ', '
+        dropbutton:
+          label: Bewerkingen
+      pager:
+        options:
+          tags:
+            next: ››
+            previous: ‹‹
+            first: '« Eerste'
+            last: 'Laatste »'
+          expose:
+            items_per_page_label: 'Items per pagina'
+            items_per_page_options_all_label: '- Alle -'
+            offset_label: Offset
+      exposed_form:
+        options:
+          submit_button: Toepassen
+          reset_button_label: 'Opnieuw instellen'
+          exposed_sorts_label: 'Sorteren op'
+          sort_asc_label: Oplopend
+          sort_desc_label: Aflopend
+      arguments:
+        gid:
+          exception:
+            title: Alle
+  page_1:
+    display_title: Pagina

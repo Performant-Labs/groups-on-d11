@@ -1,0 +1,11 @@
+display:
+  default:
+    display_title: 기본값
+    display_options:
+      empty:
+        area_text_custom:
+          content: '댓글이 없습니다.'
+  block_1:
+    display_title: 블록
+    display_options:
+      block_category: 목록(보기)

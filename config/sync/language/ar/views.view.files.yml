@@ -1,0 +1,79 @@
+label: الملفات
+display:
+  default:
+    display_title: الافتراضي
+    display_options:
+      title: الملفات
+      fields:
+        filename:
+          label: الاسم
+          separator: ', '
+        filemime:
+          label: 'نوع MIME'
+        filesize:
+          label: الحجم
+        status:
+          label: الحالة
+          settings:
+            format_custom_false: مؤقت
+            format_custom_true: دائم
+        changed:
+          label: 'تاريخ التغيير'
+        count:
+          label: 'مستخدمة في'
+        operations:
+          label: العمليات
+      pager:
+        options:
+          tags:
+            next: 'التالي ›'
+            previous: '‹ السابق'
+          expose:
+            items_per_page_label: 'العناصر لكل صفحة'
+            items_per_page_options_all_label: '- الكل -'
+            offset_label: الإزاحة
+      exposed_form:
+        options:
+          submit_button: تصفية
+          reset_button_label: 'إعادة تعيين'
+          exposed_sorts_label: 'فرز حسب'
+          sort_asc_label: تصاعدي
+          sort_desc_label: تنازلي
+      filters:
+        filename:
+          expose:
+            label: 'اسم الملف'
+        filemime:
+          expose:
+            label: 'نوع MIME'
+        status:
+          expose:
+            label: الحالة
+  page_1:
+    display_options:
+      menu:
+        title: الملفات
+  page_2:
+    display_title: 'استخدام الملف'
+    display_options:
+      title: 'استخدام الملف'
+      fields:
+        entity_label:
+          label: الكيان
+        type:
+          label: 'نوع الكيان'
+        count:
+          label: 'استخدام العد'
+      pager:
+        options:
+          tags:
+            next: 'التالي ›'
+            previous: '‹ السابق'
+          expose:
+            items_per_page_label: 'العناصر لكل صفحة'
+            items_per_page_options_all_label: '- الكل -'
+            offset_label: الإزاحة
+      arguments:
+        fid:
+          exception:
+            title: الكل

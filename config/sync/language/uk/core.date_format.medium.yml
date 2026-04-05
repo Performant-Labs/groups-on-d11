@@ -1,0 +1,2 @@
+label: 'Базова середня дата'
+pattern: 'D, j M Y - H:i'

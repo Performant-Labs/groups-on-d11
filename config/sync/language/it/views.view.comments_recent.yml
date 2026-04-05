@@ -1,0 +1,11 @@
+display:
+  default:
+    display_title: Predefinito
+    display_options:
+      empty:
+        area_text_custom:
+          content: 'Nessun commento disponibile.'
+  block_1:
+    display_title: Blocco
+    display_options:
+      block_category: 'Elenchi (Viste)'

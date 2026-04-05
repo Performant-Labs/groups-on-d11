@@ -1,0 +1,59 @@
+display:
+  default:
+    display_options:
+      title: 节点
+      fields:
+        title:
+          label: 标题
+        type:
+          label: 内容类型
+        status:
+          label: 状态
+          settings:
+            format_custom_false: 未发布
+            format_custom_true: 已发布
+        changed:
+          label: 已更新
+        dropbutton:
+          label: 操作
+      pager:
+        options:
+          tags:
+            next: ››
+            previous: ‹‹
+            first: '« 首页'
+            last: '末页 »'
+          expose:
+            items_per_page_label: 每页条目数
+            items_per_page_options_all_label: '- 全部 -'
+            offset_label: 偏移量
+      exposed_form:
+        options:
+          submit_button: 应用
+          reset_button_label: 重置
+          exposed_sorts_label: 排序依据
+          sort_asc_label: 升序
+          sort_desc_label: 降序
+      arguments:
+        gid:
+          exception:
+            title: 全部
+      filters:
+        status:
+          expose:
+            label: 发布状态
+          group_info:
+            label: 发布状态
+            group_items:
+              1:
+                title: 已发布
+              2:
+                title: 未发布
+        type:
+          expose:
+            label: 类型
+  page_1:
+    display_title: 页面
+    display_options:
+      menu:
+        title: 节点

@@ -1,0 +1,41 @@
+display:
+  default:
+    display_options:
+      fields:
+        name:
+          label: Użytkownik
+          separator: ', '
+        group_roles:
+          label: Role
+          separator: ', '
+        changed:
+          label: Uaktualniono
+          separator: ', '
+        created:
+          separator: ', '
+        dropbutton:
+          label: Operacje
+      pager:
+        options:
+          tags:
+            next: ››
+            previous: ‹‹
+            first: '« Pierwsza'
+            last: 'Ostatnia »'
+          expose:
+            items_per_page_label: 'Elementów na stronę'
+            items_per_page_options_all_label: '- Wszystko -'
+            offset_label: Przesunięcie
+      exposed_form:
+        options:
+          submit_button: Zastosuj
+          reset_button_label: Resetuj
+          exposed_sorts_label: 'Sortuj po'
+          sort_asc_label: Rosnąco
+          sort_desc_label: Malejąco
+      arguments:
+        gid:
+          exception:
+            title: Wszystko
+  page_1:
+    display_title: Strona

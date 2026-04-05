@@ -1,0 +1,79 @@
+label: Bestanden
+display:
+  default:
+    display_title: Standaard
+    display_options:
+      title: Bestanden
+      fields:
+        filename:
+          label: Naam
+          separator: ', '
+        filemime:
+          label: MIME-type
+        filesize:
+          label: Grootte
+        status:
+          label: Status
+          settings:
+            format_custom_false: Tijdelijk
+            format_custom_true: Permanent
+        changed:
+          label: Aanpassingsdatum
+        count:
+          label: 'Gebruikt in'
+        operations:
+          label: Bewerkingen
+      pager:
+        options:
+          tags:
+            next: 'Volgende ›'
+            previous: '‹ Vorige'
+          expose:
+            items_per_page_label: 'Items per pagina'
+            items_per_page_options_all_label: '- Alle -'
+            offset_label: Offset
+      exposed_form:
+        options:
+          submit_button: Filter
+          reset_button_label: 'Opnieuw instellen'
+          exposed_sorts_label: 'Sorteren op'
+          sort_asc_label: Oplopend
+          sort_desc_label: Aflopend
+      filters:
+        filename:
+          expose:
+            label: Bestandsnaam
+        filemime:
+          expose:
+            label: MIME-type
+        status:
+          expose:
+            label: Status
+  page_1:
+    display_options:
+      menu:
+        title: Bestanden
+  page_2:
+    display_title: Bestandsgebruik
+    display_options:
+      title: Bestandsgebruik
+      fields:
+        entity_label:
+          label: Entiteit
+        type:
+          label: Entiteitstype
+        count:
+          label: Gebruiksfrequentie
+      pager:
+        options:
+          tags:
+            next: 'Volgende ›'
+            previous: '‹ Vorige'
+          expose:
+            items_per_page_label: 'Items per pagina'
+            items_per_page_options_all_label: '- Alle -'
+            offset_label: Offset
+      arguments:
+        fid:
+          exception:
+            title: Alle

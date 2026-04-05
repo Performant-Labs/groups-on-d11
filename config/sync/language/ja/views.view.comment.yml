@@ -1,0 +1,76 @@
+label: コメント
+display:
+  default:
+    display_title: デフォルト
+    display_options:
+      title: コメント
+      fields:
+        comment_bulk_form:
+          action_title: アクション
+        subject:
+          label: 件名
+        name:
+          label: 投稿者
+        entity_id:
+          label: 投稿先
+        changed:
+          label: 更新
+        operations:
+          label: 操作
+      pager:
+        options:
+          expose:
+            items_per_page_label: ページ毎の件数
+            items_per_page_options_all_label: '- 全て -'
+            offset_label: オフセット
+      exposed_form:
+        options:
+          submit_button: フィルター
+          reset_button_label: リセット
+          exposed_sorts_label: 並び替え基準
+          sort_asc_label: 昇順
+          sort_desc_label: 降順
+      empty:
+        area_text_custom:
+          content: コメントはありません。
+      filters:
+        subject:
+          expose:
+            label: 件名
+        combine:
+          expose:
+            label: 投稿者名
+        langcode:
+          expose:
+            label: 言語
+      use_more_text: 続き
+  page_published:
+    display_title: 掲載中のコメント
+    display_options:
+      menu:
+        title: コメント
+  page_unapproved:
+    display_title: 承認待ちのコメント
+    display_options:
+      fields:
+        comment_bulk_form:
+          action_title: アクション
+        subject:
+          label: 件名
+        name:
+          label: 投稿者
+        entity_id:
+          label: 投稿先
+        changed:
+          label: 更新
+        operations:
+          label: 操作
+      filters:
+        subject:
+          expose:
+            label: 件名
+        langcode:
+          expose:
+            label: 言語
+      menu:
+        title: 承認待ちのコメント

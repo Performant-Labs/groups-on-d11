@@ -1,0 +1,20 @@
+uuid: 5116fe51-7f3c-4393-9ee0-d6d89a70b585
+langcode: en
+status: true
+dependencies:
+  module:
+    - content_translation
+    - flag
+id: content_administrator
+label: 'Content Administrator'
+weight: 2
+is_admin: false
+permissions:
+  - 'create content translations'
+  - 'delete content translations'
+  - 'flag pin_in_group'
+  - 'flag promote_homepage'
+  - 'translate any entity'
+  - 'unflag pin_in_group'
+  - 'unflag promote_homepage'
+  - 'update content translations'

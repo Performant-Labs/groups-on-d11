@@ -1,0 +1,67 @@
+label: Zawartość
+display:
+  default:
+    display_title: Domyślny
+    display_options:
+      title: Zawartość
+      fields:
+        title:
+          label: Tytuł
+        type:
+          label: 'Rodzaj zawartości'
+          separator: ', '
+        name:
+          label: Autor
+        status:
+          label: Status
+          settings:
+            format_custom_false: Nieopublikowany
+            format_custom_true: Opublikowane
+        changed:
+          label: Uaktualniono
+        langcode:
+          label: Język
+          separator: ', '
+        operations:
+          label: Operacje
+      pager:
+        options:
+          tags:
+            next: 'Następna ›'
+            previous: '‹ Poprzednia'
+            first: '« Pierwsza'
+            last: 'Ostatnia »'
+      exposed_form:
+        options:
+          submit_button: Filtr
+          reset_button_label: Resetuj
+          exposed_sorts_label: 'Sortuj po'
+          sort_asc_label: Rosnąco
+          sort_desc_label: Malejąco
+      filters:
+        title:
+          expose:
+            label: Tytuł
+        type:
+          expose:
+            label: 'Rodzaj zawartości'
+        status:
+          expose:
+            label: Status
+          group_info:
+            label: 'Status publikacji'
+            group_items:
+              1:
+                title: Opublikowane
+              2:
+                title: Nieopublikowany
+        langcode:
+          expose:
+            label: Język
+  page_1:
+    display_title: Strona
+    display_options:
+      menu:
+        title: Zawartość
+      tab_options:
+        title: Zawartość

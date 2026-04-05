@@ -1,0 +1,40 @@
+display:
+  default:
+    display_options:
+      fields:
+        name:
+          label: Utente
+          separator: ', '
+        group_roles:
+          label: Ruoli
+          separator: ', '
+        changed:
+          separator: ', '
+        created:
+          separator: ', '
+        dropbutton:
+          label: Operazioni
+      pager:
+        options:
+          tags:
+            next: ››
+            previous: ‹‹
+            first: '« Prima'
+            last: 'Ultima »'
+          expose:
+            items_per_page_label: 'Voci per pagina'
+            items_per_page_options_all_label: '- Tutto -'
+            offset_label: Scostamento
+      exposed_form:
+        options:
+          submit_button: Applica
+          reset_button_label: Ripristina
+          exposed_sorts_label: 'Ordina per'
+          sort_asc_label: Asc
+          sort_desc_label: Disc
+      arguments:
+        gid:
+          exception:
+            title: Tutti
+  page_1:
+    display_title: Pagina

@@ -1,0 +1,41 @@
+display:
+  default:
+    display_options:
+      fields:
+        name:
+          label: Usuário
+          separator: ', '
+        group_roles:
+          label: Papéis
+          separator: ', '
+        changed:
+          label: Atualizado
+          separator: ', '
+        created:
+          separator: ', '
+        dropbutton:
+          label: Operações
+      pager:
+        options:
+          tags:
+            next: ››
+            previous: ‹‹
+            first: '« Primeiro'
+            last: 'Último »'
+          expose:
+            items_per_page_label: 'Itens por página'
+            items_per_page_options_all_label: '- Todos -'
+            offset_label: Deslocamento
+      exposed_form:
+        options:
+          submit_button: Aplicar
+          reset_button_label: Redefinir
+          exposed_sorts_label: 'Ordenar por'
+          sort_asc_label: Ascendente
+          sort_desc_label: Decrescente
+      arguments:
+        gid:
+          exception:
+            title: Tudo
+  page_1:
+    display_title: Página

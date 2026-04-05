@@ -1,0 +1,15 @@
+display:
+  default:
+    display_title: Domyślny
+    display_options:
+      exposed_form:
+        options:
+          submit_button: Zastosuj
+          reset_button_label: Resetuj
+          exposed_sorts_label: 'Sortuj po'
+          sort_asc_label: Rosnąco
+          sort_desc_label: Malejąco
+      filters:
+        access:
+          expose:
+            label: 'Ostatni dostęp'
