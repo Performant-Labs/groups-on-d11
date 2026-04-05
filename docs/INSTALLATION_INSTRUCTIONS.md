@@ -5,6 +5,22 @@ This document covers two things:
 1. **Day-to-day operation** — how to trigger a build and deploy it to Spiderman (start here)
 2. **One-time setup** — how all the pieces were wired up (do this once, then follow section 1 forever)
 
+### Architecture
+
+```
+groups.performantlabs.com
+        │
+   Host nginx on Spiderman  (nginx/1.24.0, shared across all projects)
+   /etc/nginx/sites-enabled/groups-on-d11
+        │  fastcgi_pass 127.0.0.1:8084
+        ▼
+   Container: groups-on-d11-web  (php-fpm only, port 9000 → 127.0.0.1:8084)
+        │
+   Container: groups-on-d11-db  (MariaDB, internal network only)
+```
+
+The container runs **php-fpm only** — there is no nginx inside the image. The shared host nginx on Spiderman handles TLS termination, routing, and static file serving via `fastcgi_pass`.
+
 ---
 
 ## Part 1 — Deploying to Spiderman (Day-to-Day)
@@ -67,14 +83,12 @@ The following files need to be created and committed before the first build work
 
 #### `Dockerfile` (repo root)
 
-Builds a combined php-fpm + nginx image. Pattern matches `groups-live-chat`.
+Builds a **php-fpm only** image. No nginx — the shared host nginx on Spiderman handles reverse proxying.
 
 ```dockerfile
 FROM drupal:11-php8.3-fpm-alpine AS base
 
-RUN apk add --no-cache nginx
-
-COPY deploy/nginx-drupal.conf /etc/nginx/http.d/default.conf
+# php-fpm only — reverse proxying is handled by the shared host nginx on Spiderman
 
 WORKDIR /var/www/html
 
@@ -84,10 +98,10 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction
 COPY web/ web/
 COPY config/ config/
 
-RUN mkdir -p web/sites/default/files \
-    && chown -R www-data:www-data web/sites/default/files
+RUN mkdir -p web/sites/default/files web/sites/default/private \
+    && chown -R www-data:www-data web/sites web/sites/default/files
 
-EXPOSE 8080
+EXPOSE 9000
 
 COPY deploy/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -98,7 +112,7 @@ CMD ["/entrypoint.sh"]
 
 #### `deploy/entrypoint.sh`
 
-Generates `settings.php` from environment variables at startup, then launches php-fpm and nginx.
+Generates `settings.php` from environment variables at startup, then starts php-fpm in the foreground.
 
 ```sh
 #!/bin/sh
@@ -111,13 +125,13 @@ chmod 755 /var/www/html/web/sites/default 2>/dev/null || true
 cat > "$SETTINGS" <<PHPEOF
 <?php
 \$databases['default']['default'] = [
-  'database' => '${MYSQL_DATABASE}',
-  'username' => '${MYSQL_USER}',
-  'password' => '${MYSQL_PASSWORD}',
-  'host'     => '${MYSQL_HOST}',
-  'port'     => '3306',
-  'driver'   => 'mysql',
-  'prefix'   => '',
+  'database'  => '${MYSQL_DATABASE}',
+  'username'  => '${MYSQL_USER}',
+  'password'  => '${MYSQL_PASSWORD}',
+  'host'      => '${MYSQL_HOST}',
+  'port'      => '3306',
+  'driver'    => 'mysql',
+  'prefix'    => '',
   'collation' => 'utf8mb4_general_ci',
 ];
 \$settings['hash_salt'] = '${DRUPAL_HASH_SALT}';
@@ -131,14 +145,11 @@ cat > "$SETTINGS" <<PHPEOF
 \$settings['reverse_proxy_addresses'] = ['127.0.0.1'];
 PHPEOF
 
-echo "Generated settings.php"
-php-fpm -D
-nginx -g 'daemon off;'
+echo "Generated settings.php from environment variables"
+
+# Start php-fpm in the foreground — host nginx on Spiderman proxies to this
+exec php-fpm -F
 ```
-
-#### `deploy/nginx-drupal.conf`
-
-Routes HTTP requests from nginx → php-fpm inside the container. Copy from `groups-live-chat` — it is identical for any Drupal 11 site.
 
 #### `.github/workflows/build.yml`
 
@@ -217,7 +228,7 @@ services:
     container_name: groups-on-d11-web
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8084:8080"          # 8084 chosen — check no conflict with other projects
+      - "127.0.0.1:8084:9000"   # php-fpm port; host nginx connects via fastcgi_pass
     environment:
       - MYSQL_HOST=db
       - MYSQL_DATABASE=${MYSQL_DATABASE}
@@ -264,6 +275,8 @@ networks:
 
 #### `/etc/nginx/sites-available/groups-on-d11` (on Spiderman host)
 
+Copy `deploy/nginx-host-site.conf` from this repo, then enable it:
+
 ```nginx
 server {
     server_name groups.performantlabs.com;
@@ -273,31 +286,47 @@ server {
 
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    root /var/www/html/web;   # path inside the container; used by fastcgi_param
+    index index.php index.html;
+    client_max_body_size 64M;
 
     location / {
-        proxy_pass http://127.0.0.1:8084;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 75s;
-        proxy_buffering off;
-        proxy_request_buffering off;
-        client_max_body_size 64M;
+        try_files $uri $uri/ /index.php?$query_string;
     }
+
+    location ~ '\.php$|^/update.php' {
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        # Forward directly to php-fpm in the container
+        fastcgi_pass 127.0.0.1:8084;
+        fastcgi_param SCRIPT_FILENAME /var/www/html/web$fastcgi_script_name;
+        fastcgi_param SCRIPT_NAME $fastcgi_script_name;
+        fastcgi_param SERVER_NAME $host;
+        fastcgi_param HTTPS on;
+        fastcgi_index index.php;
+        fastcgi_buffers 16 16k;
+        fastcgi_buffer_size 32k;
+        fastcgi_read_timeout 600;
+        include fastcgi_params;
+    }
+
+    location ~* /\.(?!well-known\/) { deny all; }
 
     listen 80;
     listen [::]:80;
+    # SSL added automatically by Certbot — see step below
 }
 ```
 
-Enable and reload:
+Enable and get a certificate:
 ```bash
+sudo cp /opt/groups-on-d11/deploy/nginx-host-site.conf /etc/nginx/sites-available/groups-on-d11
 sudo ln -s /etc/nginx/sites-available/groups-on-d11 /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
+
+# Issue SSL certificate (Certbot will edit the vhost automatically)
+sudo certbot --nginx -d groups.performantlabs.com
 ```
 
 > **No login needed.** The `groups-on-d11` repo is public, so the `ghcr.io` image is also public. Spiderman can `docker compose pull` without any token or credentials.
