@@ -1,9 +1,30 @@
-# Drupal .gitignore
+# Drupal .gitignore — standard for drupal/recommended-project
+# composer.lock is intentionally tracked for reproducible installs.
+
+# Composer-managed directories (restored via: composer install)
 /vendor/
+/web/core/
+/web/modules/contrib/
+/web/themes/contrib/
+/web/libraries/
+
+# DDEV environment files (restored via: ddev start)
 /.ddev/
+
+# Drupal scaffold files placed by composer (not custom, regenerated)
+/web/sites/default/default.settings.php
+/web/sites/default/default.services.yml
+
+# Runtime / environment-specific
 /web/sites/default/files/
 /web/sites/default/settings.php
+/web/sites/default/settings.local.php
 /web/sites/default/services.yml
-/web/sites/default/default.services.yml
-/web/sites/default/default.settings.php
-/composer.lock
+
+# DB backups — do not commit binary blobs
+/backups/
+
+# OS / editor noise
+.DS_Store
+*.swp
+*.swo
