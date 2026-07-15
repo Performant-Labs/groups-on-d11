@@ -65,6 +65,18 @@ class IcalController extends ControllerBase {
     $database = \Drupal::database();
 
     // Query group_relationship_field_data for event nodes in this group.
+    // Group 4.x note: the GroupRelationship entity/storage (table
+    // group_relationship_field_data, columns gid/entity_id/type) is the v2+
+    // "Relationship" API and is unchanged by v4. The v4 rename affects the
+    // GroupRelationshipType *config property* content_plugin → relation_type
+    // (CR 2026-06-19), NOT the "type" bundle column read below — so this query's
+    // column names carry over.
+    // TODO(group4-VERIFY): gr.type stores the GroupRelationshipType *bundle ID*
+    // (a config entity ID), not the relation plugin ID. The LIKE '%event%'
+    // heuristic assumes that bundle ID contains "event". Confirm against the
+    // installed Group 4.x the exact bundle-ID naming for the group_node:event
+    // relation (e.g. "<group_type>-group_node-event") so this filter still
+    // matches; a build is out of scope for this issue.
     $query = $database->select('group_relationship_field_data', 'gr');
     $query->fields('gr', ['entity_id']);
     $query->condition('gr.gid', $group->id());
