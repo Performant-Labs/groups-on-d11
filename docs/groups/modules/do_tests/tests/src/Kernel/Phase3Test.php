@@ -7,6 +7,17 @@ use Drupal\KernelTests\KernelTestBase;
 /**
  * Phase 3 integration tests — Multi-group & Stream.
  *
+ * Group 4.x notes for this phase:
+ * - Relationship-type config renamed `content_plugin` → `relation_type`
+ *   (CR 2026-06-19); the `plugin_config` sub-array asserted here is unchanged.
+ * - TODO(group4-VERIFY): Creator auto-membership is now form-only (CR
+ *   2026-04-24). These assertions read config/sync only and never create a
+ *   group programmatically, so the behavior change does not surface here. Any
+ *   future phase that creates a group via the API (e.g. Group::create()->save())
+ *   and then asserts the creator is a member MUST add the membership explicitly
+ *   with $group->addMember($account) — 4.x no longer auto-adds the creator on a
+ *   programmatic save.
+ *
  * @group do_tests
  */
 class Phase3Test extends KernelTestBase {
