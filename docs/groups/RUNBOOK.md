@@ -30,7 +30,7 @@
 > **Checkpoint after every phase.** After completing all steps and verification for a phase, stop and check in with the user before proceeding to the next phase.
 
 > [!IMPORTANT]
-> **Prefer contributed modules over custom code.** Before porting any custom module from Open Social, search [drupal.org/project](https://www.drupal.org/project/project_module) for an existing contributed module that provides the same functionality. Only write custom code when no suitable contributed module exists or when the contributed options are unmaintained / incompatible with Drupal 10 + Group 3.x. Document the search results and rationale for each decision.
+> **Prefer contributed modules over custom code.** Before porting any custom module from Open Social, search [drupal.org/project](https://www.drupal.org/project/project_module) for an existing contributed module that provides the same functionality. Only write custom code when no suitable contributed module exists or when the contributed options are unmaintained / incompatible with Drupal 11 + Group 4.x. Document the search results and rationale for each decision.
 
 > [!IMPORTANT]
 > **Copy module source before enabling.** Custom module source files live in `docs/groups/modules/`. Before running `ddev drush en <module>` for any `do_*` module, copy its directory into `web/modules/custom/`:
@@ -42,7 +42,12 @@
 > [!IMPORTANT]
 > **All custom modules must follow the Services over Hooks pattern.** Before writing or porting any custom module, read [`playbook/frameworks/drupal/best-practices.md`](../playbook/frameworks/drupal/best-practices.md). Procedural hook-based modules are not acceptable in this project.
 
-This runbook documents the step-by-step process for adding groups functionality to the standard Drupal 10 codebase (pl-drupalorg).
+This runbook documents the step-by-step process for adding groups functionality to the standard Drupal 11 codebase (pl-drupalorg).
+
+> [!IMPORTANT]
+> **Group 4.x target.** This runbook targets **Drupal `^11.2`** (epic target 11.4) and **`drupal/group:^4`** (alpha). Group 4.x drops the `variationcache`, `flexible_permissions`, and `entity` (Entity API) contrib dependencies — VariationCache and the Access Policy API are now in core, and Group 4.x uses core's revision UI. Per-group permission calculation moves from the contrib **Flexible Permissions** module to **Drupal core's Access Policy API** (`access_policy`-tagged services). The `GroupRelationshipType` config property `content_plugin` is renamed to `relation_type`. See [`GROUP_4X_MIGRATION.md`](GROUP_4X_MIGRATION.md) for the full 3→4 API/config delta.
+> <!-- VERIFY on build: which Group 4.x alpha to pin (alpha1 vs alpha2). The `content_plugin`→`relation_type` rename lands in 4.0.0-alpha2, so prefer the newest alpha available. -->
+> <!-- VERIFY on build: exact core version pinned in the site composer.json (must be ≥ 11.2; epic target 11.4). -->
 
 
 See [GROUPS_CONVERSION_PLAN.md](GROUPS_CONVERSION_PLAN.md) for the gap analysis, key differences between the projects, and the overall phase plan.
@@ -67,7 +72,7 @@ All contributed modules referenced in this runbook, verified on drupal.org:
 
 | Module | Composer package | drupal.org | Used in | Notes |
 |---|---|---|---|---|
-| Group | `drupal/group` | [drupal.org/project/group](https://www.drupal.org/project/group) | Phase 1 | Core dependency; use `^3.0` for `group_relationship` API |
+| Group | `drupal/group` | [drupal.org/project/group](https://www.drupal.org/project/group) | Phase 1 | Core dependency; use `^4` (alpha) for the `group_relationship` API. Direct upgrade path is **from v3 only** — no jump from v1/v2. No longer depends on `variationcache` / `flexible_permissions` / `entity` (all folded into core). |
 | Group Node (gnode) | sub-module of `drupal/group` | — | Phase 1 | Sub-module bundled with Group; enables `group_node:*` relationship plugins |
 | Flag | `drupal/flag` | [drupal.org/project/flag](https://www.drupal.org/project/flag) | Phase 4 | Includes `flag_count` sub-module (not a separate package) |
 | Linkit | `drupal/linkit` | [drupal.org/project/linkit](https://www.drupal.org/project/linkit) | Phase 1 | Optional — inline autocomplete linking |
@@ -166,18 +171,51 @@ git add config/sync && git commit -m "chore: initial config export"
 
 ## Step 110 — Install the Group Module
 
+Group 4.x is an alpha release, so Composer needs to accept alpha stability. Pin the constraint to an alpha (`^4.0@alpha`) or set `minimum-stability: alpha` in `composer.json`:
+
 ```bash
-ddev composer require drupal/group
+# Allow the symfony/runtime Composer plugin (required by Drupal 11 / Group 4.x)
+ddev composer config allow-plugins.symfony/runtime true
+# Require Group 4.x (alpha). The direct upgrade path is from v3 ONLY.
+ddev composer require "drupal/group:^4.0@alpha"
 ```
 
-Standard Drupal Group module (not Open Social's bundled version):
-- **3.x**: `GroupRelationship` entities (Drupal 10+, this project)
+> [!IMPORTANT]
+> **Drop the removed contrib dependencies.** Group 4.x no longer depends on `drupal/variationcache`, `drupal/flexible_permissions`, or `drupal/entity` (Entity API) — VariationCache and the Access Policy API are now in Drupal core (≥ 10.2 / ≥ 10.3), and Group 4.x uses core's revision UI. Remove them from `composer.json` `require` **after** Group 4.x is installed and its update hooks have run (Step 115), then uninstall the modules — Group 3.x still references them at the moment of the version swap.
+> ```bash
+> ddev composer remove drupal/variationcache drupal/flexible_permissions
+> # Remove drupal/entity ONLY if no other module needs it (none in this project):
+> ddev composer remove drupal/entity
+> ```
 
-> ✅ **Resolved**: `drupal/group` 3.3.5 is already installed. Requires Drupal `^10.3 || ^11`.
+Standard Drupal Group module (not Open Social's bundled version):
+- **4.x**: `GroupRelationship` entities on **Drupal ^11.2** (epic target 11.4); creator auto-membership is now **form-only**, and "add to group" invalidates cache tags instead of resaving the related entity.
+
+> [!CAUTION]
+> **Upgrade from v3 only.** Group 4.x supports a direct upgrade **only from v3**. There is no supported jump from v1/v2 straight to v4 — sites on v2 must reach v3 first. Confirm the current install is on **3.x** before requiring `^4`.
+
+> <!-- VERIFY on build: exact Group 4.x alpha/beta pinned in the site composer.json (prefer the newest alpha available, since the content_plugin→relation_type rename lands in 4.0.0-alpha2). -->
+> <!-- VERIFY on build: exact core version in the site composer.json (must be ≥ 11.2; epic target 11.4). -->
+
+## Step 115 — Run Update Hooks (Group 3.x → 4.x)
+
+After the composer swap, run Group's update hooks. These migrate stored config, including the `content_plugin` → `relation_type` rename on `group.relationship_type.*` entities.
+
+```bash
+ddev drush updatedb -y
+ddev drush cr
+```
+
+> [!CAUTION]
+> **Dry-run first.** On a real 3.x→4.x upgrade, run `ddev drush updatedb` against a **database copy** before touching the live DB, and confirm the config-migration update hook completes clean.
+> <!-- VERIFY on build: dry-run `drush updatedb` on a DB copy confirms the content_plugin→relation_type config migration hook is clean. -->
+
+> [!NOTE]
+> On a **clean-room install** (no existing 3.x data) there is nothing to migrate — the `config/sync` YAML already ships the `relation_type:` key. This step matters only when upgrading an existing 3.x site.
 
 ## Step 120 — Enable All Required Modules
 
-Enable the group modules plus all Drupal core modules needed for Phase 1 field types:
+Enable the group modules plus all Drupal core modules needed for Phase 1 field types (`variationcache`, `flexible_permissions`, and `entity` are **not** enabled — they are dropped in 4.x):
 
 ```bash
 ddev drush en group gnode image taxonomy views views_ui text -y
@@ -260,10 +298,11 @@ ddev drush config:export -y
 > `field_group_type` and `field_group_language` are added in later phases.
 
 > [!CAUTION]
-> **`Group::create()` does NOT auto-join the creator.** The `creator_membership` group type setting only applies when groups are created through the form UI. When creating groups programmatically, explicitly add the creator as a member:
+> **`Group::create()` does NOT auto-join the creator (Group 4.x).** In Group 4.x, creator auto-membership is **form-only** — programmatically created groups (migrations, tests, demo-data scripts, any module that spins up groups via the API) **no longer** add the creator as a member, even with the `creator_membership` group type setting enabled. That setting applies only to groups created through the form UI. When creating groups programmatically, explicitly add the creator as a member:
 > ```php
 > $group->addMember(\Drupal\user\Entity\User::load($uid));
 > ```
+> This is a **behavioral change from 3.x** (CR 2026-04-24). Any Phase 7 demo-data or test fixture that assumed "create a group → creator is a member" must now add the membership explicitly.
 
 ## Step 140 — Configure Group-Node Relationships
 
@@ -327,6 +366,10 @@ Configure the following group-level permissions *(admin UI: `/admin/group/types/
 
 > [!NOTE]
 > Group-level permissions are configured via the Group module's permission system, not Drupal's core role:perm system. These are set via the admin UI or by importing `group.role.community_group-*.yml` config files after `config:export`.
+
+> [!IMPORTANT]
+> **Group 4.x uses core's Access Policy API, not Flexible Permissions.** The *declaration* of group permissions (the role config above, and each relation plugin's permission provider) is unchanged. What changed is the *calculation* side: in Group 3.x, per-group permissions were computed by the contrib **Flexible Permissions** module (`permission_calculator` service, `PermissionCalculatorInterface`). In Group 4.x that machinery is gone — the equivalent is **Drupal core's [Access Policy API](https://www.drupal.org/docs/develop/drupal-apis/access-policy-api)** (core ≥ 10.3). Group registers its scopes (historically `group_outsider` / `group_insider` / `group_individual`) as `access_policy`-tagged services extending `Drupal\Core\Session\AccessPolicyBase`, and the aggregated result is an **immutable** `CalculatedPermissions` object. No site-level config change is needed for the stock roles here, but **any custom module that implemented a `permission_calculator` service must be re-implemented as an `access_policy` service** (this is the `do_multigroup` re-home in Phase 3, and any similar custom calculator). See [`GROUP_4X_MIGRATION.md`](GROUP_4X_MIGRATION.md) §2.
+> <!-- VERIFY on build: the exact scope constant names/values Group 4.x ships (read group/src/Access/*) and the exact core FQCNs for the upstreamed permission classes (CalculatedPermissions, CalculatedPermissionsItem, RefinableCalculatedPermissionsInterface, AccessPolicyBase). -->
 
 ```bash
 ddev drush config:export -y
@@ -453,8 +496,12 @@ npx playwright test tests/e2e/phase1.spec.ts
 
 ## Phase 1 — Verification
 
-- [ ] `drupal/group` in `composer.json` and `composer.lock`
+- [ ] `drupal/group` at `^4` (alpha) in `composer.json` and `composer.lock`; core `^11.2`
+- [ ] `variationcache`, `flexible_permissions`, and `entity` are **absent** from `composer.json` `require` and from enabled modules (`ddev drush pm:list --status=enabled` shows none of them)
 - [ ] `ddev drush pm:list --status=enabled | grep -E "group|gnode"` shows both enabled
+- [ ] `allow-plugins.symfony/runtime` is `true` in `composer.json`
+- [ ] `ddev drush updatedb` completed clean (config-migration hook ran; `content_plugin`→`relation_type` applied)
+- [ ] All `group.relationship_type.*.yml` use the `relation_type:` key (not `content_plugin:`)
 - [ ] `config/sync/` exists and `ddev drush config:status` shows clean (no differences)
 - [ ] 5 content types exist: `forum`, `documentation`, `event`, `post`, `page`
 - [ ] `community_group` group type exists at `/admin/group/types`
@@ -485,7 +532,7 @@ npx playwright test tests/e2e/phase1.spec.ts
 ### Open Questions (Phase 1)
 
 1. ~~Which content types should be postable to groups?~~ ✅ Confirmed: `forum`, `documentation`, `event`, `post`, `page`
-2. ~~Which version of `drupal/group`?~~ ✅ Resolved: 3.3.5 already installed
+2. ~~Which version of `drupal/group`?~~ ✅ Resolved: **`^4` (alpha)** for this epic (was 3.3.5). Requires Drupal `^11.2`. <!-- VERIFY on build: exact alpha/beta pinned. -->
 3. ~~Group creation — open to all authenticated users, or restricted role?~~ ✅ Confirmed: any authenticated user can create groups
 
 ---
@@ -721,7 +768,7 @@ npx playwright test tests/e2e/phase2.spec.ts
 
 ### Open Questions (Phase 2)
 
-1. Does `drupal/group` 3.x natively support request/approval, or require `group_membership_request` sub-module? ⏳ **Deferred** — will research the installed Group 3.3.5 code when we reach this step
+1. Does `drupal/group` 4.x natively support request/approval, or require `group_membership_request` sub-module? ⏳ **Deferred** — will research the installed Group 4.x code when we reach this step. Note the **two-step membership wizard was removed** in 4.0.0-alpha1 (CR 2026-04-24). <!-- VERIFY on build: the removed two-step-wizard route name, if any module references it. -->
 2. What is the exact `form_id` for `community_group` create/edit form? ⏳ **Deferred** — inspect at implementation time
 3. ~~Notification role — `site_moderator`, `content_moderator`, or `content_administrator`?~~ ✅ Confirmed: `site_moderator` (maps to OS `sitemanager`)
 4. ~~Archived groups — unpublish or keep published but read-only?~~ ✅ Confirmed: **Both**. Archived = published + read-only (visible with badge, no new content). Unpublished = completely hidden (Group entity `status` field). Two separate mechanisms.
@@ -944,9 +991,9 @@ Allows content to be posted in multiple groups simultaneously.
 - `css/do_multigroup.css`
 
 > [!IMPORTANT]
-> **Group 3.x migration note**: `group.membership_loader` service was removed in Group 3.x. User memberships are now loaded by querying `group_relationship` storage directly:
+> **Group 3.x migration note**: `group.membership_loader` service was removed in Group 3.x (and stays removed in 4.x). User memberships are now loaded by querying `group_relationship` storage directly:
 > ```php
-> // Group 3.x — load memberships for current user:
+> // Load memberships for current user:
 > $memberships = $this->entityTypeManager
 >   ->getStorage('group_relationship')
 >   ->loadByProperties([
@@ -954,6 +1001,14 @@ Allows content to be posted in multiple groups simultaneously.
 >     'type' => 'community_group-group_membership',
 >   ]);
 > ```
+
+> [!CAUTION]
+> **Group 4.x deltas for `do_multigroup`** (see [`GROUP_4X_MIGRATION.md`](GROUP_4X_MIGRATION.md) §2–§3). This module is the most likely to touch permission calculation and relation types, so on the 4.x port confirm:
+> - **Permission calculation** — if `do_multigroup` (or any custom module) registers a `permission_calculator` service (Flexible Permissions), re-implement it as an **`access_policy`**-tagged service extending `Drupal\Core\Session\AccessPolicyBase`, and repoint any `use Drupal\flexible_permissions\...` imports to the core equivalents under `Drupal\Core\Session\`. Multi-group permission aggregation must still resolve under the **immutable** `CalculatedPermissions`.
+> - **`content_plugin` → `relation_type`** — any code that reads `$group_relationship_type->content_plugin` (or the YAML key) when filtering by relation type must use `relation_type`.
+> - **`$roles` filter must be an array** — any membership-loading helper that passed a single role ID as a string must pass `['role_id']` (CR 2025-02-19).
+> - **"Add to group" no longer resaves the entity** — it invalidates cache tags instead (CR 2025-05-23); do not rely on a full entity `save()` (and its `hook_entity_update` side effects) firing when a relationship is added.
+> <!-- VERIFY on build: whether do_multigroup ships a permission_calculator service to re-home, and the exact core FQCNs / scope constants used. -->
 
 > [!IMPORTANT]
 > This module uses the **Drupal 11 `#[Hook]` attribute system**. All hook logic is in `src/Hook/DoMultigroupHooks.php`. The `.module` file is intentionally empty.
@@ -1101,10 +1156,10 @@ web/modules/custom/do_multigroup/    ← deployed copy (synced via cp -r)
 
 ### Open Questions (Phase 3)
 
-1. ~~Does Group 3.x use `group_relationship_type.{group_type}-group_node-{bundle}.yml` format?~~ ✅ Confirmed: yes, exact format.
+1. ~~Does Group use `group_relationship_type.{group_type}-group_node-{bundle}.yml` format?~~ ✅ Confirmed: yes, exact format. In **4.x** the relation plugin ID is stored under the `relation_type:` key (renamed from `content_plugin:`, CR 2026-06-19).
 2. ~~Should all 5 content types support multi-group posting, or only a subset?~~ ✅ Confirmed: all 5 (`forum`, `documentation`, `event`, `post`, `page`)
 3. ~~Do any content types already have a tags field?~~ ✅ Resolved: `documentation` has `field_tags` → sitewide `tags`. Groups use a **separate** `group_tags` vocabulary with `field_group_tags`.
-4. ~~Does Group 3.x still provide `group.membership_loader` service?~~ ✅ **No.** Removed in Group 3.x. Use `group_relationship` storage query: `loadByProperties(['entity_id' => $uid, 'type' => 'community_group-group_membership'])` instead.
+4. ~~Does Group still provide `group.membership_loader` service?~~ ✅ **No.** Removed in Group 3.x (still absent in 4.x). Use `group_relationship` storage query: `loadByProperties(['entity_id' => $uid, 'type' => 'community_group-group_membership'])` instead. Note: in 4.x any `$roles` filter passed to membership-loading helpers must be an **array**, not a bare string (CR 2025-02-19).
 
 ---
 
@@ -1819,6 +1874,10 @@ ddev drush php:eval '\Drupal\field\Entity\FieldStorageConfig::loadByName("user",
 - `nodeInsert` — queues `node_created` event for published group-postable content
 - `commentInsert` — queues `comment_created` event; auto-subscribes commenter via `follow_content` flag
 
+> [!CAUTION]
+> **Group 4.x: "add to group" no longer resaves the related entity** (CR 2025-05-23). Adding an entity to a group now **invalidates the entity's cache tags** instead of calling `save()` on it. Any notification trigger that relied on a node's `hook_entity_update` firing *because it was added to a group* will **no longer fire** on that path. This runbook records the `node_created` event on `hook_node_insert` (unaffected), but if a future trigger keys off "node added to group," record it from a `group_relationship` insert hook (or the cache-tag path), **not** from a node resave. See [`GROUP_4X_MIGRATION.md`](GROUP_4X_MIGRATION.md) §3.
+> <!-- VERIFY on build: confirm do_notifications' triggers fire on the 4.x cache-tag path; none of the recorded events should depend on an add-to-group resave. -->
+
 **Drupal only records what happened** (one queue item per event, not per recipient):
 
 ```php
@@ -2034,6 +2093,9 @@ Contribution stats block and profile completeness indicator for user profiles.
 > [!WARNING]
 > **Profile completeness fields**: Update the `$fields_to_check` array in `ProfileCompletenessBlock.php` after researching which user fields actually exist on this site.
 
+> [!NOTE]
+> **Group 4.x check**: `ContributionStatsBlock` counts group memberships. If it calls a membership-loading helper with a `$roles` filter, pass an **array** (`['role_id']`), not a bare string (CR 2025-02-19). Lower risk than `do_multigroup`, but sweep for the same tokens (`content_plugin`, `flexible_permissions`, `permission_calculator`) — see [`GROUP_4X_MIGRATION.md`](GROUP_4X_MIGRATION.md) §4.
+
 ### Enable
 
 ```bash
@@ -2122,6 +2184,10 @@ Content pinning within groups. Allows group managers to pin topics above the chr
 
 > [!CAUTION]
 > **View ID must match**: `DoGroupPinHooks::viewsQueryAlter()` checks `$view->id() === 'group_content_stream'`. Open Social used `group_topics`; this implementation already targets `group_content_stream` (from Phase 3 Step 310). ✅ Already correct.
+
+> [!NOTE]
+> **Group 4.x check**: if `do_group_pin` inspects relation types (e.g. filtering by relation plugin), use the `relation_type` key/accessor, not `content_plugin`. If it creates relationships or pins entities to groups, remember that "add to group" now invalidates cache tags instead of resaving the entity (§3 of [`GROUP_4X_MIGRATION.md`](GROUP_4X_MIGRATION.md)).
+> <!-- VERIFY on build: whether do_group_pin programmatically creates groups (creator-membership is now form-only in 4.x) or reads content_plugin. -->
 
 > [!CAUTION]
 > **`config/optional/`**: `pin_in_group` flag is imported globally before the module is enabled (from `docs/groups/config/`). Module uses `config/optional/` to avoid `PreExistingConfigException`. Same pattern as Phases 4 and 5.
@@ -2914,8 +2980,8 @@ Create `docs/groups/feature_tour_drupalorg/FEATURE_TOUR.md` modelled on the Open
 
 | Component | Version |
 |---|---|
-| Drupal core | 10.x |
-| Group module | 3.x |
+| Drupal core | 11.x (^11.2; epic target 11.4) |
+| Group module | 4.x (alpha) |
 | PHP | 8.3 |
 | Theme | bluecheese |
 | Deployment | DDEV |
@@ -2986,7 +3052,7 @@ done
 | Aspect | Open Social (pl-opensocial) | Standard Drupal (pl-drupalorg) |
 |---|---|---|
 | **Group bundle** | `flexible_group` | `community_group` |
-| **Entity type** | `group_content` | `group_relationship` (Group 3.x) |
+| **Entity type** | `group_content` | `group_relationship` (Group 3.x+, incl. 4.x) |
 | **Relationship pattern** | `flexible_group-group_node-{bundle}` | `community_group-group_node-{bundle}` |
 | **Content types** | `topic`, `event`, `page` | `forum`, `documentation`, `event`, `post`, `page` |
 | **Admin role** | `sitemanager` | `site_moderator` |
@@ -3022,7 +3088,7 @@ Everything added across all 8 phases:
 
 | Entity type | Bundle | Phase | Notes |
 |---|---|---|---|
-| `group` | `community_group` | 1 | Via `drupal/group ^3.0` |
+| `group` | `community_group` | 1 | Via `drupal/group ^4` (alpha) |
 | `group_role` | `community_group-{admin,member,outsider}` | 1 | 3 roles |
 | `group_relationship_type` | `community_group-group_node-{forum,doc,event,post,page}` | 1 | 5 content types |
 | `group_relationship_type` | `community_group-group_membership` | 1 | User membership |
