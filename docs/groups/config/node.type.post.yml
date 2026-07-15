@@ -1,0 +1,10 @@
+langcode: en
+status: true
+dependencies: {}
+name: Post
+type: post
+description: 'Short-form community posts and updates.'
+help: ''
+new_revision: false
+preview_mode: 1
+display_submitted: true

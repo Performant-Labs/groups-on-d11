@@ -1,0 +1,4 @@
+do_group_extras:
+  css:
+    theme:
+      css/do_group_extras.css: {}

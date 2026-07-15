@@ -1,0 +1,6 @@
+services:
+  do_profile_stats.hooks:
+    class: Drupal\do_profile_stats\Hook\DoProfileStatsHooks
+    autowire: false
+    tags:
+      - { name: 'hook_implementations' }

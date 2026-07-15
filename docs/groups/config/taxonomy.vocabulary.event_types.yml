@@ -1,0 +1,9 @@
+uuid: e6560254-0abc-4f40-85b4-2a0cb8f509ff
+langcode: en
+status: true
+dependencies: {  }
+name: 'Event Types'
+vid: event_types
+description: 'Classification of events'
+weight: 0
+new_revision: false

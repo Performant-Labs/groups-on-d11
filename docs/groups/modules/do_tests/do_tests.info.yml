@@ -1,0 +1,10 @@
+name: 'DO Tests'
+type: module
+description: 'Cross-phase integration tests for groups functionality.'
+core_version_requirement: ^10
+package: 'Testing'
+dependencies:
+  - drupal:group
+  - drupal:node
+  - drupal:taxonomy
+  - drupal:user

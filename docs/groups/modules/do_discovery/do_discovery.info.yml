@@ -1,0 +1,10 @@
+name: 'DO Discovery'
+type: module
+description: 'Hot content scoring, iCal feeds, promoted content, and per-group RSS.'
+core_version_requirement: ^10 || ^11
+package: 'Custom'
+dependencies:
+  - drupal:views
+  - drupal:node
+  - drupal:taxonomy
+  - drupal:flag

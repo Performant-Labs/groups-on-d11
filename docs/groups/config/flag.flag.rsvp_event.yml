@@ -1,0 +1,29 @@
+uuid: ca50aa5a-3186-443a-9c25-7f3161cea0b5
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: rsvp_event
+label: 'RSVP for event'
+bundles:
+  - event
+entity_type: node
+global: false
+flag_short: RSVP
+flag_long: 'RSVP for this event'
+flag_message: "You have RSVP'd for this event"
+unflag_short: 'Cancel RSVP'
+unflag_long: 'Cancel your RSVP for this event'
+unflag_message: 'Your RSVP has been cancelled'
+unflag_denied_text: ''
+weight: 0
+flag_type: 'entity:node'
+link_type: reload
+flagTypeConfig:
+  show_in_links: {  }
+  show_as_field: true
+  show_on_form: false
+  show_contextual_link: false
+  extra_permissions: {  }
+linkTypeConfig: {  }

@@ -1,0 +1,5 @@
+do_group_pin:
+  version: 1.x
+  css:
+    theme:
+      css/do_group_pin.css: {}

@@ -1,0 +1,10 @@
+<?php
+
+/**
+ * @file
+ * Hot content scoring, Views integration, and new-node score seeding.
+ *
+ * All hook implementations are in DoDiscoveryHooks via the #[Hook] attribute.
+ *
+ * @see \Drupal\do_discovery\Hook\DoDiscoveryHooks
+ */

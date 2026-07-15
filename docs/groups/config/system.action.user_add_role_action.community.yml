@@ -1,0 +1,14 @@
+uuid: d59f8d5a-35dd-4f08-8b9d-2ad1edd941e9
+langcode: en
+status: true
+dependencies:
+  config:
+    - user.role.community
+  module:
+    - user
+id: user_add_role_action.community
+label: 'Add the community role to the selected user(s)'
+type: user
+plugin: user_add_role_action
+configuration:
+  rid: community

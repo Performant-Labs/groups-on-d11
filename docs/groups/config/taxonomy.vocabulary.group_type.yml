@@ -1,0 +1,9 @@
+uuid: accf49ac-5909-471e-bfad-93268fb24434
+langcode: en
+status: true
+dependencies: {  }
+name: 'Group Type'
+vid: group_type
+description: 'Categorises groups (geographical, working group, distribution, etc.)'
+weight: 0
+new_revision: false

@@ -1,0 +1,25 @@
+uuid: cf6dfeb0-40b4-4adb-8529-1250bf9081a2
+langcode: en
+status: true
+dependencies:
+  module:
+    - do_profile_stats
+    - system
+  theme:
+    - bluecheese
+id: do_profile_completeness
+theme: bluecheese
+region: sidebar_first
+weight: 10
+provider: null
+plugin: do_profile_completeness
+settings:
+  id: do_profile_completeness
+  label: 'Profile Completeness'
+  label_display: '0'
+  provider: do_profile_stats
+visibility:
+  request_path:
+    id: request_path
+    negate: false
+    pages: '/user/*'

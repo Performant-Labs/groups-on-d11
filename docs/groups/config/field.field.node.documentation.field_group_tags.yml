@@ -1,0 +1,25 @@
+uuid: 3a1487cd-f4bc-4ffe-ac18-d08310068ebd
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_group_tags
+    - node.type.documentation
+    - taxonomy.vocabulary.group_tags
+id: node.documentation.field_group_tags
+field_name: field_group_tags
+entity_type: node
+bundle: documentation
+label: 'Group Tags'
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:taxonomy_term'
+  handler_settings:
+    target_bundles:
+      group_tags: group_tags
+    auto_create: true
+field_type: entity_reference

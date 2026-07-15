@@ -1,0 +1,25 @@
+uuid: 1dfe304c-8128-4aca-ab0f-80a182d68254
+langcode: en
+status: true
+dependencies:
+  module:
+    - do_group_mission
+    - system
+  theme:
+    - bluecheese
+id: do_group_mission
+theme: bluecheese
+region: sidebar_first
+weight: 5
+provider: null
+plugin: do_group_mission
+settings:
+  id: do_group_mission
+  label: 'Group Mission'
+  label_display: '0'
+  provider: do_group_mission
+visibility:
+  request_path:
+    id: request_path
+    negate: false
+    pages: '/group/*'

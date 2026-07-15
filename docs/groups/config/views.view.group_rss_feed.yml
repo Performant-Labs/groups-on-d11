@@ -1,0 +1,146 @@
+uuid: efa1d064-d35a-4e4a-8c15-0be4d81c7774
+langcode: en
+status: true
+dependencies:
+  module:
+    - group
+    - node
+id: group_rss_feed
+label: 'Group RSS Feed'
+module: views
+description: 'Per-group RSS feed of content'
+tag: ''
+base_table: node_field_data
+base_field: nid
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      title: 'Group Content Feed'
+      fields:
+        title:
+          id: title
+          table: node_field_data
+          field: title
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: title
+          plugin_id: field
+          label: ''
+          type: string
+          settings:
+            link_to_entity: true
+        created:
+          id: created
+          table: node_field_data
+          field: created
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: created
+          plugin_id: field
+          label: Created
+          type: timestamp
+          settings:
+            date_format: medium
+            custom_date_format: ''
+            timezone: ''
+            tooltip:
+              date_format: ''
+              custom_date_format: ''
+            time_diff:
+              enabled: false
+              future_format: '@interval hence'
+              past_format: '@interval ago'
+              granularity: 2
+              refresh: 60
+      pager:
+        type: some
+        options:
+          items_per_page: 25
+      sorts:
+        created:
+          id: created
+          table: node_field_data
+          field: created
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: created
+          plugin_id: date
+          order: DESC
+      arguments:
+        gid:
+          id: gid
+          table: group_relationship_field_data
+          field: gid
+          relationship: group_relationship
+          group_type: group
+          admin_label: ''
+          plugin_id: numeric
+          default_action: 'not found'
+          title_enable: true
+          title: '{{ arguments.gid }}'
+      filters:
+        status:
+          id: status
+          table: node_field_data
+          field: status
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+      style:
+        type: default
+      row:
+        type: fields
+      relationships:
+        group_relationship:
+          id: group_relationship
+          table: node_field_data
+          field: group_relationship
+          relationship: none
+          group_type: group
+          admin_label: 'Group relationship'
+          plugin_id: group_relationship
+          required: true
+          group_type_id: community_group
+  feed_1:
+    id: feed_1
+    display_title: Feed
+    display_plugin: feed
+    position: 1
+    display_options:
+      pager:
+        type: some
+        options:
+          items_per_page: 25
+      arguments:
+        gid:
+          id: gid
+          table: group_relationship_field_data
+          field: gid
+          relationship: group_relationship
+          group_type: group
+          admin_label: ''
+          plugin_id: numeric
+          default_action: 'not found'
+      row:
+        type: node_rss
+        options:
+          relationship: none
+          view_mode: rss
+      path: group/%/stream/feed
+      sitename_title: true
+      displays:
+        default: default

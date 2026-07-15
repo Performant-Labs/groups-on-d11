@@ -1,0 +1,17 @@
+uuid: b89bd31f-2e2f-4097-b415-ada827221f20
+langcode: en
+status: true
+dependencies:
+  config:
+    - group.type.community_group
+    - node.type.page
+  module:
+    - gnode
+    - node
+id: community_group-group_node-page
+group_type: community_group
+content_plugin: 'group_node:page'
+plugin_config:
+  group_cardinality: 0
+  entity_cardinality: 0
+  use_creation_wizard: false
