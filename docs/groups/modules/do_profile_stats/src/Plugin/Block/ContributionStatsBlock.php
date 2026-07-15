@@ -111,6 +111,20 @@ class ContributionStatsBlock extends BlockBase implements ContainerFactoryPlugin
    */
   protected function countGroups(int $uid): int {
     try {
+      // Group 4.x compatibility: this reads the relationship data table
+      // directly rather than via the membership API. The table
+      // `group_relationship_field_data` and its `gid`/`uid`/`type` columns are
+      // the v4 names (the `group_content` -> `group_relationship` rename landed
+      // in v2). The v4 `content_plugin` -> `relation_type` rename (CR
+      // 2026-06-19) is a config property on the GroupRelationshipType entity and
+      // does NOT rename the data-table `type` column nor the `group_membership`
+      // plugin-ID suffix matched below, so this filter stays valid. No
+      // membership-loader `$roles` argument or permission calculation is used
+      // here, so the Access Policy / `$roles`-array deltas do not apply.
+      // TODO(group4-VERIFY): confirm the `group_relationship_field_data` table
+      // and its `gid`/`uid`/`type` column names are unchanged against the
+      // installed Group 4.x schema (diff group/src/Entity/GroupRelationship* and
+      // the relationship_type bundle IDs) before relying on this raw query.
       $query = $this->database->select('group_relationship_field_data', 'gr')
         ->condition('gr.uid', $uid)
         ->condition('gr.type', '%group_membership', 'LIKE');
