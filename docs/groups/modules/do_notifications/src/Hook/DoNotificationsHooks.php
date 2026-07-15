@@ -16,6 +16,34 @@ use Drupal\node\NodeInterface;
  *
  * Per-post opt-out, notification event recording, and comment auto-subscribe.
  * Drupal only records what happened — external system handles delivery.
+ *
+ * GROUP 4.x COMPATIBILITY NOTE (behavioral risk — read before relying on
+ * group-scoped notifications).
+ *
+ * Notification events are recorded off the CORE node/comment lifecycle hooks
+ * (node_insert, comment_insert) — NOT off any Group entity/relationship hook or
+ * event. Group membership is only ever resolved as a snapshot at node-insert
+ * time, inside getGroupIds().
+ *
+ * In Group 4.x, "add an entity to a group" invalidates cache tags instead of
+ * resaving the entity (change record 2025-05-23), so it fires neither
+ * hook_entity_update nor hook_node_update. This module does not implement
+ * node_update either, so:
+ *
+ *   - A node created ALREADY in its group(s) is captured correctly: node_insert
+ *     runs after the relationship exists, so getGroupIds() sees the groups.
+ *   - A node created UNGROUPED and added to a group LATER records no
+ *     group-scoped notification event — on 3.x this was masked only if the
+ *     group-add happened to resave the node (which this module also ignores,
+ *     as it has no node_update hook); on 4.x there is no resave at all, so the
+ *     gap is now permanent and cannot be closed by a resave side effect.
+ *
+ * This is NOT a regression introduced by the 4.x upgrade for the currently
+ * implemented triggers (they were already insert-only), but the 4.x change
+ * removes the only path that could have retro-fired them. If group-add-time
+ * notifications are ever required, subscribe to Group's relationship
+ * create/insert event on the new API rather than expecting a node resave.
+ * See TODO(group4-VERIFY) on nodeInsert()/getGroupIds().
  */
 class DoNotificationsHooks {
 
@@ -80,6 +108,15 @@ class DoNotificationsHooks {
 
   /**
    * Records a notification event when a published group node is created.
+   *
+   * TODO(group4-VERIFY): This fires on core node creation only. Group 4.x's
+   * "add to group invalidates cache tags instead of resaving the entity"
+   * (CR 2025-05-23) means a node added to a group AFTER creation records no
+   * group-scoped event here (no node_update hook exists, and there is no
+   * resave to piggyback on). Verify on a real 4.x build whether product
+   * requirements need a group-add-time notification; if so, react to Group's
+   * relationship-create event instead of a node resave. Recording itself is
+   * unaffected — this hook does not touch the Group API.
    */
   #[Hook('node_insert')]
   public function nodeInsert(NodeInterface $node): void {
@@ -167,6 +204,22 @@ class DoNotificationsHooks {
    *
    * Implements the doc alias (documentation → doc) per the 32-char ID limit
    * established in Step 140.
+   *
+   * Group 4.x note: this queries group_relationship by the relationship-type
+   * config-entity ID (the 'type' property, e.g.
+   * 'community_group-group_node-post'). That ID string is NOT the property
+   * renamed by CR 2026-06-19 — that CR renamed GroupRelationshipType's
+   * $content_plugin property to $relation_type, which is stored ON the type
+   * entity, not used as the query key here. So loadByProperties(['type' => ...])
+   * is unaffected by the rename and this module ships no config YAML with a
+   * content_plugin: key to migrate.
+   *
+   * TODO(group4-VERIFY): confirm on a real 4.x build that Group still composes
+   * relationship-type IDs as '<group_type>-group_node-<bundle>' (the plugin-ID
+   * derivation used to build this string is unchanged by the property rename,
+   * but the ID convention itself should be spot-checked against installed 4.x
+   * config, since a wrong 'type' silently yields an empty group_ids array via
+   * the catch below rather than an error).
    */
   private function getGroupIds(mixed $entity): array {
     if ($entity->getEntityTypeId() !== 'node') {
