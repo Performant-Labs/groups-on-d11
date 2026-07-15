@@ -1,8 +1,17 @@
 name: 'DO Multi-Group Posting'
 type: module
 description: 'Allows content to be posted in multiple groups simultaneously.'
+# TODO(group4-VERIFY): Group 4.x requires Drupal ^11.2 (CR 2025-02-19); the epic
+# targets 11.4. This ^10 || ^11 line is inherited from the Group 3.x era and will
+# still let the module enable on Drupal 10, where group:^4 cannot install. The exact
+# core pin is a site/epic decision owned by the runbook (issue #4) and is
+# [VERIFY on build] — bump to ^11.2 (or ^11) in lockstep with the site composer swap.
 core_version_requirement: ^10 || ^11
 package: 'Custom'
 dependencies:
   - drupal:node
+  # TODO(group4-VERIFY): group:^4 (4.0.0-alpha1+) is the target; confirm the site
+  # composer.json pins group ^4 and that minimum-stability permits the alpha. This
+  # module uses only the group_relationship storage + entity API, no version-pinned
+  # Group services, so no dependency edit is required here beyond the core bump.
   - drupal:group
