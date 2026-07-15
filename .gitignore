@@ -26,3 +26,10 @@
 *.swp
 *.swo
 .vscode/
+
+# Node / Playwright — installed at build time; the runnable artifact (Docker image)
+# is built on Uranus (ghcr.io/performant-labs/groups-on-d11), so keep the repo source-only.
+node_modules/
+/test-results/
+/playwright-report/
+/playwright/.cache/
