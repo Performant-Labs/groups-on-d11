@@ -1,0 +1,80 @@
+# Structured bug form — gives the sweeper machine-parseable slots instead of prose.
+# A bug missing the required fields is trivially classified `sweeper:incoherent`.
+name: "🐞 Bug report"
+description: "Something is broken on current main"
+labels: ["type/bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please fill every required field. Issues missing repro steps or version
+        info are auto-labeled `sweeper:incoherent` by our triage bot.
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: What went wrong, in one or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to Reproduce
+      description: Exact, minimal steps. Include commands/inputs.
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Best guess is fine — helps the sweeper scope its code search.
+      options:
+        - "Unsure"
+        - "Frontend / UI"
+        - "Backend / API"
+        - "Auth / sessions"
+        - "Data / storage / migrations"
+        - "Build / CI / tooling"
+        - "Docs"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Release tag or `git rev-parse HEAD` you observed this on.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS / environment
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / traceback (optional)
+      render: shell
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contribution
+      options:
+        - label: "I'd like to fix this myself and submit a PR"

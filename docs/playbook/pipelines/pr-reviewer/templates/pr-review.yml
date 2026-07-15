@@ -1,0 +1,357 @@
+name: PR-Agent Spec Review (reusable)
+# Called by each project's .github/workflows/pr-review.yml via:
+#   uses: Performant-Labs/playbook/.github/workflows/pr-review-reusable.yml@main
+#   secrets: inherit
+#
+# All behaviour is driven by .agents/pr-review.yml in the CALLING repo.
+# Concurrency and triggers live in the thin caller; this file is pure logic.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  statuses: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  pr-agent:
+    # Filter bots and non-slash-command issue comments here — these are fixed
+    # and not configurable. Draft filtering and skip_paths are handled inside
+    # the gate step so they can read project config first.
+    if: |
+      github.event.sender.type != 'Bot' &&
+      (github.event_name != 'issue_comment' ||
+       startsWith(github.event.comment.body, '/review') ||
+       startsWith(github.event.comment.body, '/describe') ||
+       startsWith(github.event.comment.body, '/improve') ||
+       startsWith(github.event.comment.body, '/ask'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # ── Read project config ──────────────────────────────────────────────────
+      # Parses .agents/pr-review.yml with PyYAML (pre-installed on ubuntu-latest).
+      # Falls back to safe defaults when the file is absent.
+      - name: Read pr-review config
+        id: cfg
+        run: |
+          python3 << 'PYEOF'
+          import yaml, json, os
+
+          cfg = {}
+          try:
+              with open('.agents/pr-review.yml') as f:
+                  cfg = yaml.safe_load(f) or {}
+          except FileNotFoundError:
+              pass
+
+          pa   = cfg.get('pr_agent', {})
+          proj = cfg.get('project', {})
+
+          model    = pa.get('model', 'deepseek/deepseek-v4-pro')
+          hs_model = pa.get('high_stakes_model', model)
+          fb       = pa.get('fallback_model', '')
+          # Only emit a fallback if it's set and differs from the primary.
+          fallback_models = json.dumps([fb]) if fb and fb != model else json.dumps([model])
+
+          out = open(os.environ['GITHUB_OUTPUT'], 'a')
+          def w(k, v): out.write(f'{k}={v}\n')
+
+          w('model',           model)
+          w('hs_model',        hs_model)
+          w('hs_label',        pa.get('high_stakes_label', 'high-stakes'))
+          w('fallback_models', fallback_models)
+          w('max_tokens',      str(pa.get('max_tokens', 131072)))
+          w('output_tokens',   str(pa.get('output_tokens', 64000)))
+          w('auto_improve',    'true' if pa.get('auto_improve', False) else 'false')
+          w('review_drafts',   'true' if pa.get('review_drafts', False) else 'false')
+          w('score_labels',    'true' if pa.get('score_labels', True) else 'false')
+          w('score_banner',    'true' if pa.get('score_banner', True) else 'false')
+          w('status_check',    'true' if pa.get('status_check', True) else 'false')
+          w('skip_paths',      json.dumps(pa.get('skip_paths', [])))
+          w('timezone',        proj.get('timezone', ''))
+          out.close()
+          PYEOF
+
+      # ── Resolve high-stakes label ────────────────────────────────────────────
+      # github.event.pull_request.labels is null for issue_comment events;
+      # fetch live labels so the high-stakes path works for /review too.
+      - name: Resolve PR labels
+        id: labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HS_LABEL: ${{ steps.cfg.outputs.hs_label }}
+        run: |
+          PR_NUM="${{ github.event.pull_request.number || github.event.issue.number }}"
+          if [[ -z "$PR_NUM" || "$PR_NUM" == "null" ]]; then
+            echo "high_stakes=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          LABELS=$(gh pr view "$PR_NUM" --repo "${{ github.repository }}" \
+            --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")
+          if echo "$LABELS" | grep -qF "$HS_LABEL"; then
+            echo "high_stakes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "high_stakes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Gate: draft check + skip_paths ──────────────────────────────────────
+      # Slash commands (/review etc.) always bypass skip_paths — the user is
+      # explicitly requesting a review regardless of what changed.
+      - name: Gate — draft and skip_paths check
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVIEW_DRAFTS: ${{ steps.cfg.outputs.review_drafts }}
+          SKIP_PATHS_JSON: ${{ steps.cfg.outputs.skip_paths }}
+        run: |
+          SKIP="false"
+
+          # Draft check
+          if [[ "${{ github.event.pull_request.draft }}" == "true" && "$REVIEW_DRAFTS" != "true" ]]; then
+            echo "Draft PR with review_drafts=false — skipping"
+            SKIP="true"
+          fi
+
+          # skip_paths: only applies to pull_request events, not slash commands
+          if [[ "$SKIP" == "false" \
+             && "${{ github.event_name }}" != "issue_comment" \
+             && "$SKIP_PATHS_JSON" != "[]" ]]; then
+            PR_NUM="${{ github.event.pull_request.number }}"
+            if [[ -n "$PR_NUM" && "$PR_NUM" != "null" ]]; then
+              CHANGED=$(gh pr view "$PR_NUM" --repo "${{ github.repository }}" \
+                --json files --jq '[.files[].path]' 2>/dev/null || echo '[]')
+              printf '%s' "$CHANGED"        > /tmp/changed.json
+              printf '%s' "$SKIP_PATHS_JSON" > /tmp/skip_paths.json
+              SKIP=$(python3 << 'PYEOF'
+              import json
+              from pathlib import PurePath
+              with open('/tmp/changed.json') as f:   files    = json.load(f)
+              with open('/tmp/skip_paths.json') as f: patterns = json.load(f)
+              if not files or not patterns:
+                  print('false')
+              else:
+                  all_match = all(
+                      any(PurePath(fp).match(p) for p in patterns)
+                      for fp in files
+                  )
+                  print('true' if all_match else 'false')
+              PYEOF
+              )
+              [[ "$SKIP" == "true" ]] && echo "All changed files match skip_paths — skipping review"
+            fi
+          fi
+
+          echo "should_skip=${SKIP}" >> "$GITHUB_OUTPUT"
+
+      # ── PR-Agent review (default) ────────────────────────────────────────────
+      # Pinned to a commit SHA — bump deliberately by running:
+      #   gh api repos/qodo-ai/pr-agent/commits/main -q '.sha'
+      - name: PR-Agent review (default)
+        id: review-default
+        if: |
+          steps.gate.outputs.should_skip != 'true' &&
+          steps.labels.outputs.high_stakes != 'true'
+        continue-on-error: true
+        uses: qodo-ai/pr-agent@31d7dd027968e5fad1f9cbb074be047c4869058e
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONFIG.MODEL: ${{ steps.cfg.outputs.model }}
+          CONFIG.CUSTOM_MODEL_MAX_TOKENS: ${{ steps.cfg.outputs.max_tokens }}
+          CONFIG.MAX_MODEL_TOKENS: ${{ steps.cfg.outputs.output_tokens }}
+          CONFIG.FALLBACK_MODELS: ${{ steps.cfg.outputs.fallback_models }}
+          GITHUB_ACTION_CONFIG.PR_ACTIONS: '["opened","reopened","ready_for_review","review_requested","synchronize"]'
+          GITHUB_ACTION_CONFIG.AUTO_REVIEW: "true"
+          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: ${{ steps.cfg.outputs.auto_improve }}
+          PR_REVIEWER.REQUIRE_TICKET_ANALYSIS_REVIEW: "false"
+          PR_REVIEWER.REQUIRE_SCORE_REVIEW: "true"
+
+      # ── PR-Agent review (high-stakes) ────────────────────────────────────────
+      # Uses high_stakes_model from config — set to a more capable model for
+      # critical changes. Apply the high_stakes_label to a PR to activate.
+      - name: PR-Agent review (high-stakes)
+        id: review-highstakes
+        if: |
+          steps.gate.outputs.should_skip != 'true' &&
+          steps.labels.outputs.high_stakes == 'true'
+        continue-on-error: true
+        uses: qodo-ai/pr-agent@31d7dd027968e5fad1f9cbb074be047c4869058e
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONFIG.MODEL: ${{ steps.cfg.outputs.hs_model }}
+          CONFIG.CUSTOM_MODEL_MAX_TOKENS: ${{ steps.cfg.outputs.max_tokens }}
+          CONFIG.MAX_MODEL_TOKENS: ${{ steps.cfg.outputs.output_tokens }}
+          GITHUB_ACTION_CONFIG.PR_ACTIONS: '["opened","reopened","ready_for_review","review_requested","synchronize"]'
+          GITHUB_ACTION_CONFIG.AUTO_REVIEW: "true"
+          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: ${{ steps.cfg.outputs.auto_improve }}
+          PR_REVIEWER.REQUIRE_TICKET_ANALYSIS_REVIEW: "false"
+          PR_REVIEWER.REQUIRE_SCORE_REVIEW: "true"
+
+      # ── Score-bracket label ──────────────────────────────────────────────────
+      - name: Apply score-bracket label
+        if: |
+          always() &&
+          steps.gate.outputs.should_skip != 'true' &&
+          steps.cfg.outputs.score_labels == 'true' &&
+          (steps.review-default.outcome == 'success' || steps.review-highstakes.outcome == 'success')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ github.event.pull_request.number || github.event.issue.number }}"
+          [[ -z "$PR_NUM" || "$PR_NUM" == "null" ]] && { echo "No PR — skip"; exit 0; }
+
+          gh label create 'score-90+'      --color '0e8a16' --description 'PR-Agent score 90-100 (ship)'                --repo "${{ github.repository }}" 2>/dev/null || true
+          gh label create 'score-80-89'    --color 'fbca04' --description 'PR-Agent score 80-89 (review carefully)'     --repo "${{ github.repository }}" 2>/dev/null || true
+          gh label create 'score-70-79'    --color 'e99695' --description 'PR-Agent score 70-79 (address suggestions)'  --repo "${{ github.repository }}" 2>/dev/null || true
+          gh label create 'score-below-70' --color 'b60205' --description 'PR-Agent score <70 (probable blocking issues)'--repo "${{ github.repository }}" 2>/dev/null || true
+
+          LATEST=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments" \
+            --jq '[.[] | select(.user.login=="github-actions[bot]") | .body] | last // ""')
+          SCORE=$(echo "$LATEST" | grep -oE '[Ss]core[^0-9]{0,30}[0-9]+' | grep -oE '[0-9]+' | head -1)
+          [[ -z "$SCORE" ]] && { echo "No score — skip label"; exit 0; }
+
+          for L in 'score-90+' 'score-80-89' 'score-70-79' 'score-below-70'; do
+            gh issue edit "$PR_NUM" --remove-label "$L" --repo "${{ github.repository }}" 2>/dev/null || true
+          done
+
+          if   (( SCORE >= 90 )); then BRACKET='score-90+'
+          elif (( SCORE >= 80 )); then BRACKET='score-80-89'
+          elif (( SCORE >= 70 )); then BRACKET='score-70-79'
+          else                         BRACKET='score-below-70'
+          fi
+          gh issue edit "$PR_NUM" --add-label "$BRACKET" --repo "${{ github.repository }}"
+          echo "Applied: $BRACKET"
+
+      # ── Score banner ─────────────────────────────────────────────────────────
+      - name: Inject score banner into PR description
+        if: |
+          always() &&
+          steps.gate.outputs.should_skip != 'true' &&
+          steps.cfg.outputs.score_banner == 'true' &&
+          (steps.review-default.outcome == 'success' || steps.review-highstakes.outcome == 'success')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_USER: ${{ github.event.comment.user.login }}
+          COMMENT_URL: ${{ github.event.comment.html_url }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          DISPLAY_TZ: ${{ vars.DISPLAY_TZ }}
+          MODEL: ${{ steps.cfg.outputs.model }}
+          HS_MODEL: ${{ steps.cfg.outputs.hs_model }}
+          HIGH_STAKES: ${{ steps.labels.outputs.high_stakes }}
+          TIMEZONE: ${{ steps.cfg.outputs.timezone }}
+        run: |
+          PR_NUM="${{ github.event.pull_request.number || github.event.issue.number }}"
+          [[ -z "$PR_NUM" || "$PR_NUM" == "null" ]] && { echo "No PR — skip"; exit 0; }
+
+          gh api "repos/${REPO}/issues/$PR_NUM/comments" > /tmp/pr-comments.json
+          REVIEW_BODY=$(jq -r '[.[] | select(.user.login=="github-actions[bot]") | select(.body | contains("Reviewer Guide"))] | last.body // ""' /tmp/pr-comments.json)
+          REVIEW_URL=$(jq  -r '[.[] | select(.user.login=="github-actions[bot]") | select(.body | contains("Reviewer Guide"))] | last.html_url // ""' /tmp/pr-comments.json)
+          SCORE=$(printf '%s' "$REVIEW_BODY" | grep -oE '[Ss]core[^0-9]{0,30}[0-9]+' | grep -oE '[0-9]+' | head -1)
+          [[ -z "$SCORE" ]] && { echo "No score — skip banner"; exit 0; }
+
+          if   (( SCORE >= 90 )); then BRACKET='score-90+';     EMOJI='🟢'
+          elif (( SCORE >= 80 )); then BRACKET='score-80-89';   EMOJI='🟡'
+          elif (( SCORE >= 70 )); then BRACKET='score-70-79';   EMOJI='🟠'
+          else                         BRACKET='score-below-70'; EMOJI='🔴'
+          fi
+
+          YES="⚠️ [yes](${REVIEW_URL})"
+          printf '%s' "$REVIEW_BODY" | grep -qi  'No security concerns' && SEC="none ✅"   || SEC="$YES"
+          printf '%s' "$REVIEW_BODY" | grep -qi  'No major issues'      && MAJOR="none ✅" || MAJOR="$YES"
+          printf '%s' "$REVIEW_BODY" | grep -qiE 'Key issues to review' && MINOR="$YES"    || MINOR="none ✅"
+
+          case "$EVENT_NAME" in
+            issue_comment)
+              CMD=$(printf '%s' "$COMMENT_BODY" | grep -oE '^/[a-zA-Z]+' | head -1)
+              [[ -z "$CMD" ]] && CMD='comment'
+              TRIGGER_DESC="\`${CMD}\` by @${COMMENT_USER}"
+              SPECIFIC=" · [comment](${COMMENT_URL})" ;;
+            pull_request|pull_request_target)
+              TRIGGER_DESC="\`pull_request.${EVENT_ACTION}\`"
+              [[ -n "$HEAD_SHA" && "$HEAD_SHA" != "null" ]] \
+                && SPECIFIC=" · [commit ${HEAD_SHA:0:7}](https://github.com/${REPO}/commit/${HEAD_SHA})" \
+                || SPECIFIC="" ;;
+            *) TRIGGER_DESC="\`${EVENT_NAME}\`"; SPECIFIC="" ;;
+          esac
+
+          # Use high_stakes_model label when applicable
+          [[ "$HIGH_STAKES" == "true" ]] && ACTIVE_MODEL="$HS_MODEL" || ACTIVE_MODEL="$MODEL"
+          MODEL_SHORT="${ACTIVE_MODEL##*/}"
+
+          RUN_URL="https://github.com/${REPO}/actions/runs/${RUN_ID}"
+          NOW_UTC=$(date -u '+%Y-%m-%d %H:%M UTC')
+          _tz="${DISPLAY_TZ:-}"
+          # Fall back to project.timezone from config if DISPLAY_TZ repo var is unset
+          [[ -z "$_tz" ]] && _tz="${TIMEZONE:-}"
+          if [[ -n "$_tz" ]]; then
+            NOW_LOCAL=$(TZ="$_tz" date '+%Y-%m-%d %H:%M %Z')
+            NOW_DISPLAY="${NOW_LOCAL} / ${NOW_UTC}"
+          else
+            NOW_DISPLAY="$NOW_UTC"
+          fi
+
+          gh pr view "$PR_NUM" --json body --jq .body --repo "${REPO}" > /tmp/pr-body-current.md
+          sed -i.bak '/<!-- argos-status:start -->/,/<!-- argos-status:end -->/d' /tmp/pr-body-current.md
+          rm -f /tmp/pr-body-current.md.bak
+
+          {
+            echo '<!-- argos-status:start -->'
+            echo "> ${EMOJI} **PR-Agent Score: ${SCORE}** \`${BRACKET}\` · model: \`${MODEL_SHORT}\`"
+            echo "> 🔒 **Security:** ${SEC} · ⚡ **Major:** ${MAJOR} · 🔍 **Minor:** ${MINOR}"
+            echo "> **Triggered by** ${TRIGGER_DESC}${SPECIFIC} · run [#${RUN_ID}](${RUN_URL}) · ${NOW_DISPLAY}"
+            echo '<!-- argos-status:end -->'
+            echo
+          } > /tmp/pr-body-banner.md
+
+          cat /tmp/pr-body-banner.md /tmp/pr-body-current.md > /tmp/pr-body-new.md
+          gh pr edit "$PR_NUM" --body-file /tmp/pr-body-new.md --repo "${REPO}"
+          echo "Banner injected (score $SCORE)"
+
+      # ── Commit status check ──────────────────────────────────────────────────
+      # Green = PR-Agent ran and returned a score.
+      # Red   = crashed or returned empty — not a clean pass.
+      - name: PR-Agent review status check
+        if: always() && steps.gate.outputs.should_skip != 'true' && steps.cfg.outputs.status_check == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ github.event.pull_request.number || github.event.issue.number }}"
+          [[ -z "$PR_NUM" || "$PR_NUM" == "null" ]] && { echo "No PR — skip"; exit 0; }
+
+          SHA="${{ github.event.pull_request.head.sha }}"
+          if [[ -z "$SHA" || "$SHA" == "null" ]]; then
+            SHA=$(gh pr view "$PR_NUM" --repo "${{ github.repository }}" --json headRefOid --jq .headRefOid)
+          fi
+
+          BODY=$(gh api "repos/${{ github.repository }}/issues/$PR_NUM/comments" \
+            --jq '[.[] | select(.user.login=="github-actions[bot]") | select(.body | contains("Reviewer Guide")) | .body] | last // ""')
+          SCORE=$(printf '%s' "$BODY" | grep -oiE 'score[^0-9]{0,20}[0-9]{1,3}' | grep -oE '[0-9]{1,3}' | head -1)
+
+          if [[ -n "$SCORE" ]]; then
+            gh api -X POST "repos/${{ github.repository }}/statuses/$SHA" \
+              -f state=success -f context="pr-agent/review" \
+              -f description="Reviewed — score $SCORE" >/dev/null
+          else
+            gh api -X POST "repos/${{ github.repository }}/statuses/$SHA" \
+              -f state=failure -f context="pr-agent/review" \
+              -f description="No score parsed — review failed or empty (not a clean pass)" >/dev/null
+            gh pr comment "$PR_NUM" --repo "${{ github.repository }}" \
+              --body "> ❌ **PR-Agent produced no score** — it likely crashed or returned an empty review. Re-run with \`/review\`."
+            exit 1
+          fi

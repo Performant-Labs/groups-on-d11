@@ -2,9 +2,8 @@
 
 > [!IMPORTANT]
 > **Read these before doing anything else:**
-> - [`ai_guidance/TROUBLESHOOTING.md`](../../ai_guidance/TROUBLESHOOTING.md) — process hangs, DDEV gotchas, config import locks, opcode cache issues. Consult this before debugging any unexpected behaviour.
-> - [`ai_guidance/drupal/BEST_PRACTICES.md`](../../ai_guidance/drupal/BEST_PRACTICES.md) — mandatory module architecture standard (Services over Hooks). All custom modules in this project must follow this pattern.
-> - [`ai_guidance/technical_writing/documentation_guidance.md`](../../ai_guidance/technical_writing/documentation_guidance.md) — documentation review checklist. Run through this before committing any doc changes.
+> - [`playbook/agent/troubleshooting.md`](../playbook/agent/troubleshooting.md) — process hangs, DDEV gotchas, config import locks, opcode cache issues. Consult this before debugging any unexpected behaviour.
+> - [`playbook/frameworks/drupal/best-practices.md`](../playbook/frameworks/drupal/best-practices.md) — mandatory module architecture standard (Services over Hooks). All custom modules in this project must follow this pattern.
 
 This directory contains everything needed for a clean-room installation of Drupal Groups on `pl-groups-on-d11` (standard Drupal 11, no distribution).
 
@@ -43,6 +42,5 @@ This directory contains everything needed for a clean-room installation of Drupa
 ## Key conventions
 
 - All configuration is managed as YAML, never through the Drupal UI
-- Custom modules follow the **Services over Hooks** pattern — see [`ai_guidance/drupal/BEST_PRACTICES.md`](../../ai_guidance/drupal/BEST_PRACTICES.md)
-- If something hangs or behaves unexpectedly, consult [`ai_guidance/TROUBLESHOOTING.md`](../../ai_guidance/TROUBLESHOOTING.md)
-- Before committing documentation changes, run through the checklist in [`ai_guidance/technical_writing/documentation_guidance.md`](../../ai_guidance/technical_writing/documentation_guidance.md)
+- Custom modules follow the **Services over Hooks** pattern — see [`playbook/frameworks/drupal/best-practices.md`](../playbook/frameworks/drupal/best-practices.md)
+- If something hangs or behaves unexpectedly, consult [`playbook/agent/troubleshooting.md`](../playbook/agent/troubleshooting.md)

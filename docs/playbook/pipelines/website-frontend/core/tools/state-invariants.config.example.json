@@ -1,0 +1,52 @@
+{
+  "$comment": "EXAMPLE surface inventory for state-invariants.spec.js. Copy to the project repo, fill with live-verified selectors, and point STATE_INVARIANTS_CONFIG at it. Each surface runs the 4-step invariant: establish -> navigate away -> back -> assert. Only MUST-persist surfaces (blocking:true) fail the build when state is lost; ephemeral surfaces (blocking:false) assert the opposite (state resets).",
+  "baseUrl": "https://your-site.example",
+  "surfaces": [
+    {
+      "id": "url-filter",
+      "enabled": false,
+      "note": "Example: a GET-param filter that must survive navigation. Replace selectors with live-verified ones.",
+      "url": "/listing",
+      "viewport": { "width": 375, "height": 667 },
+      "establish": [
+        { "action": "clickFirst", "selector": "a[href*=\"?filter=\"]" }
+      ],
+      "navigateAway": { "action": "clickFirst", "selector": ".listing-item a" },
+      "assert": [
+        { "type": "urlParamPresent", "param": "filter" }
+      ],
+      "blocking": true
+    },
+    {
+      "id": "pager",
+      "enabled": false,
+      "url": "/listing",
+      "viewport": { "width": 375, "height": 667 },
+      "establish": [
+        { "action": "clickFirst", "selector": "a[rel=\"next\"]" }
+      ],
+      "navigateAway": { "action": "clickFirst", "selector": ".listing-item a" },
+      "assert": [
+        { "type": "urlParamEquals", "param": "page", "expected": "1" }
+      ],
+      "blocking": true
+    },
+    {
+      "id": "mobile-nav-ephemeral",
+      "enabled": false,
+      "note": "Ephemeral: nav must NOT reopen after navigation. blocking:false.",
+      "url": "/",
+      "viewport": { "width": 375, "height": 667 },
+      "establish": [
+        { "action": "click", "selector": "[data-nav-toggle]" }
+      ],
+      "navigateAway": { "action": "goto", "url": "/listing" },
+      "assert": [
+        { "type": "attributeEquals", "selector": "[data-nav-toggle]", "attribute": "aria-expanded", "expected": "false" }
+      ],
+      "blocking": false
+    }
+  ],
+  "$actions": "establish/navigateAway steps: click | clickFirst | fill(value) | select(value|__FIRST_NON_EMPTY__) | goto(url)",
+  "$assertTypes": "urlParamPresent | urlParamEquals | urlPathPrefixPreserved | valueMatches(against:established) | attributeEquals"
+}

@@ -1,0 +1,58 @@
+# triage-sweeper label taxonomy — the bot's structured output surface.
+# Sync with:  scripts/sync-labels.sh  (idempotent; safe to re-run).
+#
+# Three orthogonal dimensions, mirroring NousResearch/hermes-agent's design:
+#   verdict  — why the sweeper thinks the issue is closable (or not)
+#   blast    — how many users a fix would touch (triage priority signal)
+#   risk     — which invariant a fix might endanger (review-attention signal)
+# The bot EMITS these; humans FILTER and decide on them. Closing stays human.
+
+# ── verdict ────────────────────────────────────────────────────────────────
+- name: "sweeper:implemented-on-main"
+  color: "0e8a16"
+  description: "Sweeper: behavior already present on current main (see cited evidence)"
+- name: "sweeper:cannot-reproduce"
+  color: "fbca04"
+  description: "Sweeper: could not reproduce against current main"
+- name: "sweeper:incoherent"
+  color: "d93f0b"
+  description: "Sweeper: insufficient/incoherent to action (missing repro, version, or scope)"
+- name: "sweeper:not-planned"
+  color: "cccccc"
+  description: "Sweeper: conflicts with a standing maintainer policy (see POLICY.md)"
+- name: "sweeper:actionable"
+  color: "1d76db"
+  description: "Sweeper: appears real and actionable on current main — needs a human"
+
+# ── blast radius (triage priority) ──────────────────────────────────────────
+- name: "sweeper:blast-massive"
+  color: "b60205"
+  description: "Blast: everyone, every run — an invariant surface"
+- name: "sweeper:blast-broad"
+  color: "e99695"
+  description: "Blast: a core path most sessions hit"
+- name: "sweeper:blast-moderate"
+  color: "fef2c0"
+  description: "Blast: a subsystem or single platform"
+- name: "sweeper:blast-contained"
+  color: "c2e0c6"
+  description: "Blast: one narrow / opt-in path, few users"
+
+# ── risk surface (review attention) ─────────────────────────────────────────
+- name: "sweeper:risk-security-boundary"
+  color: "5319e7"
+  description: "Risk: may affect auth, sandboxing, credentials, or sensitive data"
+- name: "sweeper:risk-compatibility"
+  color: "5319e7"
+  description: "Risk: may break existing users, config, migrations, defaults, or upgrades"
+- name: "sweeper:risk-data-loss"
+  color: "5319e7"
+  description: "Risk: may lose, corrupt, or mis-associate persisted state / data"
+- name: "sweeper:risk-automation"
+  color: "5319e7"
+  description: "Risk: may affect CI, release, label sync, or maintainer automation"
+
+# ── control ─────────────────────────────────────────────────────────────────
+- name: "sweeper:skip"
+  color: "ededed"
+  description: "Human override: sweeper must never touch this issue"

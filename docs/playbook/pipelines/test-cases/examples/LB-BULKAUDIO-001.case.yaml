@@ -1,0 +1,67 @@
+id: LB-BULKAUDIO-001
+title: Bulk Audio preview count is truthful and mode-sensitive
+feature: Bulk Audio Generation
+surface:
+  route: /admin/audio/backfill
+  reach: spa                 # sidebar Admin → Bulk audio (HTMX innerHTML swap into #main-content)
+risk: high                   # external effect (TTS) + bulk data mutation
+
+intent: >
+  Before committing, an admin must see the EXACT number of phrases a bulk-audio run will
+  affect — and that number must be correct and must change with the mode (fill-missing
+  vs regenerate-all). The "see how many before committing" preview is the feature's safety
+  promise; a wrong or stale count would let an admin trigger a far larger TTS run than intended.
+
+trace:
+  source: docs/handoffs/bulk-audio-backfill-U.md   # U walkthrough, 2026-06-24 (PASS, but seed was 100%-covered)
+  note: >
+    U verified the control flow but the e2e seed had 100% audio coverage, so fill-missing
+    count was 0 and the data/relational truth of the count was never actually exercised.
+
+seed:
+  requires: "es-MX deck with MIXED audio coverage — some phrases audio_url NULL, some set"
+  note: >
+    The default e2e seed ships 15/15 covered, so fill-missing == 0 and the count can't be
+    distinguished from a bug that always returns 0. This case REQUIRES mixed coverage so
+    that 0 < fill_missing_count < all_count.
+
+setup:
+  serve: "npm run test:e2e:serve with ALMOND_TTS_BASE_URL set (unreachable ok — enables the scope form)"
+  login: admin
+
+steps:
+  - nav_spa: /admin/audio/backfill
+  - select: { control: language, value: es-MX }
+  - select: { control: engine, value: kokoro }
+  - set_mode: fill-missing
+  - click: preview                                   # dryRun=true — must start NO job
+  - read: { as: fill_missing_count, from: "the 'would be generated' count in #backfill-result-container" }
+  - set_mode: regenerate-all
+  - click: preview
+  - read: { as: all_count, from: "the 'would be generated' count in #backfill-result-container" }
+
+oracles:
+  - { kind: structural, on: every_step }             # Alpine alive, console clean, no blocking overlay
+  - kind: content
+    expectText: "would be generated"                 # the count line is present before any mutation
+    note: "a count is rendered BEFORE any generation; dryRun creates no job row"
+  - kind: data
+    var: fill_missing_count                          # runner: assertEquals(captured[var], scalar(adapter.sql(var, captured)))
+    note: "count == es-MX phrases in scope WHERE audio_url IS NULL, queried against the seeded db"
+  - kind: relational
+    lhs: all_count
+    op: ">"
+    rhs: fill_missing_count
+    note: "with the mixed-coverage seed, all_count must be STRICTLY > fill_missing_count > 0"
+
+viewports: [1280, 360]
+
+negative_control:
+  - break: "make the mode toggle not recompute the count (return the cached fill-missing value)"
+    fails: relational                                # all_count == fill_missing_count → relational FAILS
+  - break: "render the preview partial without the count text"
+    fails: content
+  - break: "seed all phrases covered (the original blind spot)"
+    fails: relational                                # fill_missing_count == all_count == 0 → no longer 'mode-sensitive'
+
+status: verified   # good build PASS + negative control RED (2026-06-24)

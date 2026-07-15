@@ -40,7 +40,7 @@
 > Each phase notes which module to copy. Do this before the `ddev drush en` command for that module.
 
 > [!IMPORTANT]
-> **All custom modules must follow the Services over Hooks pattern.** Before writing or porting any custom module, read [`ai_guidance/drupal/BEST_PRACTICES.md`](../../ai_guidance/drupal/BEST_PRACTICES.md). Procedural hook-based modules are not acceptable in this project.
+> **All custom modules must follow the Services over Hooks pattern.** Before writing or porting any custom module, read [`playbook/frameworks/drupal/best-practices.md`](../playbook/frameworks/drupal/best-practices.md). Procedural hook-based modules are not acceptable in this project.
 
 This runbook documents the step-by-step process for adding groups functionality to the standard Drupal 10 codebase (pl-drupalorg).
 
@@ -57,7 +57,7 @@ See [GROUPS_CONVERSION_PLAN.md](GROUPS_CONVERSION_PLAN.md) for the gap analysis,
 - Git working tree clean on `aa/initial-plan` branch
 
 > [!IMPORTANT]
-> Before running any commands or tests, review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) for known gotchas with DDEV, Playwright, Drupal configuration, and process cleanup. Many of the issues documented there (opcode cache staleness, port variability, `networkidle` hangs, config import locks) apply to this project.
+> Before running any commands or tests, review [TROUBLESHOOTING.md](../playbook/agent/troubleshooting.md) for known gotchas with DDEV, Playwright, Drupal configuration, and process cleanup. Many of the issues documented there (opcode cache staleness, port variability, `networkidle` hangs, config import locks) apply to this project.
 
 ---
 
@@ -418,7 +418,7 @@ page: body=YES files=NO tags=YES comment=NONE
 ## Step 190 — Phase 1 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../playbook/agent/troubleshooting.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Integration (`do_tests`)
 
@@ -649,7 +649,7 @@ Then add the WikiLink filter to `full_html` text format at `/admin/config/conten
 ## Step 270 — Phase 2 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../playbook/agent/troubleshooting.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Module: `do_group_extras`
 
@@ -993,7 +993,7 @@ Verify: `/tags/{term-name}` returns content tagged with that term.
 ## Step 360 — Phase 3 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../playbook/agent/troubleshooting.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Module: `do_multigroup`
 
@@ -1336,7 +1336,7 @@ curl -k https://drupalorg.ddev.site/user/{uid}/events/ical
 ## Step 490 — Phase 4 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../playbook/agent/troubleshooting.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Module: `do_discovery`
 
@@ -1874,7 +1874,7 @@ function _do_notifications_get_group_ids($entity): array {
 ## Step 560 — Phase 5 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../playbook/agent/troubleshooting.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Module: `do_notifications`
 
@@ -2281,7 +2281,7 @@ ddev drush config:export -y
 ## Step 650 — Phase 6 Tests
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../playbook/agent/troubleshooting.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Module: `do_profile_stats`
 
@@ -2324,7 +2324,7 @@ ddev exec phpunit web/modules/custom/do_group_language/tests/src/Kernel/GroupLan
 ```
 
 > [!WARNING]
-> Review [TROUBLESHOOTING.md](../../ai_guidance/TROUBLESHOOTING.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
+> Review [TROUBLESHOOTING.md](../playbook/agent/troubleshooting.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
 ### PHPUnit — Integration (`do_tests`)
 

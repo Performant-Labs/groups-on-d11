@@ -1,0 +1,64 @@
+name: DCO sign-off check (reusable)
+# Called by each project's .github/workflows/dco.yml via:
+#   uses: Performant-Labs/playbook/.github/workflows/dco-reusable.yml@main
+#   secrets: inherit
+#
+# Controlled by dco.required in the CALLING repo's .agents/pr-review.yml.
+#   required: true  → every commit must carry a Signed-off-by trailer
+#   required: false → check is skipped entirely (default)
+#
+# Format:  Signed-off-by: Your Name <you@example.com>
+# Add via: git commit -s
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  statuses: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  dco:
+    name: DCO sign-off check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+
+      # Read dco.required from the base branch — not the PR branch — so a
+      # contributor cannot bypass the check by editing the config in their PR.
+      - name: Read dco.required from .agents/pr-review.yml
+        id: cfg
+        run: |
+          REQUIRED="false"
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          val=$(git show "origin/${BASE_REF}:.agents/pr-review.yml" 2>/dev/null | \
+            python3 -c 'import re,sys; t=sys.stdin.read(); m=re.search(r"^dco:\n((?:[ \t]+.*\n?)*)",t,re.M); b=m.group(1) if m else ""; print("true" if re.search(r"^\s+required:\s*true",b,re.M|re.I) else "false")' \
+            2>/dev/null || echo "false")
+          [[ "$val" == "true" ]] && REQUIRED="true"
+          echo "required=${REQUIRED}" >> "$GITHUB_OUTPUT"
+          echo "DCO required: ${REQUIRED}"
+
+      - name: Check DCO sign-off on all commits
+        if: steps.cfg.outputs.required == 'true'
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          MISSING=0
+          while IFS= read -r SHA; do
+            [[ -z "$SHA" ]] && continue
+            if ! git log -1 --format="%B" "$SHA" | grep -qE "^Signed-off-by: .+ <.+@.+>"; then
+              SUBJECT=$(git log -1 --format="%s" "$SHA")
+              echo "::error::Commit $SHA ('$SUBJECT') is missing a Signed-off-by trailer."
+              MISSING=$((MISSING + 1))
+            fi
+          done < <(git log --no-merges --format="%H" "$BASE..$HEAD")
+          if (( MISSING > 0 )); then
+            echo "::error::${MISSING} commit(s) missing DCO sign-off. Add with: git commit -s"
+            exit 1
+          fi
+          echo "All commits carry DCO sign-off."

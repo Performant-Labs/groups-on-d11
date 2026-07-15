@@ -1,0 +1,55 @@
+name: triage-sweeper
+
+# Evidence-cited issue triage. Runs on a schedule and on demand. Comments + labels only;
+# never closes. See patterns/triage-sweeper/README.md in the playbook for the full design.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"        # daily 06:17 UTC — off the top of the hour to dodge congestion
+  workflow_dispatch:
+    inputs:
+      max_issues:
+        description: "Max issues to sweep this run"
+        default: "20"
+      dry_run:
+        description: "Label/comment for real? Set true to only log."
+        default: "false"
+
+# Never let two sweeps race on the same repo (double comments / label thrash).
+concurrency:
+  group: triage-sweeper-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read           # checkout + let Claude read the tree/git history
+  issues: write            # apply labels, post comments
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout main (full history for commit-level evidence)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ripgrep, pygount + Claude Code CLI
+        run: |
+          sudo apt-get update && sudo apt-get install -y ripgrep
+          pipx install pygount || pip install --user pygount   # codebase-inspection skill
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Sweep
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SWEEPER_MAX_ISSUES: ${{ github.event.inputs.max_issues || '20' }}
+          SWEEPER_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          SWEEPER_MODEL: claude-opus-4-8
+        run: python3 .github/scripts/sweeper.py
