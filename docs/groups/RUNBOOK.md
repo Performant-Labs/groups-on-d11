@@ -72,7 +72,7 @@ All contributed modules referenced in this runbook, verified on drupal.org:
 
 | Module | Composer package | drupal.org | Used in | Notes |
 |---|---|---|---|---|
-| Group | `drupal/group` | [drupal.org/project/group](https://www.drupal.org/project/group) | Phase 1 | Core dependency; use `^4` (alpha) for the `group_relationship` API. Direct upgrade path is **from v3 only** — no jump from v1/v2. No longer depends on `variationcache` / `flexible_permissions` / `entity` (all folded into core). |
+| Group | `drupal/group` | [drupal.org/project/group](https://www.drupal.org/project/group) | Phase 1 | Core dependency; use `^4` for the `group_relationship` API. No longer depends on `variationcache` / `flexible_permissions` / `entity` (all folded into core). |
 | Group Node (gnode) | sub-module of `drupal/group` | — | Phase 1 | Sub-module bundled with Group; enables `group_node:*` relationship plugins |
 | Flag | `drupal/flag` | [drupal.org/project/flag](https://www.drupal.org/project/flag) | Phase 4 | Includes `flag_count` sub-module (not a separate package) |
 | Linkit | `drupal/linkit` | [drupal.org/project/linkit](https://www.drupal.org/project/linkit) | Phase 1 | Optional — inline autocomplete linking |
@@ -176,39 +176,25 @@ Group 4.x is an alpha release, so Composer needs to accept alpha stability. Pin 
 ```bash
 # Allow the symfony/runtime Composer plugin (required by Drupal 11 / Group 4.x)
 ddev composer config allow-plugins.symfony/runtime true
-# Require Group 4.x (alpha). The direct upgrade path is from v3 ONLY.
+# Require Group 4.x (fresh install — nothing to upgrade from).
 ddev composer require "drupal/group:^4.0@alpha"
 ```
 
-> [!IMPORTANT]
-> **Drop the removed contrib dependencies.** Group 4.x no longer depends on `drupal/variationcache`, `drupal/flexible_permissions`, or `drupal/entity` (Entity API) — VariationCache and the Access Policy API are now in Drupal core (≥ 10.2 / ≥ 10.3), and Group 4.x uses core's revision UI. Remove them from `composer.json` `require` **after** Group 4.x is installed and its update hooks have run (Step 115), then uninstall the modules — Group 3.x still references them at the moment of the version swap.
-> ```bash
-> ddev composer remove drupal/variationcache drupal/flexible_permissions
-> # Remove drupal/entity ONLY if no other module needs it (none in this project):
-> ddev composer remove drupal/entity
-> ```
+> [!NOTE]
+> **Removed contrib dependencies — not present on a clean build.** Group 4.x no longer depends on `drupal/variationcache`, `drupal/flexible_permissions`, or `drupal/entity` (Entity API) — VariationCache and the Access Policy API are now in Drupal core (≥ 10.2 / ≥ 10.3), and Group 4.x uses core's revision UI. On this clean-room build these were never required, so a fresh `composer install` never pulls them — there is nothing to remove or uninstall. (The remove/uninstall dance only applies when *upgrading an existing v3 site*.)
 
 Standard Drupal Group module (not Open Social's bundled version):
 - **4.x**: `GroupRelationship` entities on **Drupal ^11.2** (epic target 11.4); creator auto-membership is now **form-only**, and "add to group" invalidates cache tags instead of resaving the related entity.
 
-> [!CAUTION]
-> **Upgrade from v3 only.** Group 4.x supports a direct upgrade **only from v3**. There is no supported jump from v1/v2 straight to v4 — sites on v2 must reach v3 first. Confirm the current install is on **3.x** before requiring `^4`.
-
 > <!-- VERIFY on build: exact Group 4.x alpha/beta pinned in the site composer.json (prefer the newest alpha available, since the content_plugin→relation_type rename lands in 4.0.0-alpha2). -->
 > <!-- VERIFY on build: exact core version in the site composer.json (must be ≥ 11.2; epic target 11.4). -->
 
-## Step 115 — Run Update Hooks (Group 3.x → 4.x)
+## Step 115 — (skipped: no update hooks on a clean-room build)
 
-After the composer swap, run Group's update hooks. These migrate stored config, including the `content_plugin` → `relation_type` rename on `group.relationship_type.*` entities.
-
-```bash
-ddev drush updatedb -y
-ddev drush cr
-```
-
-> [!CAUTION]
-> **Dry-run first.** On a real 3.x→4.x upgrade, run `ddev drush updatedb` against a **database copy** before touching the live DB, and confirm the config-migration update hook completes clean.
-> <!-- VERIFY on build: dry-run `drush updatedb` on a DB copy confirms the content_plugin→relation_type config migration hook is clean. -->
+> [!NOTE]
+> This runbook installs Group 4.x **fresh** — there is **no existing v3 database to migrate**, so there is **no `drush updatedb` / config-migration step**. The `config/sync` YAML is already in v4 `relation_type` format and imports directly onto Group 4.x during the normal config import.
+>
+> _Upgrading an existing v3 site instead? That path — running `ddev drush updatedb` to execute Group's `content_plugin`→`relation_type` migration hooks (dry-run on a DB copy first) — is **out of scope for this clean-room build**._
 
 > [!NOTE]
 > On a **clean-room install** (no existing 3.x data) there is nothing to migrate — the `config/sync` YAML already ships the `relation_type:` key. This step matters only when upgrading an existing 3.x site.
@@ -500,7 +486,6 @@ npx playwright test tests/e2e/phase1.spec.ts
 - [ ] `variationcache`, `flexible_permissions`, and `entity` are **absent** from `composer.json` `require` and from enabled modules (`ddev drush pm:list --status=enabled` shows none of them)
 - [ ] `ddev drush pm:list --status=enabled | grep -E "group|gnode"` shows both enabled
 - [ ] `allow-plugins.symfony/runtime` is `true` in `composer.json`
-- [ ] `ddev drush updatedb` completed clean (config-migration hook ran; `content_plugin`→`relation_type` applied)
 - [ ] All `group.relationship_type.*.yml` use the `relation_type:` key (not `content_plugin:`)
 - [ ] `config/sync/` exists and `ddev drush config:status` shows clean (no differences)
 - [ ] 5 content types exist: `forum`, `documentation`, `event`, `post`, `page`
