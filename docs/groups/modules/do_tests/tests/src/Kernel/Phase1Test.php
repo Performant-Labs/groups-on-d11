@@ -134,12 +134,16 @@ class Phase1Test extends KernelTestBase {
   }
 
   /**
-   * Tests that the groups View config exists.
+   * Tests that the group-listing View config exists.
+   *
+   * The canonical directory view is `all_groups` (label "All Groups") published
+   * at `/all-groups` — see RUNBOOK Step 160. There is no `views.view.groups`;
+   * this matches Phase2Test::testAllGroupsView.
    */
   public function testGroupsViewExists(): void {
-    $data = $this->syncStorage->read('views.view.groups');
-    $this->assertNotEmpty($data, 'groups view exists in config/sync');
-    $this->assertEquals('Groups', $data['label']);
+    $data = $this->syncStorage->read('views.view.all_groups');
+    $this->assertNotEmpty($data, 'all_groups view exists in config/sync');
+    $this->assertEquals('All Groups', $data['label']);
   }
 
   /**
