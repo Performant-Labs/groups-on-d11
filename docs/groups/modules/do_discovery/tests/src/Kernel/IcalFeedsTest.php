@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\do_discovery\Kernel;
 
-use Drupal\field\Entity\FieldConfig;
-use Drupal\field\Entity\FieldStorageConfig;
+use Drupal\Core\Config\FileStorage;
 use Drupal\do_discovery\Controller\IcalController;
 use Drupal\flag\Entity\Flag;
 use Drupal\group\PermissionScopeInterface;
@@ -44,11 +43,13 @@ use Drupal\user\RoleInterface;
  * assertion is against the actual Response the controller returns.
  *
  * Fixtures beyond the base:
- *  - `field_date_of_event` (a `datetime` field on the `event` node type) is NOT
- *    shipped as config in this repo, yet the controller sorts/reads it and emits
- *    it as DTSTART. It is created here as the RUNBOOK-resolved `datetime` field so
- *    the real query path (entity-query sort + `node__field_date_of_event` join +
- *    VEVENT DTSTART) runs.
+ *  - `field_date_of_event` (a single-value `datetime` field on the `event` node
+ *    type) is the field the controller sorts/reads and emits as DTSTART. It ships
+ *    as config in this repo (field.storage.node.field_date_of_event +
+ *    field.field.node.event.field_date_of_event under docs/groups/config/) and is
+ *    installed here FROM that shipped config, so the real query path (entity-query
+ *    sort + `node__field_date_of_event` join + VEVENT DTSTART) is exercised
+ *    against the actual provisioned field (issue #60).
  *  - the shipped `rsvp_event` flag (docs/groups/config/flag.flag.rsvp_event.yml,
  *    a per-user `entity:node` flag on `event`) drives the user feed's
  *    loadUserEvents() flagging query; it is installed byte-identically here.
@@ -91,23 +92,23 @@ class IcalFeedsTest extends GroupsKernelTestBase {
     $this->installEntitySchema('flagging');
     $this->installSchema('flag', ['flag_counts']);
 
-    // Create the `field_date_of_event` datetime field on the event node type.
+    // Install the `field_date_of_event` datetime field on the event node type
+    // from its SHIPPED config (field.storage.node.field_date_of_event +
+    // field.field.node.event.field_date_of_event, both under docs/groups/config/).
     // The controller sorts the site feed by it (entity query), joins
-    // node__field_date_of_event in the group feed, and emits it as DTSTART. It is
-    // NOT shipped as config in this repo (only field_event_type is), so it is
-    // created here as the RUNBOOK-resolved single-value `datetime` field.
-    FieldStorageConfig::create([
-      'field_name' => 'field_date_of_event',
-      'entity_type' => 'node',
-      'type' => 'datetime',
-      'settings' => ['datetime_type' => 'datetime'],
-    ])->save();
-    FieldConfig::create([
-      'field_name' => 'field_date_of_event',
-      'entity_type' => 'node',
-      'bundle' => 'event',
-      'label' => 'Date of event',
-    ])->save();
+    // node__field_date_of_event in the group feed, and emits it as DTSTART, so
+    // reading the real shipped YAMLs here (rather than hand-creating the field)
+    // proves the provisioned field actually satisfies the controller's queries.
+    $shipped = new FileStorage($this->shippedConfigDir());
+    $entity_type_manager = $this->container->get('entity_type.manager');
+    foreach ([
+      'field_storage_config' => 'field.storage.node.field_date_of_event',
+      'field_config' => 'field.field.node.event.field_date_of_event',
+    ] as $storage_id => $config_name) {
+      $record = $shipped->read($config_name);
+      $this->assertIsArray($record, "Shipped config $config_name is present and readable.");
+      $entity_type_manager->getStorage($storage_id)->create($record)->save();
+    }
 
     // Install the shipped rsvp_event flag as a fixture (byte-identical to
     // docs/groups/config/flag.flag.rsvp_event.yml). It flags event nodes per
@@ -149,6 +150,37 @@ class IcalFeedsTest extends GroupsKernelTestBase {
       'global_role' => RoleInterface::AUTHENTICATED_ID,
       'permissions' => $permissions,
     ]);
+  }
+
+  /**
+   * Resolves the shipped `docs/groups/config/` directory.
+   *
+   * The two `field_date_of_event` field YAMLs ship under `docs/groups/config/`.
+   * This test may run with the module in its canonical repo location
+   * (`docs/groups/modules/do_discovery/`) or from an assembled build where
+   * `scripts/ci/assemble-config.sh` has copied the module into
+   * `web/modules/custom/do_discovery/` (and the config into `config/sync/`). To
+   * install the *shipped* field config in either layout, walk up from this file
+   * until a directory containing the two field YAMLs is found, checking both the
+   * canonical `docs/groups/config` and the assembled `config/sync` at each level.
+   *
+   * @return string
+   *   Absolute path to the directory holding the shipped field config.
+   */
+  protected function shippedConfigDir(): string {
+    $marker = 'field.storage.node.field_date_of_event.yml';
+    $dir = __DIR__;
+    // Walk up to the filesystem root looking for either config location.
+    while ($dir !== '' && $dir !== DIRECTORY_SEPARATOR) {
+      foreach (['docs/groups/config', 'config/sync'] as $candidate) {
+        $path = $dir . '/' . $candidate;
+        if (is_file($path . '/' . $marker)) {
+          return $path;
+        }
+      }
+      $dir = dirname($dir);
+    }
+    $this->fail("Could not locate shipped $marker in docs/groups/config or config/sync above " . __DIR__);
   }
 
   /**

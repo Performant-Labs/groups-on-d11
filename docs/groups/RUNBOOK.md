@@ -406,7 +406,12 @@ ddev drush config:export -y
 
 ## Step 180 — Add Required Fields to Content Types
 
-Add `body`, `field_group_tags`, and `field_event_type` (events only) to all 5 content types:
+Add `body`, `field_group_tags`, `field_event_type`, and `field_date_of_event`
+(the last two events only) to all 5 content types. The `field_date_of_event`
+storage is a single-value `datetime` field, so the core **`datetime`** module
+must be enabled first (it is part of the standard install; if missing, run
+`ddev drush en datetime -y`) or `config:import` will reject the field storage
+with a missing-dependency error:
 
 ```bash
 cp docs/groups/config/field.storage.node.body.yml config/sync/
@@ -423,6 +428,8 @@ cp docs/groups/config/field.field.node.post.field_group_tags.yml config/sync/
 cp docs/groups/config/field.field.node.page.field_group_tags.yml config/sync/
 cp docs/groups/config/field.storage.node.field_event_type.yml config/sync/
 cp docs/groups/config/field.field.node.event.field_event_type.yml config/sync/
+cp docs/groups/config/field.storage.node.field_date_of_event.yml config/sync/
+cp docs/groups/config/field.field.node.event.field_date_of_event.yml config/sync/
 ddev drush config:import -y
 ddev drush config:export -y
 ```
