@@ -121,28 +121,45 @@ jobs:
             web/modules/custom/do_tests/tests/src/Kernel/
 
   # ---------------------------------------------------------------------------
-  # E2E job — Playwright smoke suite against a real assembled site.
+  # E2E job — Playwright smoke suite against a real assembled site (#33).
   #
-  # This job stands up a full Drupal install, imports the assembled config,
-  # enables the do_* modules, serves the site, and runs the Playwright suite
-  # from #30. The install + config:import + `drush en` all SUCCEED in CI (which
-  # validates the assembled config end-to-end); the remaining blocker is
-  # *serving* the installed site.
+  # Stands up a full Drupal install, imports the assembled config, enables the
+  # do_* modules, serves the site with `drush runserver`, and runs the #30
+  # Playwright suite against it.
   #
-  # KNOWN BLOCKER (TODO #33): serving the docroot with `php -S ... web/.ht.router.php`
-  # (and, earlier, `drush runserver`) returns HTTP 302 -> /core/install.php on
-  # every request — the served PHP process does not resolve the `$databases`
-  # connection that `drush site:install` wrote to sites/default/settings.php, so
-  # Drupal reports itself uninstalled. Fixing this needs the served process to
-  # read the installed settings (e.g. explicit SIMPLETEST/settings.local wiring,
-  # or a container image that already carries a booted site). Until then the job
-  # is `continue-on-error` so it never blocks the kernel deliverable; the serve
-  # step prints `curl -i /user/login` + the server log for the next iteration.
+  # SERVE BLOCKER RESOLVED (#33): the old "serve returns 302 -> /core/install.php"
+  # was NOT a serving problem — the drush commands here were invoked as
+  # `php vendor/bin/drush …`, and on Linux `vendor/bin/drush` is Composer's
+  # bin-proxy *shell* script, so `php <shell-script>` merely ECHOED the proxy
+  # and never ran drush. The site was therefore never installed, so every
+  # request bounced to the installer. Fix: call the drush PHP entrypoint
+  # (`php vendor/drush/drush/drush.php …`) directly. Two more clean-room needs
+  # were then addressed: (a) config:import requires the active site UUID to
+  # match config/sync + the sync dir to point at config/sync (drush's default
+  # sync dir is a hashed, empty dir under sites/default/files), and (b) drush's
+  # $databases block in settings.php is read by the runserver child process.
+  # With these, install + config:import + serve + Playwright all execute and 3
+  # of the 4 phase-1 tests pass on CI.
+  #
+  # RESIDUAL (non-serve, tracked under #43): phase-1 test 3 ("authenticated user
+  # can create group") submits the community_group add form with only a Title,
+  # but the assembled config marks field_group_description `required: true`, and
+  # on the CI runner (PHP 8.4) that field is surfaced on the auto-generated
+  # community_group add form, so the submit fails validation ("Description field
+  # is required") and never redirects to /group/{id}. (The same build serves and
+  # passes test 3 on a local PHP 8.3 runner, where the field is not placed on the
+  # add form — an environment-dependent auto-form-display outcome that the repo
+  # has no explicit entity_form_display.group.community_group.default to pin.)
+  # The fix belongs with the #30/#43 test fixture (fill Description) or an
+  # explicit committed form display — NOT the serve pipeline — so the job stays
+  # `continue-on-error` (non-blocking) rather than faking green. See the "E2E
+  # failure diagnostics" step for the captured error-context.
   # ---------------------------------------------------------------------------
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
-    continue-on-error: true  # TODO(#33): drop once clean-room bring-up is green.
+    # Non-blocking: serving is fixed; one residual test-fixture gap remains (#43).
+    continue-on-error: true
 
     services:
       mysql:
@@ -210,46 +227,90 @@ jobs:
       - name: Install Drupal + import assembled config
         run: |
           set -euxo pipefail
-          # Standard install first, then import the assembled config/sync.
-          php vendor/bin/drush site:install standard \
+          # Make sites/default writable so drush can write settings.php.
+          mkdir -p web/sites/default
+          chmod -R u+w web/sites/default
+          # 1) Standard install. drush writes a COMPLETE $databases block into
+          #    web/sites/default/settings.php (with the driver namespace/autoload
+          #    keys D11's Connection needs); we leave it untouched.
+          php vendor/drush/drush/drush.php site:install standard \
             --db-url="$DRUPAL_DB_URL" \
             --account-name=admin --account-pass=admin \
             --site-name='Groups on D11' -y
-          php vendor/bin/drush config:import -y || {
-            echo "config:import failed — see TODO(#33) in this workflow" >&2
-            exit 1
-          }
-          # Enable the assembled custom modules.
-          php vendor/bin/drush en -y \
+          # drush locks settings.php read-only after install; make it writable so
+          # the appends below (and drush's own writes) succeed.
+          chmod u+w web/sites/default web/sites/default/settings.php
+          # 2) A clean `config:import` requires the active site UUID to match the
+          #    assembled config's system.site UUID, and the sync directory to
+          #    point at the repo's config/sync (drush's default is a hashed,
+          #    empty dir under sites/default/files, which made import a no-op).
+          SRC_UUID="$(grep '^uuid:' config/sync/system.site.yml | awk '{print $2}')"
+          php vendor/drush/drush/drush.php config:set system.site uuid "$SRC_UUID" -y
+          printf "\n\$settings['config_sync_directory'] = '../config/sync';\n" \
+            >> web/sites/default/settings.php
+          # 3) Import the assembled config (all_groups view, community_group group
+          #    type, permissions, do_* config). Requires `language` in the
+          #    assembled core.extension.yml (added by assemble-config.sh) so
+          #    do_group_language installs cleanly.
+          php vendor/drush/drush/drush.php config:import -y
+          # 4) Ensure the custom modules are enabled (idempotent after import),
+          #    set the admin password phase1.spec.ts logs in with, rebuild caches.
+          php vendor/drush/drush/drush.php en -y \
             do_tests do_group_extras do_group_language do_group_mission \
             do_group_pin do_multigroup do_notifications do_profile_stats do_discovery
-          php vendor/bin/drush user:password admin 'admin'
-          # Ensure the served process can read settings + write the files dir.
-          chmod -R a+rX web/sites/default
-          mkdir -p web/sites/default/files && chmod -R 777 web/sites/default/files
+          php vendor/drush/drush/drush.php user:password admin 'admin'
+          php vendor/drush/drush/drush.php cache:rebuild -y
+          # drush site:install writes a complete $databases block (incl. the mysql
+          # driver namespace/autoload keys) into settings.php, which the runserver
+          # child process reads per request. Add a trusted host for the served
+          # requests over 127.0.0.1/localhost.
+          printf "\n\$settings['trusted_host_patterns'] = ['^127\\\\.0\\\\.0\\\\.1\$', '^localhost\$'];\n" \
+            >> web/sites/default/settings.php
+          # Diagnostic: confirm settings.php carries $databases, and drush sees an
+          # installed, bootstrapped, connected site.
+          echo "--- settings.php \$databases present? ---"
+          grep -c "databases\['default'\]\['default'\]" web/sites/default/settings.php || true
+          php vendor/drush/drush/drush.php status --fields=drupal-version,db-status,bootstrap
 
       - name: Serve the site
         run: |
-          # PHP's built-in server with Drupal's router is more reliable in CI
-          # than `drush runserver`. Serve the web/ docroot on port 8080.
-          php -S 127.0.0.1:8080 -t web web/.ht.router.php >/tmp/php-server.log 2>&1 &
+          set -uxo pipefail
+          # Serve with `drush runserver`, which boots Drupal's kernel and then
+          # serves via drush's own router (d8-rs-router.php) — unlike a bare
+          # `php -S web/.ht.router.php`, whose served process returned an EMPTY
+          # plugin registry for views/blocks. Invoke the drush PHP entrypoint
+          # directly (NOT `php vendor/bin/drush`, which is a shell bin-proxy that
+          # `php` would merely echo) with an explicit --root so the web/ docroot
+          # is detected when backgrounded from the repo root. No --uri: runserver
+          # takes the bind address as its own argument, and passing --uri made
+          # drush resolve the DB connection in a way that missed settings.php's
+          # $databases. `-v` gives a readable startup log.
+          #
+          # PHP_CLI_SERVER_WORKERS makes the built-in server (which runserver
+          # spawns) fork multiple workers so it can handle the sub-requests a
+          # single page issues concurrently. Without it the single-threaded
+          # server serializes requests and the group-create POST (which the
+          # browser fires alongside asset/AJAX requests) timed out at 20s.
+          export PHP_CLI_SERVER_WORKERS=8
+          nohup php vendor/drush/drush/drush.php --root="$PWD/web" -v \
+            runserver --no-browser 127.0.0.1:8080 \
+            >/tmp/runserver.log 2>&1 &
           echo "server PID $!"
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/user/login || true)"
             if [ "$code" = "200" ]; then
               echo "site is serving (HTTP $code)"; exit 0
             fi
-            echo "waiting for site ($i) — last HTTP $code ..."; sleep 2
+            echo "waiting for site ($i) — last HTTP $code ..."
+            # Surface any startup error early instead of waiting the full window.
+            if [ "$i" = "3" ]; then echo "--- runserver log so far ---"; cat /tmp/runserver.log || true; fi
+            sleep 2
           done
-          # Diagnostics for the next person (see TODO(#33) above the e2e job):
-          # a persistent 302 on /user/login means the served process is not
-          # picking up the installed settings.php and is bouncing to
-          # /core/install.php. Capture the redirect target + response headers.
           echo "site did not come up" >&2
           echo "----- curl -i /user/login -----" >&2
-          curl -s -i http://127.0.0.1:8080/user/login | head -20 >&2 || true
-          echo "----- php server log (tail) -----" >&2
-          tail -40 /tmp/php-server.log >&2 || true
+          curl -s -i http://127.0.0.1:8080/user/login | head -25 >&2 || true
+          echo "----- runserver log (full) -----" >&2
+          cat /tmp/runserver.log >&2 || true
           exit 1
 
       - name: Cache Playwright browsers
@@ -268,3 +329,23 @@ jobs:
 
       - name: Run Playwright E2E suite
         run: npx playwright test
+
+      - name: E2E failure diagnostics
+        if: failure()
+        run: |
+          echo "----- runserver log (tail) -----"
+          tail -120 /tmp/runserver.log || true
+          echo "----- playwright error-context files -----"
+          find test-results -name 'error-context.md' -exec sh -c \
+            'echo "== $1 =="; cat "$1"' _ {} \; 2>/dev/null || true
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            test-results
+            playwright-report
+          retention-days: 7
+          if-no-files-found: ignore

@@ -115,10 +115,16 @@ echo "==> modules: copied ${modcount} custom module(s) into web/modules/custom/"
 # clean-room `config:import` needs every module its config references present.
 CORE_EXT="${CONFIG_DST}/core.extension.yml"
 if [[ -f "${CORE_EXT}" ]]; then
-  # Enable the copied custom modules plus `flag` (required by composer.json and
-  # referenced by the assembled flag.* config). `pathauto` is intentionally NOT
-  # added: its one config entry is in the excluded env-specific set (§3.6).
-  ENABLE_MODULES="$(printf '%s\n' "${MODULE_NAMES[@]}" flag)"
+  # Enable the copied custom modules plus their non-custom hard dependencies
+  # that the assembled config references but the baseline core.extension omits:
+  #   - flag:     required by composer.json and the assembled flag.* config.
+  #   - language: hard dependency of do_group_language (do_group_language.info:
+  #               `drupal:language`); the assembled language.types.yml config
+  #               depends on it, so a clean-room `config:import` fails to install
+  #               do_group_language unless `language` is also enabled here.
+  # `pathauto` is intentionally NOT added: its one config entry is in the
+  # excluded env-specific set (§3.6).
+  ENABLE_MODULES="$(printf '%s\n' "${MODULE_NAMES[@]}" flag language)"
   export ENABLE_MODULES
   AUTOLOAD="${REPO_ROOT}/vendor/autoload.php"
   if [[ ! -f "${AUTOLOAD}" ]]; then
