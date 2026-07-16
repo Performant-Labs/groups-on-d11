@@ -1,0 +1,248 @@
+name: Test suite (kernel + Playwright)
+
+# Runs the behavioral test suites on every PR to main (and pushes to main):
+#   - kernel:  do_tests PHPUnit kernel suite (config-assembly source of truth
+#              lives in scripts/ci/assemble-config.sh, shared with the RUNBOOK).
+#   - e2e:     Playwright smoke suite against a real assembled site (#31, #33).
+#
+# Issue: #33 (Wave A / A2) under epic #31.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHP_VERSION: '8.4'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Kernel job — the core deliverable. Must be GREEN.
+  #
+  # The do_tests kernel suite (Phase1/2/3, 20 tests) reads the assembled
+  # config/sync off disk via FileStorage and bootstraps a throwaway DB through
+  # KernelTestBase. It installs only a handful of core modules and creates no
+  # site, so it does NOT need `drush site:install` / `config:import` — it needs
+  # (a) the phase-2..7 config assembled into config/sync, (b) the do_tests
+  # module in web/modules/custom, and (c) a MySQL service for the kernel DB.
+  # ---------------------------------------------------------------------------
+  kernel:
+    name: Kernel tests (do_tests)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_DATABASE: drupal
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      SIMPLETEST_DB: 'mysql://root:root@127.0.0.1:3306/drupal'
+      SIMPLETEST_BASE_URL: 'http://127.0.0.1:8080'
+      # Silence deprecation-triggered failures from contrib/dev dependencies so
+      # the suite result reflects our own assertions.
+      SYMFONY_DEPRECATIONS_HELPER: 'disabled'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ env.PHP_VERSION }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: gd, pdo_mysql, mysqli, mbstring, xml, dom, curl, gmp, bcmath, intl, opcache, zip
+          coverage: none
+          ini-values: memory_limit=-1
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-
+
+      - name: Install Composer dependencies (incl. drupal/core-dev)
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Assemble config/sync + custom modules (shared with RUNBOOK)
+        run: bash scripts/ci/assemble-config.sh
+
+      - name: Prepare Drupal sites/default for kernel bootstrap
+        run: |
+          set -euxo pipefail
+          mkdir -p web/sites/default/files
+          # KernelTestBase reads a hash salt from settings; a minimal settings.php
+          # plus a writable files dir is enough — no installed site is required.
+          if [ ! -f web/sites/default/settings.php ]; then
+            cp web/sites/default/default.settings.php web/sites/default/settings.php
+          fi
+          {
+            echo ""
+            echo "\$settings['hash_salt'] = 'ci-do-not-use-in-prod-hash-salt';"
+            echo "\$settings['config_sync_directory'] = '../config/sync';"
+          } >> web/sites/default/settings.php
+          chmod -R 777 web/sites/default
+
+      - name: Wait for MySQL
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -P 3306 -uroot -proot --silent; then
+              echo "MySQL is up"; exit 0
+            fi
+            echo "waiting for mysql ($i)..."; sleep 2
+          done
+          echo "MySQL did not become ready" >&2; exit 1
+
+      - name: Run kernel tests (do_tests)
+        run: |
+          php vendor/bin/phpunit \
+            -c web/core/phpunit.xml.dist \
+            --testdox \
+            web/modules/custom/do_tests/tests/src/Kernel/
+
+  # ---------------------------------------------------------------------------
+  # E2E job — Playwright smoke suite against a real assembled site.
+  #
+  # This job stands up a full Drupal install, imports the assembled config,
+  # enables the do_* modules, serves the site, and runs the Playwright suite
+  # from #30. Standing up a full config:import in a clean room is genuinely
+  # harder than the kernel path (missing contrib deps such as pathauto/flag on
+  # some config, theme dependencies, etc.), so this pass marks the job
+  # `continue-on-error` — it will NOT block the kernel deliverable. See #33.
+  #
+  # TODO(#33): remove `continue-on-error` once the clean-room config:import +
+  # served-site bring-up is confirmed green in Actions.
+  # ---------------------------------------------------------------------------
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    continue-on-error: true  # TODO(#33): drop once clean-room bring-up is green.
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_DATABASE: drupal
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DRUPAL_DB_URL: 'mysql://root:root@127.0.0.1:3306/drupal'
+      BASE_URL: 'http://127.0.0.1:8080'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ env.PHP_VERSION }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: gd, pdo_mysql, mysqli, mbstring, xml, dom, curl, gmp, bcmath, intl, opcache, zip
+          coverage: none
+          ini-values: memory_limit=-1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Assemble config/sync + custom modules (shared with RUNBOOK)
+        run: bash scripts/ci/assemble-config.sh
+
+      - name: Wait for MySQL
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -P 3306 -uroot -proot --silent; then
+              echo "MySQL is up"; exit 0
+            fi
+            echo "waiting for mysql ($i)..."; sleep 2
+          done
+          echo "MySQL did not become ready" >&2; exit 1
+
+      - name: Install Drupal + import assembled config
+        run: |
+          set -euxo pipefail
+          # Standard install first, then import the assembled config/sync.
+          php vendor/bin/drush site:install standard \
+            --db-url="$DRUPAL_DB_URL" \
+            --account-name=admin --account-pass=admin \
+            --site-name='Groups on D11' -y
+          php vendor/bin/drush config:import -y || {
+            echo "config:import failed — see TODO(#33) in this workflow" >&2
+            exit 1
+          }
+          # Enable the assembled custom modules.
+          php vendor/bin/drush en -y \
+            do_tests do_group_extras do_group_language do_group_mission \
+            do_group_pin do_multigroup do_notifications do_profile_stats do_discovery
+          php vendor/bin/drush user:password admin 'admin'
+
+      - name: Serve the site
+        run: |
+          php vendor/bin/drush runserver 127.0.0.1:8080 >/tmp/drush-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/user/login >/dev/null 2>&1; then
+              echo "site is serving"; exit 0
+            fi
+            echo "waiting for site ($i)..."; sleep 2
+          done
+          echo "site did not come up" >&2; cat /tmp/drush-server.log >&2; exit 1
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E suite
+        run: npx playwright test
