@@ -7,6 +7,5 @@ label: 'Community Group'
 description: 'A community group for collaboration, discussion, and coordination'
 new_revision: true
 creator_membership: true
-creator_wizard: true
 creator_roles:
   - community_group-admin
