@@ -85,11 +85,16 @@ https://www.drupal.org/docs/develop/drupal-apis/access-policy-api).
   - `applies(string $scope)` — restricts the policy to the scope(s) it handles.
 - Results are aggregated into an **immutable** `CalculatedPermissions` object with
   cacheable metadata; nothing can mutate permissions mid-request.
-- Group defines its own **scopes** (historically `group_outsider` / `group_insider` for
-  membership-vs-group-type checks, and `group_individual` for per-membership grants). Group
-  4.x registers these as core access policies rather than flexible-permissions calculators.
-  **[VERIFY on build]** the exact scope constant names/values Group 4.x ships, by reading
-  `group/src/Access/*` in the installed 4.x code — the 3.x-era names may have been renamed.
+- Group defines its own **scopes** for membership-vs-group-type checks and per-membership
+  grants. **✅ Verified on build (group dev-4.0.x, ref `10d53580`):** the scope IDs are
+  constants on **`Drupal\group\PermissionScopeInterface`** — `OUTSIDER_ID = 'outsider'`,
+  `INSIDER_ID = 'insider'`, `INDIVIDUAL_ID = 'individual'` (the 3.x-era `group_` prefix was
+  dropped). Group 4.x registers two `access_policy`-tagged services (in `group.services.yml`)
+  in place of flexible-permissions calculators:
+  `access_policy.individual_group_role` → `Drupal\group\Access\IndividualGroupRoleAccessPolicy`
+  (priority −100) and `access_policy.synchronized_group_role` →
+  `Drupal\group\Access\SynchronizedGroupRoleAccessPolicy` (priority −50), both taking
+  `@entity_type.manager`.
 
 **What custom code / config using the old permission provider must change:**
 
@@ -99,20 +104,21 @@ https://www.drupal.org/docs/develop/drupal-apis/access-policy-api).
    `CalculatedPermissions` imported from the `flexible_permissions` namespace, and
    `flexible_permissions` in any `*.services.yml`.
 2. **`use Drupal\flexible_permissions\...`** imports must be repointed to the core
-   equivalents under `Drupal\Core\Session\` (e.g. `CalculatedPermissions`,
-   `CalculatedPermissionsItem`, `RefinableCalculatedPermissionsInterface`,
-   `AccessPolicyInterface`, `AccessPolicyBase`). **[VERIFY on build]** the exact core FQCNs
-   against the target core release — some class names carry over, some were adjusted when
-   the contrib code was upstreamed.
+   equivalents under `Drupal\Core\Session\`. **✅ Verified on build (Drupal 11.4.4):** all
+   five FQCNs carry over unchanged under that namespace —
+   `Drupal\Core\Session\CalculatedPermissions`, `…\CalculatedPermissionsItem`,
+   `…\CalculatedPermissionsInterface`, `…\RefinableCalculatedPermissionsInterface`,
+   `…\AccessPolicyInterface`, `…\AccessPolicyBase`. (Our own `do_*` modules import none of
+   these — grep-confirmed — so there is nothing to repoint; this is reference for future work.)
 3. **Permission *provider* plugins** on custom Group relation plugins (the
-   `permission_provider` handler that declares group permissions) — confirm the handler
-   interface/`getPermissions()` signature is unchanged in 4.x. The permission *declaration*
-   side (what permissions a relation exposes) is distinct from the *calculation* side (Access
-   Policy) and is more likely to survive intact. **[VERIFY on build]** against
-   `group/src/Plugin/Group/RelationHandler/PermissionProvider*`.
-4. **Cache contexts:** any code that read Flexible Permissions cache contexts
-   (e.g. a `user.group_permissions`-style context) must switch to the context Group 4.x /
-   core emits. **[VERIFY on build]** the context name.
+   `permission_provider` handler that declares group permissions). **✅ Verified on build:**
+   the handler `getPermissions()` signature is **unchanged** —
+   `GroupPermissionHandlerInterface::getPermissions($include_plugins = FALSE)`. The permission
+   *declaration* side survives intact; only the *calculation* side moved to Access Policy.
+4. **Cache contexts:** **✅ Verified on build:** Group 4.x still emits the
+   **`user.group_permissions`** cache context (present in the installed `group/src`), so code
+   reading that context needs **no** change. (Also confirmed: `do_multigroup` ships **no**
+   `permission_calculator`/`access_policy` service — nothing to re-home.)
 
 ---
 

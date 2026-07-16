@@ -80,17 +80,14 @@ class Phase1Test extends KernelTestBase {
   }
 
   /**
-   * Asserts a group.relationship_type config carries a relation plugin id.
+   * Asserts a group.relationship_type config carries a v4 relation plugin id.
    *
-   * Group 4.x renamed the stored property that holds the relation plugin id
-   * from `content_plugin` to `relation_type` (CR 2026-06-19, 4.0.0-alpha2); an
-   * update hook rewrites exported config. Accept either spelling so this suite
-   * stays green across the migration: `content_plugin` on 3.x-era exports and
-   * `relation_type` once the config has been re-exported under 4.x.
-   *
-   * TODO(group4-VERIFY): once config/sync has been re-exported on Group 4.x,
-   * tighten this to require `relation_type` and forbid the legacy
-   * `content_plugin` key, so a stale 3.x export is caught as a regression.
+   * Group 4.x renamed the stored property that holds the relation plugin id from
+   * `content_plugin` to `relation_type` (CR 2026-06-19). The config source has
+   * been converted to `relation_type`, so this now REQUIRES the v4 key and FORBIDS
+   * the legacy `content_plugin` key — a stale 3.x export is caught as a regression.
+   * (On the installed dev-4.0.x, importing a `content_plugin` key yields a null
+   * `relation_type`, so the relation plugin fails to resolve at route-rebuild.)
    *
    * @param array $data
    *   The decoded relationship_type config.
@@ -98,11 +95,19 @@ class Phase1Test extends KernelTestBase {
    *   The relationship type id, for the failure message.
    */
   protected function assertRelationPlugin(array $data, string $id): void {
-    $has_plugin = array_key_exists('relation_type', $data)
-      || array_key_exists('content_plugin', $data);
-    $this->assertTrue(
-      $has_plugin,
-      "Relationship type $id declares a relation plugin id (relation_type on Group 4.x, content_plugin on 3.x)"
+    $this->assertArrayHasKey(
+      'relation_type',
+      $data,
+      "Relationship type $id declares the Group 4.x `relation_type` key"
+    );
+    $this->assertNotEmpty(
+      $data['relation_type'],
+      "Relationship type $id `relation_type` is non-empty"
+    );
+    $this->assertArrayNotHasKey(
+      'content_plugin',
+      $data,
+      "Relationship type $id must not ship the legacy Group 3.x `content_plugin` key"
     );
   }
 
