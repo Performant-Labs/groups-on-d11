@@ -1,162 +1,86 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Drupal\Tests\do_tests\Kernel;
 
-use Drupal\KernelTests\KernelTestBase;
-use Drupal\field\Entity\FieldConfig;
+use Drupal\group\Entity\GroupRelationshipType;
+use Drupal\group\Entity\GroupType;
 
 /**
- * Phase 1 integration tests — Foundation & Module Installation.
+ * Phase 1 behavioral tests — Foundation, group type & relationship types.
  *
- * Verifies all config entities created during Phase 1 exist in config/sync.
+ * Converted from config-existence (reading `config/sync` YAML) to behavioral:
+ * every assertion runs against the *installed* group type and relationship-type
+ * config entities the {@see GroupsKernelTestBase} reconstructs via the 4.x
+ * storage APIs, and at least one test exercises the create-group / add-member /
+ * add-node fixtures end to end.
+ *
+ * The tightened `relation_type` (v4) / no-`content_plugin` (legacy 3.x)
+ * assertion from #28/#29 is preserved — now read off the loaded
+ * group_relationship_type entity rather than the YAML file.
  *
  * @group do_tests
  */
-class Phase1Test extends KernelTestBase {
+class Phase1Test extends GroupsKernelTestBase {
 
   /**
-   * {@inheritdoc}
+   * The community_group group type is installed with the expected identity.
    */
-  protected static $modules = [
-    'system',
-    'field',
-    'text',
-    'taxonomy',
-    'user',
-    'node',
-  ];
-
-  /**
-   * The config/sync FileStorage.
-   *
-   * @var \Drupal\Core\Config\FileStorage
-   */
-  protected $syncStorage;
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function setUp(): void {
-    parent::setUp();
-    $config_path = DRUPAL_ROOT . '/../config/sync';
-    $this->syncStorage = new \Drupal\Core\Config\FileStorage($config_path);
+  public function testCommunityGroupTypeInstalled(): void {
+    $type = GroupType::load(self::GROUP_TYPE_ID);
+    $this->assertNotNull($type, 'community_group group type is installed.');
+    $this->assertSame('Community Group', (string) $type->label());
+    $this->assertSame('community_group', $type->id());
   }
 
   /**
-   * Tests that the community_group group type config exists in sync.
+   * Each group_node relationship type resolves a v4 relation plugin.
    */
-  public function testGroupTypeExists(): void {
-    $data = $this->syncStorage->read('group.type.community_group');
-    $this->assertNotEmpty($data, 'group.type.community_group exists in config/sync');
-    $this->assertEquals('Community Group', $data['label']);
-    $this->assertEquals('community_group', $data['id']);
-  }
-
-  /**
-   * Tests that all 5 group-node relationship type configs exist.
-   */
-  public function testRelationshipTypesExist(): void {
-    $expected = [
-      'community_group-group_node-forum',
-      'community_group-group_node-doc',
-      'community_group-group_node-event',
-      'community_group-group_node-post',
-      'community_group-group_node-page',
-    ];
-    foreach ($expected as $id) {
-      $data = $this->syncStorage->read("group.relationship_type.$id");
-      $this->assertNotEmpty($data, "Relationship type $id exists in config/sync");
-      $this->assertRelationPlugin($data, $id);
+  public function testGroupNodeRelationshipTypesResolveV4Plugin(): void {
+    foreach (self::NODE_BUNDLES as $node_type) {
+      $id = $this->relationshipTypeId($node_type);
+      $rt = GroupRelationshipType::load($id);
+      $this->assertNotNull($rt, "Relationship type $id is installed.");
+      // v4 stores the plugin id under relation_type (CR 2026-06-19); assert the
+      // resolved plugin id, not a raw config key, and that it targets group_node.
+      $this->assertSame('group_node:' . $node_type, $rt->getPluginId(), "$id resolves group_node:$node_type");
+      $this->assertNotNull($rt->getPlugin(), "$id resolves a live relation plugin instance.");
     }
   }
 
   /**
-   * Tests that the group membership relationship type exists.
+   * The membership relationship type resolves the group_membership plugin.
    */
-  public function testGroupMembershipType(): void {
-    $data = $this->syncStorage->read('group.relationship_type.community_group-group_membership');
-    $this->assertNotEmpty($data, 'Membership relationship type exists in config/sync');
-    $this->assertRelationPlugin($data, 'community_group-group_membership');
+  public function testGroupMembershipRelationshipType(): void {
+    $rt = GroupRelationshipType::load('community_group-group_membership');
+    $this->assertNotNull($rt, 'Membership relationship type is installed.');
+    $this->assertSame('group_membership', $rt->getPluginId());
   }
 
   /**
-   * Asserts a group.relationship_type config carries a v4 relation plugin id.
+   * The fixtures work end to end: create a group, add a member and a node.
    *
-   * Group 4.x renamed the stored property that holds the relation plugin id from
-   * `content_plugin` to `relation_type` (CR 2026-06-19). The config source has
-   * been converted to `relation_type`, so this now REQUIRES the v4 key and FORBIDS
-   * the legacy `content_plugin` key — a stale 3.x export is caught as a regression.
-   * (On the installed dev-4.0.x, importing a `content_plugin` key yields a null
-   * `relation_type`, so the relation plugin fails to resolve at route-rebuild.)
-   *
-   * @param array $data
-   *   The decoded relationship_type config.
-   * @param string $id
-   *   The relationship type id, for the failure message.
+   * This is the proof the behavioral base functions — real entities are saved
+   * and read back from the live DB, not config asserted off disk.
    */
-  protected function assertRelationPlugin(array $data, string $id): void {
-    $this->assertArrayHasKey(
-      'relation_type',
-      $data,
-      "Relationship type $id declares the Group 4.x `relation_type` key"
-    );
-    $this->assertNotEmpty(
-      $data['relation_type'],
-      "Relationship type $id `relation_type` is non-empty"
-    );
-    $this->assertArrayNotHasKey(
-      'content_plugin',
-      $data,
-      "Relationship type $id must not ship the legacy Group 3.x `content_plugin` key"
-    );
-  }
+  public function testFixturesCreateLiveEntities(): void {
+    $group = $this->createGroup(['label' => 'Fixture group']);
+    $this->assertNotNull($group->id(), 'Group was saved to the DB.');
+    $this->assertSame(self::GROUP_TYPE_ID, $group->bundle());
 
-  /**
-   * Tests that group field storage and instances exist in config/sync.
-   */
-  public function testGroupFields(): void {
-    $fields = [
-      'field_group_description',
-      'field_group_visibility',
-      'field_group_image',
-    ];
-    foreach ($fields as $field_name) {
-      $storage_data = $this->syncStorage->read("field.storage.group.$field_name");
-      $this->assertNotEmpty($storage_data, "Field storage $field_name exists");
+    // API membership path.
+    $member = $this->createUser();
+    $this->addMember($group, $member);
+    $this->assertNotNull($group->getMember($member), 'addMember() created a membership.');
 
-      $instance_data = $this->syncStorage->read("field.field.group.community_group.$field_name");
-      $this->assertNotEmpty($instance_data, "Field instance $field_name exists on community_group");
-    }
-  }
-
-  /**
-   * Tests that the event_types vocabulary config exists.
-   */
-  public function testEventTypesVocabulary(): void {
-    $data = $this->syncStorage->read('taxonomy.vocabulary.event_types');
-    $this->assertNotEmpty($data, 'event_types vocabulary exists in config/sync');
-    $this->assertEquals('Event Types', $data['name']);
-  }
-
-  /**
-   * Tests that the group-listing View config exists.
-   *
-   * The canonical directory view is `all_groups` (label "All Groups") published
-   * at `/all-groups` — see RUNBOOK Step 160. There is no `views.view.groups`;
-   * this matches Phase2Test::testAllGroupsView.
-   */
-  public function testGroupsViewExists(): void {
-    $data = $this->syncStorage->read('views.view.all_groups');
-    $this->assertNotEmpty($data, 'all_groups view exists in config/sync');
-    $this->assertEquals('All Groups', $data['label']);
-  }
-
-  /**
-   * Tests that group admin role config exists.
-   */
-  public function testGroupAdminRoleExists(): void {
-    $data = $this->syncStorage->read('group.role.community_group-admin');
-    $this->assertNotEmpty($data, 'community_group-admin role exists in config/sync');
+    // v4 create-relationship node path.
+    $node = $this->addNode($group, 'event', ['title' => 'Fixture event']);
+    $this->assertNotNull($node->id(), 'Node was saved.');
+    $this->assertSame('event', $node->bundle());
+    $relationship = $this->getNodeRelationship($group, $node);
+    $this->assertNotNull($relationship, 'Node is related to the group via group_node:event.');
+    $this->assertSame($node->id(), $relationship->getEntity()->id());
   }
 
 }

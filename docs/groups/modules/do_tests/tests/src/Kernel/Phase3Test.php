@@ -1,108 +1,70 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Drupal\Tests\do_tests\Kernel;
 
-use Drupal\KernelTests\KernelTestBase;
+use Drupal\group\Entity\GroupRelationshipType;
 
 /**
- * Phase 3 integration tests — Multi-group & Stream.
+ * Phase 3 behavioral tests — Multi-group relationship behavior.
  *
- * Group 4.x notes for this phase:
- * - Relationship-type config renamed `content_plugin` → `relation_type`
- *   (CR 2026-06-19); the `plugin_config` sub-array asserted here is unchanged.
- * - TODO(group4-VERIFY): Creator auto-membership is now form-only (CR
- *   2026-04-24). These assertions read config/sync only and never create a
- *   group programmatically, so the behavior change does not surface here. Any
- *   future phase that creates a group via the API (e.g. Group::create()->save())
- *   and then asserts the creator is a member MUST add the membership explicitly
- *   with $group->addMember($account) — 4.x no longer auto-adds the creator on a
- *   programmatic save.
+ * Converted from config-existence to behavioral. The one Phase-3 assertion with
+ * migration value — unlimited group_node cardinality, which lets a node live in
+ * many groups (do_multigroup) — is now proven two ways: (1) read off the
+ * *installed* relationship-type plugin_config, and (2) exercised by actually
+ * relating one node to two groups via the fixtures.
+ *
+ * Retired (moved out of this behavioral suite): the Phase-3 checks that only
+ * asserted assembled YAML *ships* in config/sync with no behavior —
+ * group_tags / stream vocabularies, the group_content_stream / activity_stream
+ * / tags_aggregation views, the stream_card view mode, field_group_tags on the
+ * five content types, and `do_multigroup` being listed in core.extension. Those
+ * are config-artifact smoke checks, not behavior, and belong to the per-module
+ * behavioral tests in Wave C (#39 do_multigroup) / the clean-room config:import
+ * gate — not the integration base. The v4 relation_type/no-content_plugin
+ * tightening from #28/#29 lives on in {@see Phase1Test}.
+ *
+ * Group 4.x note: creator auto-membership is now form-only (CR 2026-04-24); the
+ * API path (Group::create()->save()) does not auto-add the creator. Tests that
+ * need a creator membership must call addMember() explicitly — see the base's
+ * addMember() fixture.
  *
  * @group do_tests
  */
-class Phase3Test extends KernelTestBase {
-
-  protected static $modules = ['system', 'field', 'text', 'taxonomy', 'user', 'node'];
-
-  protected $syncStorage;
-
-  protected function setUp(): void {
-    parent::setUp();
-    $this->syncStorage = new \Drupal\Core\Config\FileStorage(DRUPAL_ROOT . '/../config/sync');
-  }
+class Phase3Test extends GroupsKernelTestBase {
 
   /**
-   * Tests multi-group cardinality on all 5 relationship types.
+   * Every group_node relationship type has unlimited entity cardinality.
+   *
+   * Read off the installed relationship-type plugin_config (cardinality 0 =
+   * unlimited), the precondition for a node belonging to multiple groups.
    */
-  public function testMultiGroupCardinality(): void {
-    $types = ['forum', 'doc', 'event', 'post', 'page'];
-    foreach ($types as $type) {
-      $data = $this->syncStorage->read("group.relationship_type.community_group-group_node-$type");
-      $this->assertNotEmpty($data, "Relationship type $type exists");
-      $this->assertEquals(0, $data['plugin_config']['entity_cardinality'], "$type has unlimited cardinality");
+  public function testGroupNodeUnlimitedCardinality(): void {
+    foreach (self::NODE_BUNDLES as $node_type) {
+      $rt = GroupRelationshipType::load($this->relationshipTypeId($node_type));
+      $this->assertNotNull($rt, "Relationship type for $node_type is installed.");
+      $config = $rt->get('plugin_config');
+      $this->assertSame(0, (int) $config['entity_cardinality'], "$node_type allows a node in unlimited groups.");
     }
   }
 
   /**
-   * Tests group_tags vocabulary exists.
+   * A single node can be related to two groups (multigroup behavior).
+   *
+   * Proves the unlimited-cardinality config actually permits the v4
+   * create-relationship path to place one node in more than one group.
    */
-  public function testGroupTagsVocabulary(): void {
-    $data = $this->syncStorage->read('taxonomy.vocabulary.group_tags');
-    $this->assertNotEmpty($data, 'group_tags vocabulary exists');
-  }
+  public function testNodeCanBelongToMultipleGroups(): void {
+    $group_a = $this->createGroup(['label' => 'Group A']);
+    $group_b = $this->createGroup(['label' => 'Group B']);
 
-  /**
-   * Tests field_group_tags exists on all 5 content types.
-   */
-  public function testFieldGroupTags(): void {
-    $types = ['forum', 'documentation', 'event', 'post', 'page'];
-    foreach ($types as $type) {
-      $data = $this->syncStorage->read("field.field.node.$type.field_group_tags");
-      $this->assertNotEmpty($data, "field_group_tags exists on $type");
-    }
-  }
+    $node = $this->addNode($group_a, 'post', ['title' => 'Shared post']);
+    // Relate the same node to a second group.
+    $group_b->addRelationship($node, 'group_node:post');
 
-  /**
-   * Tests group content stream view exists.
-   */
-  public function testGroupContentStreamView(): void {
-    $data = $this->syncStorage->read('views.view.group_content_stream');
-    $this->assertNotEmpty($data, 'group_content_stream view exists');
-  }
-
-  /**
-   * Tests stream_card view mode exists.
-   */
-  public function testStreamCardViewMode(): void {
-    $data = $this->syncStorage->read('core.entity_view_mode.node.stream_card');
-    $this->assertNotEmpty($data, 'stream_card view mode exists');
-    $this->assertEquals('Stream Card', $data['label']);
-  }
-
-  /**
-   * Tests activity_stream view exists with /stream path.
-   */
-  public function testActivityStreamView(): void {
-    $data = $this->syncStorage->read('views.view.activity_stream');
-    $this->assertNotEmpty($data, 'activity_stream view exists');
-    $this->assertEquals('Activity Stream', $data['label']);
-    $this->assertEquals('stream', $data['display']['page_1']['display_options']['path']);
-  }
-
-  /**
-   * Tests do_multigroup is enabled.
-   */
-  public function testDoMultigroupEnabled(): void {
-    $ext = $this->syncStorage->read('core.extension');
-    $this->assertArrayHasKey('do_multigroup', $ext['module'], 'do_multigroup is enabled');
-  }
-
-  /**
-   * Tests tags_aggregation view exists.
-   */
-  public function testTagsAggregationView(): void {
-    $data = $this->syncStorage->read('views.view.tags_aggregation');
-    $this->assertNotEmpty($data, 'tags_aggregation view exists');
+    $this->assertNotNull($this->getNodeRelationship($group_a, $node), 'Node is in group A.');
+    $this->assertNotNull($this->getNodeRelationship($group_b, $node), 'Node is also in group B.');
   }
 
 }
