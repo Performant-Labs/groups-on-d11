@@ -63,11 +63,11 @@ test.describe('Phase 1 — Groups smoke', () => {
     await expect(title).toBeVisible();
     await expect(title).toBeEditable();
 
-    // #44: the add-form display now places the group creation fields —
-    // description (textarea), visibility (radios) and image (file input).
-    await expect(
-      page.locator('textarea[name="field_group_description[0][value]"]'),
-    ).toBeVisible();
+    // #44: the add-form display now places the group creation fields.
+    // Description is a CKEditor 5 rich-text field, so the raw <textarea> is
+    // hidden behind a contenteditable editor — assert the editor, not the
+    // textarea. Visibility (radios) and image (file input) render plainly.
+    await expect(page.locator('.ck-editor__editable').first()).toBeVisible();
     await expect(
       page.locator('input[name="field_group_visibility"]').first(),
     ).toBeVisible();
@@ -88,10 +88,13 @@ test.describe('Phase 1 — Groups smoke', () => {
     const groupTitle = `E2E Smoke Group ${Date.now()}`;
     await page.getByLabel('Title', { exact: false }).fill(groupTitle);
     // Description and Visibility are required on the add form (#44), so a
-    // Title-only submit would fail validation — fill both.
-    await page
-      .locator('textarea[name="field_group_description[0][value]"]')
-      .fill('Created by the phase-1 E2E smoke suite.');
+    // Title-only submit would fail validation — fill both. Description is a
+    // CKEditor 5 field: click the contenteditable editor and type real
+    // keystrokes so CKEditor's model syncs to the textarea on submit
+    // (.fill() on the hidden textarea would not propagate).
+    const descEditor = page.locator('.ck-editor__editable').first();
+    await descEditor.click();
+    await descEditor.pressSequentially('Created by the phase-1 E2E smoke suite.');
     await page
       .locator('input[name="field_group_visibility"][value="open"]')
       .check();
