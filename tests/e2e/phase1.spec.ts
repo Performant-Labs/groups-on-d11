@@ -63,6 +63,18 @@ test.describe('Phase 1 — Groups smoke', () => {
     await expect(title).toBeVisible();
     await expect(title).toBeEditable();
 
+    // #44: the add-form display now places the group creation fields —
+    // description (textarea), visibility (radios) and image (file input).
+    await expect(
+      page.locator('textarea[name="field_group_description[0][value]"]'),
+    ).toBeVisible();
+    await expect(
+      page.locator('input[name="field_group_visibility"]').first(),
+    ).toBeVisible();
+    await expect(
+      page.locator('input[name="files[field_group_image_0]"]'),
+    ).toBeVisible();
+
     // The create/submit action is present.
     await expect(
       page.getByRole('button', { name: /Create Community Group/i }),
@@ -75,6 +87,14 @@ test.describe('Phase 1 — Groups smoke', () => {
 
     const groupTitle = `E2E Smoke Group ${Date.now()}`;
     await page.getByLabel('Title', { exact: false }).fill(groupTitle);
+    // Description and Visibility are required on the add form (#44), so a
+    // Title-only submit would fail validation — fill both.
+    await page
+      .locator('textarea[name="field_group_description[0][value]"]')
+      .fill('Created by the phase-1 E2E smoke suite.');
+    await page
+      .locator('input[name="field_group_visibility"][value="open"]')
+      .check();
     await page
       .getByRole('button', { name: /Create Community Group/i })
       .click();
