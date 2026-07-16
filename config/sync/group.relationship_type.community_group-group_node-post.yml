@@ -10,7 +10,7 @@ dependencies:
     - node
 id: community_group-group_node-post
 group_type: community_group
-content_plugin: 'group_node:post'
+relation_type: 'group_node:post'
 plugin_config:
   group_cardinality: 0
   entity_cardinality: 0
