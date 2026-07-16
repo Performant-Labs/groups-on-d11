@@ -4,7 +4,7 @@ description: 'Cross-phase integration tests for groups functionality.'
 # Group 4.x raises the minimum Drupal core to ^11.2 (CR 2025-02-19), and the
 # epic targets 11.4. A ^10-only requirement would block installation on the
 # 4.x-ready site, so widen it to cover 11.
-core_version_requirement: ^10.3 || ^11
+core_version_requirement: ^11.2
 package: 'Testing'
 dependencies:
   - drupal:group

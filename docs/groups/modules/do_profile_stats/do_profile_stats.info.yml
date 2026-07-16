@@ -1,7 +1,7 @@
 name: DO Profile Stats
 type: module
 description: 'Contribution stats block and profile completeness indicator for user profiles.'
-core_version_requirement: ^10 || ^11
+core_version_requirement: ^11.2
 package: Custom
 dependencies:
   - drupal:block
