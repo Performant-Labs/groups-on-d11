@@ -43,16 +43,15 @@ use Drupal\views\Views;
  * (the programmatic `Group::addRelationship()` API), never via creator
  * membership, so ordering is asserted independently of that regression surface.
  *
- * TWO DEFECTS this suite pins down (both are the #38 risk made concrete; these
- * are characterization assertions of CURRENT behavior — see each test's docblock
- * for what to flip once do_group_pin is fixed):
- *  1. Pinned-first ordering does NOT work: the hook appends its `pin_sort`
- *     order-by AFTER the view's own `created DESC` sort, so the compiled query is
- *     `ORDER BY created DESC, pin_sort DESC` — pin is only a tie-breaker, and a
- *     pinned node does not lead. See {@see self::testPinOrderingIsCurrentlySecondaryToCreated()}.
+ * TWO DEFECTS this suite pins down (both are the #38 risk made concrete):
+ *  1. Pinned-first ordering — FIXED in #52. The hook now moves its `pin_sort`
+ *     order-by to the FRONT of the query's orderby, so the compiled query is
+ *     `ORDER BY pin_sort DESC, created DESC` and a pinned node LEADS the stream.
+ *     See {@see self::testPinnedNodeLeadsStream()}.
  *  2. The view's `distinct: true` does NOT dedupe a relationship-side fan-out,
  *     because the `group_relationship` id is in the SELECT list — a node with two
- *     relationships appears twice. See
+ *     relationships appears twice. LATENT and LEFT AS-IS (fixing it risks the
+ *     group-scoping); kept as characterization, still tracked in #52. See
  *     {@see self::testDistinctDoesNotDedupeRelationshipFanOut()}.
  * The pin flagging LEFT JOIN itself does not fan out (global flag = one row), so
  * a pinned stream is duplicate-free today
@@ -185,34 +184,33 @@ class PinnedStreamOrderingTest extends GroupsKernelTestBase {
   }
 
   /**
-   * The intended pin-first ordering is currently BROKEN — this pins it down.
+   * A pinned node LEADS the group stream (Defect 1 of #52, now fixed).
    *
    * #38's central claim is that pinning a node floats it to the top of the group
    * stream. The hook adds `ORDER BY CASE WHEN pin_flagging.id IS NOT NULL ...
-   * DESC` via `hook_views_query_alter`, but the shipped view ALREADY declares a
-   * `created DESC` sort, and query-alter runs AFTER the view registers its own
-   * sorts — so the compiled query is:
+   * DESC` via `hook_views_query_alter`. The historical bug (#52) was that
+   * query-alter runs AFTER the view registers its own `created DESC` sort and the
+   * pin order-by was merely APPENDED, so the compiled query was:
    *
    *   ORDER BY node_field_data_created DESC, pin_sort DESC
    *
-   * i.e. `pin_sort` is a *secondary* key. A pinned older node therefore does NOT
-   * lead; the created sort dominates and the pin only breaks created-time ties
-   * (which never happen for distinct timestamps). This is exactly the runtime
-   * behavior the hook's own `TODO(group4-VERIFY)` asked to confirm — and it is
-   * wrong.
+   * making `pin_sort` a *secondary* tie-breaker that never actually reordered
+   * distinct-timestamp rows. The fix moves the pin order-by to the FRONT of
+   * $query->orderby (array_unshift), so the compiled query is now:
    *
-   * This test asserts the CURRENT (defective) ordering so the regression suite is
-   * green and locks the behavior down; the report flags it as the primary #38
-   * bug. When do_group_pin is fixed to make the pin the PRIMARY sort key (e.g. by
-   * clearing/re-adding the created order-by after its own, so pin_sort sorts
-   * first), FLIP the two assertions below to the "intended" arrangement noted
-   * inline.
+   *   ORDER BY pin_sort DESC, node_field_data_created DESC
+   *
+   * i.e. `pin_sort` is the PRIMARY key: the pinned node leads and the remaining
+   * nodes keep their created-DESC order.
+   *
+   * This test EXECUTES the real altered view and asserts the pinned oldest node
+   * (A) is first and the rest stay newest-first — the intended [A, D, C, B].
    */
-  public function testPinOrderingIsCurrentlySecondaryToCreated(): void {
+  public function testPinnedNodeLeadsStream(): void {
     $group = $this->createGroup();
 
     // Increasing created timestamps: unpinned order is D, C, B, A (newest first).
-    // We pin A (the OLDEST): if pinning worked it would jump to the front.
+    // We pin A (the OLDEST): once pinning works it jumps to the front.
     $base = \Drupal::time()->getRequestTime();
     $nodeA = $this->addNode($group, 'page', ['title' => 'Alpha', 'created' => $base + 1]);
     $nodeB = $this->addNode($group, 'page', ['title' => 'Bravo', 'created' => $base + 2]);
@@ -232,19 +230,18 @@ class PinnedStreamOrderingTest extends GroupsKernelTestBase {
     $this->flagService->flag($this->pinFlag, $nodeA, $this->createUser());
     $rows = $this->executeStream($group->id());
 
-    // FINDING: A does NOT lead. Because pin_sort is secondary to created DESC,
-    // the order is unchanged (D, C, B, A). If pinning worked as #38 intends, the
-    // order would be [A, D, C, B] and A would be first.
-    $this->assertNotSame(
+    // FIXED: A leads. `pin_sort` is now the PRIMARY sort key, so the pinned
+    // oldest node floats to the front and the remaining nodes keep created DESC:
+    // the intended [A, D, C, B].
+    $this->assertSame(
       (int) $nodeA->id(),
       $this->nidsInOrder($rows)[0],
-      'DEFECT: the pinned node is NOT first — pin_sort is only a secondary sort key.'
+      'The pinned node leads the stream (pin_sort is the primary sort key).'
     );
     $this->assertSame(
-      [(int) $nodeD->id(), (int) $nodeC->id(), (int) $nodeB->id(), (int) $nodeA->id()],
+      [(int) $nodeA->id(), (int) $nodeD->id(), (int) $nodeC->id(), (int) $nodeB->id()],
       $this->nidsInOrder($rows),
-      'DEFECT: order is still created DESC (D, C, B, A) despite A being pinned. '
-      . 'When fixed, expect [A, D, C, B].'
+      'Pinned A leads, remaining nodes stay created DESC: [A, D, C, B].'
     );
 
     // DISTINCT / no-duplicate half still holds: 4 rows, no duplicate nids, even
@@ -299,9 +296,13 @@ class PinnedStreamOrderingTest extends GroupsKernelTestBase {
    * concrete: `distinct: true` is NOT a per-node dedupe here.
    *
    * This asserts the CURRENT (defective) behavior so the suite fails loudly if a
-   * future change silently alters it; the accompanying report flags it as a bug
-   * for do_group_pin / the stream view to fix (e.g. drop the relationship id from
-   * the row, or dedupe on nid).
+   * future change silently alters it. Defect 2 is LATENT (one group_node
+   * relationship per (group, node) is the norm, so no fan-out occurs in
+   * practice) and was deliberately LEFT AS-IS by the #52 fix: excluding the
+   * relationship id from the SELECT — or otherwise collapsing on nid — cannot be
+   * done from hook_views_query_alter without risking the group-scoping the
+   * relationship provides, and Defect 1 (the real user-facing bug) was the fix's
+   * mandate. Defect 2 remains tracked in #52 as characterization.
    */
   public function testDistinctDoesNotDedupeRelationshipFanOut(): void {
     $group = $this->createGroup();
@@ -343,8 +344,8 @@ class PinnedStreamOrderingTest extends GroupsKernelTestBase {
    *  - the stream after unpin is the plain created-DESC order (B, A) with no
    *    residual duplicate rows from the (now absent) flagging join.
    *
-   * When the ordering is fixed, add an assertion here that while A is pinned it
-   * leads, and that unpinning returns to (B, A).
+   * Now that ordering is fixed (Defect 1 of #52), this also asserts that while A
+   * is pinned it LEADS the stream, and that unpinning returns to (B, A).
    */
   public function testPinUnpinTogglesFlagAndLeavesCleanOrder(): void {
     $group = $this->createGroup();
@@ -359,6 +360,13 @@ class PinnedStreamOrderingTest extends GroupsKernelTestBase {
     $this->assertTrue(
       (bool) $this->flagService->getFlagging($this->pinFlag, $nodeA),
       'After flagging, a pin flagging exists for A.'
+    );
+
+    // While A is pinned it leads the stream (A before the newer B).
+    $this->assertSame(
+      [(int) $nodeA->id(), (int) $nodeB->id()],
+      $this->nidsInOrder($this->executeStream($group->id())),
+      'While pinned, the older node A leads the newer node B: [A, B].'
     );
 
     // Unpin A: the flagging row is gone (clean toggle).

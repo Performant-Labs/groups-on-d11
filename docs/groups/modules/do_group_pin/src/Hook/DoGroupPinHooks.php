@@ -87,19 +87,32 @@ class DoGroupPinHooks {
 
     $query->addRelationship('pin_flagging', $join, 'flagging');
 
-    // TODO(group4-VERIFY): The stream view sets query option distinct: true and
-    // adds the 'group_relationship' relationship. Confirm at runtime on Group
-    // 4.x that this added LEFT JOIN + the CASE order-by below still produce the
-    // expected pin-first ordering (the flagging alias must survive the DISTINCT
-    // rewrite). Static analysis cannot confirm the generated SQL; verify with a
-    // real request to group/%group/stream after the composer swap.
-    // Pin-first sort: pinned items float to the top.
+    // Pin-first sort: pinned items must LEAD the stream, not merely break ties.
+    //
+    // hook_views_query_alter runs AFTER the view registers its own sorts, so the
+    // view's `created DESC` sort is already the first entry in $query->orderby.
+    // Appending the pin order-by (the historical bug, #52) made `pin_sort` a
+    // SECONDARY key — `ORDER BY created DESC, pin_sort DESC` — so a pinned older
+    // node never led. We must make the pin the PRIMARY key while preserving the
+    // view's remaining sorts (created DESC) as the secondary ordering.
+    //
+    // Group 4.x note: the view sets `distinct: true` and reaches Group through
+    // the `group_relationship` relationship. The pin_flagging LEFT JOIN's alias
+    // survives the DISTINCT rewrite because the CASE formula references it, so
+    // the pin-first ordering holds on the real generated SQL (verified via the
+    // executed-view kernel test PinnedStreamOrderingTest).
+    //
+    // Add the pin order-by, then move it to the FRONT of the orderby list so it
+    // sorts before `created DESC`. array_unshift on $query->orderby (rather than
+    // clear-and-rebuild) keeps every other registered sort intact and in order.
     $query->addOrderBy(
       NULL,
       'CASE WHEN pin_flagging.id IS NOT NULL THEN 1 ELSE 0 END',
       'DESC',
       'pin_sort',
     );
+    $pin_order = array_pop($query->orderby);
+    array_unshift($query->orderby, $pin_order);
   }
 
 }
