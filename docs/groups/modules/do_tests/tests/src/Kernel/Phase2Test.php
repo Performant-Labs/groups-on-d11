@@ -1,72 +1,73 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Drupal\Tests\do_tests\Kernel;
 
-use Drupal\KernelTests\KernelTestBase;
-
 /**
- * Phase 2 integration tests — Group Types & Membership Models.
+ * Phase 2 behavioral tests — Group creation & membership models.
+ *
+ * The original Phase 2 suite only asserted assembled YAML *ships* (the
+ * group_type / group_tags vocabularies, field_group_type, the all_groups /
+ * pending_groups views, and `do_group_extras` in core.extension). Those are
+ * config-artifact smoke checks, not behavior; they are retired here in favor of
+ * behavioral coverage of what Phase 2 is really about — how membership is
+ * modeled on a community_group. The view/vocabulary/field artifacts belong to
+ * the clean-room config:import gate and Wave C per-module tests, not the
+ * integration base.
+ *
+ * The headline Group 4.x membership change gets real coverage here: creator
+ * auto-membership is now **form-only** (CR 2026-04-24). A programmatic
+ * Group::create()->save() no longer auto-adds the creator as a member; only the
+ * create *form* does. Silent-regression trap — asserted directly below.
  *
  * @group do_tests
  */
-class Phase2Test extends KernelTestBase {
+class Phase2Test extends GroupsKernelTestBase {
 
-  protected static $modules = ['system', 'field', 'text', 'taxonomy', 'user', 'node'];
+  /**
+   * A programmatic group save does NOT auto-add the creator as a member.
+   *
+   * This is the CR 2026-04-24 form-only behavior: contrast with addMember(),
+   * the explicit API path the base provides.
+   */
+  public function testProgrammaticSaveDoesNotAutoAddCreator(): void {
+    $creator = $this->getCurrentUser();
+    $group = $this->createGroup(['label' => 'No auto member', 'uid' => $creator->id()]);
 
-  protected $syncStorage;
+    // getMember() returns FALSE (not NULL) when the account is not a member.
+    $this->assertEmpty(
+      $group->getMember($creator),
+      'Group::create()->save() must NOT auto-add the creator (form-only in 4.x).'
+    );
+    $this->assertCount(0, $group->getMembers(), 'Programmatic save creates no memberships.');
 
-  protected function setUp(): void {
-    parent::setUp();
-    $config_path = DRUPAL_ROOT . '/../config/sync';
-    $this->syncStorage = new \Drupal\Core\Config\FileStorage($config_path);
+    // The explicit API path adds the membership.
+    $this->addMember($group, $creator);
+    $this->assertNotNull($group->getMember($creator), 'addMember() adds the creator explicitly.');
   }
 
   /**
-   * Tests group_type vocabulary config exists.
+   * addMember() can grant group roles at membership creation.
    */
-  public function testGroupTypeVocabulary(): void {
-    $data = $this->syncStorage->read('taxonomy.vocabulary.group_type');
-    $this->assertNotEmpty($data, 'group_type vocabulary exists in config/sync');
-    $this->assertEquals('Group Type', $data['name']);
-  }
+  public function testAddMemberWithRoles(): void {
+    $role = $this->createGroupRole([
+      'group_type' => self::GROUP_TYPE_ID,
+      'scope' => \Drupal\group\PermissionScopeInterface::INDIVIDUAL_ID,
+      'permissions' => [],
+    ]);
 
-  /**
-   * Tests field_group_type exists on community_group.
-   */
-  public function testFieldGroupType(): void {
-    $storage = $this->syncStorage->read('field.storage.group.field_group_type');
-    $this->assertNotEmpty($storage, 'field_group_type storage exists');
-    $this->assertEquals('entity_reference', $storage['type']);
+    $group = $this->createGroup(['label' => 'Roled group']);
+    $account = $this->createUser();
+    $this->addMember($group, $account, [$role->id()]);
 
-    $instance = $this->syncStorage->read('field.field.group.community_group.field_group_type');
-    $this->assertNotEmpty($instance, 'field_group_type instance exists on community_group');
-  }
-
-  /**
-   * Tests all_groups View config exists.
-   */
-  public function testAllGroupsView(): void {
-    $data = $this->syncStorage->read('views.view.all_groups');
-    $this->assertNotEmpty($data, 'all_groups view exists in config/sync');
-    $this->assertEquals('All Groups', $data['label']);
-  }
-
-  /**
-   * Tests pending_groups View config exists.
-   */
-  public function testPendingGroupsView(): void {
-    $data = $this->syncStorage->read('views.view.pending_groups');
-    $this->assertNotEmpty($data, 'pending_groups view exists in config/sync');
-    $this->assertEquals('Pending Groups', $data['label']);
-  }
-
-  /**
-   * Tests do_group_extras module is in core.extension.
-   */
-  public function testDoGroupExtrasEnabled(): void {
-    $ext = $this->syncStorage->read('core.extension');
-    $this->assertNotEmpty($ext, 'core.extension exists');
-    $this->assertArrayHasKey('do_group_extras', $ext['module'], 'do_group_extras is enabled');
+    $membership = $group->getMember($account);
+    $this->assertNotNull($membership, 'Membership was created.');
+    $role_ids = array_map(
+      static fn ($r) => $r->id(),
+      $membership->getRoles()
+    );
+    $this->assertContains($role->id(), $role_ids, 'Granted group role is present on the membership.');
   }
 
 }
