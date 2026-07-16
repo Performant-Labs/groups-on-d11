@@ -66,6 +66,7 @@ class Phase1Test extends KernelTestBase {
     foreach ($expected as $id) {
       $data = $this->syncStorage->read("group.relationship_type.$id");
       $this->assertNotEmpty($data, "Relationship type $id exists in config/sync");
+      $this->assertRelationPlugin($data, $id);
     }
   }
 
@@ -75,6 +76,34 @@ class Phase1Test extends KernelTestBase {
   public function testGroupMembershipType(): void {
     $data = $this->syncStorage->read('group.relationship_type.community_group-group_membership');
     $this->assertNotEmpty($data, 'Membership relationship type exists in config/sync');
+    $this->assertRelationPlugin($data, 'community_group-group_membership');
+  }
+
+  /**
+   * Asserts a group.relationship_type config carries a relation plugin id.
+   *
+   * Group 4.x renamed the stored property that holds the relation plugin id
+   * from `content_plugin` to `relation_type` (CR 2026-06-19, 4.0.0-alpha2); an
+   * update hook rewrites exported config. Accept either spelling so this suite
+   * stays green across the migration: `content_plugin` on 3.x-era exports and
+   * `relation_type` once the config has been re-exported under 4.x.
+   *
+   * TODO(group4-VERIFY): once config/sync has been re-exported on Group 4.x,
+   * tighten this to require `relation_type` and forbid the legacy
+   * `content_plugin` key, so a stale 3.x export is caught as a regression.
+   *
+   * @param array $data
+   *   The decoded relationship_type config.
+   * @param string $id
+   *   The relationship type id, for the failure message.
+   */
+  protected function assertRelationPlugin(array $data, string $id): void {
+    $has_plugin = array_key_exists('relation_type', $data)
+      || array_key_exists('content_plugin', $data);
+    $this->assertTrue(
+      $has_plugin,
+      "Relationship type $id declares a relation plugin id (relation_type on Group 4.x, content_plugin on 3.x)"
+    );
   }
 
   /**
