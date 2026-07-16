@@ -39,17 +39,35 @@ class DoMultigroupHooks {
    * Returns the relationship type ID for a given bundle.
    *
    * 'documentation' is abbreviated to 'doc' due to the 32-char ID limit.
+   *
+   * NOTE (Group 4.x): this returns a group_relationship *type* (config entity) ID
+   * — e.g. 'community_group-group_node-forum' — which is generated per group type
+   * and is UNCHANGED by the 4.x `content_plugin` → `relation_type` rename. That
+   * rename only touched the entity *property* that stores the relation plugin ID on
+   * the type; the type's own machine name / ID pattern is stable. So the IDs
+   * hard-coded here carry over as-is. This module never reads the renamed property,
+   * so no `content_plugin`/`relation_type` code change is required.
    */
   public static function relationshipTypeId(string $bundle): string {
+    // TODO(group4-VERIFY): confirm the '<group_type>-group_node-<bundle>' relationship
+    // type IDs (and the 'community_group-group_membership' ID below) still resolve on
+    // the installed Group 4.x — relationship type IDs are generated per group type, so
+    // verify against the site's actual group.relationship_type.* config after the
+    // updatedb runs (they should be identical to 3.x; the rename was property-only).
     return 'community_group-group_node-' . ($bundle === 'documentation' ? 'doc' : $bundle);
   }
 
   /**
-   * Returns all community_group memberships for the given account (Group 3.x).
+   * Returns all community_group memberships for the given account.
+   *
+   * Memberships are group_relationship entities where entity_id = uid and the type
+   * is the group's membership relationship type. This behaviour is the same in
+   * Group 3.x and 4.x: loadByProperties on group_relationship storage is not affected
+   * by the 4.x deltas (no `$roles` filter is used here — this loads ALL of the
+   * account's community_group memberships, so the "$roles filter must be an array"
+   * CR does not apply).
    */
   private function getUserMemberships(AccountInterface $account): array {
-    // In Group 3.x, memberships are group_relationship entities where
-    // entity_id = uid and the type ends with '-group_membership'.
     return $this->entityTypeManager
       ->getStorage('group_relationship')
       ->loadByProperties([
@@ -167,6 +185,15 @@ class DoMultigroupHooks {
       if (!isset($existing_gids[$gid])) {
         $group = \Drupal::entityTypeManager()->getStorage('group')->load($gid);
         if ($group) {
+          // Group 4.x: creating the group_relationship directly (rather than
+          // Group::addRelationship()) is unaffected by the "add entity to group no
+          // longer resaves the entity" change (CR 2025-05-23) — this code never
+          // relied on the node being resaved as a side effect. The create() array
+          // keys used here (type/gid/entity_id) are the same v3/v4 group_relationship
+          // fields.
+          // TODO(group4-VERIFY): confirm group_relationship::create() did not gain a
+          // new required field / changed key in 4.x (diff group/src/Entity/
+          // GroupRelationship* 3.x↔4.x). The three keys below were valid in 3.x.
           $storage->create([
             'type' => $relationship_type_id,
             'gid' => $gid,
