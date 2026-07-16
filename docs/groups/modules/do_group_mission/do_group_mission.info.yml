@@ -1,7 +1,7 @@
 name: DO Group Mission
 type: module
 description: 'Group mission statement sidebar block. Displays a summary of the group description on all group pages.'
-core_version_requirement: ^10 || ^11
+core_version_requirement: ^11.2
 package: Custom
 dependencies:
   - drupal:block

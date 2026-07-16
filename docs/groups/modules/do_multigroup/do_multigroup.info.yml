@@ -6,7 +6,7 @@ description: 'Allows content to be posted in multiple groups simultaneously.'
 # still let the module enable on Drupal 10, where group:^4 cannot install. The exact
 # core pin is a site/epic decision owned by the runbook (issue #4) and is
 # [VERIFY on build] — bump to ^11.2 (or ^11) in lockstep with the site composer swap.
-core_version_requirement: ^10 || ^11
+core_version_requirement: ^11.2
 package: 'Custom'
 dependencies:
   - drupal:node
