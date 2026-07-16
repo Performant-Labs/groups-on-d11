@@ -218,6 +218,11 @@ jobs:
             do_tests do_group_extras do_group_language do_group_mission \
             do_group_pin do_multigroup do_notifications do_profile_stats do_discovery
           php vendor/bin/drush user:password admin 'admin'
+          # Ensure the served process can read settings + write the files dir.
+          chmod -R a+rX web/sites/default
+          mkdir -p web/sites/default/files && chmod -R 777 web/sites/default/files
+          echo "\$settings['trusted_host_patterns'] = ['^127\\.0\\.0\\.1$', '^localhost$'];" \
+            | sudo tee -a web/sites/default/settings.php >/dev/null
 
       - name: Serve the site
         run: |
@@ -232,8 +237,15 @@ jobs:
             fi
             echo "waiting for site ($i) — last HTTP $code ..."; sleep 2
           done
+          # Diagnostics for the next person (see TODO(#33) above the e2e job):
+          # a persistent 302 on /user/login means the served process is not
+          # picking up the installed settings.php and is bouncing to
+          # /core/install.php. Capture the redirect target + response headers.
           echo "site did not come up" >&2
-          echo "----- php server log -----" >&2; cat /tmp/php-server.log >&2 || true
+          echo "----- curl -i /user/login -----" >&2
+          curl -s -i http://127.0.0.1:8080/user/login | head -20 >&2 || true
+          echo "----- php server log (tail) -----" >&2
+          tail -40 /tmp/php-server.log >&2 || true
           exit 1
 
       - name: Cache Playwright browsers
