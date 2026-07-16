@@ -54,10 +54,22 @@ class DoGroupPinHooks {
    */
   #[Hook('views_query_alter')]
   public function viewsQueryAlter(ViewExecutable $view, mixed $query): void {
+    // The stream view keeps the machine name 'group_content_stream' under
+    // Group 4.x — the id is a stable config machine name and was not renamed by
+    // the GroupContent → GroupRelationship rework. Verified against the shipped
+    // config/views.view.group_content_stream.yml (base_table: node_field_data,
+    // relationship plugin_id: group_relationship).
     if ($view->id() !== 'group_content_stream') {
       return;
     }
 
+    // Group 4.x compatibility: the flag join hangs off the view's NODE base
+    // table (node_field_data.nid), NOT off Group's relationship storage. The
+    // group_content_stream view has base_table: node_field_data and reaches
+    // Group data through the 'group_relationship' Views relationship, so the
+    // flagging LEFT JOIN below is independent of Group's storage rename
+    // (group_content_field_data → group_relationship_field_data in 4.x). No
+    // table-alias change is required here for 4.x.
     $definition = [
       'type' => 'LEFT',
       'table' => 'flagging',
@@ -75,6 +87,12 @@ class DoGroupPinHooks {
 
     $query->addRelationship('pin_flagging', $join, 'flagging');
 
+    // TODO(group4-VERIFY): The stream view sets query option distinct: true and
+    // adds the 'group_relationship' relationship. Confirm at runtime on Group
+    // 4.x that this added LEFT JOIN + the CASE order-by below still produce the
+    // expected pin-first ordering (the flagging alias must survive the DISTINCT
+    // rewrite). Static analysis cannot confirm the generated SQL; verify with a
+    // real request to group/%group/stream after the composer swap.
     // Pin-first sort: pinned items float to the top.
     $query->addOrderBy(
       NULL,
