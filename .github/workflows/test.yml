@@ -125,13 +125,19 @@ jobs:
   #
   # This job stands up a full Drupal install, imports the assembled config,
   # enables the do_* modules, serves the site, and runs the Playwright suite
-  # from #30. Standing up a full config:import in a clean room is genuinely
-  # harder than the kernel path (missing contrib deps such as pathauto/flag on
-  # some config, theme dependencies, etc.), so this pass marks the job
-  # `continue-on-error` — it will NOT block the kernel deliverable. See #33.
+  # from #30. The install + config:import + `drush en` all SUCCEED in CI (which
+  # validates the assembled config end-to-end); the remaining blocker is
+  # *serving* the installed site.
   #
-  # TODO(#33): remove `continue-on-error` once the clean-room config:import +
-  # served-site bring-up is confirmed green in Actions.
+  # KNOWN BLOCKER (TODO #33): serving the docroot with `php -S ... web/.ht.router.php`
+  # (and, earlier, `drush runserver`) returns HTTP 302 -> /core/install.php on
+  # every request — the served PHP process does not resolve the `$databases`
+  # connection that `drush site:install` wrote to sites/default/settings.php, so
+  # Drupal reports itself uninstalled. Fixing this needs the served process to
+  # read the installed settings (e.g. explicit SIMPLETEST/settings.local wiring,
+  # or a container image that already carries a booted site). Until then the job
+  # is `continue-on-error` so it never blocks the kernel deliverable; the serve
+  # step prints `curl -i /user/login` + the server log for the next iteration.
   # ---------------------------------------------------------------------------
   e2e:
     name: E2E (Playwright)
@@ -221,8 +227,6 @@ jobs:
           # Ensure the served process can read settings + write the files dir.
           chmod -R a+rX web/sites/default
           mkdir -p web/sites/default/files && chmod -R 777 web/sites/default/files
-          echo "\$settings['trusted_host_patterns'] = ['^127\\.0\\.0\\.1$', '^localhost$'];" \
-            | sudo tee -a web/sites/default/settings.php >/dev/null
 
       - name: Serve the site
         run: |
