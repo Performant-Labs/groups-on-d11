@@ -449,6 +449,31 @@ page: body=YES files=NO tags=YES comment=NONE
 > [!WARNING]
 > Review [TROUBLESHOOTING.md](../playbook/agent/troubleshooting.md) before running tests. Kill zombie processes first: `ddev exec kill-zombies.sh`
 
+> [!IMPORTANT]
+> **Provision the test tooling first.** A production `composer install` does not pull
+> PHPUnit or Drupal's test base classes. Before any `phpunit` step, add the dev
+> dependency once:
+> ```bash
+> ddev composer require --dev "drupal/core-dev:^11.4" -W
+> ```
+> Then invoke the vendored binary with the standard env (DDEV's `ddev exec phpunit`
+> shim may not be present):
+> ```bash
+> ddev exec 'SIMPLETEST_DB=mysql://db:db@db/db SIMPLETEST_BASE_URL=https://web \
+>   php vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+>   web/modules/custom/do_tests/tests/src/Kernel/'
+> ```
+
+> [!NOTE]
+> **Clean-room vs. target-environment config.** A few `docs/groups/config/*.yml`
+> entries carry drupal.org-environment dependencies and are **not** imported on a
+> standard-profile clean-room build (they are placed in the real environment per
+> Step 600h): the three `block.block.do_*` blocks (depend on the `bluecheese`
+> theme), `pathauto.pattern.group_relationship` (needs `pathauto`), and
+> `user.role.community` + its two `system.action.user_*_role_action.community`
+> actions (reference Contact and drupal.org-only node types). Exclude these seven
+> from `config/sync` when validating the clean-room `config:import`.
+
 ### PHPUnit — Integration (`do_tests`)
 
 Create `web/modules/custom/do_tests/tests/src/Kernel/Phase1Test.php`:
