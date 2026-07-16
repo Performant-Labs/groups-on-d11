@@ -257,6 +257,7 @@ cp docs/groups/config/field.field.group.community_group.field_group_description.
 cp docs/groups/config/field.field.group.community_group.field_group_visibility.yml config/sync/
 cp docs/groups/config/field.field.group.community_group.field_group_image.yml config/sync/
 cp docs/groups/config/field.field.group_relationship.community_group-group_membership.group_roles.yml config/sync/
+cp docs/groups/config/core.entity_form_display.group.community_group.default.yml config/sync/
 cp docs/groups/config/core.entity_form_display.group_relationship.community_group-group_membership.default.yml config/sync/
 cp docs/groups/config/core.entity_view_display.group_relationship.community_group-group_membership.default.yml config/sync/
 ddev drush config:import -y
