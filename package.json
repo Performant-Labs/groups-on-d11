@@ -1,0 +1,13 @@
+{
+  "name": "groups-on-d11-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Phase-1 Playwright E2E smoke suite for groups-on-d11 (Drupal 11.4 + drupal/group 4.x)",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:phase1": "playwright test tests/e2e/phase1.spec.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1"
+  }
+}
