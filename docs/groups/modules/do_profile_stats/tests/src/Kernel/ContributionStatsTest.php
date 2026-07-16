@@ -18,7 +18,7 @@ use Symfony\Component\Routing\Route;
  *
  * Risk area RA7 / issue #41 (Wave C, C3) of epic #31. The ContributionStats
  * block's {@see ContributionStatsBlock::countGroups()} runs a *raw* SQL select
- * over `group_relationship_field_data` (columns `gid`/`uid`/`type`) with a
+ * over `group_relationship_field_data` (columns `gid`/`entity_id`/`type`) with a
  * `gr.type LIKE '%group_membership'` filter and `COUNT(DISTINCT gr.gid)`. That
  * query hard-codes the Group **4.x** data-table + column names and the
  * `group_membership` plugin-id suffix, so static analysis alone cannot confirm
@@ -26,33 +26,34 @@ use Symfony\Component\Routing\Route;
  * point of RA7. This suite builds a fixture ground truth via the canonical 4.x
  * storage APIs and executes the block's real query against a live DB.
  *
- * DEFECT this suite pins down (RA7 made concrete):
+ * DEFECT this suite drove to a fix (RA7 made concrete — issue #63):
  *   In Group 4.x the membership relationship row's `uid` column is the
  *   *record author* (whoever added the membership — the group owner for
  *   API-added members), while the **member** referenced by the membership is in
- *   the `entity_id` column. `countGroups()` filters on `gr.uid`, so it counts
- *   groups whose membership records a user *authored*, NOT the groups a user is
- *   a *member of*. Concretely, a member added via the API to someone else's
- *   group has their profile report **0** groups
- *   ({@see self::testMemberAddedByAnotherIsMiscountedAsZero()}), while the group
- *   owner is credited with every membership record they created
- *   ({@see self::testCountIsByRecordAuthorNotMember()}). The correct column is
- *   `gr.entity_id` ({@see self::testEntityIdColumnHoldsTheActualMember()}).
- *   LEFT AS-IS (characterization) — surfacing it, with the fix tracked in #41 /
- *   epic #31, mirrors the #38 do_group_pin approach.
+ *   the `entity_id` column. The shipped query originally filtered on `gr.uid`,
+ *   so it counted groups whose membership records a user *authored*, NOT the
+ *   groups a user is a *member of*. #63 corrected the filter to `gr.entity_id`.
+ *   These tests now assert the *correct* member-centric behavior: a member added
+ *   via the API to someone else's group is counted
+ *   ({@see self::testMemberAddedByAnotherIsCounted()}); the count keys on the
+ *   member, not the record author, so the owner who merely authored a member's
+ *   record is NOT credited ({@see self::testCountIsByMemberNotRecordAuthor()});
+ *   and `gr.entity_id` is the column that holds the actual member
+ *   ({@see self::testEntityIdColumnHoldsTheActualMember()}).
  *
- * What IS correct and is asserted as such: the `%group_membership` LIKE excludes
- * `group_node` content relations ({@see self::testLikeExcludesContentRelations()}),
- * `COUNT(DISTINCT gr.gid)` de-dupes ({@see self::testDistinctCollapsesPerGroup()}),
- * the v4 table + `gid`/`uid`/`type` columns exist
+ * What IS also correct and asserted as such: the `%group_membership` LIKE
+ * excludes `group_node` content relations
+ * ({@see self::testLikeExcludesContentRelations()}), `COUNT(DISTINCT gr.gid)`
+ * de-dupes ({@see self::testDistinctCollapsesPerGroup()}), the v4 table +
+ * `gid`/`entity_id`/`type` columns exist
  * ({@see self::testV4RelationshipSchemaColumns()}), and the catch → 0 fallback
  * holds for an unknown uid ({@see self::testUnknownUidReturnsZero()}).
  *
  * Layer choice: kernel with live DB + direct query execution — the risk is
  * entirely in the raw SQL against the v4 schema, which executing the query and
  * inspecting the count asserts far more precisely than scraping rendered HTML.
- * No green is faked: the defect tests assert the code's *actual* v4 output and
- * document the intended behavior alongside.
+ * No green is faked: each test asserts the code's *actual* v4 output against a
+ * fixture ground truth built through the canonical 4.x storage APIs.
  *
  * @group do_tests
  * @group do_profile_stats
@@ -122,69 +123,71 @@ final class ContributionStatsTest extends GroupsKernelTestBase {
   }
 
   /**
-   * DEFECT: a member added via the API to another user's group counts as 0.
+   * CORRECT (#63 fix): a member added via the API to another user's group counts.
    *
-   * Ground truth: the user IS a member of exactly one group. Intended result of
-   * a "groups" contribution stat is therefore 1. But `countGroups()` filters on
-   * `gr.uid` — the membership record's *author* (the group owner, who added the
-   * member), not the member — so it returns 0. This is the RA7 v4-schema bug:
-   * `uid` is the record author, the member is in `entity_id`.
+   * Ground truth: the user IS a member of exactly one group, so the "groups"
+   * contribution stat is 1. The corrected query filters on `gr.entity_id` — the
+   * account the membership *references* — not `gr.uid` (the record author, i.e.
+   * the group owner who added the member), so the member is credited even though
+   * someone else authored their membership row.
    */
-  public function testMemberAddedByAnotherIsMiscountedAsZero(): void {
+  public function testMemberAddedByAnotherIsCounted(): void {
     // Current user (the group owner/record author) creates the group; a
     // different user is added as a member via the API path.
     $member = $this->createUser();
     $group = $this->createGroup();
     $this->addMember($group, $member);
 
-    // Intended (member-centric) ground truth: the user is in 1 group.
+    // Member-centric ground truth: the user is in 1 group.
     $intended = $this->distinctGroupsWhereMember((int) $member->id());
     $this->assertSame(1, $intended, 'Fixture ground truth: the user is a member of one group.');
 
-    // Actual v4 behavior of the shipped query: 0 (filters the wrong column).
-    $this->assertSame(0, $this->countGroups((int) $member->id()),
-      'DEFECT: countGroups() filters gr.uid (record author), not the member, so a member added by someone else counts 0.');
+    // Corrected v4 behavior: the member is counted regardless of who authored
+    // the membership record.
+    $this->assertSame(1, $this->countGroups((int) $member->id()),
+      'countGroups() filters gr.entity_id (the member), so a member added by someone else is counted.');
   }
 
   /**
-   * DEFECT: the count is by membership-record author, not by member.
+   * CORRECT (#63 fix): the count is by member, not by membership-record author.
    *
    * The group owner authored the membership records for every member they added,
-   * so `countGroups(owner)` counts those groups — even though the number is only
-   * coincidentally right for groups the owner also belongs to. Here the owner is
-   * a member of the one group they created, and every added member's record is
-   * authored by the owner, so `countGroups(owner)` == 1 (one distinct gid),
-   * demonstrating the count tracks `gr.uid` = author.
+   * but authoring a record no longer credits the owner. Here the owner is not
+   * itself a member of the group (creating a group via the API adds no creator
+   * membership in v4 — CR 2026-04-24), so `countGroups(owner)` == 0, while each
+   * added member counts 1 — demonstrating the count tracks `gr.entity_id` = the
+   * member, not `gr.uid` = the author.
    */
-  public function testCountIsByRecordAuthorNotMember(): void {
+  public function testCountIsByMemberNotRecordAuthor(): void {
     // Current user is the group owner / record author.
     $owner = $this->getCurrentUser();
     $group = $this->createGroup();
 
-    // Add three distinct members; the owner authors all three records.
+    // Add three distinct members; the owner authors all three records but is not
+    // itself a member.
     $members = [$this->createUser(), $this->createUser(), $this->createUser()];
     foreach ($members as $m) {
       $this->addMember($group, $m);
     }
 
-    // All membership rows for this group carry gr.uid = owner, gr.gid = 1.
-    // countGroups(owner) collapses them to 1 distinct gid.
-    $this->assertSame(1, $this->countGroups((int) $owner->id()),
-      'countGroups() credits the record author (owner) with the group, DISTINCT-collapsing the three authored membership rows.');
+    // The owner authored the rows but is not a member, so counts 0.
+    $this->assertSame(0, $this->countGroups((int) $owner->id()),
+      'countGroups() no longer credits the record author (owner), who is not a member of the group.');
 
-    // Each actual member, by contrast, counts 0 (same defect as above).
+    // Each actual member counts 1 (they belong to the one group).
     foreach ($members as $m) {
-      $this->assertSame(0, $this->countGroups((int) $m->id()),
-        'Each added member counts 0 because the query keys on the record author.');
+      $this->assertSame(1, $this->countGroups((int) $m->id()),
+        'Each added member counts 1 because the query keys on gr.entity_id (the member).');
     }
   }
 
   /**
    * The `entity_id` column — not `uid` — holds the actual member.
    *
-   * Pins the root cause: filtering `gr.entity_id` yields the member-centric
-   * ground truth the stat intends, so a corrected query would read `entity_id`.
-   * A member in 3 groups counts 3 via entity_id (and 0 via the shipped uid path).
+   * Pins the root cause and the fix: filtering `gr.entity_id` yields the
+   * member-centric ground truth the stat intends, and the corrected query reads
+   * `entity_id`. A member in 3 groups counts 3 both via the reference helper and
+   * via the shipped query.
    */
   public function testEntityIdColumnHoldsTheActualMember(): void {
     $member = $this->createUser();
@@ -194,8 +197,8 @@ final class ContributionStatsTest extends GroupsKernelTestBase {
 
     $this->assertSame(3, $this->distinctGroupsWhereMember((int) $member->id()),
       'The member is correctly counted in 3 groups when filtering on entity_id (the real member column).');
-    $this->assertSame(0, $this->countGroups((int) $member->id()),
-      'The shipped gr.uid path still returns 0 for the same member — the defect, in one place.');
+    $this->assertSame(3, $this->countGroups((int) $member->id()),
+      'The corrected gr.entity_id query returns 3 for the same member — the count keys on the member.');
   }
 
   /**
@@ -203,50 +206,53 @@ final class ContributionStatsTest extends GroupsKernelTestBase {
    *
    * Adding a node to a group creates a `community_group-group_node-*`
    * relationship row; the membership LIKE must not match it. Asserted from the
-   * record-author's perspective (the only perspective the query keys on): the
-   * owner authored one membership record and one content record in the same
-   * group — the count is 1 (membership only), proving the content row is
-   * excluded, not folded in.
+   * member's perspective (the perspective the corrected query keys on): the
+   * member has one membership row in the group, and a group_node content row
+   * *also referencing that member* exists in the same group — the count is 1
+   * (membership only), proving the content row is excluded, not folded in.
    */
   public function testLikeExcludesContentRelations(): void {
-    $owner = $this->getCurrentUser();
+    $member = $this->createUser();
     $group = $this->createGroup();
-    // The owner is credited with one membership record for this group.
-    $this->addMember($group, $this->createUser());
-    // The owner also authors a group_node content relation in the same group.
-    $this->addNode($group, 'event', ['uid' => $owner->id()]);
+    // The member has one membership row for this group.
+    $this->addMember($group, $member);
+    // A group_node content relation in the same group references the member as
+    // the node author, so a row with gr.entity_id-adjacent content exists to be
+    // excluded by the membership LIKE.
+    $this->addNode($group, 'event', ['uid' => $member->id()]);
 
-    // Sanity: the fixture really created a group_node row to be excluded.
+    // Sanity: the fixture really created a group_node row in this group.
     $node_rows = (int) $this->container->get('database')
       ->select('group_relationship_field_data', 'gr')
-      ->condition('gr.uid', (int) $owner->id())
+      ->condition('gr.gid', (int) $group->id())
       ->condition('gr.type', '%group_node%', 'LIKE')
       ->countQuery()->execute()->fetchField();
-    $this->assertGreaterThanOrEqual(1, $node_rows, 'Fixture created a group_node content row authored by the owner.');
+    $this->assertGreaterThanOrEqual(1, $node_rows, 'Fixture created a group_node content row in the group.');
 
     // Count stays 1 (the membership row) — the content row is excluded by LIKE.
-    $this->assertSame(1, $this->countGroups((int) $owner->id()),
+    $this->assertSame(1, $this->countGroups((int) $member->id()),
       'The %group_membership LIKE counts only the membership row and excludes the group_node content relation.');
   }
 
   /**
    * CORRECT: COUNT(DISTINCT gr.gid) collapses multiple rows per group.
    *
-   * The record author holds two membership rows for the SAME group (two members
-   * they added), plus a content row. DISTINCT on gid must collapse these to a
-   * single group. Asserting 1 proves the DISTINCT is load-bearing.
+   * The member has one membership row in a group, and a group_node content row
+   * shares that same gid. Because the corrected query keys on gr.entity_id = the
+   * member, filters to `%group_membership`, and DISTINCTs on gid, the rows in the
+   * single group must collapse to exactly 1 — proving the DISTINCT is
+   * load-bearing and the content row is not folded in.
    */
   public function testDistinctCollapsesPerGroup(): void {
-    $owner = $this->getCurrentUser();
+    $member = $this->createUser();
     $group = $this->createGroup();
-    // Two membership records for the same gid, both authored by the owner.
-    $this->addMember($group, $this->createUser());
-    $this->addMember($group, $this->createUser());
-    // A content row for the same gid too.
-    $this->addNode($group, 'event', ['uid' => $owner->id()]);
+    // One membership row for this group; a content row shares the same gid.
+    $this->addMember($group, $member);
+    $this->addNode($group, 'event', ['uid' => $member->id()]);
 
-    $this->assertSame(1, $this->countGroups((int) $owner->id()),
-      'COUNT(DISTINCT gr.gid) collapses the two same-group membership rows to a single group.');
+    // Membership in the same group must collapse to a single distinct gid.
+    $this->assertSame(1, $this->countGroups((int) $member->id()),
+      'COUNT(DISTINCT gr.gid) collapses the membership + same-group content rows to a single group for the member.');
   }
 
   /**
@@ -263,39 +269,39 @@ final class ContributionStatsTest extends GroupsKernelTestBase {
   }
 
   /**
-   * Build() surfaces the (defective) countGroups() number into #groups.
+   * Build() surfaces the corrected countGroups() number into #groups.
    *
    * Exercises the full public path: getContextUser() (via a route carrying the
-   * user parameter) → countGroups() → the themed build array. The record author
-   * viewing their own profile sees the count keyed on gr.uid; here the owner
-   * authored a membership record in each of two groups (by adding a member to
-   * each) and #groups surfaces 2 — confirming build() renders exactly what
-   * countGroups() computes, defect included.
+   * user parameter) → countGroups() → the themed build array. A member added to
+   * two distinct groups viewing their own profile sees the count keyed on
+   * gr.entity_id; #groups surfaces 2 — confirming build() renders exactly what
+   * countGroups() computes.
    *
    * Note: creating a group via the API (`Group::create()->save()`) does NOT
    * auto-add a creator membership in v4 (CR 2026-04-24, form-only — see #36), so
    * the membership records are established explicitly via addMember().
    */
   public function testBuildRendersComputedGroupCount(): void {
-    $owner = $this->getCurrentUser();
-    // Owner authors a membership record in each of two groups.
+    // A single member is added to each of two groups (by the current user, the
+    // record author); the member is the counted profile subject.
+    $member = $this->createUser();
     foreach ([$this->createGroup(), $this->createGroup()] as $group) {
-      $this->addMember($group, $this->createUser());
+      $this->addMember($group, $member);
     }
 
-    $this->assertSame(2, $this->countGroups((int) $owner->id()),
-      'Precondition: the owner authored a membership record in each of their two groups.');
+    $this->assertSame(2, $this->countGroups((int) $member->id()),
+      'Precondition: the member belongs to two groups (gr.entity_id keyed).');
 
     // getContextUser() reads the `user` route parameter off the current route
     // match. Build a request matched to a route with a {user} slug and the
     // target user upcast into its attributes, then push it so CurrentRouteMatch
-    // resolves getParameter('user') to $owner.
+    // resolves getParameter('user') to $member.
     $route = new Route('/user/{user}', [], ['user' => '\d+']);
-    $request = Request::create('/user/' . $owner->id());
+    $request = Request::create('/user/' . $member->id());
     $request->setSession(new Session(new MockArraySessionStorage()));
     $request->attributes->set(RouteObjectInterface::ROUTE_NAME, 'entity.user.canonical');
     $request->attributes->set(RouteObjectInterface::ROUTE_OBJECT, $route);
-    $request->attributes->set('user', $owner);
+    $request->attributes->set('user', $member);
     $this->container->get('request_stack')->push($request);
 
     /** @var \Drupal\Core\Block\BlockManagerInterface $block_manager */
