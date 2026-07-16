@@ -95,13 +95,54 @@ fi
 mkdir -p "${MODULES_DST}"
 
 modcount=0
+MODULE_NAMES=()
 for dir in "${MODULES_SRC}"/*/; do
   [[ -d "${dir}" ]] || continue
   name="$(basename -- "${dir}")"
   rm -rf -- "${MODULES_DST:?}/${name}"
   cp -R -- "${dir%/}" "${MODULES_DST}/${name}"
+  MODULE_NAMES+=("${name}")
   modcount=$((modcount + 1))
 done
 echo "==> modules: copied ${modcount} custom module(s) into web/modules/custom/"
+
+# --- 3. Register enabled modules in core.extension --------------------------
+# The committed baseline `core.extension.yml` predates the do_* modules, so it
+# does not list them (nor `flag`, which the assembled flag.* config depends on).
+# The runbook enables these with `drush en` and re-exports; here we patch
+# core.extension so the assembled config/sync is self-consistent — the do_tests
+# kernel suite asserts do_group_extras / do_multigroup are enabled, and the
+# clean-room `config:import` needs every module its config references present.
+CORE_EXT="${CONFIG_DST}/core.extension.yml"
+if [[ -f "${CORE_EXT}" ]]; then
+  # Enable the copied custom modules plus `flag` (required by composer.json and
+  # referenced by the assembled flag.* config). `pathauto` is intentionally NOT
+  # added: its one config entry is in the excluded env-specific set (§3.6).
+  ENABLE_MODULES="$(printf '%s\n' "${MODULE_NAMES[@]}" flag)"
+  export ENABLE_MODULES
+  AUTOLOAD="${REPO_ROOT}/vendor/autoload.php"
+  if [[ ! -f "${AUTOLOAD}" ]]; then
+    echo "ERROR: ${AUTOLOAD} missing — run 'composer install' before assemble-config" >&2
+    exit 1
+  fi
+  php -r '
+    require $argv[2];
+    $file = $argv[1];
+    $ext = \Symfony\Component\Yaml\Yaml::parseFile($file);
+    if (!isset($ext["module"]) || !is_array($ext["module"])) { $ext["module"] = []; }
+    foreach (preg_split("/\s+/", trim(getenv("ENABLE_MODULES"))) as $m) {
+      if ($m !== "" && !array_key_exists($m, $ext["module"])) { $ext["module"][$m] = 0; }
+    }
+    // Keep the module list sorted by weight then name, as Drupal exports it.
+    uksort($ext["module"], function ($a, $b) use ($ext) {
+      return [$ext["module"][$a], $a] <=> [$ext["module"][$b], $b];
+    });
+    file_put_contents($file, \Symfony\Component\Yaml\Yaml::dump($ext, 4, 2));
+  ' "${CORE_EXT}" "${AUTOLOAD}" \
+    || { echo "ERROR: failed to patch core.extension.yml" >&2; exit 1; }
+  echo "==> core.extension: registered custom do_* modules + flag as enabled"
+else
+  echo "WARNING: ${CORE_EXT} not found; skipping module registration" >&2
+fi
 
 echo "==> assemble-config: done"

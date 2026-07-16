@@ -221,14 +221,20 @@ jobs:
 
       - name: Serve the site
         run: |
-          php vendor/bin/drush runserver 127.0.0.1:8080 >/tmp/drush-server.log 2>&1 &
+          # PHP's built-in server with Drupal's router is more reliable in CI
+          # than `drush runserver`. Serve the web/ docroot on port 8080.
+          php -S 127.0.0.1:8080 -t web web/.ht.router.php >/tmp/php-server.log 2>&1 &
+          echo "server PID $!"
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8080/user/login >/dev/null 2>&1; then
-              echo "site is serving"; exit 0
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/user/login || true)"
+            if [ "$code" = "200" ]; then
+              echo "site is serving (HTTP $code)"; exit 0
             fi
-            echo "waiting for site ($i)..."; sleep 2
+            echo "waiting for site ($i) — last HTTP $code ..."; sleep 2
           done
-          echo "site did not come up" >&2; cat /tmp/drush-server.log >&2; exit 1
+          echo "site did not come up" >&2
+          echo "----- php server log -----" >&2; cat /tmp/php-server.log >&2 || true
+          exit 1
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
