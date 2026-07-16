@@ -150,16 +150,15 @@ jobs:
   # passes test 3 on a local PHP 8.3 runner, where the field is not placed on the
   # add form — an environment-dependent auto-form-display outcome that the repo
   # has no explicit entity_form_display.group.community_group.default to pin.)
-  # The fix belongs with the #30/#43 test fixture (fill Description) or an
-  # explicit committed form display — NOT the serve pipeline — so the job stays
-  # `continue-on-error` (non-blocking) rather than faking green. See the "E2E
-  # failure diagnostics" step for the captured error-context.
+  # As of #44 the community_group add-form display is committed (description +
+  # visibility are required) and the phase-1 spec fills them (#53 follow-up), so
+  # the suite is green end-to-end and this job is BLOCKING. The "E2E failure
+  # diagnostics" step below captures runserver log + Playwright error-context on
+  # any regression.
   # ---------------------------------------------------------------------------
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
-    # Non-blocking: serving is fixed; one residual test-fixture gap remains (#43).
-    continue-on-error: true
 
     services:
       mysql:
