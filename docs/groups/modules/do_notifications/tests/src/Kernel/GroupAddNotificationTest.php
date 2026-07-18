@@ -156,26 +156,22 @@ class GroupAddNotificationTest extends GroupsKernelTestBase {
   }
 
   /**
-   * RA3 — adding an existing node to a group AFTER creation records NO event.
+   * RA3 — adding an existing node to a group AFTER creation records an event.
    *
-   * This is the central B3 assertion for change record 2025-05-23. We create a
-   * published node NOT in any group (its node_insert event is drained away),
-   * then relate it to a group via the v4 relationship-create path
+   * The central B3 behavior for change record 2025-05-23, now CLOSED (#37). We
+   * create a published node NOT in any group (its node_created event is drained
+   * away), then relate it to a group via the v4 relationship-create path
    * ($group->addRelationship(...)). In Group 4.x that operation invalidates the
-   * node's cache tags — it does NOT resave the node — and this module
-   * implements no node_update / hook_entity_update / Group relationship-event
-   * listener. So the group-add moment produces zero notification events.
+   * node's cache tags and does NOT resave the node — so a node_update-based
+   * approach would miss it. do_notifications instead reacts to the
+   * group_relationship INSERT (see DoNotificationsHooks::groupRelationshipInsert()),
+   * which fires on this path, so the group-add moment now records exactly one
+   * group-scoped `added_to_group` event carrying the node and the real group id.
    *
-   * VERDICT: this is CORRECT-BY-DESIGN for the module as written (the triggers
-   * were always insert-only; there was never a group-add notification to lose),
-   * but it is a genuine PRODUCT GAP if members are expected to be notified when
-   * an existing post is later cross-posted into their group. Closing it would
-   * mean reacting to Group's relationship-create event rather than a node
-   * resave — see the TODO(group4-VERIFY) on DoNotificationsHooks::nodeInsert().
-   * We pin the ACTUAL behavior (no event) so a future wiring change is a
-   * deliberate, test-visible decision rather than a silent regression.
+   * This is the product decision from #37: members SHOULD be notified when an
+   * existing post is cross-posted into their group.
    */
-  public function testAddToGroupAfterCreationRecordsNoEvent(): void {
+  public function testAddToGroupAfterCreationRecordsEvent(): void {
     $group = $this->createGroup();
 
     $node = $this->entityTypeManager->getStorage('node')->create([
@@ -186,47 +182,101 @@ class GroupAddNotificationTest extends GroupsKernelTestBase {
     ]);
     $node->save();
 
-    // Drain the node_insert event so we isolate the group-add moment.
+    // Drain the node_created (content) event so we isolate the group-add moment.
     $insert_events = $this->drainQueue();
     $this->assertCount(1, $insert_events, 'Baseline: creation itself recorded exactly one event.');
+    $this->assertSame('node_created', $insert_events[0]['event']);
 
     // Now add the existing node to the group (v4 cache-tag path, no resave).
     $group->addRelationship($node, 'group_node:post');
 
-    // The relationship really exists (guards against a no-op false negative)...
+    // The relationship really exists (guards against a no-op false positive)...
     $this->assertNotNull(
       $this->getNodeRelationship($group, $node),
       'Sanity: the node IS now related to the group.',
     );
-    // ...yet the group-add moment produced no notification event.
-    $this->assertSame(
-      [],
-      $this->drainQueue(),
-      'Adding a node to a group after creation fires no hook this module '
-      . 'listens to, so no group-scoped notification is recorded (CR 2025-05-23).',
+    // ...and the group-add moment recorded exactly one group-scoped event
+    // carrying the node and the group it was added to.
+    $add_events = $this->drainQueue();
+    $this->assertCount(
+      1,
+      $add_events,
+      'Adding a node to a group records exactly one group-scoped event via the '
+      . 'group_relationship insert hook (CR 2025-05-23 gap now closed, #37).',
     );
+    $event = $add_events[0];
+    $this->assertSame('added_to_group', $event['event']);
+    $this->assertSame('node', $event['entity_type']);
+    $this->assertSame($node->id(), $event['entity_id']);
+    $this->assertSame('post', $event['bundle']);
+    $this->assertSame($this->getCurrentUser()->id(), $event['author_uid']);
+    $this->assertSame(
+      [$group->id()],
+      array_values($event['group_ids']),
+      'The event carries exactly the group the node was added to.',
+    );
+    $this->assertArrayHasKey('timestamp', $event);
   }
 
   /**
-   * The addNode() fixture (save-then-relate) also records only the bare insert.
+   * The addNode() fixture (save-then-relate) records BOTH events.
    *
-   * Documents that even "create a node and immediately relate it" cannot
-   * capture group_ids at insert time: addNode() saves the node (node_insert
-   * fires here, relationship absent) THEN relates it (no further hook). So the
-   * single recorded event still carries an empty group_ids.
+   * addNode() saves the node (node_insert fires: `node_created`, relationship
+   * absent, empty group_ids) THEN relates it (group_relationship insert fires:
+   * `added_to_group`, carrying the real group id). This is the "created directly
+   * in a group" flow, and it is covered uniformly by the same relationship-insert
+   * handler as the cross-post case: one content event + one group event, never a
+   * duplicated group-scoped event.
    */
-  public function testAddNodeFixtureRecordsInsertWithEmptyGroupIds(): void {
+  public function testAddNodeFixtureRecordsContentAndGroupEvents(): void {
     $group = $this->createGroup();
     $node = $this->addNode($group, 'post', ['status' => 1, 'title' => 'Fixture post']);
 
     $items = $this->drainQueue();
-    $this->assertCount(1, $items, 'Only the node_insert event is recorded.');
-    $this->assertSame('node_created', $items[0]['event']);
-    $this->assertSame($node->id(), $items[0]['entity_id']);
+    $this->assertCount(2, $items, 'Both the content and the group event are recorded.');
+
+    // Index by event name so ordering is not asserted brittlely.
+    $by_event = [];
+    foreach ($items as $item) {
+      $by_event[$item['event']] = $item;
+    }
+
+    $this->assertArrayHasKey('node_created', $by_event, 'The content event is recorded.');
+    $this->assertSame($node->id(), $by_event['node_created']['entity_id']);
     $this->assertSame(
       [],
-      $items[0]['group_ids'],
-      'group_ids is empty: the relationship is created after node_insert.',
+      $by_event['node_created']['group_ids'],
+      'node_created group_ids is empty: the relationship is created after node_insert.',
+    );
+
+    $this->assertArrayHasKey('added_to_group', $by_event, 'The group event is recorded.');
+    $this->assertSame($node->id(), $by_event['added_to_group']['entity_id']);
+    $this->assertSame(
+      [$group->id()],
+      array_values($by_event['added_to_group']['group_ids']),
+      'added_to_group carries the real group id from the relationship insert.',
+    );
+  }
+
+  /**
+   * Adding a MEMBER to a group records no content event (membership excluded).
+   *
+   * The group_relationship insert handler must react to group_node:* content
+   * relationships only, never to group_membership — a member joining is not an
+   * "added to group" content notification. addMember() creates a
+   * group_membership relationship; the queue must stay empty.
+   */
+  public function testAddMemberRecordsNoAddedToGroupEvent(): void {
+    $group = $this->createGroup();
+    $this->drainQueue();
+
+    $account = $this->createUser();
+    $this->addMember($group, $account);
+
+    $this->assertSame(
+      [],
+      $this->drainQueue(),
+      'A membership relationship insert records no added_to_group event.',
     );
   }
 
