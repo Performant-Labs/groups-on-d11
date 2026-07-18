@@ -173,16 +173,19 @@ class DoGroupPinHooks {
    * the pager's inner count query, so the row count and the pager total stay
    * consistent.
    *
-   * We collapse to one row per node with a `GROUP BY node_field_data.nid`, and
-   * make the fix portable under MySQL's `ONLY_FULL_GROUP_BY` (the MySQL 8 default,
-   * which forbids selecting non-aggregated columns not functionally dependent on
-   * the GROUP BY columns):
-   *  - `nid` is the group key; `created` is a node column functionally dependent
-   *    on the node PK (`nid`), so it is legal un-aggregated and the created-DESC
-   *    ordering is unchanged;
-   *  - the relationship `id` is NOT functionally dependent on `nid` (that is the
-   *    whole fan-out), so we wrap it in `MIN(...)` — its value is never displayed
-   *    (the view renders only node fields), so which relationship id survives is
+   * We collapse to one row per node with a GROUP BY on the node's own selected
+   * columns (`nid`, `created`), and make the fix portable under MySQL's
+   * `ONLY_FULL_GROUP_BY` (the MySQL 8 default, which forbids selecting
+   * non-aggregated columns not in — or provably functionally dependent on — the
+   * GROUP BY columns). MySQL does NOT prove `created` dependent on `nid` through
+   * the view's joins, so we put every non-aggregated NODE column in the GROUP BY
+   * rather than rely on functional dependency; `nid` is unique per node, so
+   * grouping additionally by `created` still yields exactly one row per node:
+   *  - `nid`, `created` are the node's selected columns — grouped, so both are
+   *    legal and the created-DESC ordering is unchanged;
+   *  - the relationship `id` is NOT dependent on the node (that is the whole
+   *    fan-out), so we wrap it in `MIN(...)` — its value is never displayed (the
+   *    view renders only node fields), so which relationship id survives is
    *    irrelevant;
    *  - the `pin_sort` CASE expression reads `pin_flagging.id` from a LEFT JOIN
    *    that MySQL's FD analysis cannot prove is one-row-per-node, so we wrap it in
@@ -219,7 +222,7 @@ class DoGroupPinHooks {
       }
     }
 
-    // Aggregate the pin_sort formula so it, too, is legal under GROUP BY nid.
+    // Aggregate the pin_sort formula so it, too, is legal under the GROUP BY.
     // pin_in_group is a global flag (one flagging row per node), so MAX() gives
     // the node's exact pinned/not value and the #52 ordering is unchanged.
     $expressions = &$query->getExpressions();
@@ -230,9 +233,19 @@ class DoGroupPinHooks {
       }
     }
 
-    // One row per node. `created` (a node column, functionally dependent on
-    // the node PK) stays un-aggregated so the created-DESC sort is intact.
-    $query->groupBy('node_field_data.nid');
+    // Group by every remaining plain (non-aggregated) column — these are all
+    // NODE columns (`nid`, `created`) now that the relationship id has been moved
+    // to an aggregate. Grouping by the node's own columns (rather than nid alone)
+    // satisfies ONLY_FULL_GROUP_BY on MySQL 8 without relying on the optimizer to
+    // prove functional dependency through the view's joins. `nid` is unique per
+    // node, so the extra grouped column(s) do not split the node into more rows —
+    // it stays one row per node — and the created-DESC ordering is preserved.
+    foreach ($query->getFields() as $field) {
+      $table = $field['table'] ?? NULL;
+      if ($table !== NULL) {
+        $query->groupBy($table . '.' . $field['field']);
+      }
+    }
   }
 
   /**
