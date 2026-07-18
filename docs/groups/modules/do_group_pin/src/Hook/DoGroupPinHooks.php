@@ -262,6 +262,10 @@ class DoGroupPinHooks {
    *
    * @param \Drupal\views\ViewExecutable $view
    *   The view being rendered.
+   * @param mixed $output
+   *   The rendered output of the view (unused; required by the hook signature).
+   * @param mixed $cache
+   *   The view's cache plugin (unused; required by the hook signature).
    */
   #[Hook('views_post_render')]
   public function viewsPostRender(ViewExecutable $view, mixed &$output, mixed $cache): void {
