@@ -24,11 +24,11 @@ use Drupal\views\Views;
  *
  * Static analysis cannot confirm the generated SQL (the whole point of #38): the
  * risk is that the flagging LEFT JOIN and/or the group_relationship join fan a
- * node out into multiple rows, and that the DISTINCT rewrite must collapse those
+ * node out into multiple rows, and that the per-node dedupe must collapse those
  * back to one row per node *without* dropping the pin_flagging alias the
- * order-by depends on. So this test EXECUTES the real, altered view against a
- * live DB and inspects the ordered result rows — the K/F layer TEST_PLAN allows
- * for RA4.
+ * order-by depends on or the group-scoping the relationship provides. So this
+ * test EXECUTES the real, altered view against a live DB and inspects the ordered
+ * result rows — the K/F layer TEST_PLAN allows for RA4.
  *
  * Layer choice: kernel view-execution rather than BrowserTestBase. The behavior
  * under test is entirely in `hook_views_query_alter` + the DISTINCT query
@@ -48,13 +48,16 @@ use Drupal\views\Views;
  *     order-by to the FRONT of the query's orderby, so the compiled query is
  *     `ORDER BY pin_sort DESC, created DESC` and a pinned node LEADS the stream.
  *     See {@see self::testPinnedNodeLeadsStream()}.
- *  2. The view's `distinct: true` does NOT dedupe a relationship-side fan-out,
+ *  2. The view's `distinct: true` did NOT dedupe a relationship-side fan-out,
  *     because the `group_relationship` id is in the SELECT list — a node with two
- *     relationships appears twice. LATENT and LEFT AS-IS (fixing it risks the
- *     group-scoping); kept as characterization, still tracked in #52. See
- *     {@see self::testDistinctDoesNotDedupeRelationshipFanOut()}.
+ *     relationships appeared twice. FIXED in #56: do_group_pin's
+ *     `queryViewsGroupContentStreamAlter()` aggregates the relationship id (MIN)
+ *     and pin_sort (MAX) and adds `GROUP BY nid` on the compiled query, so the
+ *     stream returns one row per node (portable under ONLY_FULL_GROUP_BY, with
+ *     scoping and the #52 ordering preserved). See
+ *     {@see self::testStreamDedupesRelationshipFanOut()}.
  * The pin flagging LEFT JOIN itself does not fan out (global flag = one row), so
- * a pinned stream is duplicate-free today
+ * a pinned stream is duplicate-free
  * ({@see self::testPinnedStreamHasNoDuplicateRows()}).
  *
  * @group do_group_pin
@@ -260,13 +263,10 @@ class PinnedStreamOrderingTest extends GroupsKernelTestBase {
    * one matching `flagging` row, so this join does not itself fan out — this test
    * asserts (and confirms) that the pinned stream contains no duplicate node rows.
    *
-   * NB (reported separately, see the class-level finding): the view's DISTINCT
-   * does NOT actually protect against a relationship-side fan-out, because the
-   * `group_relationship` id column is in the SELECT list, so two relationships
-   * for one node produce two DISTINCT rows. That is latent — a single group_node
-   * relationship per (group, node) is the normal case, so no fan-out occurs in
-   * practice — but it means `distinct: true` is not the row-dedupe guarantee it
-   * appears to be. See {@see self::testDistinctDoesNotDedupeRelationshipFanOut()}.
+   * NB: `distinct: true` does not, on its own, protect against a relationship-side
+   * fan-out (the `group_relationship` id column is in the SELECT list). That is
+   * closed separately by do_group_pin's GROUP-BY dedupe on the compiled query —
+   * see {@see self::testStreamDedupesRelationshipFanOut()}.
    */
   public function testPinnedStreamHasNoDuplicateRows(): void {
     $group = $this->createGroup();
@@ -286,29 +286,33 @@ class PinnedStreamOrderingTest extends GroupsKernelTestBase {
   }
 
   /**
-   * Documents the DISTINCT limitation: a relationship fan-out is NOT collapsed.
+   * The stream collapses a relationship fan-out to one row per node (#56).
    *
    * The view reaches Group through the `group_relationship` Views relationship,
-   * whose id column is in the SELECT list. When a node has more than one group
-   * relationship, the INNER JOIN fans it out and — because each fanned row has a
-   * distinct relationship id — the query's `SELECT DISTINCT` treats them as
-   * distinct rows, so the node appears more than once. This is the #38 risk made
-   * concrete: `distinct: true` is NOT a per-node dedupe here.
+   * whose id column Views puts in the SELECT list (and re-adds after
+   * hook_views_query_alter, because it is an entity relationship). When a node
+   * has more than one group relationship, the INNER JOIN fans it out and — because
+   * each fanned row has a distinct relationship id — `SELECT DISTINCT` alone
+   * treats them as distinct rows, so the node used to appear more than once
+   * (2 nodes, one doubly-related -> 3 rows). `distinct: true` was NOT a per-node
+   * dedupe here.
    *
-   * This asserts the CURRENT (defective) behavior so the suite fails loudly if a
-   * future change silently alters it. Defect 2 is LATENT (one group_node
-   * relationship per (group, node) is the norm, so no fan-out occurs in
-   * practice) and was deliberately LEFT AS-IS by the #52 fix: excluding the
-   * relationship id from the SELECT — or otherwise collapsing on nid — cannot be
-   * done from hook_views_query_alter without risking the group-scoping the
-   * relationship provides, and Defect 1 (the real user-facing bug) was the fix's
-   * mandate. Defect 2 remains tracked in #52 as characterization.
+   * do_group_pin now closes this in
+   * {@see \Drupal\do_group_pin\Hook\DoGroupPinHooks::queryViewsGroupContentStreamAlter()}:
+   * on the compiled query it aggregates the relationship id (MIN) and the pin_sort
+   * formula (MAX) and adds `GROUP BY node_field_data.nid`, so the stream returns
+   * exactly one row per node. The fix is portable under MySQL ONLY_FULL_GROUP_BY,
+   * leaves group-scoping (the relationship join + gid WHERE + Group's access
+   * conditions) untouched, and preserves the #52 pin-first ordering.
+   *
+   * This EXECUTES the real altered view for the doubly-related case and asserts
+   * the node now appears exactly once — the fan-out is collapsed.
    */
-  public function testDistinctDoesNotDedupeRelationshipFanOut(): void {
+  public function testStreamDedupesRelationshipFanOut(): void {
     $group = $this->createGroup();
     $base = \Drupal::time()->getRequestTime();
     $fannedOut = $this->addNode($group, 'page', ['title' => 'FannedOut', 'created' => $base + 1]);
-    $this->addNode($group, 'page', ['title' => 'Plain', 'created' => $base + 2]);
+    $plain = $this->addNode($group, 'page', ['title' => 'Plain', 'created' => $base + 2]);
 
     // Relate the same node to the group a second time (page cardinality is
     // unlimited in the base fixture) -> two group_relationship rows.
@@ -325,12 +329,13 @@ class PinnedStreamOrderingTest extends GroupsKernelTestBase {
     $rows = $this->executeStream($group->id());
     $nids = $this->nidsInOrder($rows);
 
-    // FINDING: DISTINCT does not collapse the fan-out — 3 rows for 2 nodes, and
-    // the fanned-out node appears twice. If a fix makes DISTINCT dedupe per node,
-    // this test should be updated to expect 2 rows / no duplicates.
-    $this->assertCount(3, $rows, 'DISTINCT does NOT collapse the relationship fan-out (2 nodes -> 3 rows).');
-    $duplicateCount = count($nids) - count(array_unique($nids));
-    $this->assertSame(1, $duplicateCount, 'The doubly-related node is duplicated in the stream (the #38 defect).');
+    // FIXED (#56): the fan-out is collapsed — 2 rows for 2 nodes, no duplicates.
+    $this->assertCount(2, $rows, 'The relationship fan-out is collapsed (2 nodes -> 2 rows).');
+    $this->assertSame($nids, array_values(array_unique($nids)), 'The doubly-related node appears exactly once (the #56 fix).');
+
+    // Scoping is intact: exactly the two related nodes are present, no others.
+    $this->assertContains((int) $fannedOut->id(), $nids, 'The doubly-related node is present.');
+    $this->assertContains((int) $plain->id(), $nids, 'The plain node is present.');
   }
 
   /**
