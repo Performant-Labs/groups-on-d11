@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\do_group_pin\Kernel;
 
+use Drupal\Core\Cache\Cache;
 use Drupal\Core\Config\FileStorage;
+use Drupal\do_group_pin\Hook\DoGroupPinHooks;
 use Drupal\flag\Entity\Flag;
 use Drupal\group\PermissionScopeInterface;
 use Drupal\Tests\do_tests\Kernel\GroupsKernelTestBase;
@@ -382,6 +384,103 @@ class PinnedStreamOrderingTest extends GroupsKernelTestBase {
       [(int) $nodeB->id(), (int) $nodeA->id()],
       $restoredOrder,
       'Unpinned stream is created DESC (B, A) with no duplicate rows.'
+    );
+  }
+
+  /**
+   * The stream's render metadata carries the per-group pin cache tag (#69).
+   *
+   * The stream's render cache must depend on a tag that a pin toggle
+   * invalidates; do_group_pin adds the scoped `do_group_pin:group_stream:<gid>`
+   * tag to the view's render metadata in hook_views_post_render. This executes
+   * the real stream view and fires the `views_post_render` hook exactly as the
+   * render pipeline does (via the module handler), then asserts the tag landed
+   * on `$view->element['#cache']['tags']`. (A full HTML render of the Page
+   * display is intentionally NOT used — like the ordering tests, this suite
+   * exercises the view at the query/metadata level, not by scraping themed HTML,
+   * which needs routing/theme integration outside the behavior under test.)
+   *
+   * Together with {@see self::testPinToggleInvalidatesStreamCacheTagWithoutFlush()}
+   * — which shows a flag/unflag invalidates that exact tag — this proves the pin
+   * toggle drops the stream's render cache without a manual full flush.
+   */
+  public function testStreamRenderCarriesPinCacheTag(): void {
+    $group = $this->createGroup();
+    $this->addNode($group, 'page', ['title' => 'Only']);
+
+    $view = Views::getView('group_content_stream');
+    $view->setDisplay('page_1');
+    $view->preExecute([(string) $group->id()]);
+    $view->execute();
+
+    // Fire views_post_render exactly as ViewExecutable::render() does, so the
+    // module's real hook implementation runs against the executed view.
+    $output = '';
+    $cache = $view->display_handler->getPlugin('cache');
+    $this->container->get('module_handler')
+      ->invokeAll('views_post_render', [$view, &$output, $cache]);
+
+    $this->assertContains(
+      DoGroupPinHooks::streamCacheTag($group->id()),
+      $view->element['#cache']['tags'] ?? [],
+      'The rendered group stream carries the per-group pin cache tag it can be invalidated by.'
+    );
+  }
+
+  /**
+   * A pin toggle invalidates the stream's cache tag WITHOUT a full flush (#69).
+   *
+   * This is the #69 fix's core guarantee: pinning/unpinning a node invalidates
+   * exactly the cache tag the stream render depends on, so a stream cached
+   * before the toggle is dropped and re-rendered in the new order — with no
+   * manual drupal_flush_all_caches(). We prove it at the cache layer: seed a
+   * probe item tagged with the group's stream tag (standing in for the cached
+   * stream render), then flag and unflag the node and assert the probe is
+   * invalidated each time — i.e. the toggle invalidated the right tag.
+   *
+   * It also asserts the invalidation is SCOPED: an unrelated group's stream tag
+   * (seeded on a second probe) is never invalidated by pinning in the first
+   * group.
+   */
+  public function testPinToggleInvalidatesStreamCacheTagWithoutFlush(): void {
+    $group = $this->createGroup();
+    $otherGroup = $this->createGroup();
+    $node = $this->addNode($group, 'page', ['title' => 'Target']);
+    $account = $this->createUser();
+
+    $cache = $this->container->get('cache.default');
+    $tag = DoGroupPinHooks::streamCacheTag($group->id());
+    $otherTag = DoGroupPinHooks::streamCacheTag($otherGroup->id());
+
+    $seed = function () use ($cache, $tag, $otherTag): void {
+      $cache->set('do_group_pin_test:stream:' . $tag, 'cached-stream', Cache::PERMANENT, [$tag]);
+      $cache->set('do_group_pin_test:stream:' . $otherTag, 'other-cached-stream', Cache::PERMANENT, [$otherTag]);
+    };
+
+    // FLAG (pin): the target group's cached stream is invalidated; the unrelated
+    // group's cached stream survives.
+    $seed();
+    $this->assertNotFalse($cache->get('do_group_pin_test:stream:' . $tag), 'The stream cache item is seeded.');
+    $this->flagService->flag($this->pinFlag, $node, $account);
+    $this->assertFalse(
+      $cache->get('do_group_pin_test:stream:' . $tag),
+      'Pinning invalidated the group stream cache tag (no manual flush).'
+    );
+    $this->assertNotFalse(
+      $cache->get('do_group_pin_test:stream:' . $otherTag),
+      'Pinning did NOT invalidate an unrelated group stream (invalidation is scoped).'
+    );
+
+    // UNFLAG (unpin): the target group's cached stream is invalidated again.
+    $seed();
+    $this->flagService->unflag($this->pinFlag, $node, $account);
+    $this->assertFalse(
+      $cache->get('do_group_pin_test:stream:' . $tag),
+      'Unpinning invalidated the group stream cache tag (no manual flush).'
+    );
+    $this->assertNotFalse(
+      $cache->get('do_group_pin_test:stream:' . $otherTag),
+      'Unpinning did NOT invalidate an unrelated group stream (invalidation is scoped).'
     );
   }
 
