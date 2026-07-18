@@ -802,14 +802,14 @@ The Playwright tests run against the production-like reverse proxy (e.g., `https
 When a Git Subtree is pulled into a host repository (e.g., via `ai:sync` or `git subtree pull`), the operation completes successfully without error, but recently created or modified files are conspicuously missing from the subtree directory.
 
 ### Root Cause
-Git subtrees inherently fetch their payloads from the remote upstream repository (e.g., GitHub), not your local file system. If a file was added or modified locally inside the primary source repository (e.g., `~/LocalDevelopment/ai_guidance`) but was never explicitly committed and pushed to the remote origin (`git push origin main`), the downstream host repository has no access to it. The subtree pull natively downloads exactly what was available on the server at the exact moment of the last upstream push.
+Git subtrees inherently fetch their payloads from the remote upstream repository (e.g., GitHub), not your local file system. If a file was added or modified locally inside the primary source repository (e.g., `~/LocalDevelopment/playbook`) but was never explicitly committed and pushed to the remote origin (`git push origin main`), the downstream host repository has no access to it. The subtree pull natively downloads exactly what was available on the server at the exact moment of the last upstream push.
 
 ### Detection
 - `git status` inside the host repository shows an incomplete list of staged files after a fetch.
 - Running `git status` inside the upstream source repository reveals uncommitted tracking files or unpushed commits.
 
 ### Solution
-1. Navigate directly to the original source repository (e.g., `~/LocalDevelopment/ai_guidance`).
+1. Navigate directly to the original source repository (e.g., `~/LocalDevelopment/playbook`).
 2. Commit and push the newest files up to the server:
    ```bash
    git add .
@@ -877,11 +877,11 @@ REPOS=( ~/Sites/opencloud-voting ~/Sites/opencloud-registration ~/Sites/pl-openc
 for repo in "${REPOS[@]}"; do
   cd "$repo"
   # Safely wipe uncommitted staged ghosts
-  git rm -rf --cached docs/ai_guidance/ || true
-  rm -rf docs/ai_guidance/
+  git rm -rf --cached docs/playbook/ || true
+  rm -rf docs/playbook/
   # Refresh from upstream
-  git fetch git@github.com:Performant-Labs/ai_guidance.git main
-  git read-tree --prefix=docs/ai_guidance/ -u FETCH_HEAD
+  git fetch git@github.com:Performant-Labs/playbook.git main
+  git read-tree --prefix=docs/playbook/ -u FETCH_HEAD
 done
 ```
 
