@@ -1,5 +1,5 @@
 # .pr_agent.toml — PR-Agent configuration template
-# Part of ai_guidance/pipelines/pr-reviewer/
+# Part of playbook/pipelines/pr-reviewer/
 #
 # Copy to your project root and customise the extra_instructions section
 # to match your project's skills/, forbidden patterns, and conventions.
