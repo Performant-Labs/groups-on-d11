@@ -118,13 +118,43 @@ PHP
     echo "[entrypoint] WARNING: seed script not found at $SEED_SCRIPT" >&2
   fi
 
-  # NOTE: non-admin group VIEW access is NOT granted here. The assembled
-  # config/sync does not give the community_group roles an effective "view
-  # group" grant, so only uid 1 (which bypasses access) can view groups; even
-  # members are denied. Granting "view group" to the roles at runtime does not
-  # fix it, so the gap is structural in the app config, not the deploy. See the
-  # PR description / follow-up: the intended access model (publicly browsable vs
-  # login-gated) must be decided and captured in config/sync.
+  # Provision PUBLIC group-view access. The assembled config/sync ships the
+  # community_group roles with scope=individual (never auto-applied), so out of
+  # the box only uid 1 can view groups. Group 3.x grants non-member/member
+  # permissions via SCOPED synchronized roles, so we add three that carry
+  # "view group" (+ the group_node view perms):
+  #   - outsider / anonymous     -> anonymous visitors
+  #   - outsider / authenticated -> logged-in non-members
+  #   - insider  / authenticated -> members
+  # Published groups become publicly browsable; unpublished/archived groups
+  # (e.g. "Legacy Infrastructure") stay hidden (needs "view any unpublished
+  # group", which these roles do not grant).
+  cat > /tmp/provision-access.php <<'PHP'
+<?php
+use Drupal\group\Entity\GroupRole;
+$perms = [
+  'view group',
+  'view group_node:forum entity',
+  'view group_node:event entity',
+  'view group_node:documentation entity',
+  'view group_node:post entity',
+  'view group_node:page entity',
+];
+$roles = [
+  ['community_group-anon_view',     'Anonymous viewer', 'outsider', 'anonymous'],
+  ['community_group-outsider_view', 'Outsider viewer',  'outsider', 'authenticated'],
+  ['community_group-insider_view',  'Member viewer',    'insider',  'authenticated'],
+];
+foreach ($roles as [$id, $label, $scope, $global]) {
+  if (GroupRole::load($id)) { continue; }
+  GroupRole::create([
+    'id' => $id, 'label' => $label, 'group_type' => 'community_group',
+    'scope' => $scope, 'global_role' => $global, 'permissions' => $perms,
+  ])->save();
+  echo "provisioned group role $id ($scope/$global)\n";
+}
+PHP
+  $DRUSH php:script /tmp/provision-access.php || echo "[entrypoint] WARNING: could not provision view-access roles (continuing)"
 
   $DRUSH cr
   echo "[entrypoint] Install + seed complete"
