@@ -7,6 +7,7 @@ namespace Drupal\do_multigroup\Hook;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Hook\Attribute\Hook;
+use Drupal\Core\Hook\Order\OrderAfter;
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Url;
@@ -150,6 +151,42 @@ class DoMultigroupHooks {
   }
 
   /**
+   * Guarantees our audience-sync submit handler runs LAST.
+   *
+   * On the Group 4.x group-content CREATE form, group's own CreateFormEnhancer
+   * (hook_form_alter) appends a `submitEntityForm` handler that writes the ORIGIN
+   * group_relationship using the freshly-saved node id. If our nodeFormSubmit()
+   * ran BEFORE it, our fresh query would not yet see the origin relationship, so
+   * we would duplicate it (and mis-sync on edit).
+   *
+   * This form_alter is explicitly ordered AFTER the group module, so by the time
+   * it runs the enhancer's handler is already appended to the submit chain. We
+   * then move `nodeFormSubmit` to the very end, so our reconciliation always
+   * observes the final persisted relationship set (origin included) and stays
+   * idempotent regardless of module weight / hook-collection order (issue #68).
+   */
+  #[Hook('form_alter', order: new OrderAfter(modules: ['group']))]
+  public function formAlterEnsureSubmitLast(
+    array &$form,
+    FormStateInterface $form_state,
+    string $form_id,
+  ): void {
+    if (empty($form['actions']['submit']['#submit'])) {
+      return;
+    }
+    $handler = [static::class, 'nodeFormSubmit'];
+    if (!in_array($handler, $form['actions']['submit']['#submit'], TRUE)) {
+      return;
+    }
+    $submit = array_values(array_filter(
+      $form['actions']['submit']['#submit'],
+      static fn ($h): bool => $h !== $handler,
+    ));
+    $submit[] = $handler;
+    $form['actions']['submit']['#submit'] = $submit;
+  }
+
+  /**
    * Submit handler: syncs group_relationship entries after node save.
    *
    * Static so it can be serialised into form state.
@@ -165,47 +202,76 @@ class DoMultigroupHooks {
       return;
     }
 
-    $selected_gids = array_filter(
-      $form_state->getValue(['do_multigroup', 'group_ids'], []),
+    // The "Group Audience" checkboxes live at $form['do_multigroup']['group_ids']
+    // in the render tree, but the 'do_multigroup' details element sets neither
+    // '#tree' nor '#parents', so the checkboxes element keys its submitted value
+    // by its OWN key — 'group_ids' — at the top level of form state, NOT nested
+    // under 'do_multigroup'. Reading ['do_multigroup', 'group_ids'] therefore
+    // always returned an empty array: on create the ticked groups were never
+    // related (only the origin, written by Group 4.x's own CreateFormEnhancer,
+    // survived), and on edit the empty selection made the delete-loop below drop
+    // EVERY existing relationship — including the origin (issue #68).
+    $selected_gids = array_map(
+      'strval',
+      array_keys(array_filter((array) $form_state->getValue('group_ids', []))),
     );
     $relationship_type_id = self::relationshipTypeId($bundle);
     $storage = \Drupal::entityTypeManager()->getStorage('group_relationship');
+    $group_storage = \Drupal::entityTypeManager()->getStorage('group');
 
-    $existing = $storage->loadByProperties([
-      'type' => $relationship_type_id,
-      'entity_id' => $node->id(),
-    ]);
+    // Reconcile the node's group_node relationships to match the ticked set.
+    //
+    // Query the group_relationship storage fresh (resetCache() drops any stale
+    // entity static cache) so we observe relationships written earlier in this
+    // same request. On the Group 4.x CREATE form, group's CreateFormEnhancer
+    // writes the ORIGIN relationship in an EARLIER submit handler; our
+    // form_alter (ordered after the group module — see formAlterEnsureSubmitLast)
+    // forces this handler to run last, so that origin write is already persisted
+    // and is counted as "existing" here — it is therefore never duplicated
+    // (issue #68).
+    $storage->resetCache();
+    $existing_ids = $storage->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('type', $relationship_type_id)
+      ->condition('entity_id', $node->id())
+      ->execute();
+    $existing = $existing_ids ? $storage->loadMultiple($existing_ids) : [];
 
-    $existing_gids = [];
+    // Map gid => list of relationship entities. A list (not a single entity) so
+    // a duplicate relationship for the same group is detected and collapsed.
+    $existing_by_gid = [];
     foreach ($existing as $relationship) {
-      $existing_gids[$relationship->getGroup()->id()] = $relationship;
+      $existing_by_gid[(string) $relationship->getGroup()->id()][] = $relationship;
     }
 
+    // Add a relationship for every ticked group not already related.
     foreach ($selected_gids as $gid) {
-      if (!isset($existing_gids[$gid])) {
-        $group = \Drupal::entityTypeManager()->getStorage('group')->load($gid);
-        if ($group) {
-          // Group 4.x: creating the group_relationship directly (rather than
-          // Group::addRelationship()) is unaffected by the "add entity to group no
-          // longer resaves the entity" change (CR 2025-05-23) — this code never
-          // relied on the node being resaved as a side effect. The create() array
-          // keys used here (type/gid/entity_id) are the same v3/v4 group_relationship
-          // fields.
-          // TODO(group4-VERIFY): confirm group_relationship::create() did not gain a
-          // new required field / changed key in 4.x (diff group/src/Entity/
-          // GroupRelationship* 3.x↔4.x). The three keys below were valid in 3.x.
-          $storage->create([
-            'type' => $relationship_type_id,
-            'gid' => $gid,
-            'entity_id' => $node->id(),
-          ])->save();
-        }
+      if (empty($existing_by_gid[$gid]) && $group_storage->load($gid)) {
+        // Group 4.x: creating the group_relationship directly (rather than
+        // Group::addRelationship()) is unaffected by the "add entity to group no
+        // longer resaves the entity" change (CR 2025-05-23). The create() keys
+        // (type/gid/entity_id) are the same v3/v4 group_relationship fields.
+        $relationship = $storage->create([
+          'type' => $relationship_type_id,
+          'gid' => $gid,
+          'entity_id' => $node->id(),
+        ]);
+        $relationship->save();
+        $existing_by_gid[$gid][] = $relationship;
       }
     }
 
-    foreach ($existing_gids as $gid => $relationship) {
-      if (!in_array($gid, $selected_gids, TRUE)) {
-        $relationship->delete();
+    // Remove relationships for de-selected groups, and collapse any duplicate
+    // relationships for a still-selected group down to a single one. The de-dupe
+    // keeps the handler idempotent, so a node is never left double-linked to one
+    // group nor dropped from its origin unless that group is explicitly un-ticked
+    // (issue #68).
+    foreach ($existing_by_gid as $gid => $relationships) {
+      $keep = in_array((string) $gid, $selected_gids, TRUE);
+      foreach (array_values($relationships) as $index => $relationship) {
+        if (!$keep || $index > 0) {
+          $relationship->delete();
+        }
       }
     }
   }
