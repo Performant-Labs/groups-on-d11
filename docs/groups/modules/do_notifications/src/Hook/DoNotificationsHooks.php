@@ -9,6 +9,7 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\Queue\QueueFactory;
+use Drupal\group\Entity\GroupRelationshipInterface;
 use Drupal\node\NodeInterface;
 
 /**
@@ -17,33 +18,39 @@ use Drupal\node\NodeInterface;
  * Per-post opt-out, notification event recording, and comment auto-subscribe.
  * Drupal only records what happened — external system handles delivery.
  *
- * GROUP 4.x COMPATIBILITY NOTE (behavioral risk — read before relying on
- * group-scoped notifications).
+ * EVENT MODEL (two distinct, non-overlapping events).
  *
- * Notification events are recorded off the CORE node/comment lifecycle hooks
- * (node_insert, comment_insert) — NOT off any Group entity/relationship hook or
- * event. Group membership is only ever resolved as a snapshot at node-insert
- * time, inside getGroupIds().
+ * This module records two kinds of event onto the do_notifications queue:
  *
- * In Group 4.x, "add an entity to a group" invalidates cache tags instead of
- * resaving the entity (change record 2025-05-23), so it fires neither
- * hook_entity_update nor hook_node_update. This module does not implement
- * node_update either, so:
+ *   - `node_created` (off core node_insert) — a CONTENT-scoped signal: "a
+ *     publishable post now exists". It is recorded the instant the node row is
+ *     written, BEFORE any group_relationship for it can exist (a relationship
+ *     needs the node id), so its `group_ids` is intentionally empty. It fires
+ *     for every eligible published node, including ones that will never join a
+ *     group. It is NOT the group-membership-facing notification.
  *
- *   - A node created ALREADY in its group(s) is captured correctly: node_insert
- *     runs after the relationship exists, so getGroupIds() sees the groups.
- *   - A node created UNGROUPED and added to a group LATER records no
- *     group-scoped notification event — on 3.x this was masked only if the
- *     group-add happened to resave the node (which this module also ignores,
- *     as it has no node_update hook); on 4.x there is no resave at all, so the
- *     gap is now permanent and cannot be closed by a resave side effect.
+ *   - `added_to_group` (off group_relationship insert, group_node:* only) — a
+ *     GROUP-scoped signal: "this node was added to this group; notify the
+ *     group's members". This is the event that carries a real, non-empty
+ *     `group_ids` (the group the node was added to) and the node's `entity_id`.
  *
- * This is NOT a regression introduced by the 4.x upgrade for the currently
- * implemented triggers (they were already insert-only), but the 4.x change
- * removes the only path that could have retro-fired them. If group-add-time
- * notifications are ever required, subscribe to Group's relationship
- * create/insert event on the new API rather than expecting a node resave.
- * See TODO(group4-VERIFY) on nodeInsert()/getGroupIds().
+ * Why two events instead of enriching node_created: in Group 4.x, "add an
+ * entity to a group" invalidates cache tags instead of resaving the entity
+ * (change record 2025-05-23), so it fires neither hook_entity_update nor
+ * hook_node_update — node_insert can never see the group. Reacting to the
+ * group_relationship INSERT is the only reliable hook, and it fires uniformly
+ * for BOTH shapes of "add to group":
+ *
+ *   - a node created directly in a group (create node -> create relationship);
+ *   - an existing node cross-posted into a group later.
+ *
+ * DOUBLE-NOTIFICATION AVOIDANCE: the two events are deliberately different event
+ * names with different scopes, so a single "create a node in a group" flow
+ * records exactly one content event (`node_created`, empty group_ids) and one
+ * group event (`added_to_group`, real group_ids) — never two identical
+ * group-scoped events. groupRelationshipInsert() is the ONLY producer of a
+ * group-scoped add event; nodeInsert() never emits one (its group_ids is
+ * always empty by construction). See groupRelationshipInsert() and nodeInsert().
  */
 class DoNotificationsHooks {
 
@@ -107,16 +114,18 @@ class DoNotificationsHooks {
   }
 
   /**
-   * Records a notification event when a published group node is created.
+   * Records a CONTENT-scoped `node_created` event when a publishable node is
+   * created.
    *
-   * TODO(group4-VERIFY): This fires on core node creation only. Group 4.x's
-   * "add to group invalidates cache tags instead of resaving the entity"
-   * (CR 2025-05-23) means a node added to a group AFTER creation records no
-   * group-scoped event here (no node_update hook exists, and there is no
-   * resave to piggyback on). Verify on a real 4.x build whether product
-   * requirements need a group-add-time notification; if so, react to Group's
-   * relationship-create event instead of a node resave. Recording itself is
-   * unaffected — this hook does not touch the Group API.
+   * This is the "a post now exists" signal, not the "notify group members"
+   * signal. It runs the instant the node row is written, before any
+   * group_relationship for it can exist, so its `group_ids` is always empty by
+   * construction (see recordEvent()/getGroupIds()). The group-facing "added to
+   * group" notification — with real group_ids — is recorded separately, off the
+   * group_relationship insert, by {@see self::groupRelationshipInsert()}. The
+   * two are distinct events by design so a node created directly in a group
+   * yields one content event here and one group event there, never a duplicate
+   * group-scoped event.
    */
   #[Hook('node_insert')]
   public function nodeInsert(NodeInterface $node): void {
@@ -127,6 +136,65 @@ class DoNotificationsHooks {
       return;
     }
     $this->recordEvent('node_created', $node);
+  }
+
+  /**
+   * Records a GROUP-scoped `added_to_group` event when a node joins a group.
+   *
+   * Reacts to the insert of a `group_relationship` (Group 4.x's group_content)
+   * entity for a `group_node:*` content relationship — the ONLY hook that fires
+   * uniformly for both "a node created directly in a group" and "an existing
+   * node cross-posted into a group later" (Group 4.x add-to-group invalidates
+   * cache tags with no node resave, so no node_update hook can see it —
+   * CR 2025-05-23).
+   *
+   * Discrimination is by content-plugin BASE id (`group_node`), derived from the
+   * relationship's plugin id (e.g. `group_node:post`). This deliberately:
+   *   - EXCLUDES `group_membership` relationships (a member joining is not a
+   *     content-added notification);
+   *   - is immune to the config-entity-id `documentation -> doc` alias
+   *     divergence the harness has, because the plugin id (`group_node:doc` vs
+   *     `group_node:documentation`) is matched on its base id `group_node`, not
+   *     on the assembled relationship-type id string that getGroupIds() keys on.
+   *
+   * The recorded event carries the node as `entity_id`/`entity_type` and the
+   * single group the relationship links to as `group_ids` — resolved directly
+   * from the relationship (getGroup()), NOT via getGroupIds(), so it is correct
+   * regardless of the bundle-id alias.
+   */
+  #[Hook('group_relationship_insert')]
+  public function groupRelationshipInsert(GroupRelationshipInterface $relationship): void {
+    // Only content (group_node:*) relationships — never memberships or other
+    // plugins. The plugin id is '<base>:<derivative>', e.g. 'group_node:post'.
+    $plugin_id = $relationship->getPluginId();
+    if (!str_starts_with($plugin_id, 'group_node:')) {
+      return;
+    }
+
+    $entity = $relationship->getEntity();
+    if (!$entity instanceof NodeInterface) {
+      return;
+    }
+    // Mirror node_insert's eligibility: published, on-list bundle.
+    if (!$entity->isPublished()) {
+      return;
+    }
+    if (!in_array($entity->bundle(), self::CONTENT_TYPES, TRUE)) {
+      return;
+    }
+
+    $item = [
+      'event' => 'added_to_group',
+      'entity_type' => $entity->getEntityTypeId(),
+      'entity_id' => $entity->id(),
+      'bundle' => $entity->bundle(),
+      'author_uid' => $entity->getOwnerId(),
+      // The group this relationship links the node to — resolved from the
+      // relationship itself, so it is alias-proof (no getGroupIds() lookup).
+      'group_ids' => [$relationship->getGroup()->id()],
+      'timestamp' => \Drupal::time()->getRequestTime(),
+    ];
+    $this->queueFactory->get('do_notifications')->createItem($item);
   }
 
   /**
