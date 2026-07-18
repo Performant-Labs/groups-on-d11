@@ -1,9 +1,12 @@
-name: Test suite (kernel + Playwright)
+name: Test suite (kernel + functional + Playwright)
 
 # Runs the behavioral test suites on every PR to main (and pushes to main):
-#   - kernel:  do_tests PHPUnit kernel suite (config-assembly source of truth
-#              lives in scripts/ci/assemble-config.sh, shared with the RUNBOOK).
-#   - e2e:     Playwright smoke suite against a real assembled site (#31, #33).
+#   - kernel:      every custom module's PHPUnit Kernel suite (config-assembly
+#                  source of truth lives in scripts/ci/assemble-config.sh,
+#                  shared with the RUNBOOK).
+#   - functional:  every custom module's BrowserTestBase Functional suite, run
+#                  against a webserver serving the docroot (#35/#36/#44).
+#   - e2e:         Playwright smoke suite against a real assembled site (#31, #33).
 #
 # Issue: #33 (Wave A / A2) under epic #31.
 
@@ -127,6 +130,185 @@ jobs:
             -c web/core/phpunit.xml.dist \
             --testdox \
             $KERNEL_DIRS
+
+  # ---------------------------------------------------------------------------
+  # Functional job — every custom module's BrowserTestBase suite (#35/#36/#44).
+  #
+  # Unlike the E2E job, BrowserTestBase does NOT need a pre-installed, assembled
+  # site: each test method installs its OWN throwaway site into a test-prefixed
+  # DB (declaring the modules/theme it needs via $modules/$defaultTheme) and then
+  # issues real HTTP requests to SIMPLETEST_BASE_URL. Drupal's test router
+  # (web/.ht.router.php) reads the per-test DB prefix from the request's
+  # User-Agent and boots the prefixed site, so a single plain webserver serving
+  # the docroot handles every test's install.
+  #
+  # What the job therefore needs: composer install (to vendor drupal/group +
+  # core-dev, whose GroupBrowserTestBase two of the three suites extend),
+  # assemble-config.sh (to place the do_* modules — incl. do_tests — into
+  # web/modules/custom so the suites are discoverable and their repo-root-relative
+  # fixtures resolve), a MySQL service (SIMPLETEST_DB), a minimal settings.php
+  # (hash salt + a writable sites/default so the test router can boot), and a
+  # webserver on 127.0.0.1:8080.
+  #
+  # We serve with the same `php -S … web/.ht.router.php` router BrowserTestBase
+  # itself uses locally (Drupal's canonical functional-test webserver), NOT
+  # `drush runserver` — no installed site exists to boot, and the router's job is
+  # only to dispatch each request into the prefixed test site. Use http:// for
+  # SIMPLETEST_BASE_URL: https drops the session cookie in this setup (the B2
+  # finding), which would fail every drupalLogin().
+  # ---------------------------------------------------------------------------
+  functional:
+    name: Functional tests (BrowserTestBase)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_DATABASE: drupal
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      SIMPLETEST_DB: 'mysql://root:root@127.0.0.1:3306/drupal'
+      SIMPLETEST_BASE_URL: 'http://127.0.0.1:8080'
+      # BrowserTestBase writes its per-test browser output here; a stable dir
+      # keeps the failure-diagnostics upload predictable.
+      BROWSERTEST_OUTPUT_DIRECTORY: '/tmp/browsertest-output'
+      # Silence deprecation-triggered failures from contrib/dev dependencies so
+      # the suite result reflects our own assertions.
+      SYMFONY_DEPRECATIONS_HELPER: 'disabled'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ env.PHP_VERSION }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: gd, pdo_mysql, mysqli, mbstring, xml, dom, curl, gmp, bcmath, intl, opcache, zip
+          coverage: none
+          ini-values: memory_limit=-1
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-
+
+      - name: Install Composer dependencies (incl. drupal/core-dev)
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Assemble config/sync + custom modules (shared with RUNBOOK)
+        run: bash scripts/ci/assemble-config.sh
+
+      - name: Prepare Drupal sites/default for the test router
+        run: |
+          set -euxo pipefail
+          mkdir -p web/sites/default/files "$BROWSERTEST_OUTPUT_DIRECTORY"
+          # BrowserTestBase installs each test's own prefixed site, but the test
+          # router (web/.ht.router.php) still bootstraps far enough to read a
+          # settings.php: a hash salt plus a writable sites/default is enough. No
+          # installed site / config:import is required (each test builds its own).
+          if [ ! -f web/sites/default/settings.php ]; then
+            cp web/sites/default/default.settings.php web/sites/default/settings.php
+          fi
+          {
+            echo ""
+            echo "\$settings['hash_salt'] = 'ci-do-not-use-in-prod-hash-salt';"
+          } >> web/sites/default/settings.php
+          chmod -R 777 web/sites/default
+
+      - name: Wait for MySQL
+        run: |
+          for i in $(seq 1 30); do
+            if mysqladmin ping -h 127.0.0.1 -P 3306 -uroot -proot --silent; then
+              echo "MySQL is up"; exit 0
+            fi
+            echo "waiting for mysql ($i)..."; sleep 2
+          done
+          echo "MySQL did not become ready" >&2; exit 1
+
+      - name: Serve the docroot (Drupal test router)
+        run: |
+          set -uxo pipefail
+          # Serve web/ with the SAME router BrowserTestBase uses locally:
+          # web/.ht.router.php dispatches each request into the per-test prefixed
+          # site (resolving the prefix from the User-Agent), so a single plain
+          # `php -S` handles every test's throwaway install. PHP_CLI_SERVER_WORKERS
+          # lets the built-in server fork workers to handle the concurrent
+          # sub-requests a single page issues (assets/AJAX) without serializing.
+          export PHP_CLI_SERVER_WORKERS=8
+          nohup php -S 127.0.0.1:8080 -t web web/.ht.router.php \
+            >/tmp/phpserver.log 2>&1 &
+          echo "server PID $!"
+          for i in $(seq 1 30); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/ || true)"
+            # A bare docroot with no installed site redirects to the installer
+            # (302 -> /core/install.php); any HTTP response means the server (and
+            # the router) is up and dispatching — that is all the test router
+            # needs, since each test installs its own site on demand.
+            if [ -n "$code" ] && [ "$code" != "000" ]; then
+              echo "server is up (HTTP $code)"; exit 0
+            fi
+            echo "waiting for server ($i) — last HTTP $code ..."
+            if [ "$i" = "3" ]; then echo "--- php -S log so far ---"; cat /tmp/phpserver.log || true; fi
+            sleep 2
+          done
+          echo "server did not come up" >&2
+          echo "----- php -S log (full) -----" >&2
+          cat /tmp/phpserver.log >&2 || true
+          exit 1
+
+      - name: Run functional tests (all custom modules)
+        run: |
+          # Run every custom module's Functional suite, discovered the same way
+          # the kernel job discovers Kernel dirs. Today this is the three do_tests
+          # BrowserTestBase suites (#35 GroupAccessEnforcementTest,
+          # #36 CreatorMembershipFormTest, #44 GroupAddFormFieldsTest); any future
+          # per-module Functional suite is gated automatically.
+          FUNCTIONAL_DIRS=$(find web/modules/custom -type d -path '*/tests/src/Functional' | sort)
+          echo "Functional test dirs:"; echo "$FUNCTIONAL_DIRS"
+          if [ -z "$FUNCTIONAL_DIRS" ]; then
+            echo "No Functional test dirs found — assemble-config.sh did not place the modules." >&2
+            exit 1
+          fi
+          php vendor/bin/phpunit \
+            -c web/core/phpunit.xml.dist \
+            --testdox \
+            $FUNCTIONAL_DIRS
+
+      - name: Functional failure diagnostics
+        if: failure()
+        run: |
+          echo "----- php -S server log (tail) -----"
+          tail -120 /tmp/phpserver.log || true
+          echo "----- BrowserTestBase HTML output (names) -----"
+          find "$BROWSERTEST_OUTPUT_DIRECTORY" -type f 2>/dev/null | sort || true
+
+      - name: Upload functional failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: functional-browsertest-output
+          path: |
+            /tmp/phpserver.log
+            /tmp/browsertest-output
+          retention-days: 7
+          if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
   # E2E job — Playwright smoke suite against a real assembled site (#33).
