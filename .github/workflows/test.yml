@@ -248,10 +248,18 @@ jobs:
           # Serve web/ with the SAME router BrowserTestBase uses locally:
           # web/.ht.router.php dispatches each request into the per-test prefixed
           # site (resolving the prefix from the User-Agent), so a single plain
-          # `php -S` handles every test's throwaway install. PHP_CLI_SERVER_WORKERS
-          # lets the built-in server fork workers to handle the concurrent
-          # sub-requests a single page issues (assets/AJAX) without serializing.
-          export PHP_CLI_SERVER_WORKERS=8
+          # `php -S` handles every test's throwaway install. This mirrors how
+          # Drupal core's run-tests.sh serves functional tests.
+          #
+          # Do NOT set PHP_CLI_SERVER_WORKERS here. BrowserTestBase's Mink
+          # BrowserKit driver issues STRICTLY SEQUENTIAL requests (no concurrent
+          # asset/AJAX sub-requests like a real browser), so a single worker is
+          # sufficient — and multiple forked workers actively race on the
+          # per-test site's on-disk state (compiled container / Twig template
+          # registry), which surfaced as intermittent 500s "Template ... is not
+          # defined" (Twig ChainLoader) when one worker served a render before a
+          # sibling worker had finished writing that test site's registry.
+          #
           # Use an ABSOLUTE router path: `php -S` resolves the router script
           # relative to each request's CWD (the docroot, via -t web), so a
           # relative `web/.ht.router.php` would resolve to `web/web/...` and
