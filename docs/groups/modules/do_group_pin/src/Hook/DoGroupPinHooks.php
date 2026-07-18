@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\do_group_pin\Hook;
 
 use Drupal\Core\Cache\Cache;
+use Drupal\Core\Database\Query\SelectInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\flag\FlaggingInterface;
@@ -133,6 +134,12 @@ class DoGroupPinHooks {
     // the pin-first ordering holds on the real generated SQL (verified via the
     // executed-view kernel test PinnedStreamOrderingTest).
     //
+    // NOTE (#56): `distinct: true` does not, on its own, collapse a node that has
+    // multiple group_node relationships — the relationship's id column is in the
+    // SELECT list and is re-added AFTER this hook runs, so it cannot be dropped
+    // here. That per-node dedupe is done on the compiled query in
+    // queryViewsGroupContentStreamAlter() below.
+    //
     // Add the pin order-by, then move it to the FRONT of the orderby list so it
     // sorts before `created DESC`. array_unshift on $query->orderby (rather than
     // clear-and-rebuild) keeps every other registered sort intact and in order.
@@ -144,6 +151,101 @@ class DoGroupPinHooks {
     );
     $pin_order = array_pop($query->orderby);
     array_unshift($query->orderby, $pin_order);
+  }
+
+  /**
+   * Collapses the group stream to one row per node (safe dedupe, #56).
+   *
+   * The view sets `distinct: true`, but that does NOT dedupe a node that has more
+   * than one `group_node` relationship. The `group_relationship` Views
+   * relationship (required: true) is an ENTITY relationship, so Views adds the
+   * relationship's own `id` column to the SELECT list at query-compile time — and
+   * re-adds it even if it is removed in `hook_views_query_alter`, because it needs
+   * the relationship entity's base field to load the entity. A node related to the
+   * group twice therefore produces two rows whose relationship `id` differs, and
+   * `SELECT DISTINCT` — which dedupes on the whole SELECT tuple — keeps both. So
+   * the node appears once per relationship.
+   *
+   * The clean fix cannot be done from `hook_views_query_alter` (the relationship
+   * id is re-added AFTER that hook runs, see Sql::query()'s entity-table loop).
+   * We fix it here instead, on the COMPILED core Select, which the view tags
+   * `views_group_content_stream` — a tag that fires for BOTH the main query and
+   * the pager's inner count query, so the row count and the pager total stay
+   * consistent.
+   *
+   * We collapse to one row per node with a GROUP BY on the node's own selected
+   * columns (`nid`, `created`), and make the fix portable under MySQL's
+   * `ONLY_FULL_GROUP_BY` (the MySQL 8 default, which forbids selecting
+   * non-aggregated columns not in — or provably functionally dependent on — the
+   * GROUP BY columns). MySQL does NOT prove `created` dependent on `nid` through
+   * the view's joins, so we put every non-aggregated NODE column in the GROUP BY
+   * rather than rely on functional dependency; `nid` is unique per node, so
+   * grouping additionally by `created` still yields exactly one row per node:
+   *  - `nid`, `created` are the node's selected columns — grouped, so both are
+   *    legal and the created-DESC ordering is unchanged;
+   *  - the relationship `id` is NOT dependent on the node (that is the whole
+   *    fan-out), so we wrap it in `MIN(...)` — its value is never displayed (the
+   *    view renders only node fields), so which relationship id survives is
+   *    irrelevant;
+   *  - the `pin_sort` CASE expression reads `pin_flagging.id` from a LEFT JOIN
+   *    that MySQL's FD analysis cannot prove is one-row-per-node, so we wrap it in
+   *    `MAX(...)`. `pin_in_group` is a global flag (at most one flagging row per
+   *    node), so `MAX` returns exactly the node's pinned/not value and the #52
+   *    pin-first ordering is preserved bit-for-bit.
+   *
+   * Group-SCOPING is untouched: it comes from the relationship's INNER JOIN,
+   * the `gid = :gid` WHERE condition the contextual argument adds, and Group's
+   * `group_relationship_access` query-tag conditions — none of which depend on
+   * the relationship id being SELECTED or on the GROUP BY. Only the current
+   * group's nodes appear, exactly as before.
+   */
+  #[Hook('query_views_group_content_stream_alter')]
+  public function queryViewsGroupContentStreamAlter(SelectInterface $query): void {
+    // Rewrite the relationship-side and pin columns into aggregates so a single
+    // GROUP BY on the node id collapses a relationship fan-out to one row per
+    // node without tripping ONLY_FULL_GROUP_BY. Identify the relationship-side
+    // columns by their table alias (the group_relationship join), not by a
+    // hardcoded alias string.
+    $relationship_table = 'group_relationship_field_data_node_field_data';
+
+    $fields = &$query->getFields();
+    foreach ($fields as $alias => $field) {
+      if (($field['table'] ?? NULL) === $relationship_table) {
+        // Move the relationship id out of the plain field list and re-add it as
+        // an aggregate expression so GROUP BY nid is legal and it stops
+        // fanning DISTINCT out.
+        unset($fields[$alias]);
+        $query->addExpression(
+          'MIN(' . $field['table'] . '.' . $field['field'] . ')',
+          $alias,
+        );
+      }
+    }
+
+    // Aggregate the pin_sort formula so it, too, is legal under the GROUP BY.
+    // pin_in_group is a global flag (one flagging row per node), so MAX() gives
+    // the node's exact pinned/not value and the #52 ordering is unchanged.
+    $expressions = &$query->getExpressions();
+    foreach ($expressions as $alias => $expression) {
+      if ($alias === 'pin_sort') {
+        $expressions[$alias]['expression'] =
+          'MAX(' . $expression['expression'] . ')';
+      }
+    }
+
+    // Group by every remaining plain (non-aggregated) column — these are all
+    // NODE columns (`nid`, `created`) now that the relationship id has been moved
+    // to an aggregate. Grouping by the node's own columns (rather than nid alone)
+    // satisfies ONLY_FULL_GROUP_BY on MySQL 8 without relying on the optimizer to
+    // prove functional dependency through the view's joins. `nid` is unique per
+    // node, so the extra grouped column(s) do not split the node into more rows —
+    // it stays one row per node — and the created-DESC ordering is preserved.
+    foreach ($query->getFields() as $field) {
+      $table = $field['table'] ?? NULL;
+      if ($table !== NULL) {
+        $query->groupBy($table . '.' . $field['field']);
+      }
+    }
   }
 
   /**
