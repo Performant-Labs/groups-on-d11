@@ -252,7 +252,11 @@ jobs:
           # lets the built-in server fork workers to handle the concurrent
           # sub-requests a single page issues (assets/AJAX) without serializing.
           export PHP_CLI_SERVER_WORKERS=8
-          nohup php -S 127.0.0.1:8080 -t web web/.ht.router.php \
+          # Use an ABSOLUTE router path: `php -S` resolves the router script
+          # relative to each request's CWD (the docroot, via -t web), so a
+          # relative `web/.ht.router.php` would resolve to `web/web/...` and
+          # every request would 500 with "Failed opening required router".
+          nohup php -S 127.0.0.1:8080 -t web "$PWD/web/.ht.router.php" \
             >/tmp/phpserver.log 2>&1 &
           echo "server PID $!"
           for i in $(seq 1 30); do
@@ -297,7 +301,10 @@ jobs:
           echo "----- php -S server log (tail) -----"
           tail -120 /tmp/phpserver.log || true
           echo "----- BrowserTestBase HTML output (names) -----"
-          find "$BROWSERTEST_OUTPUT_DIRECTORY" -type f 2>/dev/null | sort || true
+          # BrowserTestBase writes browser dumps to BROWSERTEST_OUTPUT_DIRECTORY
+          # when set, else to web/sites/simpletest/browser_output.
+          find "$BROWSERTEST_OUTPUT_DIRECTORY" web/sites/simpletest/browser_output \
+            -type f 2>/dev/null | sort || true
 
       - name: Upload functional failure artifacts
         if: failure()
@@ -307,6 +314,7 @@ jobs:
           path: |
             /tmp/phpserver.log
             /tmp/browsertest-output
+            web/sites/simpletest/browser_output
           retention-days: 7
           if-no-files-found: ignore
 
