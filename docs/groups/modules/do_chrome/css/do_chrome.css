@@ -24,3 +24,39 @@
 .tippy-box[data-theme~='do-chrome'] .tippy-arrow {
   color: #1b1b1b;
 }
+
+/* --- #92 archive / pin / promote / follow control tooltip triggers --------- */
+
+/*
+ * do_group_extras draws the "Archived" chip as a `.group--archived::before`
+ * CSS pseudo-element, which cannot carry a tooltip. This story renders a REAL
+ * `.group__archived-badge` element (marked `.group--archived-chrome`) so the
+ * badge itself is hoverable/focusable; suppress the upstream pseudo-element on
+ * those groups so exactly one badge shows.
+ */
+.group--archived-chrome.group--archived::before {
+  content: none;
+}
+
+.group__archived-badge {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background-color: #6c757d;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/*
+ * Badge triggers are chips, not inline prose — drop the dotted underline the
+ * generic [data-do-tooltip] rule adds, but keep the help cursor as the hover
+ * affordance.
+ */
+.group__archived-badge[data-do-tooltip],
+.pin-badge[data-do-tooltip] {
+  border-bottom: 0;
+}

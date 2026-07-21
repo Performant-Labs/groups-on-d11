@@ -6,3 +6,11 @@ services:
       - '@current_route_match'
     tags:
       - { name: 'hook_implementations' }
+
+  # #92 archive / pin / promote / follow tooltip surfaces. Own service so the
+  # story stays parallel-safe (no edit to another surface's hook class).
+  do_chrome.archive_pin_hooks:
+    class: Drupal\do_chrome\Hook\ArchivePinHooks
+    autowire: false
+    tags:
+      - { name: 'hook_implementations' }

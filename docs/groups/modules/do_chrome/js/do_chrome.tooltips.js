@@ -12,7 +12,7 @@
   'use strict';
 
   Drupal.behaviors.doChromeTooltips = {
-    attach(context) {
+    attach(context, settings) {
       // `tippy` is provided by the locally-bundled UMD build (no CDN).
       if (typeof window.tippy !== 'function') {
         return;
@@ -23,6 +23,28 @@
           content: el.getAttribute('data-do-tooltip'),
           allowHTML: false,
           theme: 'do-chrome',
+        });
+      });
+
+      // Selector-mapped control tooltips (#92): the flag module renders the
+      // promote/follow links itself, so their copy arrives as a
+      // `selector => text` map in drupalSettings.doChrome.controlTooltips rather
+      // than as a `data-do-tooltip` attribute. Bind each once so the same links
+      // get the same explanatory tooltip wherever the flag module places them.
+      const controlTooltips =
+        (settings && settings.doChrome && settings.doChrome.controlTooltips) ||
+        {};
+      Object.keys(controlTooltips).forEach((selector) => {
+        const text = controlTooltips[selector];
+        if (!text) {
+          return;
+        }
+        once('do-chrome-tooltip', selector, context).forEach((el) => {
+          window.tippy(el, {
+            content: text,
+            allowHTML: false,
+            theme: 'do-chrome',
+          });
         });
       });
     },
