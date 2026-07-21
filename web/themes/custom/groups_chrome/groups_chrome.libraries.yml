@@ -46,5 +46,16 @@ group_page:
   css:
     theme:
       css/group-page.css: {}
+
+# Group directory cards (#84 / CH-A2). Attached by
+# groups_chrome_preprocess_views_view_fields__all_groups() to the all_groups
+# view rows, so the directory-card CSS only loads on /all-groups (and any other
+# embed of that view), not site-wide. Depends on `global` for tokens +
+# card/badge/button primitives.
+directory:
+  version: 1.x
+  css:
+    theme:
+      css/directory.css: {}
   dependencies:
     - groups_chrome/global

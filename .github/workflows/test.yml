@@ -477,23 +477,42 @@ jobs:
           grep -c "databases\['default'\]\['default'\]" web/sites/default/settings.php || true
           php vendor/drush/drush/drush.php status --fields=drupal-version,db-status,bootstrap
 
-      - name: Seed header-navigation menu links (#83)
-        # The community header nav (nav.spec.ts) is seeded content: the four
-        # `main` menu links live in docs/groups/scripts/step_780_nav_menu.php,
-        # run by the container entrypoint on deploy. This clean-room E2E job
-        # installs + imports config but does NOT run the demo seed, so without
-        # this step the nav links do not exist here and nav.spec.ts fails even
-        # though prod renders them. The scoped group-view roles the links'
-        # access depends on now arrive via config:import (group.role.
-        # community_group-*_view.yml), so only the links themselves need
-        # seeding. Run as uid 1 (matches the entrypoint's seed-as-admin wrapper);
-        # idempotent, so a re-run is harmless.
+      - name: Seed full demo data (groups, content, types, nav) — mirror the deployed image
+        # CI installs + imports config but does NOT run the container entrypoint,
+        # so without this the site has NO demo groups, members, group-type tags or
+        # nav links — and directory-cards.spec.ts (#84), nav.spec.ts (#83) and the
+        # phase2/3/4 specs that assert seeded groups/streams would all fail even
+        # though the deployed image renders them. Run the SAME scripts the
+        # entrypoint runs, in the same order, as uid 1 (matches the entrypoint's
+        # seed-as-admin wrapper so do_group_extras' unpublish-on-create presave
+        # hook leaves the seeded groups published). All scripts are idempotent.
+        #
+        # Absolute script paths: under `drush php:script`, PHP's getcwd() resolves
+        # to the docroot, not the workspace, so relative requires break. Resolve
+        # every path against $PWD (the workspace root) explicitly.
         run: |
           set -euxo pipefail
-          # Pass the repo-root path explicitly: under `drush php:script`, PHP's
-          # getcwd() resolves to the docroot, not the workspace, so an absolute
-          # path to the seed script is required.
+          DEMO_SCRIPT="$PWD/docs/groups/scripts/step_700_demo_data.php"
+          TYPES_SCRIPT="$PWD/docs/groups/scripts/step_720_group_types.php"
           NAV_SCRIPT="$PWD/docs/groups/scripts/step_780_nav_menu.php"
+          # 1) Demo data (users, 8 groups, memberships, in-group content) as uid 1.
+          cat > /tmp/seed-demo.php <<PHP
+          <?php
+          \$admin = \Drupal\user\Entity\User::load(1);
+          if (\$admin) { \Drupal::currentUser()->setAccount(\$admin); }
+          require '${DEMO_SCRIPT}';
+          PHP
+          php vendor/drush/drush/drush.php php:script /tmp/seed-demo.php
+          # 2) Group types: field_group_type + 5 terms + tag the 8 groups (needs the
+          #    groups from step 1). Same shared script the entrypoint runs.
+          cat > /tmp/seed-types.php <<PHP
+          <?php
+          \$admin = \Drupal\user\Entity\User::load(1);
+          if (\$admin) { \Drupal::currentUser()->setAccount(\$admin); }
+          require '${TYPES_SCRIPT}';
+          PHP
+          php vendor/drush/drush/drush.php php:script /tmp/seed-types.php
+          # 3) Header-navigation menu links (nav.spec.ts).
           cat > /tmp/seed-nav.php <<PHP
           <?php
           \$admin = \Drupal\user\Entity\User::load(1);
