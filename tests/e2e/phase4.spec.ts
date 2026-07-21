@@ -30,13 +30,14 @@ import { test, expect, Page } from '@playwright/test';
  *
  * BLOCK PLACEMENT NOTE (why these tests place blocks first): in the assembled
  * config the mission and contribution-stats blocks are placed ONLY in the
- * `bluecheese` theme, which is not installed — the active default theme is
- * Olivero — so neither block renders in the default UI as shipped. To validate
- * the block PLUGINS through the real theme/block layer, each test first places
- * its block into Olivero via the core block-placement admin form (a real,
- * self-seeding UI step with a unique machine name), then asserts the render.
- * This is a genuine E2E validation of the plugin output; it does not modify the
- * repo's committed block config.
+ * `bluecheese` theme, which is not installed — the active default front-end
+ * theme is `groups_chrome` (the #80 community subtheme) — so neither block
+ * renders in the default UI as shipped. To validate the block PLUGINS through
+ * the real theme/block layer, each test first places its block into the active
+ * front-end theme via the core block-placement admin form (a real, self-seeding
+ * UI step with a unique machine name), then asserts the render. This is a
+ * genuine E2E validation of the plugin output; it does not modify the repo's
+ * committed block config.
  *
  * NO MEANINGFUL E2E SURFACE (documented, per #43, not faked):
  *   - do_discovery iCal feeds — already covered by kernel tests (#40); the feed
@@ -92,19 +93,27 @@ async function createPost(
   return page.url().match(/\/node\/(\d+)/)![1];
 }
 
+// Front-end theme the site actually serves. groups_chrome (the #80 community
+// subtheme) is the default theme, so blocks must be placed into IT to render on
+// public pages — placing into olivero would save fine but never appear, since
+// olivero is no longer the active front-end theme. Overridable for parity with
+// BASE_URL/ADMIN_* if a run targets a different default.
+const FRONTEND_THEME = process.env.FRONTEND_THEME ?? 'groups_chrome';
+
 /**
- * Place a custom block plugin into the Olivero `content` region via the core
- * block-placement admin form, using a unique machine name so re-runs never
- * collide. `contextGroupRoute` maps the block's group context to the route
- * (needed by the mission block). Returns nothing; asserts the save succeeded.
+ * Place a custom block plugin into the active front-end theme's `content`
+ * region via the core block-placement admin form, using a unique machine name
+ * so re-runs never collide. `contextGroupRoute` maps the block's group context
+ * to the route (needed by the mission block). Returns the rendered block
+ * wrapper id; asserts the save succeeded.
  */
-async function placeBlockInOlivero(
+async function placeBlockInFrontendTheme(
   page: Page,
   pluginId: string,
   contextGroupRoute = false,
 ): Promise<string> {
   const machineId = `e2e_${pluginId}_${Date.now()}`.replace(/[^a-z0-9_]/g, '_');
-  await page.goto(`/admin/structure/block/add/${pluginId}/olivero`, {
+  await page.goto(`/admin/structure/block/add/${pluginId}/${FRONTEND_THEME}`, {
     waitUntil: 'domcontentloaded',
   });
   await page.locator('select[name="region"]').selectOption('content');
@@ -189,7 +198,7 @@ test.describe('Phase 4/5 — pins, blocks & notification controls', () => {
   test('group mission block renders the group description', async ({ page }) => {
     await login(page);
     const gid = await createGroup(page, `MissionG ${Date.now()}`);
-    const blockId = await placeBlockInOlivero(page, 'do_group_mission', true);
+    const blockId = await placeBlockInFrontendTheme(page, 'do_group_mission', true);
 
     await page.goto(`/group/${gid}`, { waitUntil: 'domcontentloaded' });
     // Scope to the block this test just placed (the shared site may carry other
@@ -204,13 +213,16 @@ test.describe('Phase 4/5 — pins, blocks & notification controls', () => {
     page,
   }) => {
     await login(page);
-    const blockId = await placeBlockInOlivero(
+    const blockId = await placeBlockInFrontendTheme(
       page,
       'do_contribution_stats',
       false,
     );
 
-    // The block is restricted (block visibility) to /user/* pages.
+    // The block reads the profile owner from the `user` route parameter, so it
+    // renders on /user/{uid}. (Its build now declares the `url` cache context —
+    // see ContributionStatsBlock::getCacheContexts — so each route caches its
+    // own build instead of reusing an empty first render.)
     await page.goto('/user/1', { waitUntil: 'domcontentloaded' });
     // Scope to the block this test placed (site may carry other stats blocks).
     const stats = page.locator(`#${blockId} .pl-contribution-stats`);

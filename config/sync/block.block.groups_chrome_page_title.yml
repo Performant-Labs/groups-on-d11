@@ -1,0 +1,18 @@
+uuid: 826f3bfa-267e-4b02-b694-7616bd84cdc6
+langcode: en
+status: true
+dependencies:
+  theme:
+    - groups_chrome
+id: groups_chrome_page_title
+theme: groups_chrome
+region: content_above
+weight: -5
+provider: null
+plugin: page_title_block
+settings:
+  id: page_title_block
+  label: 'Page title'
+  label_display: '0'
+  provider: core
+visibility: {  }

@@ -1,0 +1,18 @@
+uuid: cbca0743-45ed-49cb-ba7f-abaace4de010
+langcode: en
+status: true
+dependencies:
+  theme:
+    - groups_chrome
+id: groups_chrome_primary_admin_actions
+theme: groups_chrome
+region: highlighted
+weight: -5
+provider: null
+plugin: local_actions_block
+settings:
+  id: local_actions_block
+  label: 'Primary admin actions'
+  label_display: '0'
+  provider: core
+visibility: {  }

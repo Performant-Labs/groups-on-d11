@@ -1,0 +1,20 @@
+uuid: 5f7d288a-c8d5-4730-88f7-089f7531db05
+langcode: en
+status: true
+dependencies:
+  module:
+    - system
+  theme:
+    - groups_chrome
+id: groups_chrome_powered
+theme: groups_chrome
+region: footer_bottom
+weight: 0
+provider: null
+plugin: system_powered_by_block
+settings:
+  id: system_powered_by_block
+  label: 'Powered by Drupal'
+  label_display: '0'
+  provider: system
+visibility: {  }

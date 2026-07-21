@@ -1,0 +1,38 @@
+name: Groups Chrome
+type: theme
+description: 'Community chrome subtheme for the Groups on D11 demo. Provides design tokens (colour, spacing, typography) and reusable primitives (badge, card, button) that the Phase-1 chrome stories (#82–#87) extend. Base theme: Olivero.'
+package: 'Groups'
+core_version_requirement: ^10 || ^11
+base theme: olivero
+
+# Regions MUST mirror Olivero's full set. A subtheme does NOT inherit its base
+# theme's regions — if `regions:` is omitted, Drupal falls back to the SYSTEM
+# default regions, which lack Olivero's custom regions (hero, highlighted,
+# content_above, content_below, …). Olivero's page.html.twig renders into those
+# regions, and the default block placements target them (e.g. page_title +
+# help live in `content_above`; messages + local tasks/actions in
+# `highlighted`). Dropping them means the page-title <h1>, status messages, and
+# admin tabs silently disappear. This list is copied verbatim from
+# web/core/themes/olivero/olivero.info.yml.
+#
+# A-stories adding a NEW region append it to THIS list (keep every entry below).
+regions:
+  header: Header
+  primary_menu: Primary menu
+  secondary_menu: Secondary menu
+  hero: Hero (full width)
+  highlighted: Highlighted
+  breadcrumb: Breadcrumb
+  social: Social Bar
+  content_above: Content Above
+  content: Content
+  sidebar: Sidebar
+  content_below: Content Below
+  footer_top: Footer Top
+  footer_bottom: Footer Bottom
+
+libraries:
+  - groups_chrome/global
+
+# Component libraries the A-stories can attach per-page without loading globally.
+libraries-override: {}

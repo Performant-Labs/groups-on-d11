@@ -1,0 +1,97 @@
+/**
+ * Groups Chrome — design tokens.
+ *
+ * The single source of truth for colour, spacing, typography, radius, shadow
+ * and z-index across the community chrome. Everything downstream (the
+ * primitives in primitives.css and every A-story component) MUST consume these
+ * custom properties rather than hard-coding values, so a rebrand is a one-file
+ * change.
+ *
+ * Naming convention:  --gc-<category>-<role>[-<variant>]
+ *   gc      = groups-chrome namespace (avoids collisions with Olivero's own
+ *             `--color-*` / `--sp*` variables and any A-story additions).
+ *   category= color | space | font | leading | radius | shadow | z | size
+ *
+ * A-stories: ADD new tokens here; do NOT redefine Olivero core variables.
+ */
+
+:root {
+  /* --- Colour: brand -------------------------------------------------------
+   * Drupal.org-adjacent blues. Primary is the interactive/brand accent; the
+   * -600/-700 steps are for hover/active and text-on-light.
+   */
+  --gc-color-primary:        #0678be; /* drupal.org blue */
+  --gc-color-primary-600:    #055a91;
+  --gc-color-primary-700:    #044568;
+  --gc-color-primary-050:    #e7f2fb; /* tint for badge/card wash backgrounds */
+
+  /* --- Colour: neutrals (surfaces + text) --------------------------------- */
+  --gc-color-bg:             #ffffff; /* page / card surface */
+  --gc-color-bg-subtle:      #f5f7fa; /* muted panel / directory background */
+  --gc-color-border:         #d6dde5; /* hairline dividers, card borders */
+  --gc-color-text:           #1b2733; /* body copy */
+  --gc-color-text-muted:     #5c6b7a; /* secondary / meta text */
+  --gc-color-text-inverse:   #ffffff; /* text on brand / dark surfaces */
+
+  /* --- Colour: semantic (status badges) ----------------------------------- */
+  --gc-color-success:        #218d5b;
+  --gc-color-success-050:    #e6f4ec;
+  --gc-color-warning:        #b3730a;
+  --gc-color-warning-050:    #fbf1e0;
+  --gc-color-danger:         #c0392b;
+  --gc-color-danger-050:     #fbeae8;
+  --gc-color-info:           var(--gc-color-primary);
+  --gc-color-info-050:       var(--gc-color-primary-050);
+
+  /* --- Spacing scale (4px base, multiplicative) --------------------------- */
+  --gc-space-3xs:  0.125rem; /*  2px */
+  --gc-space-2xs:  0.25rem;  /*  4px */
+  --gc-space-xs:   0.5rem;   /*  8px */
+  --gc-space-sm:   0.75rem;  /* 12px */
+  --gc-space-md:   1rem;     /* 16px */
+  --gc-space-lg:   1.5rem;   /* 24px */
+  --gc-space-xl:   2rem;     /* 32px */
+  --gc-space-2xl:  3rem;     /* 48px */
+  --gc-space-3xl:  4rem;     /* 64px */
+
+  /* --- Typography --------------------------------------------------------- */
+  /* Inherit Olivero's font stacks by default; expose them as tokens so
+   * A-stories reference one name. Override the value here to restyle globally. */
+  --gc-font-sans:  'Metropolis', 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+  --gc-font-mono:  ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+
+  --gc-font-size-xs:   0.75rem;   /* 12px — badge / meta */
+  --gc-font-size-sm:   0.875rem;  /* 14px */
+  --gc-font-size-md:   1rem;      /* 16px — body */
+  --gc-font-size-lg:   1.25rem;   /* 20px — card title */
+  --gc-font-size-xl:   1.5rem;    /* 24px — section heading */
+  --gc-font-size-2xl:  2rem;      /* 32px — page heading */
+
+  --gc-font-weight-normal:   400;
+  --gc-font-weight-medium:   500;
+  --gc-font-weight-semibold: 600;
+  --gc-font-weight-bold:     700;
+
+  --gc-leading-tight:   1.2;
+  --gc-leading-normal:  1.5;
+
+  /* --- Radius ------------------------------------------------------------- */
+  --gc-radius-sm:   4px;
+  --gc-radius-md:   8px;
+  --gc-radius-lg:   12px;
+  --gc-radius-pill: 999px;
+
+  /* --- Elevation ---------------------------------------------------------- */
+  --gc-shadow-sm: 0 1px 2px rgba(27, 39, 51, 0.06),
+                  0 1px 3px rgba(27, 39, 51, 0.08);
+  --gc-shadow-md: 0 2px 4px rgba(27, 39, 51, 0.06),
+                  0 4px 12px rgba(27, 39, 51, 0.10);
+
+  /* --- Layout sizes ------------------------------------------------------- */
+  --gc-size-container: 1200px; /* max content width for chrome regions */
+
+  /* --- Z-index scale ------------------------------------------------------ */
+  --gc-z-sticky:  100;
+  --gc-z-overlay: 500;
+  --gc-z-tooltip: 800; /* the do_chrome tooltip lib (#79) layers above chrome */
+}

@@ -1,0 +1,17 @@
+# Library definitions for the Groups Chrome subtheme.
+#
+# `global` is attached on every page (see groups_chrome.info.yml `libraries:`).
+# It loads the design tokens first, then the reusable primitives that build on
+# those tokens. A-stories (#82–#87) should ADD their own library entries here
+# (one per component area) and attach them per-page/per-template, rather than
+# appending to `global`, so component CSS stays isolated and cache-friendly.
+
+global:
+  version: 1.x
+  css:
+    # `base` weight loads tokens ahead of theme/component styles so the custom
+    # properties are defined before anything consumes them.
+    base:
+      css/tokens.css: {}
+    theme:
+      css/primitives.css: {}

@@ -1,0 +1,20 @@
+uuid: 5a8cdb5f-9612-4886-a590-bf86f3825949
+langcode: en
+status: true
+dependencies:
+  module:
+    - system
+  theme:
+    - groups_chrome
+id: groups_chrome_messages
+theme: groups_chrome
+region: highlighted
+weight: -5
+provider: null
+plugin: system_messages_block
+settings:
+  id: system_messages_block
+  label: 'Status messages'
+  label_display: '0'
+  provider: system
+visibility: {  }
