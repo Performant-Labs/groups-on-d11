@@ -1,0 +1,37 @@
+uuid: 320947a8-e969-4e93-9e75-4c7e8c2a10d1
+langcode: en
+status: true
+dependencies:
+  config:
+    - group.type.community_group
+    - user.role.authenticated
+id: community_group-insider_view
+label: 'Member viewer'
+weight: 3
+admin: false
+scope: insider
+global_role: authenticated
+group_type: community_group
+permissions:
+  - 'create group_node:documentation entity'
+  - 'create group_node:event entity'
+  - 'create group_node:forum entity'
+  - 'create group_node:page entity'
+  - 'create group_node:post entity'
+  - 'delete own group_node:documentation entity'
+  - 'delete own group_node:event entity'
+  - 'delete own group_node:forum entity'
+  - 'delete own group_node:page entity'
+  - 'delete own group_node:post entity'
+  - 'leave group'
+  - 'update own group_node:documentation entity'
+  - 'update own group_node:event entity'
+  - 'update own group_node:forum entity'
+  - 'update own group_node:page entity'
+  - 'update own group_node:post entity'
+  - 'view group'
+  - 'view group_node:documentation entity'
+  - 'view group_node:event entity'
+  - 'view group_node:forum entity'
+  - 'view group_node:page entity'
+  - 'view group_node:post entity'

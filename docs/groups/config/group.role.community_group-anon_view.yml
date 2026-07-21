@@ -1,0 +1,21 @@
+uuid: 64bf443f-f3b2-49a0-a613-e5da4a1548f0
+langcode: en
+status: true
+dependencies:
+  config:
+    - group.type.community_group
+    - user.role.anonymous
+id: community_group-anon_view
+label: 'Anonymous viewer'
+weight: 1
+admin: false
+scope: outsider
+global_role: anonymous
+group_type: community_group
+permissions:
+  - 'view group'
+  - 'view group_node:documentation entity'
+  - 'view group_node:event entity'
+  - 'view group_node:forum entity'
+  - 'view group_node:page entity'
+  - 'view group_node:post entity'

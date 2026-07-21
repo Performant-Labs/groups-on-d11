@@ -319,4 +319,12 @@ if ($rsvp_flag) {
   }
 }
 
+// ===== Step 780: Header navigation (CH-A1, #83) =====
+// Seed the primary-nav menu links so the groups_chrome main-menu block renders
+// the community navigation. Kept in its own file (issue #83 owns the nav).
+$__nav_step = __DIR__ . '/step_780_nav_menu.php';
+if (is_file($__nav_step)) {
+  require $__nav_step;
+}
+
 echo "\n=== Demo data complete ===\n";
