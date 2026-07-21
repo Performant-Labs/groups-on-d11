@@ -50,6 +50,41 @@ final class HelpTextTest extends TestCase {
   }
 
   /**
+   * The #92 archive/pin/promote/follow copy exists and is plain text.
+   *
+   * Only WIRED controls ship copy (verified in the #81 spike): archive badge,
+   * pin badge, promote (`promote_homepage` -> Promoted Content listing), follow
+   * (`follow_content` -> notifications).
+   *
+   * @covers ::get
+   */
+  public function testArchivePinControlCopyIsPresentAndPlainText(): void {
+    foreach (['archive.badge', 'pin.badge', 'promote.control', 'follow.control'] as $key) {
+      $copy = HelpText::get($key);
+      $this->assertNotSame('', $copy, sprintf('Tooltip copy for "%s" must exist.', $key));
+      $this->assertStringNotContainsString('<', $copy, 'Copy must be plain text (allowHTML is disabled).');
+    }
+  }
+
+  /**
+   * No "flag/report" control copy ships — no such moderation target exists.
+   *
+   * The #81 copy deck listed a "Flag" (report-to-admins) control marked
+   * verify-before-ship; the demo has no report/abuse flag, so its copy is
+   * intentionally omitted rather than describing unwired behavior.
+   *
+   * @covers ::get
+   */
+  public function testReportFlagControlCopyIsOmitted(): void {
+    $all = HelpText::all();
+    foreach (array_keys($all) as $key) {
+      $this->assertStringNotContainsString('report', $key, 'No report/moderation flag tooltip should ship.');
+    }
+    $this->assertSame('', HelpText::get('flag.control'));
+    $this->assertSame('', HelpText::get('report.control'));
+  }
+
+  /**
    * @covers ::all
    */
   public function testAllReturnsStringMap(): void {

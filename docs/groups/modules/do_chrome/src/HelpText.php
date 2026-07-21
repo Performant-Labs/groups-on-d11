@@ -40,7 +40,7 @@ final class HelpText {
       // #89 group_type.* / content_type.*
       // #90 audience.*        (multi-group audience help)
       // #91 permissions.*     (who-can-do-what matrix)
-      // #92 archive.* / pin.* / promote.* / flag.*
+      // #92 archive.* / pin.* / promote.* / follow.*
 
       // #90 (CH-B3): multi-group "Group Audience" fieldset (do_multigroup
       // cross-posting). Copy is the approved #81 deck, section D. This surface
@@ -48,6 +48,31 @@ final class HelpText {
       // form is wired (do_multigroup; the form-submit path fixed in #68), so
       // the copy is presented as live, not aspirational.
       'audience.fieldset' => 'Post to more than one group at once — the content appears in every group you select and in each group\'s stream. Leave a group unselected to remove it from that group without deleting the content.',
+
+      // #92 archive / pin / promote / follow controls.
+      //
+      // Copy is authored in the #81 copy deck (section F) and cross-checked
+      // against ENFORCED behavior in the deployed modules — only wired controls
+      // ship a tooltip here:
+      //  - archive.badge : the read-only "Archived" badge. Enforced by
+      //    do_group_extras (preprocess_group tags the group `group--archived`;
+      //    node_access denies `create` in Archive-typed groups).
+      //  - pin.badge     : the "Pinned" badge. Enforced by do_group_pin via the
+      //    `pin_in_group` flag (pinned nodes lead group_content_stream).
+      //  - promote.control : the `promote_homepage` flag link. Wired — flagged
+      //    nodes surface on the "Promoted Content" listing
+      //    (views.view.promoted_content, path admin/content/promoted).
+      //  - follow.control  : the `follow_content` flag link. Wired — following
+      //    a post subscribes you to its notifications (do_notifications).
+      //
+      // The copy deck's "Flag" (report-to-admins) control is intentionally
+      // OMITTED: no report/abuse flag or moderation target exists on the demo
+      // (verified — no such flag.flag.* config, no consumer), so shipping that
+      // string would describe behavior that is not wired.
+      'archive.badge' => 'This group is archived: read-only. Everything stays visible for reference, but no new content can be posted here.',
+      'pin.badge' => 'Pinned: this post is kept at the top of the group stream so newcomers see it first, regardless of date.',
+      'promote.control' => 'Promote surfaces this post beyond its group, onto the site-wide Promoted Content listing.',
+      'follow.control' => 'Follow this post to get notified when it is updated or gets new replies.',
     ];
   }
 
