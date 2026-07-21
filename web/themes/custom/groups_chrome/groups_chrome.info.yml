@@ -1,0 +1,19 @@
+name: Groups Chrome
+type: theme
+description: 'Community chrome subtheme for the Groups on D11 demo. Provides design tokens (colour, spacing, typography) and reusable primitives (badge, card, button) that the Phase-1 chrome stories (#82–#87) extend. Base theme: Olivero.'
+package: 'Groups'
+core_version_requirement: ^10 || ^11
+base theme: olivero
+
+# Regions are intentionally NOT declared here. Omitting the `regions:` key makes
+# this subtheme INHERIT every region defined by Olivero (header, primary_menu,
+# secondary_menu, breadcrumb, highlighted, content, sidebar, footer_top,
+# footer_bottom, social, …). Re-declaring them risks dropping a region an
+# Olivero template renders into. A-stories that need a NEW region should add the
+# full inherited list plus their region here, in a single well-commented block.
+
+libraries:
+  - groups_chrome/global
+
+# Component libraries the A-stories can attach per-page without loading globally.
+libraries-override: {}
