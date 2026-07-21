@@ -3,6 +3,7 @@
 namespace Drupal\do_profile_stats\Plugin\Block;
 
 use Drupal\Core\Block\BlockBase;
+use Drupal\Core\Cache\Cache;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\user\UserInterface;
@@ -144,6 +145,19 @@ class ContributionStatsBlock extends BlockBase implements ContainerFactoryPlugin
    */
   public function getCacheMaxAge() {
     return 3600;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getCacheContexts() {
+    // build() derives its output from the `user` route parameter
+    // (getContextUser()), so the rendered block varies by URL. Without the
+    // `url` cache context the first render — which may be on a page with no
+    // user route parameter, yielding an empty build — gets cached and reused
+    // for every page, so the block silently fails to appear on /user/{uid}.
+    // Add `url` so each route caches its own build.
+    return Cache::mergeContexts(parent::getCacheContexts(), ['url']);
   }
 
 }
