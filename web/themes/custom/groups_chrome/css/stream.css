@@ -1,0 +1,170 @@
+/**
+ * Groups Chrome — activity stream feed (story #86 / CH-A4).
+ *
+ * Component styles for the /stream feed. Composes the shared primitives
+ * (.gc-card, .gc-badge) from primitives.css and consumes ONLY tokens.css custom
+ * properties — no hard-coded colours/spacing, no edits to shared CSS.
+ *
+ * Attached per-row by groups_chrome_preprocess_node() via the
+ * `groups_chrome/stream` library, so it never loads outside the feed.
+ */
+
+/* --------------------------------------------------------------------------
+   Feed container. The view display carries `.activity-stream` (css_class) and
+   rows carry `.stream-card-wrapper` (row_class). Give the feed a constrained,
+   single-column rhythm so cards read as a vertical timeline.
+   -------------------------------------------------------------------------- */
+.activity-stream .view-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gc-space-md);
+  max-width: 720px;
+}
+
+.activity-stream .stream-card-wrapper {
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Stream card.
+   -------------------------------------------------------------------------- */
+.gc-stream-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gc-space-sm);
+}
+
+.gc-stream-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gc-space-sm);
+}
+
+/* Author avatar — initial in a brand-tinted disc. */
+.gc-stream-card__avatar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--gc-radius-pill);
+  background-color: var(--gc-color-primary-050);
+  color: var(--gc-color-primary-700);
+  font-size: var(--gc-font-size-md);
+  font-weight: var(--gc-font-weight-bold);
+  line-height: 1;
+}
+
+.gc-stream-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gc-space-3xs);
+  min-width: 0;
+}
+
+.gc-stream-card__byline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gc-space-2xs);
+  font-size: var(--gc-font-size-sm);
+  color: var(--gc-color-text-muted);
+}
+
+.gc-stream-card__author {
+  font-weight: var(--gc-font-weight-semibold);
+  color: var(--gc-color-text);
+  text-decoration: none;
+}
+
+.gc-stream-card__author:hover {
+  color: var(--gc-color-primary-700);
+  text-decoration: underline;
+}
+
+.gc-stream-card__in {
+  color: var(--gc-color-text-muted);
+}
+
+.gc-stream-card__groups {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--gc-space-2xs);
+}
+
+/* Group badge extends .gc-badge--primary; add hover affordance when linked. */
+a.gc-stream-card__group {
+  text-decoration: none;
+}
+
+a.gc-stream-card__group:hover {
+  background-color: var(--gc-color-primary);
+  color: var(--gc-color-text-inverse);
+}
+
+.gc-stream-card__submeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gc-space-xs);
+  font-size: var(--gc-font-size-xs);
+  color: var(--gc-color-text-muted);
+}
+
+.gc-stream-card__time {
+  color: var(--gc-color-text-muted);
+}
+
+/* Card title — tighten from the primitive default in this compact context. */
+.gc-stream-card__title {
+  margin: 0;
+  font-size: var(--gc-font-size-lg);
+}
+
+.gc-stream-card__title a {
+  color: var(--gc-color-text);
+  text-decoration: none;
+}
+
+.gc-stream-card__title a:hover {
+  color: var(--gc-color-primary-700);
+  text-decoration: underline;
+}
+
+.gc-stream-card__snippet {
+  margin: 0;
+  color: var(--gc-color-text);
+  font-size: var(--gc-font-size-md);
+  line-height: var(--gc-leading-normal);
+}
+
+/* Footer — comment indicator. */
+.gc-stream-card__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--gc-space-md);
+}
+
+.gc-stream-card__comments {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gc-space-2xs);
+  color: var(--gc-color-text-muted);
+  font-size: var(--gc-font-size-sm);
+  font-weight: var(--gc-font-weight-medium);
+  text-decoration: none;
+}
+
+.gc-stream-card__comments:hover {
+  color: var(--gc-color-primary-700);
+}
+
+.gc-stream-card__comments-icon {
+  display: block;
+  color: var(--gc-color-text-muted);
+}
+
+.gc-stream-card__comments:hover .gc-stream-card__comments-icon {
+  color: var(--gc-color-primary-700);
+}

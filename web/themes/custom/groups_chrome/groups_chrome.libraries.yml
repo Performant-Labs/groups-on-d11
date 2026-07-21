@@ -15,3 +15,12 @@ global:
       css/tokens.css: {}
     theme:
       css/primitives.css: {}
+
+# Activity stream feed (#86 / CH-A4). Attached per-row by
+# groups_chrome_preprocess_node() to the `stream_card` node view mode, so the
+# feed CSS only loads on /stream (and the stream block), not site-wide.
+stream:
+  version: 1.x
+  css:
+    theme:
+      css/stream.css: {}
