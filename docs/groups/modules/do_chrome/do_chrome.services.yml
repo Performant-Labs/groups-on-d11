@@ -1,0 +1,8 @@
+services:
+  do_chrome.hooks:
+    class: Drupal\do_chrome\Hook\DoChromeHooks
+    autowire: false
+    arguments:
+      - '@current_route_match'
+    tags:
+      - { name: 'hook_implementations' }

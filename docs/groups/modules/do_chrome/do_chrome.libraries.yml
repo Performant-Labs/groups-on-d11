@@ -1,0 +1,24 @@
+# Locally-vendored tooltip library (epic #78 constraint: NO external CDN).
+#
+# tippy.js v6 is the tooltip engine; it requires @popperjs/core v2 as its
+# positioning dependency. Both are the pinned UMD/browser builds committed under
+# this module's js/ directory. The upstream versions are recorded here so a
+# refresh is auditable:
+#   - @popperjs/core 2.11.8  (js/popper.min.js)
+#   - tippy.js       6.3.7   (js/tippy-bundle.umd.min.js, css/tippy.css)
+#
+# `tooltips` is the single library every tooltip surface attaches. B-stories
+# (#88-#92) do NOT add new libraries — they attach `do_chrome/tooltips` and add
+# a copy entry to \Drupal\do_chrome\HelpText.
+tooltips:
+  version: '6.3.7'
+  js:
+    # popper must load before tippy (tippy's UMD build requires it).
+    js/popper.min.js: { minified: true, weight: -2 }
+    js/tippy-bundle.umd.min.js: { minified: true, weight: -1 }
+    # Behavior that initializes tippy against [data-do-tooltip] elements.
+    js/do_chrome.tooltips.js: {}
+  css:
+    theme:
+      css/tippy.css: { minified: true }
+      css/do_chrome.css: {}

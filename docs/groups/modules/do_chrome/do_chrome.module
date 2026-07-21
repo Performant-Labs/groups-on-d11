@@ -1,0 +1,17 @@
+<?php
+
+/**
+ * @file
+ * Community chrome + schema tooltips for the Groups demo (CH-F1, #79).
+ *
+ * This module is the FOUNDATION for the epic #78 tooltip surfaces. It bundles
+ * a tooltip library (tippy.js + @popperjs/core) LOCALLY — no external CDN — and
+ * establishes an extensible #[Hook] structure so each future tooltip surface
+ * (#88-#92) is a single self-contained hook method plus one entry in the
+ * centralized copy source (\Drupal\do_chrome\HelpText).
+ *
+ * All hook implementations live in DoChromeHooks via the #[Hook] attribute.
+ *
+ * @see \Drupal\do_chrome\Hook\DoChromeHooks
+ * @see \Drupal\do_chrome\HelpText
+ */

@@ -98,7 +98,8 @@ else
   # imported core.extension did not turn them all on.
   $DRUSH en -y \
     do_group_extras do_group_language do_group_mission do_group_pin \
-    do_multigroup do_notifications do_profile_stats do_discovery || true
+    do_multigroup do_notifications do_profile_stats do_discovery \
+    do_chrome || true
 
   # Seed the demo data (idempotent; the "no comment field on forum" notice is
   # expected and non-fatal). The seed runs with the current user switched to
