@@ -115,8 +115,10 @@ echo "==> modules: copied ${modcount} custom module(s) into web/modules/custom/"
 # clean-room `config:import` needs every module its config references present.
 CORE_EXT="${CONFIG_DST}/core.extension.yml"
 if [[ -f "${CORE_EXT}" ]]; then
-  # Enable the copied custom modules plus their non-custom hard dependencies
-  # that the assembled config references but the baseline core.extension omits:
+  # Enable the copied custom modules (auto-discovered above into MODULE_NAMES,
+  # which now includes do_chrome — the CH-F1 community-chrome/tooltip module,
+  # #79) plus their non-custom hard dependencies that the assembled config
+  # references but the baseline core.extension omits:
   #   - flag:     required by composer.json and the assembled flag.* config.
   #   - language: hard dependency of do_group_language (do_group_language.info:
   #               `drupal:language`); the assembled language.types.yml config

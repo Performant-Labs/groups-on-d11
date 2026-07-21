@@ -1,0 +1,26 @@
+/**
+ * @file
+ * Presentation for do_chrome tooltip triggers + the `do-chrome` tippy theme.
+ *
+ * Kept intentionally minimal for the CH-F1 foundation (#79). B-stories may
+ * extend the trigger/marker styling; the tippy box theme lives here so all
+ * surfaces render consistently.
+ */
+
+/* A subtle affordance so tooltip triggers read as interactive. */
+[data-do-tooltip] {
+  cursor: help;
+  border-bottom: 1px dotted currentColor;
+}
+
+/* `do-chrome` tippy theme (referenced by do_chrome.tooltips.js). */
+.tippy-box[data-theme~='do-chrome'] {
+  background-color: #1b1b1b;
+  color: #fff;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.tippy-box[data-theme~='do-chrome'] .tippy-arrow {
+  color: #1b1b1b;
+}

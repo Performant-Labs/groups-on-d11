@@ -1,0 +1,5 @@
+name: 'DO Chrome'
+type: module
+description: 'Community chrome + schema tooltips for the Groups demo. Foundation module (CH-F1, #79): locally-bundled tooltip library + extensible #[Hook] structure that the B-story tooltip surfaces (#88-#92) extend.'
+core_version_requirement: ^10 || ^11
+package: 'Custom'
