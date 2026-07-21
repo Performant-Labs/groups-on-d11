@@ -1,0 +1,155 @@
+<?php
+
+/**
+ * @file
+ * Theme hooks for the Groups Chrome subtheme.
+ *
+ * Story #86 (CH-A4): present the `activity_stream` view (/stream) as a readable
+ * community feed instead of a raw view listing. The view renders each row as a
+ * node in the `stream_card` view mode; this preprocess derives the feed
+ * metadata (author, owning group(s), timestamp, snippet, comment count) that the
+ * `node--stream-card.html.twig` template consumes, and attaches the isolated
+ * `groups_chrome/stream` component library.
+ *
+ * Demo-only, NO schema changes: all data is READ from existing entities and the
+ * comment statistics table — no fields or config are added.
+ */
+
+declare(strict_types=1);
+
+use Drupal\Component\Utility\Unicode;
+use Drupal\Core\Template\Attribute;
+use Drupal\node\NodeInterface;
+
+/**
+ * Implements hook_preprocess_HOOK() for node templates.
+ *
+ * Only enriches nodes rendered in the `stream_card` view mode (the activity
+ * stream rows); every other node render is left untouched.
+ */
+function groups_chrome_preprocess_node(array &$variables): void {
+  if (($variables['view_mode'] ?? '') !== 'stream_card') {
+    return;
+  }
+
+  $node = $variables['node'] ?? NULL;
+  if (!$node instanceof NodeInterface) {
+    return;
+  }
+
+  // Attach the component CSS for the stream feed. Scoped to these rows so the
+  // shared global library is never bloated.
+  $variables['#attached']['library'][] = 'groups_chrome/stream';
+
+  // --- Author -------------------------------------------------------------
+  $author = $node->getOwner();
+  $variables['gc_stream'] = [
+    'author_name' => $author ? $author->getDisplayName() : t('Anonymous'),
+    'author_url' => NULL,
+    'author_initial' => '?',
+  ];
+  if ($author && !$author->isAnonymous()) {
+    $name = $author->getDisplayName();
+    $variables['gc_stream']['author_initial'] = mb_strtoupper(mb_substr((string) $name, 0, 1));
+    try {
+      $variables['gc_stream']['author_url'] = $author->toUrl()->toString();
+    }
+    catch (\Exception $e) {
+      // Non-fatal: leave author_url NULL and render a plain name.
+    }
+  }
+
+  // --- Timestamp ----------------------------------------------------------
+  $created = (int) $node->getCreatedTime();
+  $variables['gc_stream']['created'] = $created;
+  /** @var \Drupal\Core\Datetime\DateFormatterInterface $date_formatter */
+  $date_formatter = \Drupal::service('date.formatter');
+  $variables['gc_stream']['created_display'] = $date_formatter->format($created, 'medium');
+  $variables['gc_stream']['created_ago'] = t('@time ago', [
+    '@time' => $date_formatter->formatTimeDiffSince($created),
+  ]);
+
+  // --- Content-type label (badge) ----------------------------------------
+  $variables['gc_stream']['type_label'] = $node->type->entity
+    ? $node->type->entity->label()
+    : $node->bundle();
+
+  // --- Owning group(s) (badge, links) ------------------------------------
+  // Read the group relationships for this node. Group's storage may be absent
+  // in a context where the module is not installed; fail safe rather than fatal.
+  $groups = [];
+  try {
+    $storage = \Drupal::entityTypeManager()->getStorage('group_relationship');
+    foreach ($storage->loadByEntity($node) as $relationship) {
+      $group = $relationship->getGroup();
+      if (!$group) {
+        continue;
+      }
+      $gid = $group->id();
+      if (isset($groups[$gid])) {
+        continue;
+      }
+      $group_url = NULL;
+      try {
+        $group_url = $group->toUrl()->toString();
+      }
+      catch (\Exception $e) {
+        // Leave URL NULL; render an unlinked badge.
+      }
+      $groups[$gid] = [
+        'label' => $group->label(),
+        'url' => $group_url,
+      ];
+    }
+  }
+  catch (\Exception $e) {
+    // Group module unavailable — render the feed without group badges.
+  }
+  $variables['gc_stream']['groups'] = array_values($groups);
+
+  // --- Snippet ------------------------------------------------------------
+  // Prefer the body summary, then a trimmed body value, then nothing.
+  $snippet = '';
+  if ($node->hasField('body') && !$node->get('body')->isEmpty()) {
+    $body = $node->get('body')->first();
+    $summary = trim((string) ($body->summary ?? ''));
+    $raw = $summary !== '' ? $summary : (string) ($body->value ?? '');
+    // Strip markup and collapse to a plain-text teaser.
+    $plain = trim(preg_replace('/\s+/', ' ', strip_tags($raw)) ?? '');
+    if ($plain !== '') {
+      $snippet = Unicode::truncate($plain, 180, TRUE, TRUE);
+    }
+  }
+  $variables['gc_stream']['snippet'] = $snippet;
+
+  // --- Comment count ------------------------------------------------------
+  // Read the aggregate from comment_entity_statistics (populated for any
+  // comment-enabled entity), independent of which bundle owns a comment field.
+  $comment_count = 0;
+  try {
+    $database = \Drupal::database();
+    if ($database->schema()->tableExists('comment_entity_statistics')) {
+      $comment_count = (int) $database->select('comment_entity_statistics', 'ces')
+        ->fields('ces', ['comment_count'])
+        ->condition('entity_type', 'node')
+        ->condition('entity_id', $node->id())
+        ->execute()
+        ->fetchField();
+    }
+  }
+  catch (\Exception $e) {
+    // Comment module/table unavailable — treat as zero.
+  }
+  $variables['gc_stream']['comment_count'] = $comment_count;
+
+  // --- Canonical link -----------------------------------------------------
+  try {
+    $variables['gc_stream']['node_url'] = $node->toUrl()->toString();
+  }
+  catch (\Exception $e) {
+    $variables['gc_stream']['node_url'] = NULL;
+  }
+
+  // Convenience Attribute object for the card wrapper (unused classes are safe).
+  $variables['gc_stream_attributes'] = new Attribute();
+}

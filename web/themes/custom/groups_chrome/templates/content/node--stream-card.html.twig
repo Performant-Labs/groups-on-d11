@@ -1,0 +1,87 @@
+{#
+/**
+ * @file
+ * Activity-stream row for the Groups Chrome subtheme (story #86 / CH-A4).
+ *
+ * Renders a node in the `stream_card` view mode as a readable community-feed
+ * card — author, owning group badge(s), timestamp, a trimmed snippet and a
+ * comment indicator — styled with the groups_chrome card/badge primitives.
+ *
+ * The `gc_stream` metadata is assembled in groups_chrome_preprocess_node()
+ * (see groups_chrome.theme). This template deliberately does NOT print the full
+ * node `content` render array — the point of the story is a compact feed row,
+ * not the raw node body.
+ *
+ * Available:
+ * - gc_stream.author_name / author_url / author_initial
+ * - gc_stream.created_display / created_ago / created
+ * - gc_stream.type_label
+ * - gc_stream.groups: list of { label, url }
+ * - gc_stream.snippet
+ * - gc_stream.comment_count
+ * - gc_stream.node_url
+ * - label: the node title (render array)
+ */
+#}
+<article{{ attributes.addClass('gc-card', 'gc-card--interactive', 'gc-stream-card') }}>
+  <div class="gc-card__body gc-stream-card__body">
+
+    <header class="gc-stream-card__head">
+      <span class="gc-stream-card__avatar" aria-hidden="true">{{ gc_stream.author_initial }}</span>
+
+      <div class="gc-stream-card__meta">
+        <div class="gc-stream-card__byline">
+          {% if gc_stream.author_url %}
+            <a href="{{ gc_stream.author_url }}" class="gc-stream-card__author" rel="author">{{ gc_stream.author_name }}</a>
+          {% else %}
+            <span class="gc-stream-card__author">{{ gc_stream.author_name }}</span>
+          {% endif %}
+
+          {% if gc_stream.groups is not empty %}
+            <span class="gc-stream-card__in">{{ 'in'|t }}</span>
+            <span class="gc-stream-card__groups">
+              {% for group in gc_stream.groups %}
+                {% if group.url %}
+                  <a href="{{ group.url }}" class="gc-badge gc-badge--primary gc-stream-card__group">{{ group.label }}</a>
+                {% else %}
+                  <span class="gc-badge gc-badge--primary gc-stream-card__group">{{ group.label }}</span>
+                {% endif %}
+              {% endfor %}
+            </span>
+          {% endif %}
+        </div>
+
+        <div class="gc-stream-card__submeta">
+          <span class="gc-badge gc-stream-card__type">{{ gc_stream.type_label }}</span>
+          <time class="gc-stream-card__time" datetime="{{ gc_stream.created|date('c') }}" title="{{ gc_stream.created_display }}">{{ gc_stream.created_ago }}</time>
+        </div>
+      </div>
+    </header>
+
+    <h3 class="gc-card__title gc-stream-card__title">
+      {% if gc_stream.node_url %}
+        <a href="{{ gc_stream.node_url }}" rel="bookmark">{{ label }}</a>
+      {% else %}
+        {{ label }}
+      {% endif %}
+    </h3>
+
+    {% if gc_stream.snippet %}
+      <p class="gc-stream-card__snippet">{{ gc_stream.snippet }}</p>
+    {% endif %}
+
+    <footer class="gc-stream-card__foot">
+      {% if gc_stream.node_url %}
+        <a href="{{ gc_stream.node_url }}" class="gc-stream-card__comments" aria-label="{{ '@count comments'|t({'@count': gc_stream.comment_count}) }}">
+      {% else %}
+        <span class="gc-stream-card__comments">
+      {% endif %}
+        <svg class="gc-stream-card__comments-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M2 2h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6l-3 3v-3H2a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/>
+        </svg>
+        <span class="gc-stream-card__comments-count">{{ gc_stream.comment_count }}</span>
+      {% if gc_stream.node_url %}</a>{% else %}</span>{% endif %}
+    </footer>
+
+  </div>
+</article>
