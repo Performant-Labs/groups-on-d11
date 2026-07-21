@@ -1,0 +1,22 @@
+uuid: 573c28a3-f2ae-4a19-aef4-1aa015ae7e96
+langcode: en
+status: true
+dependencies:
+  config:
+    - group.type.community_group
+    - user.role.authenticated
+id: community_group-outsider_view
+label: 'Outsider viewer'
+weight: 2
+admin: false
+scope: outsider
+global_role: authenticated
+group_type: community_group
+permissions:
+  - 'join group'
+  - 'view group'
+  - 'view group_node:documentation entity'
+  - 'view group_node:event entity'
+  - 'view group_node:forum entity'
+  - 'view group_node:page entity'
+  - 'view group_node:post entity'

@@ -119,85 +119,20 @@ PHP
     echo "[entrypoint] WARNING: seed script not found at $SEED_SCRIPT" >&2
   fi
 
-  # Provision group-view access AND community interaction permissions. The
-  # assembled config/sync ships the community_group roles with scope=individual
-  # (never auto-applied), so out of the box only uid 1 can view groups. Group
-  # 3.x grants non-member/member permissions via SCOPED synchronized roles, so
-  # we add three:
+  # Group-view access AND community interaction permissions are now provisioned
+  # via config: the three scoped synchronized roles
   #   - community_group-anon_view     (outsider / anonymous)     -> anon visitors
   #   - community_group-outsider_view (outsider / authenticated) -> logged-in non-members
   #   - community_group-insider_view  (insider  / authenticated) -> members
-  #
-  # Beyond "view group" (browsability), this wires the CH-F4 (#95) interactions
-  # so the chrome/tooltips are truthful:
-  #   - outsider_view additionally gets "join group" so a logged-in non-member
-  #     can join an Open group and gain membership.
-  #   - insider_view (members) additionally gets "leave group" and full
-  #     create/edit-own/delete-own on all five group_node content types, so a
-  #     member can post into a group and it lands in the group stream.
-  # (Anonymous cannot be a member, so anon_view carries view perms only.)
-  #
-  # Idempotent: existing roles are UPDATED to carry the current permission set
-  # (perms are unioned, so a redeploy over a persistent volume upgrades a
-  # view-only role to an interactive one rather than skipping it).
+  # live in config/sync (assembled from docs/groups/config/group.role.
+  # community_group-*_view.yml) and are created by the `config:import` above.
+  # They replace the former runtime provision-access.php so that BOTH this
+  # deployed image AND CI's `site:install + config:import` E2E job (which never
+  # runs this entrypoint) get identical view/join/post grants. See #83.
   #
   # Published groups become publicly browsable; unpublished/archived groups
   # (e.g. "Legacy Infrastructure") stay hidden (needs "view any unpublished
   # group", which these roles do not grant).
-  cat > /tmp/provision-access.php <<'PHP'
-<?php
-use Drupal\group\Entity\GroupRole;
-
-// Content types enabled as group_node in this demo (see config/sync
-// group.relationship_type.community_group-group_node-*.yml).
-$node_types = ['forum', 'event', 'documentation', 'post', 'page'];
-
-$view_perms = ['view group'];
-foreach ($node_types as $t) {
-  $view_perms[] = "view group_node:$t entity";
-}
-
-// Member (insider) interaction perms: leave, and create/edit-own/delete-own
-// for every group_node content type.
-$member_perms = $view_perms;
-$member_perms[] = 'leave group';
-foreach ($node_types as $t) {
-  $member_perms[] = "create group_node:$t entity";
-  $member_perms[] = "update own group_node:$t entity";
-  $member_perms[] = "delete own group_node:$t entity";
-}
-
-// Logged-in non-member (outsider) perms: view + join an Open group.
-$outsider_perms = $view_perms;
-$outsider_perms[] = 'join group';
-
-$roles = [
-  ['community_group-anon_view',     'Anonymous viewer', 'outsider', 'anonymous',     $view_perms],
-  ['community_group-outsider_view', 'Outsider viewer',  'outsider', 'authenticated', $outsider_perms],
-  ['community_group-insider_view',  'Member viewer',    'insider',  'authenticated', $member_perms],
-];
-foreach ($roles as [$id, $label, $scope, $global, $perms]) {
-  $role = GroupRole::load($id);
-  if ($role) {
-    // Union the current perms into the existing role (idempotent upgrade).
-    $existing = $role->getPermissions();
-    $merged = array_values(array_unique(array_merge($existing, $perms)));
-    if ($merged != $existing) {
-      $role->set('permissions', $merged)->save();
-      echo "updated group role $id (" . count($merged) . " perms)\n";
-    } else {
-      echo "group role $id already current\n";
-    }
-    continue;
-  }
-  GroupRole::create([
-    'id' => $id, 'label' => $label, 'group_type' => 'community_group',
-    'scope' => $scope, 'global_role' => $global, 'permissions' => $perms,
-  ])->save();
-  echo "provisioned group role $id ($scope/$global, " . count($perms) . " perms)\n";
-}
-PHP
-  $DRUSH php:script /tmp/provision-access.php || echo "[entrypoint] WARNING: could not provision access/interaction roles (continuing)"
 
   # Provision group TYPES: the field_group_type field (entity_reference ->
   # taxonomy), the 5 group_type terms, and tag the 8 demo groups. The field
