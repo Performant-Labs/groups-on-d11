@@ -1,0 +1,20 @@
+uuid: 5044f0b3-8cfd-454c-8c85-ab036620221f
+langcode: en
+status: true
+dependencies:
+  module:
+    - system
+  theme:
+    - groups_chrome
+id: groups_chrome_content
+theme: groups_chrome
+region: content
+weight: 0
+provider: null
+plugin: system_main_block
+settings:
+  id: system_main_block
+  label: 'Main page content'
+  label_display: '0'
+  provider: system
+visibility: {  }

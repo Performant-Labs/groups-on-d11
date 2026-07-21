@@ -1,0 +1,21 @@
+uuid: 89a2a2db-22b5-4ade-a541-410124062153
+langcode: en
+status: true
+dependencies:
+  module:
+    - search
+  theme:
+    - groups_chrome
+id: groups_chrome_search_form_wide
+theme: groups_chrome
+region: secondary_menu
+weight: -5
+provider: null
+plugin: search_form_block
+settings:
+  id: search_form_block
+  label: 'Search form (wide)'
+  label_display: '0'
+  provider: search
+  page_id: null
+visibility: {  }

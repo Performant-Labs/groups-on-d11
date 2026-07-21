@@ -1,0 +1,25 @@
+uuid: c1f9b567-76d3-4336-9f77-d12da2c0c538
+langcode: en
+status: true
+dependencies:
+  config:
+    - system.menu.main
+  module:
+    - system
+  theme:
+    - groups_chrome
+id: groups_chrome_main_menu
+theme: groups_chrome
+region: primary_menu
+weight: 0
+provider: null
+plugin: 'system_menu_block:main'
+settings:
+  id: 'system_menu_block:main'
+  label: 'Main navigation'
+  label_display: '0'
+  provider: system
+  level: 1
+  depth: 2
+  expand_all_items: true
+visibility: {  }

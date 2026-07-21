@@ -1,0 +1,20 @@
+uuid: 0995c31e-7fd8-4ba8-af35-cbe64d7ca4ce
+langcode: en
+status: true
+dependencies:
+  module:
+    - system
+  theme:
+    - groups_chrome
+id: groups_chrome_breadcrumbs
+theme: groups_chrome
+region: breadcrumb
+weight: 0
+provider: null
+plugin: system_breadcrumb_block
+settings:
+  id: system_breadcrumb_block
+  label: Breadcrumbs
+  label_display: '0'
+  provider: system
+visibility: {  }

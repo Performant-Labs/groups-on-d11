@@ -1,0 +1,20 @@
+uuid: 497ed7d6-ed6d-44e8-ab50-ebfebf5dfae8
+langcode: en
+status: true
+dependencies:
+  theme:
+    - groups_chrome
+id: groups_chrome_secondary_local_tasks
+theme: groups_chrome
+region: highlighted
+weight: -2
+provider: null
+plugin: local_tasks_block
+settings:
+  id: local_tasks_block
+  label: 'Secondary tabs'
+  label_display: '0'
+  provider: core
+  primary: false
+  secondary: true
+visibility: {  }

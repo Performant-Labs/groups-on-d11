@@ -1,0 +1,21 @@
+uuid: ecd78012-39ca-4460-a716-959b3ce59d73
+langcode: en
+status: true
+dependencies:
+  module:
+    - search
+  theme:
+    - groups_chrome
+id: groups_chrome_search_form_narrow
+theme: groups_chrome
+region: primary_menu
+weight: -4
+provider: null
+plugin: search_form_block
+settings:
+  id: search_form_block
+  label: 'Search form (narrow)'
+  label_display: '0'
+  provider: search
+  page_id: null
+visibility: {  }
