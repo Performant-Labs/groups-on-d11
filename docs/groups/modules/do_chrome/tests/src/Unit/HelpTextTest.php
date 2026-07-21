@@ -50,6 +50,30 @@ final class HelpTextTest extends TestCase {
   }
 
   /**
+   * The #88 per-option visibility copy exists, is plain text, and is honest.
+   *
+   * Reconciled with the #81 deck + its CH-F4 (#95) update: Open is enforced
+   * (present as live), while Moderated and Invite Only remain unenforced labels
+   * and must say so.
+   *
+   * @covers ::get
+   */
+  public function testVisibilityCopyIsPresentPlainTextAndHonest(): void {
+    foreach (['visibility.field', 'visibility.open', 'visibility.moderated', 'visibility.invite_only'] as $key) {
+      $copy = HelpText::get($key);
+      $this->assertNotSame('', $copy, sprintf('Tooltip copy for "%s" must exist.', $key));
+      $this->assertStringNotContainsString('<', $copy, 'Copy must be plain text (allowHTML is disabled).');
+    }
+
+    // Open is wired by #95 — present it as live/joinable.
+    $this->assertMatchesRegularExpression('/\bjoin\b/i', HelpText::get('visibility.open'), 'Open copy must describe joining.');
+
+    // Moderated and Invite Only are NOT enforced — the copy must not over-claim.
+    $this->assertStringContainsString('Not yet enforced', HelpText::get('visibility.moderated'), 'Moderated copy must flag it is not enforced.');
+    $this->assertStringContainsString('Not yet enforced', HelpText::get('visibility.invite_only'), 'Invite Only copy must flag it is not enforced.');
+  }
+
+  /**
    * The #92 archive/pin/promote/follow copy exists and is plain text.
    *
    * Only WIRED controls ship copy (verified in the #81 spike): archive badge,

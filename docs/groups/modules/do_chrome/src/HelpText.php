@@ -69,6 +69,23 @@ final class HelpText {
       // OMITTED: no report/abuse flag or moderation target exists on the demo
       // (verified — no such flag.flag.* config, no consumer), so shipping that
       // string would describe behavior that is not wired.
+      // #88 (CH-B1): per-option help on the `field_group_visibility` radios
+      // (options_buttons: Open / Moderated / Invite Only) on the group
+      // add/edit form. Copy is the #81 deck (section A), reconciled with the
+      // CH-F4 (#95) update comment on #81:
+      //  - Open is now ENFORCED — a logged-in non-member holds `join group`
+      //    (community_group-outsider_view), so they can join an Open group
+      //    instantly. Present as live.
+      //  - Moderated / Invite Only remain UNENFORCED labels — no request/
+      //    approval flow, and Invite Only groups are still publicly viewable.
+      //    The copy says so plainly so the demo never over-claims.
+      // The field-level intro also stays honest: only *joining* (not *viewing*)
+      // is gated today; every group is still readable regardless of this value.
+      'visibility.field' => 'Sets who can find and join this group. On this demo, joining is what visibility controls; every group stays readable to anyone.',
+      'visibility.open' => 'Open: anyone signed in can join instantly, no approval needed. This is live on the demo — logged-in visitors can join Open groups now.',
+      'visibility.moderated' => 'Moderated: the intent is that people request to join and an admin approves each request. Not yet enforced on this demo — shown to illustrate the model.',
+      'visibility.invite_only' => 'Invite Only: the intent is a hidden group people join only when an admin invites them. Not yet enforced on this demo — the group is still publicly viewable.',
+
       'archive.badge' => 'This group is archived: read-only. Everything stays visible for reference, but no new content can be posted here.',
       'pin.badge' => 'Pinned: this post is kept at the top of the group stream so newcomers see it first, regardless of date.',
       'promote.control' => 'Promote surfaces this post beyond its group, onto the site-wide Promoted Content listing.',
