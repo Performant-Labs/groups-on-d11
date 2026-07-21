@@ -477,6 +477,32 @@ jobs:
           grep -c "databases\['default'\]\['default'\]" web/sites/default/settings.php || true
           php vendor/drush/drush/drush.php status --fields=drupal-version,db-status,bootstrap
 
+      - name: Seed header-navigation menu links (#83)
+        # The community header nav (nav.spec.ts) is seeded content: the four
+        # `main` menu links live in docs/groups/scripts/step_780_nav_menu.php,
+        # run by the container entrypoint on deploy. This clean-room E2E job
+        # installs + imports config but does NOT run the demo seed, so without
+        # this step the nav links do not exist here and nav.spec.ts fails even
+        # though prod renders them. The scoped group-view roles the links'
+        # access depends on now arrive via config:import (group.role.
+        # community_group-*_view.yml), so only the links themselves need
+        # seeding. Run as uid 1 (matches the entrypoint's seed-as-admin wrapper);
+        # idempotent, so a re-run is harmless.
+        run: |
+          set -euxo pipefail
+          # Pass the repo-root path explicitly: under `drush php:script`, PHP's
+          # getcwd() resolves to the docroot, not the workspace, so an absolute
+          # path to the seed script is required.
+          NAV_SCRIPT="$PWD/docs/groups/scripts/step_780_nav_menu.php"
+          cat > /tmp/seed-nav.php <<PHP
+          <?php
+          \$admin = \Drupal\user\Entity\User::load(1);
+          if (\$admin) { \Drupal::currentUser()->setAccount(\$admin); }
+          require '${NAV_SCRIPT}';
+          PHP
+          php vendor/drush/drush/drush.php php:script /tmp/seed-nav.php
+          php vendor/drush/drush/drush.php cache:rebuild -y
+
       - name: Serve the site
         run: |
           set -uxo pipefail
