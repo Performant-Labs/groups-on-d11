@@ -109,6 +109,19 @@ display:
             label: 'Search groups'
             identifier: search
             remember: false
+      empty:
+        area_text_custom:
+          id: area_text_custom
+          table: views
+          field: area_text_custom
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: text_custom
+          label: ''
+          empty: true
+          content: '<div class="gc-empty"><p class="gc-empty__title">No groups yet</p><p class="gc-empty__text">Be the first to start a community.</p><a class="gc-button gc-button--primary" href="/group/add">Create a group</a></div>'
+          tokenize: false
       style:
         type: default
       row:

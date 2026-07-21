@@ -115,7 +115,8 @@ display:
           admin_label: ''
           plugin_id: text_custom
           empty: true
-          content: 'No content has been posted yet. Join a group and start contributing!'
+          content: '<div class="gc-empty"><p class="gc-empty__title">Nothing here yet</p><p class="gc-empty__text">Join a group and start contributing — activity will show up here.</p><a class="gc-button gc-button--primary" href="/all-groups">Browse groups</a></div>'
+          tokenize: false
       header: {  }
       footer: {  }
       css_class: activity-stream

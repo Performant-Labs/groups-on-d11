@@ -33,6 +33,7 @@ regions:
 
 libraries:
   - groups_chrome/global
+  - groups_chrome/regions
 
 # Component libraries the A-stories can attach per-page without loading globally.
 libraries-override: {}

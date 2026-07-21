@@ -1,0 +1,25 @@
+uuid: 4a8f0c2e-9b31-4d77-8e2a-1f6c5b9d3a70
+langcode: en
+status: true
+dependencies:
+  config:
+    - system.menu.main
+  module:
+    - system
+  theme:
+    - groups_chrome
+id: groups_chrome_footer_menu
+theme: groups_chrome
+region: footer_top
+weight: 0
+provider: null
+plugin: 'system_menu_block:main'
+settings:
+  id: 'system_menu_block:main'
+  label: 'Community'
+  label_display: '0'
+  provider: system
+  level: 1
+  depth: 1
+  expand_all_items: false
+visibility: {  }
