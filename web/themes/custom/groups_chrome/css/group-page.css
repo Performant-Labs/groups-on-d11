@@ -1,0 +1,162 @@
+/**
+ * Groups Chrome — single-group page furniture (#85 / CH-A3).
+ *
+ * Styles the community header + tab bar rendered by group--full.html.twig on
+ * the canonical /group/{id} page. Every value is drawn from tokens.css and the
+ * shared primitives (badge, button) — no hard-coded colours/spacing, so a
+ * rebrand stays a one-file change. Loaded only on the group full page via the
+ * `groups_chrome/group_page` library, attached by groups_chrome_preprocess_group().
+ */
+
+/* The overriding template wraps the whole page; keep its content readable. */
+.gc-group-page {
+  display: block;
+}
+
+/* ==========================================================================
+   Header — sits directly under the page-title <h1> (rendered by the
+   content_above region), carrying badges, member avatars, join/leave, tabs.
+   ========================================================================== */
+.gc-group-header {
+  margin: 0 0 var(--gc-space-lg);
+  padding: var(--gc-space-lg) 0 0;
+}
+
+.gc-group-header__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gc-space-md);
+}
+
+.gc-group-header__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gc-space-xs);
+}
+
+.gc-group-header__action {
+  flex: 0 0 auto;
+}
+
+/* ==========================================================================
+   Member avatar row — initial-based circles that overlap slightly, with a
+   "+N" overflow chip. Purely presentational (initials), no user photos needed.
+   ========================================================================== */
+.gc-group-header__avatars {
+  display: flex;
+  align-items: center;
+  margin: var(--gc-space-md) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gc-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin-left: -0.5rem;
+  border-radius: var(--gc-radius-pill);
+  background-color: var(--gc-color-primary-050);
+  color: var(--gc-color-primary-700);
+  box-shadow: 0 0 0 2px var(--gc-color-bg);
+  font-size: var(--gc-font-size-xs);
+  font-weight: var(--gc-font-weight-semibold);
+  line-height: 1;
+}
+
+.gc-avatar:first-child {
+  margin-left: 0;
+}
+
+.gc-avatar--more {
+  background-color: var(--gc-color-bg-subtle);
+  color: var(--gc-color-text-muted);
+}
+
+.gc-avatar__initial {
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Tab bar — Stream / Events / Members / About. A horizontal, scrollable rail
+   with an underline active indicator; token-driven so it matches the chrome.
+   ========================================================================== */
+.gc-group-tabs {
+  margin: var(--gc-space-lg) 0 0;
+  border-bottom: 1px solid var(--gc-color-border);
+}
+
+.gc-group-tabs__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gc-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gc-group-tabs__item {
+  margin: 0;
+}
+
+.gc-group-tabs__link {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--gc-space-xs) var(--gc-space-md);
+  border-bottom: 2px solid transparent;
+  color: var(--gc-color-text-muted);
+  font-size: var(--gc-font-size-sm);
+  font-weight: var(--gc-font-weight-semibold);
+  line-height: var(--gc-leading-tight);
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.gc-group-tabs__link:hover {
+  color: var(--gc-color-primary-700);
+}
+
+.gc-group-tabs__link:focus-visible {
+  outline: 2px solid var(--gc-color-primary);
+  outline-offset: 2px;
+}
+
+.gc-group-tabs__link.is-active {
+  color: var(--gc-color-primary-700);
+  border-bottom-color: var(--gc-color-primary);
+}
+
+/* Give the group body a little breathing room under the tab bar. */
+.gc-group-page__content {
+  margin-top: var(--gc-space-lg);
+}
+
+/* Fallback for themes without a `.visually-hidden` (Olivero ships one, but be
+   defensive for the avatar/aria labels). */
+.gc-group-page .visually-hidden {
+  position: absolute !important;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  width: 1px;
+  height: 1px;
+  word-wrap: normal;
+}
+
+/* ==========================================================================
+   Small screens — stack the action under the badges, let tabs scroll.
+   ========================================================================== */
+@media (max-width: 600px) {
+  .gc-group-header__bar {
+    align-items: flex-start;
+  }
+
+  .gc-group-tabs__list {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+}

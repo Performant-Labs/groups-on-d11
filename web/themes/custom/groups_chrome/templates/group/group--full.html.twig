@@ -1,0 +1,116 @@
+{#
+/**
+ * @file
+ * Groups Chrome — single-group page furniture.  (#85 / CH-A3)
+ *
+ * Overrides the group module's `group.html.twig` for the `full` view mode only
+ * (the canonical /group/{id} route), dressing it as a community page:
+ *   - a header with the group name, group-type + visibility badges, member
+ *     count, an avatar row, and a correctly-stated Join/Leave action;
+ *   - a Stream / Events / Members / About tab bar wired to the group module's
+ *     existing per-group view paths.
+ *
+ * Every value below is prepared by groups_chrome_preprocess_group() in
+ * `gc_group`; nothing here queries or invents routes/schema. If `gc_group` is
+ * absent (e.g. a non-full render slipping through), we fall back to the stock
+ * module markup so the page never breaks.
+ *
+ * Inherited variables (from template_preprocess_group):
+ * - group, label, content, url, attributes, title_attributes,
+ *   content_attributes, title_prefix, title_suffix, view_mode, page.
+ * Added by groups_chrome_preprocess_group():
+ * - gc_group: { gid, type_label, visibility_label, visibility_variant,
+ *   member_count, members[{name,initial}], members_extra, is_member,
+ *   action{label,url,variant}, tabs[{key,title,url,active}] }.
+ *
+ * @see groups_chrome_preprocess_group()
+ * @see web/modules/contrib/group/templates/group.html.twig
+ */
+#}
+<article{{ attributes.addClass('gc-group-page') }}>
+
+  {{ title_prefix }}
+  {% if gc_group %}
+
+    <header class="gc-group-header">
+      <div class="gc-group-header__bar">
+        <div class="gc-group-header__identity">
+          {#
+            The page-title block already renders the <h1>{{ label }}</h1> in the
+            content_above region, so we do NOT repeat an <h1> here (avoids two
+            page titles / duplicate landmark). We surface the badges + meta only.
+          #}
+          <div class="gc-group-header__badges">
+            {% if gc_group.type_label %}
+              <span class="gc-badge gc-badge--primary">{{ gc_group.type_label }}</span>
+            {% endif %}
+            {% if gc_group.visibility_label %}
+              <span class="gc-badge gc-badge--{{ gc_group.visibility_variant }}">{{ gc_group.visibility_label }}</span>
+            {% endif %}
+            <span class="gc-badge">
+              {{ gc_group.member_count }}
+              {{ gc_group.member_count == 1 ? 'member'|t : 'members'|t }}
+            </span>
+          </div>
+        </div>
+
+        {% if gc_group.action %}
+          <div class="gc-group-header__action">
+            <a href="{{ gc_group.action.url }}"
+               class="gc-button gc-button--{{ gc_group.action.variant }}"
+               data-gc-group-action>
+              {{ gc_group.action.label }}
+            </a>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if gc_group.members is not empty %}
+        <ul class="gc-group-header__avatars" aria-label="{{ 'Group members'|t }}">
+          {% for member in gc_group.members %}
+            <li class="gc-avatar" title="{{ member.name }}">
+              <span class="gc-avatar__initial" aria-hidden="true">{{ member.initial }}</span>
+              <span class="visually-hidden">{{ member.name }}</span>
+            </li>
+          {% endfor %}
+          {% if gc_group.members_extra > 0 %}
+            <li class="gc-avatar gc-avatar--more" title="{{ '@n more members'|t({'@n': gc_group.members_extra}) }}">
+              <span class="gc-avatar__initial" aria-hidden="true">+{{ gc_group.members_extra }}</span>
+              <span class="visually-hidden">{{ '@n more members'|t({'@n': gc_group.members_extra}) }}</span>
+            </li>
+          {% endif %}
+        </ul>
+      {% endif %}
+
+      {% if gc_group.tabs is not empty %}
+        <nav class="gc-group-tabs" aria-label="{{ 'Group sections'|t }}">
+          <ul class="gc-group-tabs__list">
+            {% for tab in gc_group.tabs %}
+              <li class="gc-group-tabs__item">
+                <a href="{{ tab.url }}"
+                   class="gc-group-tabs__link{{ tab.active ? ' is-active' : '' }}"
+                   {{ tab.active ? 'aria-current="page"' : '' }}>
+                  {{ tab.title }}
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        </nav>
+      {% endif %}
+    </header>
+
+  {% else %}
+    {# Fallback: no gc_group (unexpected) — render the stock title markup. #}
+    {% if not page %}
+      <h2{{ title_attributes }}>
+        <a href="{{ url }}" rel="bookmark">{{ label }}</a>
+      </h2>
+    {% endif %}
+  {% endif %}
+  {{ title_suffix }}
+
+  <div{{ content_attributes.addClass('gc-group-page__content') }}>
+    {{ content }}
+  </div>
+
+</article>

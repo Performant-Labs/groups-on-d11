@@ -17,6 +17,13 @@
  * Story #87 (CH-A5): groups_chrome_preprocess_region__footer_top() exposes the
  * site name to the branded footer bar region template.
  *
+ * Story #85 (CH-A3): groups_chrome_preprocess_group() dresses the single-group
+ * page (/group/{id}, the `full` view mode) with community furniture — a header
+ * carrying the group name, group-type + visibility badges, member count and
+ * avatars, a correctly-stated Join/Leave action, and a Stream/Events/Members/
+ * About tab bar wired to the group module's existing per-group view routes. All
+ * derived in `group--full.html.twig`'s variables; NO routes or schema are added.
+ *
  * Demo-only, NO schema changes: all data is READ from existing entities and the
  * comment statistics table — no fields or config are added.
  */
@@ -25,6 +32,8 @@ declare(strict_types=1);
 
 use Drupal\Component\Utility\Unicode;
 use Drupal\Core\Template\Attribute;
+use Drupal\Core\Url;
+use Drupal\group\Entity\GroupInterface;
 use Drupal\node\NodeInterface;
 
 /**
@@ -169,4 +178,179 @@ function groups_chrome_preprocess_node(array &$variables): void {
  */
 function groups_chrome_preprocess_region__footer_top(array &$variables): void {
   $variables['site_name'] = \Drupal::config('system.site')->get('name');
+}
+
+/**
+ * Implements hook_preprocess_HOOK() for group templates.  (#85 / CH-A3)
+ *
+ * Enriches ONLY the full-page render of a group (the canonical /group/{id}
+ * route uses the `full` view mode) with the community-page furniture consumed
+ * by `group--full.html.twig`. Every other group render (teasers, the group
+ * label on directory cards, etc.) is left untouched.
+ *
+ * Everything is READ from existing entities / config — no fields, routes or
+ * schema are added (demo-only constraint):
+ *   - group-type + visibility badges  ← field_group_type (taxonomy) and
+ *     field_group_visibility (list_string: open|moderated|invite_only).
+ *   - member count + avatars          ← Group::getMembers() (GroupMembership
+ *     relationships; getEntity() is the member user).
+ *   - Join / Leave action             ← entity.group.join / entity.group.leave
+ *     module routes; the correct one is chosen from the current user's
+ *     membership state, and access is still enforced by the routes themselves.
+ *   - Stream / Events / Members / About tabs ← the group module's existing
+ *     per-group view paths (group/{id}/stream|events|members) + the canonical
+ *     page for About. No local-task/menu config is invented.
+ */
+function groups_chrome_preprocess_group(array &$variables): void {
+  // Only dress the full-page render; leave teasers and other view modes alone.
+  if (($variables['view_mode'] ?? '') !== 'full') {
+    return;
+  }
+
+  $group = $variables['group'] ?? NULL;
+  if (!$group instanceof GroupInterface) {
+    return;
+  }
+
+  // Attach the component CSS only where the header renders.
+  $variables['#attached']['library'][] = 'groups_chrome/group_page';
+
+  $gid = $group->id();
+  $current_user = \Drupal::currentUser();
+
+  $gc = [
+    'gid' => $gid,
+    'type_label' => NULL,
+    'visibility' => NULL,
+    'visibility_label' => NULL,
+    'visibility_variant' => 'primary',
+    'member_count' => 0,
+    'members' => [],
+    'members_extra' => 0,
+    'is_member' => FALSE,
+    'action' => NULL,
+    'tabs' => [],
+  ];
+
+  // --- Group-type badge (taxonomy term referenced by field_group_type) ------
+  if ($group->hasField('field_group_type') && !$group->get('field_group_type')->isEmpty()) {
+    $term = $group->get('field_group_type')->entity;
+    if ($term) {
+      $gc['type_label'] = $term->label();
+    }
+  }
+  // Fall back to the bundle label so the badge is never empty.
+  if ($gc['type_label'] === NULL) {
+    $bundle_entity = $group->type->entity ?? NULL;
+    $gc['type_label'] = $bundle_entity ? $bundle_entity->label() : $group->bundle();
+  }
+
+  // --- Visibility badge -----------------------------------------------------
+  if ($group->hasField('field_group_visibility') && !$group->get('field_group_visibility')->isEmpty()) {
+    $value = (string) $group->get('field_group_visibility')->value;
+    $gc['visibility'] = $value;
+    // Map the stored value to a human label + a semantic badge variant.
+    $map = [
+      'open'        => [t('Open'), 'success'],
+      'moderated'   => [t('Moderated'), 'warning'],
+      'invite_only' => [t('Invite only'), 'info'],
+    ];
+    [$label, $variant] = $map[$value] ?? [ucfirst(str_replace('_', ' ', $value)), 'primary'];
+    $gc['visibility_label'] = $label;
+    $gc['visibility_variant'] = $variant;
+  }
+
+  // --- Members: count + avatar row -----------------------------------------
+  // getMembers() returns GroupMembership relationships; getEntity() is the user.
+  $avatar_limit = 8;
+  try {
+    $memberships = $group->getMembers();
+    $gc['member_count'] = count($memberships);
+    foreach ($memberships as $membership) {
+      $account = $membership->getEntity();
+      if (!$account) {
+        continue;
+      }
+      if (count($gc['members']) >= $avatar_limit) {
+        break;
+      }
+      $name = $account->getDisplayName();
+      $gc['members'][] = [
+        'name' => $name,
+        'initial' => mb_strtoupper(mb_substr((string) $name, 0, 1)) ?: '?',
+      ];
+    }
+    $gc['members_extra'] = max(0, $gc['member_count'] - count($gc['members']));
+
+    // Is the *current* user already a member? Drives Join vs Leave.
+    $gc['is_member'] = $current_user->isAuthenticated()
+      && $group->getMember($current_user) !== FALSE;
+  }
+  catch (\Exception $e) {
+    // Membership storage unavailable — render header without avatars/action.
+  }
+
+  // --- Join / Leave action --------------------------------------------------
+  // Pick the route that matches the current membership state. The routes carry
+  // their own access checks (join/leave permission + membership requirement),
+  // so we ONLY render a link when access is actually granted — an anonymous or
+  // non-joinable visitor simply sees no button rather than a dead link.
+  try {
+    if ($gc['is_member']) {
+      $leave_url = Url::fromRoute('entity.group.leave', ['group' => $gid]);
+      if ($leave_url->access($current_user)) {
+        $gc['action'] = [
+          'label' => t('Leave group'),
+          'url' => $leave_url->toString(),
+          'variant' => 'ghost',
+        ];
+      }
+    }
+    else {
+      $join_url = Url::fromRoute('entity.group.join', ['group' => $gid]);
+      if ($join_url->access($current_user)) {
+        $gc['action'] = [
+          'label' => t('Join group'),
+          'url' => $join_url->toString(),
+          'variant' => 'primary',
+        ];
+      }
+    }
+  }
+  catch (\Exception $e) {
+    // Route unavailable — no action button.
+  }
+
+  // --- Tabs (Stream / Events / Members / About) ----------------------------
+  // Linked to the group module's EXISTING per-group view paths; About is the
+  // canonical group page itself. Marked active against the current path so the
+  // bar reflects where the visitor is.
+  $current_path = \Drupal::service('path.current')->getPath();
+  $canonical = '/group/' . $gid;
+  $tab_defs = [
+    ['about', t('About'), $canonical, TRUE],
+    ['stream', t('Stream'), $canonical . '/stream', FALSE],
+    ['events', t('Events'), $canonical . '/events', FALSE],
+    ['members', t('Members'), $canonical . '/members', FALSE],
+  ];
+  foreach ($tab_defs as [$key, $title, $path, $is_canonical]) {
+    // "About" is active on the bare canonical path; the view tabs are active
+    // when the current path starts with their sub-path.
+    $active = $is_canonical
+      ? ($current_path === $canonical || rtrim($current_path, '/') === $canonical)
+      : (str_starts_with($current_path, $path));
+    $gc['tabs'][] = [
+      'key' => $key,
+      'title' => $title,
+      'url' => $path,
+      'active' => $active,
+    ];
+  }
+  // Order the bar Stream / Events / Members / About per the story, but keep
+  // About's active-by-default semantics above.
+  $order = ['stream', 'events', 'members', 'about'];
+  usort($gc['tabs'], static fn(array $a, array $b) => array_search($a['key'], $order, TRUE) <=> array_search($b['key'], $order, TRUE));
+
+  $variables['gc_group'] = $gc;
+  $variables['gc_group_attributes'] = new Attribute();
 }
