@@ -24,3 +24,14 @@ stream:
   css:
     theme:
       css/stream.css: {}
+
+# Region chrome — breadcrumb, footer, and views empty-state styling (#87).
+# Attached globally alongside `global` (see info.yml `libraries:`) because the
+# breadcrumb and footer render on every page. Depends on `global` for tokens.
+regions:
+  version: 1.x
+  css:
+    theme:
+      css/chrome.css: {}
+  dependencies:
+    - groups_chrome/global

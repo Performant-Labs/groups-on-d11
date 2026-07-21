@@ -4,12 +4,18 @@
  * @file
  * Theme hooks for the Groups Chrome subtheme.
  *
+ * A-stories (#82–#87) may ADD preprocess logic here; keep each addition scoped
+ * to its own region/template so the chrome stories don't collide.
+ *
  * Story #86 (CH-A4): present the `activity_stream` view (/stream) as a readable
  * community feed instead of a raw view listing. The view renders each row as a
- * node in the `stream_card` view mode; this preprocess derives the feed
- * metadata (author, owning group(s), timestamp, snippet, comment count) that the
- * `node--stream-card.html.twig` template consumes, and attaches the isolated
+ * node in the `stream_card` view mode; groups_chrome_preprocess_node() derives
+ * the feed metadata (author, owning group(s), timestamp, snippet, comment
+ * count) that `node--stream-card.html.twig` consumes, and attaches the isolated
  * `groups_chrome/stream` component library.
+ *
+ * Story #87 (CH-A5): groups_chrome_preprocess_region__footer_top() exposes the
+ * site name to the branded footer bar region template.
  *
  * Demo-only, NO schema changes: all data is READ from existing entities and the
  * comment statistics table — no fields or config are added.
@@ -152,4 +158,15 @@ function groups_chrome_preprocess_node(array &$variables): void {
 
   // Convenience Attribute object for the card wrapper (unused classes are safe).
   $variables['gc_stream_attributes'] = new Attribute();
+}
+
+/**
+ * Implements hook_preprocess_HOOK() for the footer_top region.  (#87)
+ *
+ * Exposes the site name to region--footer-top.html.twig so the branded footer
+ * bar reads the real site identity rather than a hard-coded string. Region
+ * templates do not receive `site_name` by default (only page.html.twig does).
+ */
+function groups_chrome_preprocess_region__footer_top(array &$variables): void {
+  $variables['site_name'] = \Drupal::config('system.site')->get('name');
 }

@@ -1,0 +1,187 @@
+/**
+ * Groups Chrome — region chrome (breadcrumb, footer) + empty states.  (#87)
+ *
+ * Styling for the shared page furniture placed by the subtheme's block config:
+ *   - breadcrumb region (system_breadcrumb_block, region `breadcrumb`)
+ *   - the site footer (regions `footer_top` + `footer_bottom`)
+ *   - the `.gc-empty` markup emitted by views' empty-text areas
+ *     (all_groups directory, group_nodes stream).
+ *
+ * Every value is drawn from tokens.css — no hard-coded colours/spacing.
+ * This file is loaded by the `regions` library, attached globally alongside
+ * `global` (see groups_chrome.info.yml `libraries:`), so it is present on every
+ * page where the breadcrumb/footer render.
+ */
+
+/* ==========================================================================
+   Breadcrumb — thin muted trail above the page title.
+   Olivero wraps the block in `nav.breadcrumb`; we style the region wrapper and
+   its links with tokens so the trail reads as chrome, not body content.
+   ========================================================================== */
+.breadcrumb,
+nav.breadcrumb {
+  max-width: var(--gc-size-container);
+  margin-inline: auto;
+  padding: var(--gc-space-sm) var(--gc-space-md);
+  font-size: var(--gc-font-size-sm);
+  color: var(--gc-color-text-muted);
+}
+
+.breadcrumb ol,
+nav.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gc-space-2xs) var(--gc-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.breadcrumb li,
+nav.breadcrumb li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gc-space-2xs) var(--gc-space-xs);
+}
+
+/* Chevron separator between crumbs (skip the first item). */
+.breadcrumb li + li::before,
+nav.breadcrumb li + li::before {
+  content: '/';
+  color: var(--gc-color-border);
+  font-weight: var(--gc-font-weight-normal);
+}
+
+.breadcrumb a,
+nav.breadcrumb a {
+  color: var(--gc-color-primary-700);
+  text-decoration: none;
+}
+.breadcrumb a:hover,
+nav.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+/* Current page (last crumb) reads as muted, non-interactive text. */
+.breadcrumb li:last-child,
+nav.breadcrumb li:last-child {
+  color: var(--gc-color-text-muted);
+}
+
+/* ==========================================================================
+   Footer — branded info bar (footer_top) + fine print (footer_bottom).
+   Olivero renders both regions inside `footer.site-footer`.
+   ========================================================================== */
+.site-footer {
+  margin-top: var(--gc-space-3xl);
+  background-color: var(--gc-color-bg-subtle);
+  border-top: 1px solid var(--gc-color-border);
+  color: var(--gc-color-text-muted);
+}
+
+/* Branded info bar rendered by region--footer-top.html.twig. */
+.gc-footer {
+  max-width: var(--gc-size-container);
+  margin-inline: auto;
+  padding: var(--gc-space-2xl) var(--gc-space-md) var(--gc-space-lg);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gc-space-xl);
+}
+
+.gc-footer__brand {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.gc-footer__title {
+  margin: 0 0 var(--gc-space-2xs);
+  font-size: var(--gc-font-size-lg);
+  font-weight: var(--gc-font-weight-semibold);
+  color: var(--gc-color-text);
+}
+
+.gc-footer__tagline {
+  margin: 0;
+  font-size: var(--gc-font-size-sm);
+  line-height: var(--gc-leading-normal);
+}
+
+.gc-footer__nav {
+  flex: 0 1 auto;
+}
+
+.gc-footer__heading {
+  margin: 0 0 var(--gc-space-xs);
+  font-size: var(--gc-font-size-xs);
+  font-weight: var(--gc-font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gc-color-text-muted);
+}
+
+.gc-footer__links {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gc-space-2xs);
+}
+
+.gc-footer__links a {
+  color: var(--gc-color-primary-700);
+  text-decoration: none;
+  font-size: var(--gc-font-size-sm);
+}
+.gc-footer__links a:hover {
+  text-decoration: underline;
+}
+
+/* Fine print (footer_bottom: "Powered by Drupal", etc.). */
+.site-footer__bottom,
+.gc-footer + * {
+  max-width: var(--gc-size-container);
+  margin-inline: auto;
+  padding: var(--gc-space-md) var(--gc-space-md) var(--gc-space-2xl);
+  font-size: var(--gc-font-size-xs);
+  color: var(--gc-color-text-muted);
+}
+.site-footer a {
+  color: var(--gc-color-primary-700);
+}
+
+/* ==========================================================================
+   Empty states — the `.gc-empty` block emitted by views' empty-text areas
+   (all_groups directory, group_nodes stream). Centred, calm, with a clear CTA.
+   ========================================================================== */
+.gc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gc-space-xs);
+  max-width: 32rem;
+  margin: var(--gc-space-2xl) auto;
+  padding: var(--gc-space-2xl) var(--gc-space-lg);
+  text-align: center;
+  background-color: var(--gc-color-bg-subtle);
+  border: 1px dashed var(--gc-color-border);
+  border-radius: var(--gc-radius-lg);
+}
+
+.gc-empty__title {
+  margin: 0;
+  font-size: var(--gc-font-size-lg);
+  font-weight: var(--gc-font-weight-semibold);
+  color: var(--gc-color-text);
+}
+
+.gc-empty__text {
+  margin: 0 0 var(--gc-space-xs);
+  font-size: var(--gc-font-size-sm);
+  line-height: var(--gc-leading-normal);
+  color: var(--gc-color-text-muted);
+}

@@ -1,0 +1,36 @@
+{#
+/**
+ * @file
+ * Groups Chrome — footer_top region override.  (#87)
+ *
+ * Renders a branded community footer bar using the subtheme's `gc-` primitives
+ * and tokens (styled in css/chrome.css). This is demo-only chrome: static
+ * community wayfinding links to real routes (directory, events, add group) plus
+ * the site name/tagline. No schema or content entities — the copy lives here in
+ * the template so it needs no seed.
+ *
+ * `{{ content }}` still prints any blocks an admin places in `footer_top`, so
+ * this override is additive, not a replacement for block placement.
+ *
+ * Available variables:
+ * - content: The content for this region (placed blocks), typically empty here.
+ * - attributes: HTML attributes for the region <div>.
+ */
+#}
+<div{{ attributes.addClass('gc-footer') }}>
+  <div class="gc-footer__brand">
+    <p class="gc-footer__title">{{ site_name|default('Groups') }}</p>
+    <p class="gc-footer__tagline">{{ 'A place for communities to gather, share, and build together.'|t }}</p>
+  </div>
+
+  <nav class="gc-footer__nav" aria-label="{{ 'Footer'|t }}">
+    <p class="gc-footer__heading">{{ 'Community'|t }}</p>
+    <ul class="gc-footer__links">
+      <li><a href="/all-groups">{{ 'Browse groups'|t }}</a></li>
+      <li><a href="/group/add">{{ 'Create a group'|t }}</a></li>
+      <li><a href="/">{{ 'Home'|t }}</a></li>
+    </ul>
+  </nav>
+
+  {{ content }}
+</div>
