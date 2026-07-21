@@ -1,0 +1,68 @@
+{#
+/**
+ * @file
+ * "Who can do what" permission-matrix panel (do_chrome, #91 / CH-B4).
+ *
+ * Renders the enforced-permissions matrix on the group page: the four actor
+ * columns against the action rows. Data comes from
+ * \Drupal\do_chrome\PermissionMatrix via the do_chrome_permission_matrix theme
+ * hook — this template is presentation-only.
+ *
+ * Available variables:
+ * - intro: Panel intro sentence.
+ * - intro_tooltip: Longer caveat, shown as a hover tooltip on the intro (bound
+ *   by the shared do_chrome/tooltips behavior via data-do-tooltip).
+ * - footnote: Honest footnote about what is / is not enabled on the demo.
+ * - actors: List of { id, label } column headers, in display order.
+ * - rows: List of { label, cells }, where each cell is { state, label }; cells
+ *   are ordered to match `actors`. state is 'yes' | 'no' | 'n-a'.
+ */
+#}
+<section class="do-chrome-perm-matrix" aria-labelledby="do-chrome-perm-matrix-heading">
+  <h2 class="do-chrome-perm-matrix__heading" id="do-chrome-perm-matrix-heading">
+    {{ 'Who can do what'|t }}
+  </h2>
+  {% if intro %}
+    <p class="do-chrome-perm-matrix__intro"
+       {% if intro_tooltip %}tabindex="0" data-do-tooltip="{{ intro_tooltip }}"{% endif %}>
+      {{ intro }}
+    </p>
+  {% endif %}
+  <div class="do-chrome-perm-matrix__scroll">
+    <table class="do-chrome-perm-matrix__table">
+      <thead>
+        <tr>
+          <th scope="col" class="do-chrome-perm-matrix__action-head">{{ 'Action'|t }}</th>
+          {% for actor in actors %}
+            <th scope="col" class="do-chrome-perm-matrix__actor" data-actor="{{ actor.id }}">
+              {{ actor.label }}
+            </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <th scope="row" class="do-chrome-perm-matrix__action">{{ row.label }}</th>
+            {% for cell in row.cells %}
+              <td class="do-chrome-perm-matrix__cell do-chrome-perm-matrix__cell--{{ cell.state }}"
+                  data-state="{{ cell.state }}"
+                  title="{{ cell.label }}">
+                <span class="do-chrome-perm-matrix__glyph" aria-hidden="true">
+                  {%- if cell.state == 'yes' -%}✓
+                  {%- elseif cell.state == 'n-a' -%}—
+                  {%- else -%}·
+                  {%- endif -%}
+                </span>
+                <span class="visually-hidden">{{ cell.label }}</span>
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if footnote %}
+    <p class="do-chrome-perm-matrix__footnote">{{ footnote }}</p>
+  {% endif %}
+</section>

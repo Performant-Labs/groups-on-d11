@@ -137,6 +137,19 @@ final class HelpTextTest extends TestCase {
   }
 
   /**
+   * The #91 permission-matrix panel copy exists and is plain text.
+   *
+   * @covers ::get
+   */
+  public function testPermissionMatrixPanelCopyIsPresent(): void {
+    foreach (['permissions.panel.intro', 'permissions.panel.footnote'] as $key) {
+      $copy = HelpText::get($key);
+      $this->assertNotSame('', $copy, sprintf('Panel copy for "%s" must exist.', $key));
+      $this->assertStringNotContainsString('<', $copy, 'Copy must be plain text (allowHTML is disabled).');
+    }
+  }
+
+  /**
    * @covers ::all
    */
   public function testAllReturnsStringMap(): void {

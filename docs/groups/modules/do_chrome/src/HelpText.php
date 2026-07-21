@@ -118,6 +118,28 @@ final class HelpText {
         . 'Event: something happening at a set time; add the date so members can plan around it. '
         . 'Post: a quick update, announcement, or link to share with the group. '
         . 'Page: a standalone page for lasting information, like an about or guidelines page.',
+
+      // #91 (CH-B4): "Who can do what" permission-matrix panel.
+      //
+      // Copy is authored in the #81 copy deck (section E) and RE-DERIVED from
+      // the ENFORCED roles after CH-F4 (#95) + #100 landed, verified against the
+      // deploy-time role config (docs/groups/config/group.role.community_group-
+      // {anon,outsider,insider}_view.yml + .community_group-admin.yml):
+      //  - Anonymous  (anon_view / scope outsider, global anonymous):
+      //      view group + view all group content. No join, no post.
+      //  - Outsider   (outsider_view / scope outsider, global authenticated):
+      //      view group + view content + JOIN group. No post (create is an
+      //      insider grant, verified FALSE for outsiders in #95).
+      //  - Member     (insider_view / scope insider, global authenticated):
+      //      view + create / update-own / delete-own for all 5 group_node types
+      //      + LEAVE group. No member management (no `administer members`).
+      //  - Admin      (community_group-admin, admin: true): implicit ALL group
+      //      permissions (bypass) — the only actor that manages members.
+      //
+      // The panel intro + footnote are served from here; per-cell labels live in
+      // the render hook / template (they are structural, not prose copy).
+      'permissions.panel.intro' => 'What each kind of person can do in this group, based on the roles actually enforced on this demo.',
+      'permissions.panel.footnote' => 'A group admin holds every management capability. Members can read, join, post, and remove their own posts; managing members stays admin-only. Finer-grained roles (moderation, request-to-join) are planned but not yet enabled on the demo.',
     ];
   }
 
