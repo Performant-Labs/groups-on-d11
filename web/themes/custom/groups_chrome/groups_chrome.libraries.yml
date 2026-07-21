@@ -35,3 +35,16 @@ regions:
       css/chrome.css: {}
   dependencies:
     - groups_chrome/global
+
+# Single-group page furniture (#85 / CH-A3): header badges, member avatars,
+# join/leave action, and the Stream/Events/Members/About tab bar. Attached
+# per-page by groups_chrome_preprocess_group() to the group `full` view mode
+# (the canonical /group/{id} route), so this CSS only loads on group pages.
+# Depends on `global` for the design tokens + badge/button primitives it builds on.
+group_page:
+  version: 1.x
+  css:
+    theme:
+      css/group-page.css: {}
+  dependencies:
+    - groups_chrome/global
