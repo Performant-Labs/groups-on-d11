@@ -354,3 +354,156 @@ function groups_chrome_preprocess_group(array &$variables): void {
   $variables['gc_group'] = $gc;
   $variables['gc_group_attributes'] = new Attribute();
 }
+
+/**
+ * Implements hook_preprocess_HOOK() for the all_groups view rows.  (#84 / CH-A2)
+ *
+ * Turns each bare `all_groups` row (view id `all_groups`, base table
+ * `groups_field_data`) into the metadata a directory CARD needs:
+ *   - group name + canonical URL
+ *   - a description snippet (field_group_description, plain-text trimmed)
+ *   - a TYPE badge (field_group_type taxonomy term label)
+ *   - a VISIBILITY badge (field_group_visibility allowed-value label)
+ *   - MEMBER COUNT — number of group_membership relationships on the group
+ *   - LAST ACTIVITY — MAX(node.created) across the group's group_node relations
+ *   - a JOIN affordance state for the current user (member / can-join / closed)
+ *
+ * All data is READ from existing entities + relationships; NO schema or field
+ * changes (epic #78 constraint). Consumed by
+ * templates/content/views-view-fields--all-groups.html.twig.
+ */
+function groups_chrome_preprocess_views_view_fields__all_groups(array &$variables): void {
+  // Attach the isolated directory-card component CSS to these rows only.
+  $variables['#attached']['library'][] = 'groups_chrome/directory';
+
+  $row = $variables['row'] ?? NULL;
+  $group = $row->_entity ?? NULL;
+  if (!$group instanceof \Drupal\group\Entity\GroupInterface) {
+    return;
+  }
+
+  $date_formatter = \Drupal::service('date.formatter');
+  $current_user = \Drupal::currentUser();
+
+  $gc = [
+    'name' => $group->label(),
+    'url' => NULL,
+    'snippet' => '',
+    'type_label' => NULL,
+    'visibility_label' => t('Open'),
+    'visibility_variant' => 'success',
+    'member_count' => 0,
+    'last_activity' => NULL,
+    'last_activity_display' => NULL,
+    'last_activity_ago' => NULL,
+    'is_member' => FALSE,
+    'is_open' => TRUE,
+    'can_join' => FALSE,
+    'join_url' => NULL,
+  ];
+
+  // --- Canonical URL ------------------------------------------------------
+  try {
+    $gc['url'] = $group->toUrl()->toString();
+  }
+  catch (\Exception $e) {
+    // Leave URL NULL; the card renders an unlinked title.
+  }
+
+  // --- Description snippet -------------------------------------------------
+  if ($group->hasField('field_group_description') && !$group->get('field_group_description')->isEmpty()) {
+    $raw = (string) $group->get('field_group_description')->value;
+    $plain = trim(preg_replace('/\s+/', ' ', strip_tags($raw)) ?? '');
+    if ($plain !== '') {
+      $gc['snippet'] = \Drupal\Component\Utility\Unicode::truncate($plain, 180, TRUE, TRUE);
+    }
+  }
+
+  // --- Type badge (field_group_type term) --------------------------------
+  if ($group->hasField('field_group_type') && !$group->get('field_group_type')->isEmpty()) {
+    $term = $group->get('field_group_type')->entity;
+    if ($term) {
+      $gc['type_label'] = $term->label();
+    }
+  }
+
+  // --- Visibility badge ---------------------------------------------------
+  if ($group->hasField('field_group_visibility') && !$group->get('field_group_visibility')->isEmpty()) {
+    $value = (string) $group->get('field_group_visibility')->value;
+    $gc['is_open'] = ($value === 'open');
+    // Resolve the human label from the field's allowed values; fall back to the
+    // machine value if the definition is unavailable.
+    $allowed = $group->get('field_group_visibility')->getFieldDefinition()
+      ->getFieldStorageDefinition()->getSetting('allowed_values') ?? [];
+    $gc['visibility_label'] = $allowed[$value] ?? ucfirst($value);
+    $gc['visibility_variant'] = match ($value) {
+      'open' => 'success',
+      'moderated' => 'warning',
+      'invite_only' => 'info',
+      default => 'info',
+    };
+  }
+
+  // --- Member count (group_membership relationships) ---------------------
+  try {
+    $gc['member_count'] = count($group->getRelationships('group_membership'));
+  }
+  catch (\Exception $e) {
+    // Group storage unavailable — leave zero.
+  }
+
+  // --- Last activity (MAX node.created across group_node relations) -------
+  try {
+    $latest = 0;
+    foreach ($group->getRelationships() as $relationship) {
+      $plugin_id = $relationship->getPluginId();
+      if (strpos($plugin_id, 'group_node:') !== 0) {
+        continue;
+      }
+      $entity = $relationship->getEntity();
+      if ($entity instanceof \Drupal\node\NodeInterface) {
+        $created = (int) $entity->getCreatedTime();
+        if ($created > $latest) {
+          $latest = $created;
+        }
+      }
+    }
+    if ($latest > 0) {
+      $gc['last_activity'] = $latest;
+      $gc['last_activity_display'] = $date_formatter->format($latest, 'medium');
+      $gc['last_activity_ago'] = t('@time ago', [
+        '@time' => $date_formatter->formatTimeDiffSince($latest),
+      ]);
+    }
+  }
+  catch (\Exception $e) {
+    // Node/relationship storage unavailable — omit last-activity.
+  }
+
+  // --- Join affordance state for the current user ------------------------
+  if (!$current_user->isAnonymous()) {
+    try {
+      $gc['is_member'] = (bool) $group->getMember($current_user);
+    }
+    catch (\Exception $e) {
+      // Leave is_member FALSE.
+    }
+    // A logged-in non-member can join an OPEN group when they hold the
+    // "join group" permission (granted to the outsider role by CH-F4 / #95).
+    if (!$gc['is_member'] && $gc['is_open'] && $group->hasPermission('join group', $current_user)) {
+      $gc['can_join'] = TRUE;
+      try {
+        $gc['join_url'] = \Drupal\Core\Url::fromRoute('entity.group.join', [
+          'group' => $group->id(),
+          'plugin_id' => 'group_membership',
+        ])->toString();
+      }
+      catch (\Exception $e) {
+        // No join route available — fall back to no button.
+        $gc['can_join'] = FALSE;
+      }
+    }
+  }
+
+  $variables['gc_directory'] = $gc;
+}

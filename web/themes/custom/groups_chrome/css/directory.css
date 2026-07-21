@@ -1,0 +1,136 @@
+/**
+ * Groups Chrome — group directory cards (story #84 / CH-A2).
+ *
+ * Styles the `all_groups` view (/all-groups) as a responsive grid of group
+ * cards built on the shared card/badge/button primitives (primitives.css).
+ * Every value is drawn from tokens.css — no hard-coded colours or spacing.
+ *
+ * The card markup is produced by views-view-fields--all-groups.html.twig,
+ * populated by groups_chrome_preprocess_views_view_fields__all_groups()
+ * (groups_chrome.theme). This file adds ONLY the directory-specific layout and
+ * the `.gc-directory-*` component classes — it never edits the base primitives.
+ *
+ * Demo-only, NO schema changes: all data is READ from existing group entities
+ * and their group_relationship rows.
+ */
+
+/* ==========================================================================
+   Grid — the view's unformatted row list becomes a responsive card grid.
+   ========================================================================== */
+.view-all-groups .view-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: var(--gc-space-lg);
+  margin-block: var(--gc-space-lg);
+}
+
+.view-all-groups .views-row {
+  display: flex;
+  margin: 0;
+}
+
+.view-all-groups .views-row > .gc-directory-card {
+  flex: 1;
+}
+
+/* ==========================================================================
+   Card — a single group in the directory.
+   ========================================================================== */
+.gc-directory-card {
+  height: 100%;
+}
+
+.gc-directory-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gc-space-sm);
+  flex: 1;
+}
+
+.gc-directory-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gc-space-2xs);
+}
+
+.gc-directory-card__title {
+  margin: 0;
+}
+
+.gc-directory-card__title a {
+  color: var(--gc-color-text);
+  text-decoration: none;
+}
+
+.gc-directory-card__title a:hover,
+.gc-directory-card__title a:focus {
+  color: var(--gc-color-primary-700);
+  text-decoration: underline;
+}
+
+.gc-directory-card__snippet {
+  margin: 0;
+  color: var(--gc-color-text-muted);
+  font-size: var(--gc-font-size-sm);
+  line-height: var(--gc-leading-normal);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.gc-directory-card__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gc-space-md);
+  margin-top: auto;
+  padding-top: var(--gc-space-xs);
+  color: var(--gc-color-text-muted);
+  font-size: var(--gc-font-size-xs);
+}
+
+.gc-directory-card__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gc-space-2xs);
+}
+
+.gc-directory-card__stat-icon {
+  flex: none;
+  color: var(--gc-color-text-muted);
+}
+
+.gc-directory-card__stat-value {
+  font-weight: var(--gc-font-weight-semibold);
+  color: var(--gc-color-text);
+}
+
+/* ==========================================================================
+   Footer — the Join affordance.
+   ========================================================================== */
+.gc-directory-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gc-space-sm);
+}
+
+.gc-directory-card__member-note {
+  color: var(--gc-color-success);
+  font-size: var(--gc-font-size-xs);
+  font-weight: var(--gc-font-weight-semibold);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gc-space-2xs);
+}
+
+.gc-directory-card__closed-note {
+  color: var(--gc-color-text-muted);
+  font-size: var(--gc-font-size-xs);
+}
+
+.gc-directory-card__join {
+  flex: 1;
+  text-align: center;
+}

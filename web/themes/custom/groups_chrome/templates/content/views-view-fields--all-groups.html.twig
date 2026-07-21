@@ -1,0 +1,96 @@
+{#
+/**
+ * @file
+ * Group directory card for the Groups Chrome subtheme (story #84 / CH-A2).
+ *
+ * Overrides the `all_groups` view's row (fields) output — turning the bare
+ * list into a rich card showing the group name + link, a description snippet,
+ * a type badge (field_group_type term), a visibility badge, member count,
+ * last-activity, and a Join affordance.
+ *
+ * The `gc_directory` metadata is assembled in
+ * groups_chrome_preprocess_views_view_fields__all_groups() (groups_chrome.theme)
+ * from the row's group entity — no schema/field changes, all data is READ from
+ * existing entities and their group_relationship rows.
+ *
+ * Available:
+ * - gc_directory.name / url
+ * - gc_directory.snippet
+ * - gc_directory.type_label
+ * - gc_directory.visibility_label / visibility_variant
+ * - gc_directory.member_count
+ * - gc_directory.last_activity        (timestamp, or null)
+ * - gc_directory.last_activity_display / last_activity_ago
+ * - gc_directory.is_member            (current user is a member)
+ * - gc_directory.can_join             (logged-in non-member of an Open group)
+ * - gc_directory.is_open              (visibility == open)
+ * - gc_directory.join_url             (entity.group.join for this group)
+ *
+ * `fields` (the raw Views field render arrays) remains available as a fallback
+ * but is intentionally not printed — the card presents the derived metadata.
+ */
+#}
+<article class="gc-card gc-card--interactive gc-directory-card">
+  <div class="gc-card__body gc-directory-card__body">
+
+    <div class="gc-directory-card__badges">
+      {% if gc_directory.type_label %}
+        <span class="gc-badge gc-badge--primary gc-directory-card__type">{{ gc_directory.type_label }}</span>
+      {% endif %}
+      <span class="gc-badge gc-badge--{{ gc_directory.visibility_variant }} gc-directory-card__visibility">{{ gc_directory.visibility_label }}</span>
+    </div>
+
+    <h3 class="gc-card__title gc-directory-card__title">
+      {% if gc_directory.url %}
+        <a href="{{ gc_directory.url }}" rel="bookmark">{{ gc_directory.name }}</a>
+      {% else %}
+        {{ gc_directory.name }}
+      {% endif %}
+    </h3>
+
+    {% if gc_directory.snippet %}
+      <p class="gc-directory-card__snippet">{{ gc_directory.snippet }}</p>
+    {% endif %}
+
+    <div class="gc-directory-card__stats">
+      <span class="gc-directory-card__stat gc-directory-card__stat--members">
+        <svg class="gc-directory-card__stat-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-6 6a6 6 0 0 1 12 0v.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V14z"/>
+        </svg>
+        <span class="gc-directory-card__stat-value">{{ gc_directory.member_count }}</span>
+        {{ 'member'|t }}{% if gc_directory.member_count != 1 %}{{ 's'|t }}{% endif %}
+      </span>
+
+      {% if gc_directory.last_activity %}
+        <span class="gc-directory-card__stat gc-directory-card__stat--activity">
+          <svg class="gc-directory-card__stat-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.5 3a.5.5 0 0 0-1 0v4a.5.5 0 0 0 .22.42l2.5 1.67a.5.5 0 1 0 .56-.83L8.5 7.73V4z"/>
+          </svg>
+          <span class="gc-directory-card__stat-label">{{ 'Active'|t }}</span>
+          <time datetime="{{ gc_directory.last_activity|date('c') }}" title="{{ gc_directory.last_activity_display }}">{{ gc_directory.last_activity_ago }}</time>
+        </span>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <footer class="gc-card__footer gc-directory-card__footer">
+    {% if gc_directory.is_member %}
+      <span class="gc-directory-card__member-note">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M13.5 4.5 6 12 2.5 8.5l1-1L6 10l6.5-6.5z"/>
+        </svg>
+        {{ 'Member'|t }}
+      </span>
+    {% elseif gc_directory.can_join and gc_directory.join_url %}
+      <a href="{{ gc_directory.join_url }}" class="gc-button gc-button--primary gc-button--sm gc-directory-card__join">{{ 'Join group'|t }}</a>
+    {% elseif not gc_directory.is_open %}
+      <span class="gc-directory-card__closed-note">{{ 'Membership by invitation'|t }}</span>
+    {% else %}
+      {# Anonymous visitor: point at the group so they can log in / view. #}
+      {% if gc_directory.url %}
+        <a href="{{ gc_directory.url }}" class="gc-button gc-button--secondary gc-button--sm gc-directory-card__join">{{ 'View group'|t }}</a>
+      {% endif %}
+    {% endif %}
+  </footer>
+</article>
