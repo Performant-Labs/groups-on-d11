@@ -237,6 +237,25 @@ foreach ($group_type_map as $label => $type_name) {
   echo "tagged '$label' -> $type_name (tid=" . $term->id() . ")\n";
 }
 
+// 5. Surface the Group Type widget on the community_group add/edit form (#89).
+// The field was provisioned above but is HIDDEN on the default form display, so
+// a group creator never sees / picks a type. do_chrome's #89 field-level "ⓘ"
+// tooltip needs the <select> to exist on the form to anchor to it. This is a
+// display-config change only (no schema change): it moves field_group_type out
+// of the form display's `hidden` region into `content`. Done here (not in
+// config/sync) because the field itself is provisioned at runtime, so a
+// config:import that referenced it would fail on the missing field dependency.
+// Idempotent — re-running just re-asserts the same component.
+$form_display = $etm->getStorage('entity_form_display')->load('group.community_group.default');
+if ($form_display && !$form_display->getComponent('field_group_type')) {
+  $form_display->setComponent('field_group_type', [
+    'type' => 'options_select',
+    'weight' => 4,
+    'region' => 'content',
+  ])->save();
+  echo "surfaced field_group_type on the community_group form display\n";
+}
+
 echo count($term_storage->loadByProperties(['vid' => 'group_type'])) . " group_type terms total\n";
 PHP
   $DRUSH php:script /tmp/provision-group-types.php || echo "[entrypoint] WARNING: could not provision group types (continuing)"

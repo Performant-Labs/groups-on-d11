@@ -60,3 +60,29 @@
 .pin-badge[data-do-tooltip] {
   border-bottom: 0;
 }
+
+/* --- #89 group-type / content-type field-level "ⓘ" help trigger ------------ */
+
+/*
+ * The ⓘ is a compact inline glyph sitting next to a field (as #field_suffix),
+ * not inline prose, so it drops the generic dotted underline and reads as a
+ * subtle, focusable info affordance.
+ */
+.do-chrome-info {
+  display: inline-block;
+  margin-inline-start: 6px;
+  color: #0067b8;
+  font-size: 0.95em;
+  line-height: 1;
+  vertical-align: baseline;
+}
+
+.do-chrome-info[data-do-tooltip] {
+  border-bottom: 0;
+  cursor: help;
+}
+
+.do-chrome-info:focus {
+  outline: 2px solid #0067b8;
+  outline-offset: 2px;
+}
