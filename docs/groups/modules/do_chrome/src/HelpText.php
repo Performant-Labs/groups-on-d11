@@ -41,6 +41,13 @@ final class HelpText {
       // #90 audience.*        (multi-group audience help)
       // #91 permissions.*     (who-can-do-what matrix)
       // #92 archive.* / pin.* / promote.* / flag.*
+
+      // #90 (CH-B3): multi-group "Group Audience" fieldset (do_multigroup
+      // cross-posting). Copy is the approved #81 deck, section D. This surface
+      // is FULLY BACKED — cross-posting to multiple groups through the node
+      // form is wired (do_multigroup; the form-submit path fixed in #68), so
+      // the copy is presented as live, not aspirational.
+      'audience.fieldset' => 'Post to more than one group at once — the content appears in every group you select and in each group\'s stream. Leave a group unselected to remove it from that group without deleting the content.',
     ];
   }
 

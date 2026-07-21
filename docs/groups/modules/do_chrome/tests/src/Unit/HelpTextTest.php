@@ -38,6 +38,18 @@ final class HelpTextTest extends TestCase {
   }
 
   /**
+   * The #90 multi-group audience copy is present and plain text.
+   *
+   * @covers ::get
+   */
+  public function testAudienceCopyIsPresent(): void {
+    $copy = HelpText::get('audience.fieldset');
+    $this->assertNotSame('', $copy, 'The #90 audience tooltip copy must exist.');
+    $this->assertStringNotContainsString('<', $copy, 'Copy must be plain text (allowHTML is disabled).');
+    $this->assertStringContainsString('more than one group', $copy, 'Copy must match the #81 deck (section D).');
+  }
+
+  /**
    * @covers ::all
    */
   public function testAllReturnsStringMap(): void {
