@@ -90,6 +90,34 @@ final class HelpText {
       'pin.badge' => 'Pinned: this post is kept at the top of the group stream so newcomers see it first, regardless of date.',
       'promote.control' => 'Promote surfaces this post beyond its group, onto the site-wide Promoted Content listing.',
       'follow.control' => 'Follow this post to get notified when it is updated or gets new replies.',
+
+      // #89 (CH-B2): Group Type + content-type field help.
+      //
+      // A <select> can't carry a per-<option> tooltip, so each surface ships
+      // ONE field-level ⓘ that names every choice and what it means. Copy is
+      // authored to match ENFORCED / SEEDED reality (CH-F4 / #95 seeded the 5
+      // group_type terms and tagged all demo groups), so nothing here is
+      // aspirational:
+      //  - group_type.field : the 5 seeded group_type terms, using their
+      //    seeded term descriptions (Geographical / Working group /
+      //    Distribution / Event planning / Archive — see step_200.php). Archive
+      //    is enforced read-only by do_group_extras.
+      //  - content_type.field : the 5 group_node content types wired on the demo
+      //    (Forum / Documentation / Event / Post / Page), per the #81 copy deck
+      //    section C. Every type is a real group_node relationship, so a member
+      //    can create each one.
+      'group_type.field' => 'Categorises the group so members know what to expect. '
+        . 'Geographical: local user groups by city or region. '
+        . 'Working group: module, feature, or initiative coordination. '
+        . 'Distribution: Drupal distribution projects. '
+        . 'Event planning: DrupalCon and camp organising. '
+        . 'Archive: inactive groups, read-only — existing content stays visible but no new posts can be added.',
+      'content_type.field' => 'Pick the kind of post — each type is shaped for a different job. '
+        . 'Forum: threaded discussion; start a conversation and let members reply. '
+        . 'Documentation: durable reference material — guides, how-tos, and specs that stay useful over time. '
+        . 'Event: something happening at a set time; add the date so members can plan around it. '
+        . 'Post: a quick update, announcement, or link to share with the group. '
+        . 'Page: a standalone page for lasting information, like an about or guidelines page.',
     ];
   }
 

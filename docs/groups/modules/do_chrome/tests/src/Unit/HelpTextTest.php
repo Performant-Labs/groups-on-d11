@@ -109,6 +109,34 @@ final class HelpTextTest extends TestCase {
   }
 
   /**
+   * #89 (CH-B2): the Group Type field ⓘ names every seeded group type.
+   *
+   * @covers ::get
+   */
+  public function testGroupTypeFieldCopyNamesAllTypes(): void {
+    $copy = HelpText::get('group_type.field');
+    $this->assertNotSame('', $copy, 'The group_type.field tooltip copy must exist.');
+    $this->assertStringNotContainsString('<', $copy, 'Copy must be plain text (allowHTML is disabled).');
+    foreach (['Geographical', 'Working group', 'Distribution', 'Event planning', 'Archive'] as $type) {
+      $this->assertStringContainsString($type, $copy, "Group Type help must name the '$type' type.");
+    }
+  }
+
+  /**
+   * #89 (CH-B2): the content-type field ⓘ names every group content type.
+   *
+   * @covers ::get
+   */
+  public function testContentTypeFieldCopyNamesAllTypes(): void {
+    $copy = HelpText::get('content_type.field');
+    $this->assertNotSame('', $copy, 'The content_type.field tooltip copy must exist.');
+    $this->assertStringNotContainsString('<', $copy, 'Copy must be plain text (allowHTML is disabled).');
+    foreach (['Forum', 'Documentation', 'Event', 'Post', 'Page'] as $type) {
+      $this->assertStringContainsString($type, $copy, "Content-type help must name the '$type' type.");
+    }
+  }
+
+  /**
    * @covers ::all
    */
   public function testAllReturnsStringMap(): void {
