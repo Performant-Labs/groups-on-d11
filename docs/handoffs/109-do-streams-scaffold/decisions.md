@@ -97,3 +97,37 @@
   templates/content/node--stream-card.html.twig}`, `playwright.config.ts`, `tests/e2e/*.spec.ts`
   (listing only), `.ddev/config.yaml`, `docs/playbook/workflow/{workflow-coding-pipeline.md,
   pipeline-conventions.md,dual-review.sh}` (usage header).
+
+## Review-rigor — brief gate (second-opinion, o4-mini) — 2026-07-22T09:35:00Z
+- **Decided:** Ran `dual-review.sh --mode brief` (round 1): 9 BLOCK + 4 WARN + 4 NIT findings, all
+  substantive (not noise) — see `dual-review-brief.md` and `review-comparison.md`. Resolved every
+  BLOCK by amending `brief.md` with a new "Precise specs" section ([B-1]..[B-9]) and a "Guardrails
+  from WARN findings" section ([W-1]..[W-4]); wrote `dual-review-brief-response.md` documenting
+  each resolution; re-ran round 2 — **PASS, all 9 ACCEPTED, zero disagreement, no escalation
+  needed.**
+- **Decided:** The single highest-value catch was **[B-4]**: the follow_term join field is
+  `field_group_tags` (present on every `group_node:*` bundle), not `field_tags` (which only exists
+  on `article`, not a group-relevant bundle) — the obvious/wrong guess a naive implementation would
+  have made. Verified directly against `config/sync/field.field.node.*.yml` before writing the
+  resolution (not just accepting the critic's flag without checking — confirmed the correct field
+  name myself).
+- **Decided:** "Trending" tab (referenced in the epic's shell tab list but not defined by this
+  story's two scope plugins) = Global scope (no scope filter) + hot ranking defaulted — not a
+  third scope plugin. Documented in brief §Precise specs [B-8].
+- **Decided:** Membership-scope plugin's reference semantics are an EXISTS-subquery joining two
+  `group_relationship_field_data` aliases (node's group_node relationship + current user's
+  group_membership relationship, joined on `gid`) — avoids a fan-out/dedupe problem for scope
+  filtering entirely (unlike do_group_pin's per-group `gid`-argument shape, which the survey had
+  initially assumed membership-scope could reuse more directly than it turns out to). Documented
+  in brief §Precise specs [B-9].
+- **Decided:** last-activity ranking is `GREATEST(changed, COALESCE(NULLIF(last_comment_timestamp,
+  0), changed))` — not `changed` alone (indistinguishable from "recent") and not raw
+  `last_comment_timestamp` alone (would wrongly rank never-commented nodes as never-active).
+  Documented in brief §Precise specs [B-1].
+- **Committed** the amended `brief.md` + `dual-review-brief.md` (+ `.prompt.txt` sidecar) +
+  `dual-review-brief-response.md` + `review-comparison.md` immediately (same durability lesson as
+  the worktree-loss incident above) before spawning D.
+- **Evidence:** `docs/handoffs/109-do-streams-scaffold/{dual-review-brief.md,
+  dual-review-brief-response.md,review-comparison.md}`, `config/sync/field.field.node.*.yml`
+  (grep + read, confirming `field_group_tags` vs `field_tags` bundle coverage),
+  `config/sync/field.storage.node.field_group_tags.yml`.
