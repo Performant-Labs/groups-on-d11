@@ -7,7 +7,7 @@ dependencies:
     - user.role.groups_moderate
 id: community_group-groups_moderate
 label: 'Groups Moderate'
-weight: 0
+weight: 2
 admin: true
 scope: outsider
 global_role: groups_moderate

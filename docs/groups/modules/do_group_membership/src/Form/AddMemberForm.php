@@ -12,6 +12,7 @@ use Drupal\do_group_membership\Exception\DuplicateMembershipException;
 use Drupal\do_group_membership\GroupMembershipManager;
 use Drupal\Core\Url;
 use Drupal\group\Entity\GroupInterface;
+use Drupal\user\UserInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -36,7 +37,7 @@ class AddMemberForm extends FormBase {
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('do_group_membership.manager'),
-      $container->get('entity_type.manager'),
+      $container->get('entity_type.manager')
     );
   }
 
@@ -98,7 +99,7 @@ class AddMemberForm extends FormBase {
     $uid = $form_state->getValue('uid');
     $account = $uid ? $this->entityTypeManager->getStorage('user')->load($uid) : NULL;
 
-    if (!$account) {
+    if (!$account instanceof UserInterface) {
       $this->messenger()->addError($this->t('The selected user could not be found.'));
       return;
     }

@@ -6,7 +6,7 @@ dependencies:
     - group.type.community_group
 id: community_group-moderator
 label: Moderator
-weight: 0
+weight: 1
 admin: false
 scope: individual
 global_role: null

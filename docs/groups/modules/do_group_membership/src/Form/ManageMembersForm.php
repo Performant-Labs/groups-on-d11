@@ -8,6 +8,7 @@ use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Pager\PagerManagerInterface;
 use Drupal\Core\Url;
 use Drupal\do_group_membership\GroupMembershipManager;
 use Drupal\group\Entity\GroupInterface;
@@ -27,10 +28,16 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class ManageMembersForm extends FormBase {
 
+  /**
+   * The number of member rows shown per page (AC-15).
+   */
+  protected const MEMBERS_PER_PAGE = 50;
+
   public function __construct(
     protected GroupMembershipManager $manager,
     protected EntityTypeManagerInterface $entityTypeManager,
     protected DateFormatterInterface $dateFormatter,
+    protected PagerManagerInterface $pagerManager,
   ) {}
 
   /**
@@ -41,6 +48,7 @@ class ManageMembersForm extends FormBase {
       $container->get('do_group_membership.manager'),
       $container->get('entity_type.manager'),
       $container->get('date.formatter'),
+      $container->get('pager.manager'),
     );
   }
 
@@ -69,8 +77,14 @@ class ManageMembersForm extends FormBase {
       '#attributes' => ['class' => ['button', 'button--primary']],
     ];
 
-    $memberships = $group->getMembers();
+    $all_memberships = $group->getMembers();
+    // The last-Organizer guard (AC-9) must count Organizers across the
+    // WHOLE group, never just the current page's slice.
     $active_organizer_count = $this->countActiveOrganizers($group);
+
+    $pager = $this->pagerManager->createPager(count($all_memberships), self::MEMBERS_PER_PAGE);
+    $current_page = $pager->getCurrentPage();
+    $memberships = array_slice($all_memberships, $current_page * self::MEMBERS_PER_PAGE, self::MEMBERS_PER_PAGE);
 
     $header = [
       $this->t('Member name'),

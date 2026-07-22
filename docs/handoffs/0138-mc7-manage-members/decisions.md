@@ -514,3 +514,19 @@ does the axe pass (U mandate: add the dep in a throwaway or run axe manually + w
 
 **Action:** route back to F for the pagination fix (+ WARN/NIT sweep). Per pipeline, re-enters at F;
 T then re-verifies (GREEN) before A-dup. Transcript: `dual-review-diff.md`.
+
+## Phase 6.5 (diff-gate rework) — Feature Implementor (F)
+
+**Decided:** F fixed the B-1 pagination BLOCK with `PagerManagerInterface::createPager(count(all),
+50)` + `array_slice` to the current page (real 50-row pagination); `countActiveOrganizers()` still
+counts across the WHOLE group so the AC-9 last-Organizer guard is NOT fooled by a page slice. Also
+swept W-1 (cache contexts on access), W-2 (`addMember()` typed `UserInterface`), and the 4 NITs
+(stale CSS comment, unused library `version:`, trailing comma, distinct role weights). Reported
+16/16 Unit GREEN, phpcs/phpstan clean.
+
+**Flagged (O → T):** F said "no test needs updating," but the pagination BLOCK existed precisely
+because NO test pinned the 50-row slice. T MUST ADD a covering test (seed >50 members → exactly 50
+rows on page 1 + pager exists + page 2 shows remainder + countActiveOrganizers sees whole group).
+If only CI-runnable, add it to the env-blocked list — do NOT leave AC-15 pagination unpinned.
+
+**Evidence:** `handoff-F.md` "Diff-gate round-1 fixes"; `ManageMembersForm.php` lines 85/87.

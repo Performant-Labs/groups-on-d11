@@ -4,8 +4,7 @@
  *
  * Module-owned CSS, attached only on the Manage-members route (#attached
  * library), per every existing UI-bearing do_* module (do_chrome,
- * do_group_extras, do_multigroup, do_profile_stats) — no groups_chrome
- * theme edits (coexistence single-owner rule).
+ * do_group_extras, do_multigroup, do_profile_stats).
  *
  * WCAG 2.2 AA: status is conveyed via a visible text label + glyph, never
  * color alone (the color classes below are a secondary reinforcement, not

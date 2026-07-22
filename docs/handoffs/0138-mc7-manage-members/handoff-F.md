@@ -367,3 +367,88 @@ Production files only (no test files — those are T's):
 Materialized copies under `web/modules/custom/do_group_membership/` and `config/sync/*.yml` were
 produced by running `scripts/ci/assemble-config.sh` (not hand-edited) — per the RUNBOOK convention
 these are build artifacts, not sources of truth, and are excluded from this list.
+
+## Diff-gate round-1 fixes
+
+Fixes for the o4-mini diff-gate findings in `docs/handoffs/0138-mc7-manage-members/dual-review-diff.md`.
+
+**[B-1] BLOCK — pagination non-functional.** Fixed in `ManageMembersForm.php`:
+- Injected `\Drupal\Core\Pager\PagerManagerInterface` (service `pager.manager`) via constructor/`create()`,
+  the D11-idiomatic non-procedural API (not the deprecated `pager_default_initialize()`).
+- `buildForm()` now fetches the full membership list (`$all_memberships = $group->getMembers()`),
+  initializes the pager against the FULL count (`$this->pagerManager->createPager(count($all_memberships),
+  self::MEMBERS_PER_PAGE)`, `MEMBERS_PER_PAGE = 50` per AC-15), reads `getCurrentPage()`, and slices
+  to the current page's 50 rows (`array_slice(...)`) into `$memberships`, which is what the `foreach`
+  loop actually renders. The `#type => 'pager'` element is unchanged (still renders the pager links,
+  now backed by a real initialized pager).
+- **`countActiveOrganizers()` was already correct and untouched** — it calls
+  `$group->getMembers([ORGANIZER_ROLE_ID])` directly against the group, not against the paginated
+  `$memberships` slice, so the last-Organizer guard (AC-9) counts across the WHOLE group regardless
+  of which page is being viewed. Added an inline comment at the call site making this explicit.
+
+**[W-1] WARN — access() cache contexts.** `ManageMembersController::access()`: added
+`->cachePerUser()` and `->addCacheContexts(['url.path'])` alongside the existing
+`->cachePerPermissions()` and `->addCacheableDependency($group)`, so the access result varies by
+user identity and by which group's route is being accessed (the `{group}` upcasts from the URL).
+
+**[W-2] WARN — `addMember()` param type.** `GroupMembershipManager::addMember()`: changed the
+`$account` parameter from `\Drupal\Core\Session\AccountInterface` to `\Drupal\user\UserInterface`
+(matches `GroupInterface::addMember()`'s real expected type). Dropped the `method_exists($account,
+'isBlocked')` guard — `UserInterface` always has `isBlocked()`, so the call is now direct
+(`$account->isBlocked()`). Also simplified the duplicate-membership check: since `UserInterface`
+extends `EntityInterface` unconditionally, the `instanceof EntityInterface` guard around
+`getRelationshipsByEntity()` is no longer needed and was removed (dropped the now-unused
+`EntityInterface`/`AccountInterface` imports). `AddMemberForm::submitForm()` was updated to load the
+account via `entity_type.manager`'s `user` storage and narrow it with `instanceof
+\Drupal\user\UserInterface` (imported) before calling `$this->manager->addMember()`, so the call
+site is statically type-safe end to end.
+
+**[NIT-1]** `css/manage-members.css` — reworded the header comment to drop the confusing
+"no groups_chrome theme edits (coexistence single-owner rule)" aside; kept the substantive
+rationale (module-owned CSS, attached only on this route, matches sibling `do_*` modules).
+
+**[NIT-2]** `do_group_membership.libraries.yml` — removed the unused `version: 1.x` line from the
+`manage_members` library definition.
+
+**[NIT-3]** `AddMemberForm::create()` — removed the trailing comma after the last constructor
+argument.
+
+**[NIT-4]** Set distinct `weight:` values on the three new group roles for deterministic tab/list
+ordering: `community_group-organizer` stays `weight: 0` (lowest — most-privileged, listed first),
+`community_group-moderator` → `weight: 1`, `community_group-groups_moderate` → `weight: 2`
+(synchronized/site-admin role, listed last). `scope: outsider` on `groups_moderate` left untouched
+per instructions.
+
+### Verification
+
+- **phpcs** (`Drupal,DrupalPractice`) on all 4 changed PHP files: 0 errors, 0 warnings.
+- **phpcs** (`Drupal`, `--extensions=yml`) on all 4 changed YAML/library files: 0 errors, 0 warnings.
+- **phpstan** (level 1) on all 4 changed PHP files: 0 new findings. The only 2 reported items are
+  the pre-existing "Unsafe usage of `new static()`" in `ManageMembersForm::create()` and
+  `AddMemberForm::create()` — Drupal core's own standard DI factory pattern, present identically in
+  every sibling module/form in this codebase (not introduced or changed by this round).
+- **`php -l`** on all 4 changed PHP files, both the `docs/groups/modules/...` source and the
+  `web/modules/custom/...` materialized copy (post `assemble-config.sh`): no syntax errors.
+- **`scripts/ci/assemble-config.sh`**: ran clean — `copied 95 file(s), excluded 7 env-specific
+  file(s)`, `copied 11 custom module(s)`, `registered custom do_* modules + flag as enabled`.
+- **Unit tests — real execution, `vendor/bin/phpunit -c web/core`:** ran all 3 Unit test files
+  (`GroupMembershipManagerTest`, `GroupRoleConfigShapeTest`, `MembershipStatusFieldConfigShapeTest`).
+  **16/16 GREEN** (63 assertions, 7 PHPUnit deprecation notices — pre-existing, unrelated to this
+  change; no failures, no errors). This includes both tests the Phase-5 handoff had flagged as
+  failing for test-authorship reasons (`testAddMemberCreatesActiveRelationship` and
+  `testGroupsModerateRoleConfigShape`) — **both now pass**, confirming T already corrected the mock
+  type (`UserInterface` instead of `AccountInterface`) and the `scope: outsider` expectation between
+  Phase 6 and this diff-gate round. No regression: all previously-GREEN Unit tests remain GREEN.
+- No `gm138-*` (or any other) Docker container was created or removed during this round — all
+  self-checks above ran without a database (phpcs/phpstan/php -l/Unit PHPUnit are all DB-free). No
+  pre-existing containers (including `o119t2-mysql`) were touched.
+
+### Test T should look at
+
+None from this round — no test needed changing for the pagination refactor.
+`ManageMembersForm::buildForm()`'s public contract (`#type => table` with `$header`, `#type =>
+pager`, per-row action buttons) is unchanged; only the internal data-fetch/slicing before the loop
+changed. If T's Kernel/Functional suite asserts row COUNT on a fixture with >50 memberships without
+also asserting page-2 content, that assertion is still correct (a >50-member fixture should show
+exactly 50 rows on page 1) — flagging only as a heads-up, not a defect, since I could not execute
+Kernel/Functional tests in this DB-free verification pass.

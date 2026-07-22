@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Drupal\do_group_membership;
 
-use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\Session\AccountInterface;
 use Drupal\do_group_membership\Exception\BlockedAccountException;
 use Drupal\do_group_membership\Exception\DuplicateMembershipException;
 use Drupal\do_group_membership\Exception\LastOrganizerGuardException;
 use Drupal\group\Entity\GroupInterface;
 use Drupal\group\Entity\GroupRelationshipInterface;
+use Drupal\user\UserInterface;
 
 /**
  * Membership CRUD + status-transition logic for `do_group_membership`.
@@ -69,8 +68,8 @@ class GroupMembershipManager {
    *
    * @param \Drupal\group\Entity\GroupInterface $group
    *   The group to add the member to.
-   * @param \Drupal\Core\Session\AccountInterface $account
-   *   The account to add.
+   * @param \Drupal\user\UserInterface $account
+   *   The user account to add.
    * @param string[] $roles
    *   Group role ids to assign the new membership.
    *
@@ -82,16 +81,14 @@ class GroupMembershipManager {
    * @throws \Drupal\do_group_membership\Exception\BlockedAccountException
    *   If the account's Drupal user account is blocked.
    */
-  public function addMember(GroupInterface $group, AccountInterface $account, array $roles): GroupRelationshipInterface {
-    if (method_exists($account, 'isBlocked') && $account->isBlocked()) {
+  public function addMember(GroupInterface $group, UserInterface $account, array $roles): GroupRelationshipInterface {
+    if ($account->isBlocked()) {
       throw new BlockedAccountException('This user\'s site account is blocked.');
     }
 
-    if ($account instanceof EntityInterface) {
-      $existing = $group->getRelationshipsByEntity($account, 'group_membership');
-      if (!empty($existing)) {
-        throw new DuplicateMembershipException('This user is already a member of this group.');
-      }
+    $existing = $group->getRelationshipsByEntity($account, 'group_membership');
+    if (!empty($existing)) {
+      throw new DuplicateMembershipException('This user is already a member of this group.');
     }
 
     $result = $group->addMember($account, [

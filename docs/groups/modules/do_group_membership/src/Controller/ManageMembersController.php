@@ -39,7 +39,9 @@ class ManageMembersController {
     $access = $group->hasPermission('administer members', $account) || $account->hasPermission('administer group');
     return AccessResult::allowedIf($access)
       ->addCacheableDependency($group)
-      ->cachePerPermissions();
+      ->cachePerPermissions()
+      ->cachePerUser()
+      ->addCacheContexts(['url.path']);
   }
 
 }
