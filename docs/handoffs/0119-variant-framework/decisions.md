@@ -734,3 +734,37 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   diff (`tests/e2e/showcase.spec.ts`) plus the 2 pre-existing untracked files present before this
   round began. No mutating command run against the shared `groups-on-d11` checkout — all work
   confined to the isolated worktree. Full detail in `handoff-T-green4.md`.
+
+## A — Phase 7 (anti-duplication gate) — 2026-07-22
+
+- **Decided:** PASS. Reviewed the full accumulated diff (origin/main 37e8582...HEAD 38e9d3c) against
+  survey.md's Reuse map and handoff-F/F2/F3/F4 across all four implementation rounds. All six
+  anti-duplication checks pass: (1) HelpText append-only, net delta is exactly one live key after
+  F4's dead-key removal; (2) no second tooltip engine — `do_chrome/tooltips` is the sole mechanism,
+  zero vendored tippy/popper in `do_showcase`; (3) `/showcase` route+controller matches
+  `do_notifications`/`do_discovery`'s `ControllerBase`+`.routing.yml` pattern exactly; (4) ribbon
+  uses `page_top` (correct hook for visible markup) as the same single-global-attach-point shape as
+  `DoChromeHooks::pageAttachments()`; (5) `VariantSwitcher` is a plain service, not a duplicate
+  `Plugin/Block` — confirmed no `Plugin/Block` directory exists under `do_showcase/src`, and the
+  service-vs-block divergence was justified in writing at Phase 3 and documented again in handoff-F;
+  (6) no other reimplementation of do_chrome/do_discovery/core functionality found — session
+  persistence (sessionStorage) is genuinely new machinery per the Reuse map's own finding that no
+  existing do_* analog exists to extend instead.
+- **Decided:** The diff-gate's B-1 finding (dead ribbon-tooltip wiring from round 1) is not
+  duplication — it was an unused entry point into the correctly-reused single tooltip engine, not a
+  second tooltip system. F4's fix removed the dead wiring rather than building a ribbon-specific
+  trigger, which is the more reuse-consistent resolution; confirmed the net diff leaves zero
+  tooltip-related code in `do_showcase.ribbon.js`.
+- **Assumed:** None new.
+- **Hedged:** None — all six checks confirmed by direct file inspection (grep/find + full reads),
+  not solely by trusting F's own handoff narrative.
+- **Evidence:** `docs/groups/modules/do_chrome/src/HelpText.php` (tail, confirms one live appended
+  key), `docs/groups/modules/do_showcase/src/VariantSwitcher.php` (HelpText::get call,
+  #cache/#tooltip contract), `docs/groups/modules/do_showcase/src/Hook/DoShowcaseHooks.php` (page_top
+  hook, no tooltip wiring on ribbon), `docs/groups/modules/do_showcase/do_showcase.libraries.yml`,
+  `docs/groups/modules/do_showcase/js/{do_showcase.switcher.js,do_showcase.ribbon.js}` (zero
+  tooltip/tippy references), `docs/groups/modules/do_showcase/do_showcase.routing.yml` +
+  `src/Controller/ShowcaseController.php` vs. `do_notifications.routing.yml` +
+  `NotificationSettingsController.php` (side-by-side pattern comparison), `find
+  docs/groups/modules/do_showcase/src -type d` (confirms no Plugin/Block dir), `find ... -iname
+  "*tippy*" -o -iname "*popper*"` (zero matches). Full detail in `handoff-A-dup.md`.
