@@ -768,3 +768,34 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   `NotificationSettingsController.php` (side-by-side pattern comparison), `find
   docs/groups/modules/do_showcase/src -type d` (confirms no Plugin/Block dir), `find ... -iname
   "*tippy*" -o -iname "*popper*"` (zero matches). Full detail in `handoff-A-dup.md`.
+
+## U — Phase 8 (UI Walkthrough) — 2026-07-22
+
+- **Decided:** PASS. Drove all 3 `do_showcase` UI surfaces (variant switcher, `/showcase` tour page,
+  POC ribbon) in a real headless Chromium browser (Playwright), on the real navigated path (click
+  the ribbon's link into `/showcase`, click switcher options, Tab to the dismiss button), at desktop
+  (1280x900) and 360px viewports, plus an axe-core WCAG 2.x A/AA + 2.2 AA pass on each surface. Every
+  control in the wireframe's per-surface checklist (switcher click/keyboard/tooltip/no-JS-fallback;
+  tour-page live-link/dead-link/badge/persona checks; ribbon show-anon/show-auth/dismiss/persist/
+  nav-non-overlap) exercised and confirmed PASS. Zero console/page errors on any page/viewport. Zero
+  axe violations on any of the 3 surfaces at either viewport. Re-ran the full 26-case target-spec
+  Playwright suite (`nav.spec.ts` + `showcase.spec.ts`) against this round's own freshly-provisioned
+  live instance (not just trusting T-green4's prior run) — 26/26 green, confirming no drift since
+  T's last GREEN.
+- **Decided:** No independent third re-run of the fresh-browser-context ribbon/switcher reversion
+  test (T-green4's Case B already covers this directly and recently on identical code) — this
+  round's storage-key/cookie inspection corroborates the mechanism (sessionStorage only, zero
+  localStorage keys, zero session cookie for anon) rather than duplicating the exact two-context
+  experiment a third time. Not treated as a coverage gap.
+- **Assumed:** None new — followed T-green4's proven Docker/serve recipe verbatim (namespaced
+  `o119u1`, port 33081/38191, distinct from all T rounds), confirming its two documented gotchas
+  (must `cd web` before `php -S`; CLI memory_limit must be raised for `config:import`) plus one new
+  one this round (`web/sites/default` is installer-locked read-only — `chmod u+w` required before
+  teardown can remove `settings.php`/`files`), which is now recorded here for the next round's reuse.
+- **Hedged:** None — every checklist item backed by a direct DOM/aria/console/axe observation (raw
+  `curl` cross-check for the no-JS fallback, direct bounding-box math for the nav-non-overlap claim,
+  direct cookie-jar inspection for the no-server-session claim), not solely by re-stating F/T's prior
+  narrative.
+- **Evidence:** Full raw results JSON + 4 screenshots at
+  `/private/tmp/claude-501/-Users-andreangelantoni-Projects-groupsdrupalorg/99b8a43d-3273-49d0-a460-63e285878867/scratchpad/o119-handoffs/u-walkthrough/`.
+  Full detail in `handoff-U.md`.
