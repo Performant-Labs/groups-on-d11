@@ -621,3 +621,91 @@
   `brief.md`, `handoff-D.md`, `wireframe.html`; `git log --oneline -15` confirming Phase 3/5/6/7
   already signed off on the inert-shell scope. Output: `handoff-U.md`. No files modified; no DDEV
   project created or torn down; `git status --porcelain` unchanged.
+
+## S — Phase 9 (spec audit) — 2026-07-22
+
+**Decided:** PASS. All 7 acceptance criteria verified met-in-code AND pinned-by-test via a direct
+read of every production + test file (not handoffs alone). Precise-spec conformance confirmed by
+reading the actual SQL/preprocess: [B-1] GREATEST last-activity, [B-4] follow_term via
+field_group_tags + 3-branch OR-of-EXISTS with entity_type guards, [B-9] membership EXISTS, [W-2] hot
+LEFT JOIN COALESCE, [A-W1] generic-by-table dedupe + array_unshift primary-key pinned-first, [A-W2]
+`do_streams:user_stream:<uid>` tag, [A-W3] `$view->args[0]` ranking carrier, [B-3] shell vars incl.
+url_or_param, [B-8]/D-gate-res-1 Trending Recent-enabled, D-gate-res-2 four distinct empty_copy with
+Global-no-follow-CTA. POC scope held (2 plugins + 4 rankings + shell; no by-author/non-node/third
+plugin). Zero drive-by edits (name-only diff confirms all changes under the module + handoff tree).
+
+**Decided:** UI verified STATICALLY is acceptable and sufficient here. U's CANNOT-WALK→N/A is
+correct: no route/controller/block in this diff assembles `#theme => do_streams_shell`; the demo
+page displays render plain field tables (`row: {type: fields}`). The wireframe contract + both
+binding D-gate resolutions are fully covered by T's 6 Kernel shell tests (render-array + rendered
+markup). No live pass is being improperly skipped; it transfers to the first of #110-#115 that
+attaches a routed shell.
+
+**Assumed:** Relied on T's 23/23 GREEN (two isolated DDEV runs) + my static code audit rather than
+re-standing-up DDEV, since the audit surfaced nothing that would alter GREEN. Optional per the
+spawn brief.
+
+**Evidence:** url_or_param covering assertions (StreamsShellTest.php:184-208, 325-342) proven
+load-bearing by T's executed break-and-restore (handoff-T-green-rework §Non-vacuity proof); the two
+Phase-6 test rewrites (5 shell → direct preprocess; pin cache-tag → flagger-self-toggle) confirmed
+FORCED (render-API by-value constraint) / honestly-derivable and non-weakening, each backed by a
+temporary implementation-break that failed the test. o4-mini diff-gate [B-2] array_unshift concern
+resolved by the live view-execution test `testPinnedRankingLeadsAsPrimaryKeyNotTiebreaker` (seeds a
+pinned-older/unpinned-newer pair; pinned leads only if primary sort key).
+
+**Hedged:** Four non-blocking advisories for downstream stories (shipped demo view's default
+membership filter; `use_ajax: true` with no shell JS; pre-existing `\Drupal::` DI-pattern debt
+shared with do_group_pin; the documented `@todo` to derive aggregate targets from
+`$query->getTables()`). None affect this commit. No ADVISORY-HOLD — source of truth is
+internally consistent and convention-compliant.
+
+## Chain Summary — 2026-07-22T14:30:00Z (O, pre-PR)
+- **Outcome:** PASS through the full pipeline (O -> D -> A -> T(RED) -> F -> T(GREEN) -> diff-gate ->
+  A-dup -> U -> S). Opening the PR (first in the coordinator's serialized PR queue). Human
+  maintainer merges — bots never self-merge.
+- **Key decisions future readers must know:**
+  1. **do_streams ships INERT** — 2 Views filter plugins (MembershipScope, FollowingScope), ranking
+     wiring (recent/last-activity/hot/pinned-first via `views_query_alter` reading `$view->args`),
+     and the `do_streams_shell` theme hook + preprocess + template, plus a shipped-but-inert demo
+     view. No user-facing route assembles the shell in this diff — that's deferred to #110-#115
+     ("Ships inert; ST-1/2/4/6 attach it").
+  2. **Reuse-first held (A-dup PASS):** extended do_group_pin's `views_query_alter`/dedupe/cache-tag
+     TECHNIQUE in a new module (not its object); referenced `DoGroupPinHooks::PIN_FLAG_ID` (const),
+     did not redeclare `streamCacheTag`-style logic; consumed do_discovery's `hot_score` table
+     (never recomputed); wrapped (never duplicated) `stream_card`. All changes confined to
+     `docs/groups/modules/do_streams/`.
+  3. **Cache tag is per-VIEWING-USER** (`do_streams:user_stream:<uid>`, [A-W2]) — distinct from
+     do_group_pin's per-group tag; invalidated for the flagger on a pin toggle (the only user
+     derivable from the flagging entity; a broadcast to all viewers would be over-broad).
+  4. **follow_term joins `field_group_tags`, NOT `field_tags`** ([B-4]) — the o4-mini BRIEF gate
+     caught the wrong-field guess before any code existed; the field only exists on `article`,
+     which is not a `group_node:*` bundle.
+  5. **The o4-mini DIFF gate caught a real coverage gap** neither in-pipeline gate did: `scope_tabs`
+     was missing the `url_or_param` field the [B-3] contract mandates (F dropped it, T's test
+     docblock cited it but the assertion never pinned it). Fixed by F-rework (`?scope=<id>` param
+     mapping, no route path) + a T assertion repair. Both dual-review rungs (brief + diff) earned
+     their cost this run.
+  6. **T adjudicated F's 12 "test-authoring gap" claims** independently against primary source
+     (not F's word): confirmed the genuine test/fixture bugs (Views `defaults:{filters:false}`
+     inheritance, Group 4.x OUTSIDER-excludes-members, flag predelete needing the flagging schema)
+     and rewrote the 5 shell tests + cache-tag test to direct preprocess-call assertions
+     (ContributionStatsTest precedent), each proven non-vacuous via break-and-restore. Final 23/23
+     GREEN.
+  7. **Zero schema changes; clean install/uninstall** verified on real DDEV; phpcs/phpstan clean
+     except the pre-existing `\Drupal::` DI-pattern shared with do_group_pin (not a regression).
+- **Open assumptions still unverified at close:**
+  1. The "namespaced throwaway-DB docker" DOM walkthrough (issue AC 7) is DEFERRED, not done — U is
+     legitimately N/A because no routed surface exists in this diff. The live walkthrough transfers
+     to whichever of #110-#115 first attaches a route. Flagged, not buried: AC 7's live-DOM half is
+     the one acceptance item satisfied statically (wireframe-conformance + T's GREEN preprocess
+     assertions) rather than by a rendered browser pass.
+  2. The two forward-compat "needs discussion" rows (#112 non-node source, #114 by-author scope)
+     remain resolved-by-construction (Drupal's plugin system is open to new scope/source plugins),
+     not by explicit operator confirmation — still an assumption, though A/A-dup/S all found the
+     contract sound.
+- **Follow-ups filed:** none as separate issues yet; S's 4 non-blocking advisories are recorded in
+  handoff-S.md §"Advisory notes" for the downstream #110-#115 stories to pick up (demo view's
+  default-display filter inheritance; `use_ajax` posture; a future cross-module `\Drupal::` DI
+  cleanup; the `@todo` to derive aggregate targets from `$query->getTables()` when a new ranking
+  join is added). These travel with the module (in-repo), not as tracker tickets, per the epic's
+  append-only/downstream-owns-its-surface model.
