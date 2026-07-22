@@ -442,3 +442,31 @@
   precedent), live DDEV run output (23/23 pass, 709 assertions, captured verbatim in
   handoff-T-green.md), two temporary break-and-restore diffs (not committed), `git status
   --porcelain` (post-cleanup, 5 test/fixture files only).
+
+## Review-rigor — diff gate (second-opinion, o4-mini) — 2026-07-22T13:30:00Z
+- **Decided:** Ran `dual-review.sh --mode diff` (base c18f417, the branch point). Verdict BLOCK, 2
+  findings + 2 WARN + 4 NIT. Adjudicated (see `dual-review-diff.md`, `dual-review-diff-response.md`):
+- **[B-1] scope_tabs missing `url_or_param` — ACCEPTED as a real BLOCK.** Verified: F's
+  preprocess builds scope_tabs entries as {id,label,active} only, dropping the `url_or_param`
+  field the brief's [B-3] contract mandates; AND T's shell test docblock cites the 4-field
+  contract but only asserts id/label/active — so the field was both unimplemented and unpinned.
+  Neither in-pipeline gate caught it; the diff gate did (gate earned its cost). Routing back to F
+  (add url_or_param as a `?scope=<id>` param mapping, not a route path) + T (add a covering
+  assertion). Cycle re-enters F -> T(GREEN) -> A-dup.
+- **[B-2] array_unshift ordering "unverified" — MAINTAINED, not routed to F.** The runtime
+  ordering [B-2] asks to verify is already proven by a GREEN live-view-execution test
+  (`testPinnedRankingLeadsAsPrimaryKeyNotTiebreaker` asserts a pinned OLDER node leads a NEWER
+  one — true only if the pin CASE is the primary sort key). The reviewer couldn't see the passing
+  test (reviews diff+brief+F-handoff, not the test run). Behavioral proof > static source-read;
+  no change.
+- **[W-1] hardcoded join-table list — folded as a NIT** for the F-rework (make aggregate-target
+  discovery iterate this hook's own added joins if cheap; not blocking — following-scope is EXISTS,
+  no new join tables pending). **[W-2] per-flagger cache scope — no change** (the correct,
+  derivable, [W-4]/[A-W2]-consistent choice F/T already adjudicated).
+- **NIT-1/3/4 folded into the F-rework** (theme() $existing merge; README url_or_param example;
+  base_field synthetic-field comment).
+- **Evidence:** `dual-review-diff.md`, `dual-review-diff-response.md`,
+  `DoStreamsHooks::preprocessDoStreamsShell()` lines ~415-422 (scope_tabs entry shape),
+  `StreamsShellTest.php:164` (docblock cites url_or_param, assertion omits it),
+  `StreamsRankingTest::testPinnedRankingLeadsAsPrimaryKeyNotTiebreaker` (the [B-2] behavioral
+  proof).
