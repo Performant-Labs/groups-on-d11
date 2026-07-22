@@ -120,3 +120,64 @@ both rounds); `git.drupalcode.org/project/group` blob reads at ref `4.0.x`:
 `src/Entity/GroupRole.php`, `src/Entity/Storage/GroupRoleStorage.php`, `src/PermissionScopeInterface.php`,
 `src/Plugin/Group/Relation/GroupMembership.php`, `src/Entity/GroupRelationship.php`,
 `src/Entity/Access/GroupAccessControlHandler.php`, `group.permissions.yml`.
+
+## Phase 2 (Design) — Manage-members wireframe, 2026-07-22
+
+**Decided:** Low-fi ASCII wireframe (`wireframe.md`) covering all required screens/states —
+many/empty/one-row table variants, add-member form + its validation/success states, inline
+change-role sub-form, remove-member confirm step, last-remaining-Organizer guard (disabled
+controls + server backstop), approve/deny including the concurrent-race no-op, and 50-row
+pagination. Status badges specified as glyph (`aria-hidden`) + always-visible text label +
+color-carrying modifier class, satisfying the non-color-alone WCAG 2.2 AA requirement.
+
+**Decided:** Reuse `#type => 'table'` render-array idiom (matches
+`do_notifications/NotificationSettingsController::page()`), the `do_chrome`
+permission-matrix's glyph+label badge convention, `button`/`button--primary`/`button--danger`
+classes, and `messages messages--{status,warning,error}` — no new visual language introduced.
+Module-owned CSS (`do_group_membership/css/manage-members.css`), no `groups_chrome` theme edits.
+
+**Assumed:** the confirm-step for Remove uses Drupal core's standard `ConfirmFormBase` pattern
+(full-page navigation) rather than a modal/JS dialog — matches this codebase's convention of
+avoiding JS-only interaction patterns for destructive actions; F can substitute an
+`aria-expanded` inline pattern if preferred without changing this wireframe's information
+architecture.
+
+**Hedged (flagged as open questions for human approval, each with a recommended default):**
+OQ-1 (change-role: checkboxes vs. radio — recommend checkboxes), OQ-2 (last-Organizer guard:
+disable-before-attempt vs. fail-after-submit-only — recommend disable-before-attempt), OQ-3
+(add-member form: inline toggle vs. separate page — recommend inline toggle), OQ-4
+(Groups-Moderate never appears as a table row, by design per B-5 — recommend confirming as
+intentional), OQ-5 (pending-row role display: "Member (requested)" vs. "—" — recommend showing
+the requested role).
+
+**Evidence:** `docs/groups/modules/do_notifications/src/Controller/NotificationSettingsController.php`
+(table/button/messages conventions); `docs/groups/modules/do_chrome/templates/
+do-chrome-permission-matrix.html.twig` + `docs/groups/modules/do_chrome/css/do_chrome.css`
+(badge/glyph + focus-state precedent); brief.md's locked AC-1..AC-15 and "WCAG 2.2 AA specifics
+for D" section (constraints this wireframe designs against, not re-decides).
+
+**Not self-approved:** per pipeline convention, this wireframe requires explicit human approval
+via O before Phase 3 (Architecture/A) or any test/code authoring begins.
+
+## Phase 2 (Design) — Designer (D) + D-GATE approval
+
+**Decided:** D produced a text-based low-fi wireframe (`wireframe.md`, 7 screens/states + focus/
+keyboard notes) reusing established codebase idioms: Drupal `#type => 'table'` (matches
+`do_notifications` controller), the `do_chrome` permission-matrix badge pattern (glyph + always-
+visible text label + color modifier class — non-color-alone, WCAG 2.2 AA), real `<button>`s
+throughout, a `ConfirmFormBase`-style confirm step for member removal, and module-owned CSS
+(`do_group_membership/css/manage-members.css`, no `groups_chrome` theme edits). Covers empty / one /
+many / error states, the last-Organizer guard (AC-9), and the approve/deny concurrent-race no-op
+(AC-10).
+
+**D-GATE: APPROVED by operator 2026-07-22** (relayed by coordinator). Five open questions resolved
+(recorded in `handoff-D.md`): OQ-1 checkboxes; OQ-2 disable-before-attempt + server-side backstop
+(trivial "count active Organizers" query, not an elaborate mechanism); OQ-3 inline toggle (F may
+fall back to a separate `/add` route); OQ-4 no Groups-Moderate row (intentional — synchronized
+global roles have no `group_relationship`); OQ-5 show requested role with "(requested)" qualifier.
+
+**Hedged/for A & F:** OQ-3's inline-vs-separate-route is explicitly F's implementation call (both
+AC-compliant); OQ-2's guard must stay a trivial per-render count query, not over-engineered.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/wireframe.md`, `handoff-D.md`; coordinator
+D-gate approval message.
