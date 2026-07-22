@@ -506,3 +506,51 @@
   61 in FollowingScope.php, 65 in MembershipScope.php — none newly introduced). Git tree verified
   clean of build artifacts post-teardown (`git status --porcelain` shows only the 3 production
   files edited).
+
+## T — Phase 6 rework (url_or_param coverage) — 2026-07-22
+
+- **Decided:** Added the missing covering assertion to
+  `testScopeTabsContractAllFourPresentWithCorrectActiveFlag` — for each of the 4 scope tabs,
+  asserts `url_or_param` is present and equals `'?scope=' . $id` exactly, AND asserts it does not
+  start with `/` (`assertStringStartsNotWith('/', ...)`), positively pinning "query-parameter
+  mapping, not a hardcoded route path" rather than only checking a literal value match.
+- **Decided:** Extended `testNoHardcodedRoutePathsInRenderedTabMarkup` (the rendered-HTML test)
+  with two more assertions on the same `renderRoot()` markup: the Global tab's
+  `data-url-or-param="?scope=global"` attribute is present, and no tab renders an empty
+  `data-url-or-param=""`. This closes the gap between "the preprocess variable is correct" and
+  "the correct value actually reaches the DOM" — the diff-gate's underlying worry was exactly this
+  kind of value going unpinned end-to-end.
+- **Decided:** Kept the fix inside the two existing test methods rather than adding a new method —
+  `url_or_param` is one more field of the SAME `scope_tabs`/rendered-markup contract those two
+  tests already exercise; a separate method would duplicate the same `preprocessShellVariables()`/
+  `renderRoot()` setup for no isolation benefit.
+- **Evidence (non-vacuity, empirical break-and-restore):** Temporarily removed the
+  `'url_or_param' => '?scope=' . $id,` line from `DoStreamsHooks::preprocessDoStreamsShell()` and
+  re-ran `StreamsShellTest` — both new assertion sites failed for the right reason:
+  `testScopeTabsContractAllFourPresentWithCorrectActiveFlag` failed on
+  `assertArrayHasKey($scopeId, $urlOrParamByScope, ...)` ("Failed asserting that an array has the
+  key 'global'") and `testNoHardcodedRoutePathsInRenderedTabMarkup` failed on the
+  `data-url-or-param="?scope=global"` containment assertion (rendered markup showed
+  `data-url-or-param=""` instead). Restored `DoStreamsHooks.php` from a scratchpad backup (verified
+  byte-identical via `diff`, `git status --porcelain` confirmed a clean file), re-ran the full
+  suite: back to 23/23 GREEN. This proves the new assertions are load-bearing, not vacuous.
+- **Evidence:** Isolated DDEV project `t109c-do-streams` (own `ddev start` / `ddev composer
+  install` / `bash scripts/ci/assemble-config.sh`). Final run:
+  `SIMPLETEST_DB=mysql://db:db@db/db SIMPLETEST_BASE_URL=https://t109c-do-streams.ddev.site
+  BROWSERTEST_OUTPUT_DIRECTORY=/var/www/html/web/sites/simpletest vendor/bin/phpunit -c web/core
+  --testdox docs/groups/modules/do_streams/tests/src/Kernel/` → `OK, but there were issues!` —
+  `Tests: 23, Assertions: 723, Deprecations: 23, PHPUnit Deprecations: 27` (23/23 GREEN, the
+  deprecations are the same pre-existing core/Twig/flag-module notices F's handoff already
+  documented, none new). `StreamsShellTest` alone: 6/6 GREEN, 186 assertions (up from 178 pre-fix).
+  `phpcs --standard=Drupal,DrupalPractice` on `StreamsShellTest.php`: identical 3 errors + 1
+  warning before and after my edit (verified via `git stash`/`git stash pop` diff-comparison, all
+  4 findings on pre-existing docblock lines I did not touch) — no new phpcs findings introduced.
+  `phpstan analyse --level=1` on the test file standalone flags ~30 "undefined method
+  assert*()"/"undefined property $container" errors — a known tooling artifact of analysing a
+  Kernel test file without the module's Drupal-core stub configuration (no repo-level
+  `phpstan.neon` wiring PHPUnit/Drupal stubs for standalone test-file analysis); F's own Tier-1
+  self-check likewise scoped phpstan to the 3 production files only, not test files. DDEV project
+  torn down (`ddev stop --unlist && ddev delete -O -y`); all build artifacts reverted
+  (`git checkout -- .ddev/config.yaml config/sync/ web/...` + `git clean -fd config/sync/
+  web/modules/custom/ web/autoload_runtime.php`); `git status --porcelain` confirms the tree
+  carries ONLY the `StreamsShellTest.php` edit — no production code touched.

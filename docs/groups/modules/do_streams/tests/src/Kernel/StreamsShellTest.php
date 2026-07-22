@@ -180,6 +180,32 @@ class StreamsShellTest extends GroupsKernelTestBase {
     $this->assertFalse($activeFlags['global'], 'Global is not flagged active when Following is the active scope.');
     $this->assertFalse($activeFlags['my_feed'], 'My Feed is not flagged active when Following is the active scope.');
     $this->assertFalse($activeFlags['trending'], 'Trending is not flagged active when Following is the active scope.');
+
+    // Diff-gate [B-1]: every scope_tabs entry must also carry `url_or_param`,
+    // a query-PARAMETER mapping derived purely from the tab's own `id`
+    // (`?scope=<id>`) — NOT a hardcoded route path. This was the field the
+    // brief's [B-3] contract cited but the original assertion never pinned,
+    // letting F ship the field missing without any test catching it (found
+    // only by the o4-mini diff gate). Would FAIL against the pre-rework
+    // shape (no `url_or_param` key in the array at all).
+    $urlOrParamByScope = array_column($variables['scope_tabs'], 'url_or_param', 'id');
+    foreach (['global', 'my_feed', 'following', 'trending'] as $scopeId) {
+      $this->assertArrayHasKey(
+        $scopeId,
+        $urlOrParamByScope,
+        "The '$scopeId' scope_tabs entry carries a url_or_param key."
+      );
+      $this->assertSame(
+        '?scope=' . $scopeId,
+        $urlOrParamByScope[$scopeId],
+        "The '$scopeId' scope_tabs entry's url_or_param is the query-parameter mapping '?scope=$scopeId'."
+      );
+      $this->assertStringStartsNotWith(
+        '/',
+        $urlOrParamByScope[$scopeId],
+        "The '$scopeId' scope_tabs entry's url_or_param is not a hardcoded route path (must not start with '/')."
+      );
+    }
   }
 
   /**
@@ -294,6 +320,25 @@ class StreamsShellTest extends GroupsKernelTestBase {
       "href='/",
       $markup,
       'The rendered shell markup contains no hardcoded absolute route href (single-quote variant).'
+    );
+
+    // Diff-gate [B-1]: the rendered markup surfaces each tab's url_or_param
+    // as a `data-url-or-param` attribute (per the template's
+    // `data-url-or-param="{{ tab.url_or_param }}"`), and that value is a
+    // query-parameter mapping (`?scope=<id>`), never a literal route path —
+    // reinforcing the "no hardcoded routes" criterion at the rendered-HTML
+    // level, not just the render-array level. Would FAIL against the
+    // pre-rework template/preprocess (no `url_or_param` in $variables meant
+    // Twig would render `data-url-or-param=""`, not the expected value).
+    $this->assertStringContainsString(
+      'data-url-or-param="?scope=global"',
+      $markup,
+      "The rendered Global tab surfaces its url_or_param as a data-url-or-param attribute with value '?scope=global'."
+    );
+    $this->assertStringNotContainsString(
+      'data-url-or-param=""',
+      $markup,
+      'No tab renders an empty data-url-or-param attribute (the field must be populated for every tab).'
     );
   }
 
