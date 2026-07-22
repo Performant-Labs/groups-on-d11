@@ -1344,3 +1344,54 @@ Member → 403, AC-12 Groups-Moderate never-joined → 200, 360px responsive. **
 critical violations.** The Phase-8 REWORK is fully resolved.
 
 **Evidence:** `handoff-U.md` "Re-run after REWORK" + `evidence-U/`.
+
+## Phase 9 (Spec Audit) — Spec Auditor (S): PASS
+
+**Decided:** PASS. All AC-1..AC-15 are met and each is pinned by a specific, non-vacuous, currently-
+GREEN test (traceability table in `handoff-S.md`) — no AC asserted only in narrative. Precise-spec
+conformance verified against shipped source: Organizer/Moderator carry the exact AC-1/AC-2 permission
+lists; `community_group-member` untouched (absent from diff); `field_membership_status` list_string
+active/pending/blocked with no scope-creep joined-date field; the last-Organizer guard counts the
+whole group (not a page slice); real 50-row PagerManager pagination; `<th scope="col">` ×5 shipping
+from SOURCE; WCAG 2.2 AA (U axe zero serious/critical, non-color badges, aria-describedby guard).
+Access is a real `hasPermission('administer members')` OR `administer group` check — no `_access:
+'TRUE'`. Test quality passes the rubric (right tier per behavior, positive+negative cases,
+proportionate, zero skips/tautologies).
+
+**Assessed (scope insider→outsider):** clean, well-documented, empirically-verified correction, NOT
+an unreconciled spec contradiction → PASS-with-advisory (A-1), not ADVISORY-HOLD. F implemented the
+correct Group 4.x synchronized-outsider-role mechanism; T adjudicated it against real 4.0.x source +
+a DB flip; the shipped `scope: outsider` is authoritative and the brief's `insider` text is stale.
+The team already committed to documenting it in the PR.
+
+**Scope discipline:** git-confirmed zero touches to `do_chrome/PermissionMatrix.php`, the #121/#134
+vestigial-role files, `community_group-member.yml`, or `grequest`; no join-flow. Only the coordinator-
+settled `page_1` display removal + hook_install strip supersede the stock members view — a clean
+config approach, not a route-priority hack.
+
+**Hedged:** No pixel-diff report produced — the UI's design artifact is a low-fi ASCII wireframe, not
+a rendered comp, so there is no static reference to diff; U's live headless axe/DOM walkthrough is the
+authoritative UI result. Not a CANNOT-AUDIT (no visual-diff precondition applies without a reference).
+
+**Preconditions confirmed:** A PASS (plan + anti-dup); T zero blocking issues (41/41 GREEN, 534
+assertions, 0 skips, assembled-layout); U PASS (re-run after route-collision REWORK).
+
+**Advisories for the PR description:** A-1 (insider→outsider stale brief text + rationale), A-2
+(two-source route collision + hook_install fix), A-3 (optional: promote manager count helper to
+public), A-4 (minor unreachable-assertion test nit), A-5 (F's earlier unrelated container removal).
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-S.md`; shipped source under
+`docs/groups/modules/do_group_membership/` + `docs/groups/config/`; `git diff --stat` vs merge-base
+(additive `docs/groups/` only, no out-of-scope files).
+
+**Verdict:** PASS. Ready for O to open the MR.
+
+## Phase 9 (spec audit) — S (Opus): PASS
+
+**Decided:** S PASS, no REWORK. Full AC-1..AC-15 traceability (each pinned by a non-vacuous test),
+precise-spec conformance verified against SOURCE, access/security clean (positive + negative cases,
+no `_access: TRUE` shortcuts), 41/41 GREEN no-skips CI-representative, reuse-first/scope discipline
+confirmed. The scope insider→outsider correction judged a CLEAN, well-documented correction — not an
+unreconciled contradiction, not a hold. Advisories carried to the PR description (A-1..A-4).
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-S.md`.
