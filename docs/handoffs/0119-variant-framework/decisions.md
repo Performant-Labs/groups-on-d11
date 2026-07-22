@@ -186,3 +186,62 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   `do_notifications/{do_notifications.routing.yml,src/Controller/NotificationSettingsController.php}`,
   `do_discovery/do_discovery.routing.yml`, `do_group_mission/src/Plugin/Block/GroupMissionBlock.php`,
   `playwright.config.ts`. No mutating command run against the shared `groups-on-d11` checkout.
+
+## T — Phase 4 (author tests / RED) — 2026-07-22T12:35:00Z
+- **Decided:** Authored the full Phase-4 suite per Brief-gate B-3: three PHPUnit Unit test files
+  (`VariantSwitcherTest.php` — 10 methods pinning the `VariantSwitcher::build()` render-array
+  contract incl. fallback/disabled/no-JS/arbitrary-option-count behavior; `ShowcaseCatalogTest.php`
+  — 9 methods pinning the seven-entry `ShowcaseCatalog` code-constant shape, live/coming truthful
+  routing, and t()-wrapping; `ShowcaseHelpTextTest.php` — 4 methods pinning the specific appended
+  HelpText keys + an append-only non-regression check) under
+  `docs/groups/modules/do_showcase/tests/src/Unit/`, plus one Playwright spec
+  `tests/e2e/showcase.spec.ts` (15 cases across switcher/ribbon/showcase-page test.describe blocks)
+  in the correct `tests/e2e/` location (not the root `e2e/` silent no-run trap the brief warns
+  about). All three Unit tiers picked as cheapest-sufficient (pure data/render-array construction,
+  same shape as the existing `PermissionMatrix`/`PermissionMatrixTest` and `HelpText`/`HelpTextTest`
+  precedents — no container/DB/config needed); the e2e tier picked for the switcher/ribbon/page
+  because those behaviors (real click → ARIA state, client-side persistence across a real
+  navigation, cross-surface DOM non-interference) are invisible to a headless PHPUnit run.
+- **Decided:** Ran all three PHPUnit files against the shared checkout's vendored `phpunit` binary
+  (read-only invocation targeting worktree test-file paths — no mutating command run against the
+  shared `groups-on-d11` checkout) to confirm a real RED: 23/23 test methods failed with
+  `Class ... not found` (VariantSwitcher / ShowcaseCatalog / do_chrome's own HelpText, the latter
+  because no `do_*` module is on the PSR-4 autoloader outside a full `assemble-config.sh` +
+  `composer install` assembly — confirmed as a pre-existing, harness-level fact by running the
+  existing `do_chrome/tests/src/Unit/HelpTextTest.php` the identical way first and observing the
+  identical `Class "Drupal\do_chrome\HelpText" not found` error, 10/10, zero assertion failures).
+  Zero assertion-level failures anywhere — every RED is class/feature absence, the right reason.
+- **Decided:** Playwright `showcase.spec.ts` cases are RED-by-construction (documented precisely per
+  case against the real, current `DoChromeHooks.php` contents and the confirmed absence of any
+  `/showcase` route) rather than executed, because no Drupal site is running in this environment
+  (confirmed: DDEV default URL 404s, localhost:8080 refuses). `npx playwright test --list` confirms
+  the file is syntactically valid and lands in the correct `testDir` — all 15 cases collected, zero
+  errors. Real Playwright execution (RED at F-start would be wrong to expect anyway since no site
+  exists to run against; GREEN confirmation) happens at T-GREEN against the namespaced Docker per
+  brief.md's own Acceptance criterion, mirroring `.github/workflows/test.yml`'s `e2e` job recipe.
+- **Assumed:** The nav-non-regression Playwright case
+  (`ribbon does not cover or reflow primary nav`) is NOT itself a RED case — it currently passes
+  (nav is unaffected because nothing has touched it yet) and exists purely as the guard T-GREEN
+  re-runs to prove F's ribbon addition doesn't break `nav.spec.ts`'s own assertions. Flagged
+  explicitly in handoff-T-red.md so it isn't miscounted as "should currently fail."
+- **Assumed:** The switcher's wired demo instance is hosted on `/showcase` for e2e-testing purposes
+  (brief.md only requires "at least one wired demo instance" without naming a page) — `/showcase`
+  is the one route this story guarantees exists, so it is the deterministic, brief-compliant choice
+  for where the e2e suite asserts the switcher renders. F may additionally place the switcher
+  elsewhere; the e2e suite's assumption is only that /showcase is ONE guaranteed location.
+- **Hedged:** The stub instance's exact option set (Compact list / Cards / Map, Map unavailable) is
+  taken directly from wireframe.md's own worked example, not independently re-derived — if F's stub
+  wiring differs in option count/labels, the e2e suite's literal text matches (`Compact list`,
+  `Cards`, `Map (soon)`) would need updating; the PHPUnit `VariantSwitcherTest` covers the
+  *general* contract (arbitrary option count) independent of this specific label choice, so the
+  service contract itself is not coupled to this hedge.
+- **Evidence:** `docs/groups/modules/do_chrome/tests/src/Unit/{HelpTextTest,PermissionMatrixTest}.php`,
+  `docs/groups/modules/do_chrome/src/{HelpText,PermissionMatrix}.php`,
+  `docs/groups/modules/do_chrome/src/Hook/DoChromeHooks.php` (read to confirm no ribbon method
+  exists yet), `docs/groups/modules/do_notifications/src/Controller/NotificationSettingsController.php`,
+  `docs/groups/modules/do_discovery/do_discovery.routing.yml`, `tests/e2e/nav.spec.ts`,
+  `tests/e2e/directory-cards.spec.ts`, `tests/e2e/phase1.spec.ts`, `playwright.config.ts`
+  (testDir confirmation), `scripts/ci/assemble-config.sh`, `.github/workflows/test.yml` (confirmed
+  CI's kernel/functional jobs run assemble-config.sh before phpunit, matching this run's RED
+  reasoning); direct PHPUnit + `npx playwright test --list` runs (output captured in
+  handoff-T-red.md). No mutating command run against the shared `groups-on-d11` checkout.
