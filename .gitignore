@@ -36,3 +36,6 @@ node_modules/
 
 # Local Claude Code worktrees/state
 .claude/
+
+# Local secrets (pipeline review keys) — never commit
+.env
