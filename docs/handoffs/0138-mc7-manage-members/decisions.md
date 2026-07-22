@@ -872,3 +872,94 @@ config:import path. F reports verified live in BOTH install orderings; Tier-1 cl
 
 **Evidence:** `docs/groups/modules/do_group_membership/do_group_membership.install`; handoff-F.md
 "Route-collision fix v2 (hook_install)".
+
+## Phase 8 REWORK round 3 (route-resolution re-verify) — Tester (T): STILL RED + a NEW regression
+
+**Decided:** Stood up a real environment (own `gm138-mysql` Docker MySQL 8, a real `drush
+site:install`, `php -S` webserver) and ran `ManageMembersRouteResolutionTest` for real against F's
+v2 `hook_install`/`hook_modules_installed` fix. **Result: 3/3 methods STILL FAIL** — not env-blocked,
+a genuine RED with a newly-precise root cause. Independently reproduced the exact collision via a
+raw `module_installer->install()` call mirroring `BrowserTestBase`'s own single-batch invocation
+(no manual `drush cr` in between, matching the test's real conditions): the view's config entity
+correctly ends up with only the `default` display (F's strip logic works), but
+`router.no_access_checks->matchRequest()` still resolves `view.group_members.page_1` — because
+`ModuleInstaller::install()` rebuilds the router (`router.builder->rebuild()`) BEFORE
+`hook_modules_installed()` fires, and nothing rebuilds it again afterward. Confirmed precisely by
+adding one extra `router.builder->rebuild()` call after the strip, which immediately fixes
+resolution — isolating the defect to "the fix's config edit is correct but never propagates to the
+router cache," not "the fix doesn't work."
+
+**New, independent regression found (not in scope of the route-resolution test itself):** re-ran the
+3 pre-existing Functional test files (`ManageMembersRouteAccessTest`, `ManageMembersPageRenderTest`,
+`ManageMembersPaginationTest`) as a regression sweep. All 8 methods across the 3 files now ERROR at
+`hook_install()` time with `PluginNotFoundException: The "view" entity type does not exist` — none of
+these files' `$modules` lists include `views` (correctly, since `do_group_membership.info.yml` never
+declared `views` as a dependency), but F's new
+`_do_group_membership_strip_group_members_page_display()` calls
+`\Drupal::entityTypeManager()->getStorage('view')` with no `moduleExists('views')` guard, so
+`hook_install()` now hard-fatals on any non-`views` site. This is worse than the bug being fixed (the
+pre-`.install` code never crashed module install). Confirmed as a genuine code regression, not a
+test-authorship issue (all three test files' `$modules` lists are unchanged and were correct before
+this round).
+
+**Regression sweep (unaffected):** Unit tier re-confirmed 16/16 GREEN (Unit tests don't install
+modules, so neither defect touches them).
+
+**#109 lesson check: no violation found.** The only fixture reads in this module's test suite
+(`GroupRoleConfigShapeTest`/`MembershipStatusFieldConfigShapeTest`, both Unit) use the
+already-established `__DIR__`-ascend-and-locate helper (matching `GroupAddFormFieldsTest`'s own
+`locateFormDisplayYaml()` precedent verbatim) — not a hardcoded source-checkout-relative path. Works
+identically in both the `docs/groups/modules/...` source layout and the CI-assembled
+`web/modules/custom/...` layout, since `docs/groups/config/` is a real, always-present source
+directory the ascent walk reaches from either module location.
+
+**Docker hygiene:** created + removed only `gm138-mysql`; pre/post `docker ps -a` name lists
+byte-identical (33 containers); `o119t4-mysql`, present at session start, was never touched by me
+(already gone by its own owning session before I created anything).
+
+**Route back to F, two BLOCKs, both precisely diagnosed:**
+1. Call `router.builder->rebuild()` (or `setRebuildNeeded()`) inside
+   `_do_group_membership_strip_group_members_page_display()`, on the branch where a strip actually
+   happened, so the router table reflects the corrected view config within the same request/install
+   batch — not just the config entity.
+2. Guard `_do_group_membership_strip_group_members_page_display()` with
+   `\Drupal::moduleHandler()->moduleExists('views')` before calling
+   `entityTypeManager()->getStorage('view')`, fixing the new install-time crash on non-`views` sites.
+
+**Evidence:** `handoff-T-green.md` "Route-resolution GREEN verify (Phase 8 REWORK round 3)" section.
+
+**Verdict:** NOT GREEN. Route back to F for both BLOCKs. T re-verifies (route-resolution test 3/3
+RED→GREEN, and the 3 previously-authored Functional files returning to their prior env-blocked-only
+state rather than a new install-time crash) before U re-walks.
+
+## Phase 8 (route-collision v2 verify) — T: NOT GREEN, 2 correct BLOCKs → back to F
+
+**Decided:** T re-verified via a REAL in-request install (`module_installer->install([...], TRUE)`,
+matching BrowserTestBase) — NOT per-process drush eval — and found F's fix is verified-flawed +
+introduces a regression. Both diagnoses confirmed by O against the current `.install`.
+
+- **BLOCK 1 — route test still RED (3/3): stale router within the install request.** F's config
+  strip IS correct (view ends with only the `default` display), but `ModuleInstaller::install()`
+  rebuilds the router BEFORE `hook_modules_installed()` fires (the retroactive-strip path), and
+  nothing rebuilds it afterward. So within a SINGLE install request — exactly BrowserTestBase and a
+  real user's first request — the router stays stale and still resolves the old view. F's
+  `drush php:eval` checks passed only because each drush call is a fresh process with a freshly-built
+  router, MASKING the same-request staleness. **Fix:** in the strip helper, when a strip actually
+  occurs, call `\Drupal::service('router.builder')->rebuild()` after saving the view.
+- **BLOCK 2 — new regression (worse than the collision): views-less sites crash.** The helper calls
+  `entityTypeManager()->getStorage('view')` UNCONDITIONALLY. `do_group_membership.info.yml` correctly
+  does NOT depend on `views`, so on any site without views (3 pre-existing Functional tests' `$modules`
+  omit it), `hook_install` now throws `PluginNotFoundException` "view entity type does not exist" —
+  8 methods ERROR. **Fix:** guard early — `if (!\Drupal::moduleHandler()->moduleExists('views')) {
+  return; }` before touching view storage.
+
+**Lesson (patch-the-method, not just output):** F verified via per-process drush eval, which
+structurally cannot catch same-request router staleness. The authoritative verification for an
+install-time route change is an in-request `module_installer->install()`, which is what T used.
+
+**Route back to F** for both minimal fixes; then T re-verifies from a real in-request install:
+route-resolution 3/3 GREEN AND the 3 pre-existing Functional files (8 methods) no longer error
+(GREEN or prior env-blocked, but NOT a new hook_install crash); Unit stays 16/16.
+
+**Evidence:** `handoff-T-green.md` "Route-resolution GREEN verify"; `do_group_membership.install`
+line 88 (unconditional `getStorage('view')`, no router rebuild).

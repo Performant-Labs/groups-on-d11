@@ -557,3 +557,235 @@ containers (24 `ddev-*` siblings plus 16 other unrelated project containers, inc
 `ddev-pl-groups-on-d11-*`) present and unchanged before and after this round — none created,
 stopped, or removed. The local `php -S 127.0.0.1:8080` test webserver process was started and
 killed via its captured PID only.
+
+## Route-resolution GREEN verify (Phase 8 REWORK round 3, after F's hook_install v2)
+
+**Date:** 2026-07-22
+
+### Environment stood up for real execution
+
+Fresh Docker MySQL 8 container `gm138-mysql` (port 33061), a real `drush site:install` against it,
+`web/sites/default/settings.php` (gitignored build output) pointed at that DB, and a `php -S
+127.0.0.1:8138` webserver serving `web/` — the same shape prior T/F rounds used, standing up
+`SIMPLETEST_BASE_URL`/`SIMPLETEST_DB`/`BROWSERTEST_OUTPUT_DIRECTORY` for a real `vendor/bin/phpunit
+-c web/core` run (not `ddev phpunit` — this worktree's own composer/vendor tree from earlier
+rounds, no working DDEV project bound to this worktree). `scripts/ci/assemble-config.sh` was run
+first and reported clean (`copied 95 file(s)`, `copied 11 custom module(s)`, `.install` file present
+byte-identical in the materialized `web/modules/custom/do_group_membership/` copy).
+
+### 1. `ManageMembersRouteResolutionTest` — 3/3 methods: STILL RED (not GREEN). Real root cause found.
+
+Ran for real (no static validation, no environment blocker — the test executes to completion):
+
+```
+SIMPLETEST_BASE_URL="http://127.0.0.1:8138" SIMPLETEST_DB="mysql://root:root@127.0.0.1:33061/drupal" \
+BROWSERTEST_OUTPUT_DIRECTORY="/tmp/gm138-browsertest-output" vendor/bin/phpunit -c web/core \
+  docs/groups/modules/do_group_membership/tests/src/Functional/ManageMembersRouteResolutionTest.php --testdox
+```
+
+```
+FFF   3 / 3 (100%)
+
+✘ Router resolves to module route
+  Failed asserting that two strings are identical.
+  --- Expected: 'do_group_membership.manage_members'
+  +++ Actual:   'view.group_members.page_1'
+  at ManageMembersRouteResolutionTest.php:120
+
+✘ Page serves new form not old view
+  Behat\Mink\Exception\ElementNotFoundException: Element matching css
+  "form table.do-group-membership__table" not found.
+  at ManageMembersRouteResolutionTest.php:148
+
+✘ Local task navigates to new route
+  Behat\Mink\Exception\ExpectationException: Current response status code is 403, but 200 expected.
+  at ManageMembersRouteResolutionTest.php:179
+
+Tests: 3, Assertions: 12, Failures: 3.
+```
+
+**This is NOT env-blocked** — same conclusion as the prior round: the test runs to completion and
+fails on its actual assertions. `views.view.group_members.page_1` still wins the router match in a
+real BrowserTestBase-style fresh bootstrap.
+
+### 2. Root cause isolated precisely (not "the fix doesn't work" — "the fix works but too late")
+
+Independently reproduced the EXACT collision, byte-for-byte, via a raw `module_installer->install()`
+call matching `BrowserTestBase::installModulesFromClassProperty()`'s own single-batch invocation
+(`$container->get('module_installer')->install($modules, TRUE)`), with zero `drush cr` in between —
+the same conditions PHPUnit's bootstrap creates:
+
+```php
+$mi = \Drupal::service('module_installer');
+$mi->install(['group', 'do_group_membership', 'field', 'options', 'views'], TRUE);
+$view = \Drupal::entityTypeManager()->getStorage('view')->load('group_members');
+echo implode(',', array_keys($view->get('display')));   // => "default"  (page_1 correctly stripped!)
+$matched = \Drupal::service('router.no_access_checks')->matchRequest(Request::create('/group/1/members'));
+echo $matched['_route'];   // => "view.group_members.page_1"  (but the ROUTER still resolves the OLD route)
+```
+
+Then, with NO other change, an explicit extra `\Drupal::service('router.builder')->rebuild()` call
+immediately fixes it:
+
+```php
+\Drupal::service('router.builder')->rebuild();
+$matched = \Drupal::service('router.no_access_checks')->matchRequest($req);
+echo $matched['_route'];   // => "do_group_membership.manage_members"  (correct, once rebuilt)
+```
+
+**Root cause, traced through `web/core/lib/Drupal/Core/Extension/ModuleInstaller.php`'s actual
+`install()`/`doInstall()` code (read directly, not inferred):**
+
+1. `doInstall($modules, ...)` runs `hook_install()` for every module in the batch (including
+   `do_group_membership_install()` — line ~445 loop) **BEFORE** any *optional* config is installed
+   (the `Optional`/`SiteOptional` `installDefaultConfig()` loops run afterward, lines ~451-461). So
+   when `do_group_membership_install()` fires, `group`'s own optional
+   `views.view.group_members.yml` (carrying `page_1`) either doesn't exist yet or hasn't been
+   (re)materialized — the strip finds nothing useful to do at this point in a fresh single-batch
+   install.
+2. Still inside `install()` (not `doInstall()`), **immediately after** the `doInstall()` loop
+   finishes for all module groups: `\Drupal::service('router.builder')->rebuild()` (or
+   `rebuildIfNeeded()`) runs — line 245. At THIS point `page_1` DOES exist (optional config was
+   installed inside `doInstall()`), so the router table is built WITH the collision.
+3. **Only after that** does `$this->moduleHandler->invokeAll('modules_installed', [$module_list,
+   $sync_status])` fire (line 257) — this is where `do_group_membership_modules_installed()`
+   correctly, finally, strips `page_1` from the view's config entity. But the router was already
+   rebuilt in step 2, using the pre-strip state, and **nothing rebuilds it again afterward**.
+
+Net effect: the view's config entity ends up correct (`display: {default}` only, confirmed via
+direct load), but the **router route table is permanently stale** for the rest of the
+request/test/session — exactly the symptom the 3 failing assertions caught. A subsequent, unrelated
+cache-clear (e.g. `drush cr`, or any other code path that happens to trigger
+`router.builder->rebuild()`) would silently "fix" it, which is presumably why F's own `drush
+php:eval` verification (which calls `router.route_provider->getRoutesByPattern()` and
+`router.no_access_checks->matchRequest()` in a FRESH `drush` process — itself always doing a full
+container/cache bootstrap on each invocation) did not catch this: a fresh `drush` process's router
+service is lazily built fresh from current config, not a same-request stale cache. **The defect only
+manifests within a single long-running request/process where `install()` runs and something is
+served without an intervening full rebuild — exactly BrowserTestBase's and, more importantly, a real
+end user's live HTTP request during the same PHP-FPM/OPcache-warm request that first triggers module
+install.**
+
+### Verdict: route back to F (not a test-authorship issue)
+
+`hook_modules_installed()` must call `\Drupal::service('router.builder')->rebuild()` (or at minimum
+`setRebuildNeeded()`) after stripping the display, so the router table reflects the corrected view
+config. This is a one-line-class fix inside `_do_group_membership_strip_group_members_page_display()`
+— only rebuild when a strip actually happened (skip on the common no-op path where `page_1` was
+already absent, to avoid an unconditional extra rebuild on every module-install batch).
+
+### Second, independent defect found (regression, blocks module install without `views`)
+
+Re-ran the 3 previously-authored Functional test files that do NOT have F's fix's target scenario as
+their focus (`ManageMembersRouteAccessTest`, `ManageMembersPageRenderTest`,
+`ManageMembersPaginationTest`) — regression sweep, not the route-resolution test itself:
+
+```
+SIMPLETEST_BASE_URL=... SIMPLETEST_DB=... vendor/bin/phpunit -c web/core \
+  .../ManageMembersRouteAccessTest.php .../ManageMembersPageRenderTest.php .../ManageMembersPaginationTest.php
+```
+
+**All 8 methods across the 3 files ERROR (not fail) identically:**
+
+```
+Drupal\Component\Plugin\Exception\PluginNotFoundException: The "view" entity type does not exist.
+  at .../do_group_membership.install:88   (_do_group_membership_strip_group_members_page_display)
+  at .../do_group_membership.install:32   (do_group_membership_install)
+  at ModuleInstaller.php:815 / 451 / 229 / FunctionalTestSetupTrait.php:516
+```
+
+**Root cause:** none of these 3 test files' `$modules` arrays include `views`
+(`ManageMembersRouteAccessTest`: `['group', 'do_group_membership']`;
+`ManageMembersPageRenderTest`/`ManageMembersPaginationTest`: `['group', 'do_group_membership',
+'field', 'options']`). `do_group_membership.info.yml` does NOT declare `views` as a dependency
+either. `_do_group_membership_strip_group_members_page_display()` calls
+`\Drupal::entityTypeManager()->getStorage('view')` **unconditionally**, with no
+`\Drupal::moduleHandler()->moduleExists('views')` (or `hasDefinition('view')`) guard first. On any
+site/test that installs `do_group_membership` without `views` already enabled, `hook_install()`
+itself now hard-fatals with `PluginNotFoundException` — **the fix intended to resolve a route
+collision instead breaks installability of the module on any non-`views` site**, which is strictly
+worse than the bug it fixes (the old code had no such crash). This is a genuine regression introduced
+by the `.install` file, confirmed by real execution, not env-blocked and not a test-authorship
+artifact — these 3 test files' `$modules` lists were correct and unchanged before this round; F's new
+`.install` code is what broke them.
+
+**Verdict: route back to F.** Add a guard —
+`if (!\Drupal::moduleHandler()->moduleExists('views')) { return; }` (or equivalent
+`hasDefinition('view')` check) — at the top of `_do_group_membership_strip_group_members_page_display()`,
+before calling `entityTypeManager()->getStorage('view')`. This is safe: if `views` isn't installed,
+`views.view.group_members` cannot exist as a routable collision in the first place, so skipping is
+correct, not just crash-avoidance.
+
+### 3. Regression sweep
+
+- **Unit tier: 16/16 GREEN**, real execution, no regression from the `.install` file (Unit tests
+  don't install modules). `vendor/bin/phpunit -c web/core docs/groups/modules/do_group_membership/tests/src/Unit --testdox`
+  → `OK, but there were issues!  Tests: 16, Assertions: 63, PHPUnit Deprecations: 7.` (pre-existing
+  deprecation noise, unrelated to this change).
+- **`ManageMembersRouteAccessTest`/`ManageMembersPageRenderTest`/`ManageMembersPaginationTest`:**
+  8/8 methods ERROR — see "second, independent defect" above. This is a NEW regression (these files
+  were previously env-blocked on the core `list_string` schema bug and the `drupalLogin()` sandbox
+  limitation, per the Phase-6 decisions; they now fail earlier, at `hook_install()`, for a new and
+  different, code-caused reason). Flagging clearly: this is not the same env-blocked class as
+  before — it is a real, locally-reproduced fatal caused by this round's `.install` file.
+- **`ManageMembersRouteResolutionTest`:** 3/3 still RED, root cause isolated above (router-rebuild
+  ordering), distinct from the `views`-dependency crash.
+
+### 4. #109 lesson check — source-relative fixture paths
+
+Grepped `docs/groups/modules/do_group_membership/tests/` for any fixture/config read:
+
+```
+grep -rn "file_get_contents\|fopen\|Yaml::parseFile\|yaml_parse_file" docs/groups/modules/do_group_membership/tests/
+```
+
+Found 4 call sites, all in `GroupRoleConfigShapeTest.php` and `MembershipStatusFieldConfigShapeTest.php`
+(Unit tier), reading `docs/groups/config/*.yml`. **Not a #109 violation.** Both files use a
+`locate()`/`loadConfig()` helper that walks UP from `__DIR__` (the test file's own on-disk location)
+searching for `docs/groups/config/<file>.yml`, up to 10 ascents — NOT a hardcoded
+source-checkout-relative or repo-root-relative literal path. This is the exact, already-in-production
+precedent from `do_tests/tests/src/Functional/GroupAddFormFieldsTest.php::locateFormDisplayYaml()`
+(confirmed by direct read: identical `__DIR__`-ascend-and-`is_file()` logic, with its own doc comment
+explicitly citing the reason — "the module is authored under `docs/groups/modules/do_tests` but the
+runbook copies `do_*` into `web/modules/custom/`... walk up from here until the canonical YAML is
+found," because the whole repo (both `docs/groups/config/` AND either module location) is mounted
+into the test container in both source and CI-assembled layouts). Confirmed `docs/groups/config/` is
+a real, always-present SOURCE directory (not a build-generated-only artifact under `.gitignore`), so
+this ascend-and-locate pattern resolves correctly regardless of which of the two supported module
+layouts (`docs/groups/modules/...` or `web/modules/custom/...`) the test happens to run from. No
+fix needed; no violation found.
+
+### Docker hygiene (this round)
+
+Baseline `docker ps -a` before starting: 33 pre-existing containers (`ddev-*` × 22, plus 11 other
+unrelated project containers — `o119t4-mysql` from a concurrent sibling task was present at the very
+start of this session but had already been torn down by its own owning session before I created
+anything; I never touched it). Created only `gm138-mysql` (Docker MySQL 8, port 33061) this round.
+Removed only `gm138-mysql` on teardown (`docker rm -f gm138-mysql`). Post-teardown `docker ps -a`
+name list is byte-identical to the pre-run baseline (all 33 containers, `o119t4-mysql` absent in
+both, as expected since I never created or removed it). The local `php -S 127.0.0.1:8138` webserver
+was started and killed via `pkill -f "php -S 127.0.0.1:8138"` (only matches the process this round
+started).
+
+### Verdict
+
+**NOT GREEN — 3/3 route-resolution tests still RED**, plus a NEW regression (8/8 methods across 3
+other Functional test files now ERROR on install, not just still-env-blocked). Both are real,
+locally-reproduced, root-caused defects in `do_group_membership.install`, not test-authorship issues
+and not environment artifacts:
+
+1. **[BLOCK] Router never rebuilt after the retroactive strip.** `do_group_membership_modules_installed()`'s
+   strip runs correctly (config entity ends up right) but too late relative to
+   `ModuleInstaller::install()`'s own router rebuild, and nothing rebuilds the router again
+   afterward — fix: call `router.builder->rebuild()` (or `setRebuildNeeded()`) inside the helper,
+   only on the branch where a strip actually happened.
+2. **[BLOCK, regression] Unconditional `getStorage('view')` crashes on any non-`views` site.**
+   `_do_group_membership_strip_group_members_page_display()` needs a
+   `\Drupal::moduleHandler()->moduleExists('views')` guard before touching the `view` entity
+   storage — currently a hard `PluginNotFoundException` on `hook_install()` for
+   `ManageMembersRouteAccessTest`/`ManageMembersPageRenderTest`/`ManageMembersPaginationTest` (none
+   of which enable `views`), which is worse than the collision being fixed.
+
+Route back to F for both. T then re-runs `ManageMembersRouteResolutionTest` (must go 3/3 RED→GREEN)
+AND the 3 previously-authored Functional files (must return to their prior env-blocked-only state,
+not a new install-time crash) before U re-walks.
