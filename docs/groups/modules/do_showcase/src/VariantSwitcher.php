@@ -127,6 +127,17 @@ final class VariantSwitcher {
       '#attached' => [
         'library' => ['do_showcase/switcher'],
       ],
+      // Any caller that derives $current from the current request's query
+      // string (e.g. ShowcaseController::page(), which reads `?variant=`)
+      // must have its own cache context vary accordingly — Drupal bubbles a
+      // child render array's #cache metadata up into the page's Dynamic
+      // Page Cache key. Declaring it here too (not just on the controller's
+      // top-level $build) keeps this contract correct for every current/
+      // future caller of build(), not just this one controller (#119
+      // fix-loop round 3: the defect class, not one call site).
+      '#cache' => [
+        'contexts' => ['url.query_args:variant'],
+      ],
     ];
   }
 

@@ -506,3 +506,40 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   container + server processes fully torn down; worktree filesystem restored to only the one
   pre-existing untracked file present before this round began. No mutating command run against the
   shared `groups-on-d11` checkout.
+
+## F — Phase F (round 3) — cache-context DEFECT CLASS fix — 2026-07-22
+
+- **Decided:** Fixed the defect class, not just the single reproduced instance. Added
+  `$build['#cache']['contexts'][] = 'url.query_args:variant'` to `ShowcaseController::page()` (the
+  render array Drupal's Dynamic Page Cache keys on for `/showcase`, and the surface T's live
+  `curl`/`X-Drupal-Dynamic-Cache` repro identified). Also added the matching
+  `'#cache' => ['contexts' => ['url.query_args:variant']]` to `VariantSwitcher::build()`'s own
+  return array — its render-array content (`#options`/`aria-checked`/roving-`tabindex`) is a
+  function of the `$current` parameter, which this module's one caller derives from the query
+  string, so declaring the context at the source (not relying solely on child-to-parent `#cache`
+  bubbling) keeps the contract correct for any future caller of `build()`.
+- **Decided:** Used the narrower `url.query_args:variant` context, not the coarser
+  `url.query_args` — the module's output depends only on the `variant` parameter; using the
+  parameter-scoped form avoids needlessly fragmenting the cache on unrelated query args, keeping
+  the anon page cache healthy (per the round's explicit instruction not to disable caching
+  wholesale).
+- **Decided:** No cache tags added — this is purely a missing-*context* bug (the render array's
+  content already correctly derives from `$current`, confirmed by the unchanged 41/41 PHPUnit
+  green result); nothing about invalidation-on-entity-change is in play, so tags would be scope
+  creep.
+- **Assumed:** None new.
+- **Hedged:** phpstan level 1 run against both changed files together reports one pre-existing
+  `new.static` finding on `ShowcaseController.php` line 42 (inside `create()`, untouched by this
+  diff — confirmed via `git diff --stat` showing only 8 added lines inside `page()`, lines 60-67).
+  Matches the identical, already-flagged `new.static` pattern on
+  `NotificationSettingsController::create()` recorded in this story's own Phase-5 entry. Not fixed
+  here — out of scope for this round's defect class, and fixing it would be an unplanned drive-by
+  on a method this diff does not otherwise touch.
+- **Evidence:** Real `composer install` (PHP 8.5.6 via `/opt/homebrew/opt/php@8.4/bin/php`) +
+  `scripts/ci/assemble-config.sh`, matching T-green2's own documented recipe. PHPUnit 41/41 green,
+  `Configuration:` path confirms the worktree's own real composer-installed tree, not the shared
+  checkout. phpcs (Drupal+DrupalPractice) on both changed files: 0 errors. phpstan level 1 on
+  `VariantSwitcher.php` alone: `[OK] No errors`. Full command + output in `handoff-F3.md`. Worktree
+  torn down after (composer-installed `web/core`/`vendor`/etc. removed) — `git status --short`
+  confirms only the two intended production-file diffs plus the one pre-existing untracked file
+  remain. No mutating command run against the shared `groups-on-d11` checkout.

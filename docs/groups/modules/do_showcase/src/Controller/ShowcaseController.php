@@ -57,6 +57,14 @@ class ShowcaseController extends ControllerBase {
   public function page(): array {
     $build = [];
 
+    // The switcher instance embedded below resolves its selected option
+    // from the `variant` query argument (see below), so the page's cached
+    // render output must vary by that argument too — otherwise Drupal's
+    // Dynamic Page Cache serves whichever variant was first cached for
+    // `/showcase` back to every subsequent request regardless of its own
+    // `?variant=` value (#119 fix-loop round 3 blocker).
+    $build['#cache']['contexts'][] = 'url.query_args:variant';
+
     $build['#attached']['library'][] = 'do_chrome/tooltips';
     $build['#attached']['library'][] = 'do_showcase/switcher';
 
