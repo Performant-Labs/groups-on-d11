@@ -89,7 +89,11 @@ final class VariantSwitcher {
         'plain_label' => $label,
         'aria_checked' => $is_selected,
         'aria_disabled' => !$available,
-        'tabindex' => $available ? '0' : '-1',
+        // Roving tabindex (wireframe.md lines 29-31, 271): only the
+        // currently-selected AVAILABLE option is in the Tab order; every
+        // other option (available or not) is tabindex="-1" and reachable
+        // only via Arrow-Left/Right once focus is inside the radiogroup.
+        'tabindex' => ($available && $is_selected) ? '0' : '-1',
         'available' => $available,
         'href' => '?variant=' . rawurlencode($option['id']),
       ];

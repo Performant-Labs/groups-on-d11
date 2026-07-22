@@ -36,16 +36,44 @@
     }
   }
 
+  /**
+   * Sets the roving tabindex: exactly one option (the given one) is
+   * tabindex="0", every other option is tabindex="-1" (wireframe.md lines
+   * 29-31, 271 — "one option in tab order at a time").
+   *
+   * @param {HTMLElement[]} options
+   *   All `[role="radio"]` elements in the radiogroup (available and not).
+   * @param {HTMLElement} target
+   *   The option that should become the roving tabindex=0 target.
+   */
+  function setRovingTabindex(options, target) {
+    options.forEach((option) => {
+      option.setAttribute('tabindex', option === target ? '0' : '-1');
+    });
+  }
+
   Drupal.behaviors.doShowcaseSwitcher = {
     attach(context) {
       once('do-showcase-switcher', '[role="radiogroup"][data-do-showcase-instance]', context).forEach((group) => {
         const instanceId = group.getAttribute('data-do-showcase-instance');
         const options = Array.from(group.querySelectorAll('[role="radio"]'));
+        const availableOptions = options.filter((option) => option.getAttribute('aria-disabled') !== 'true');
 
         const select = (id, persist) => {
+          let target = null;
           options.forEach((option) => {
-            setSelected(option, option.getAttribute('data-do-showcase-id') === id);
+            const isMatch = option.getAttribute('data-do-showcase-id') === id;
+            setSelected(option, isMatch);
+            if (isMatch) {
+              target = option;
+            }
           });
+          // Roving tabindex: only the newly-selected option stays in the Tab
+          // order (wireframe.md lines 29-31, 271) — every other option
+          // (available or not) is tabindex="-1".
+          if (target) {
+            setRovingTabindex(options, target);
+          }
           if (persist) {
             try {
               window.localStorage.setItem(STORAGE_PREFIX + instanceId, id);
@@ -58,6 +86,23 @@
           }
         };
 
+        // Arrow-Left/Right moves selection + focus among AVAILABLE options
+        // only, matching native radiogroup behavior (WAI-ARIA Authoring
+        // Practices radiogroup pattern) — wireframe.md lines 29-31: "one
+        // option in tab order at a time; Arrow-Left/Right moves selection,
+        // matching native radiogroup behavior."
+        const moveSelection = (fromOption, direction) => {
+          const currentIndex = availableOptions.indexOf(fromOption);
+          if (currentIndex === -1 || availableOptions.length === 0) {
+            return;
+          }
+          const nextIndex = (currentIndex + direction + availableOptions.length) % availableOptions.length;
+          const nextOption = availableOptions[nextIndex];
+          const id = nextOption.getAttribute('data-do-showcase-id');
+          select(id, true);
+          nextOption.focus();
+        };
+
         options.forEach((option) => {
           if (option.getAttribute('aria-disabled') === 'true') {
             return;
@@ -67,6 +112,16 @@
             select(option.getAttribute('data-do-showcase-id'), true);
           });
           option.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+              event.preventDefault();
+              moveSelection(option, 1);
+              return;
+            }
+            if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              moveSelection(option, -1);
+              return;
+            }
             if (event.key !== 'Enter' && event.key !== ' ') {
               return;
             }

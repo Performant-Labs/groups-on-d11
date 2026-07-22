@@ -401,3 +401,57 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   `tests/e2e/showcase.spec.ts` (both mirrored to
   `scratchpad/o119-handoffs/tests-red-round2/`). No mutating command run against the shared
   `groups-on-d11` checkout.
+
+## F — Phase F (round 2) — implement roving-tabindex + arrow-key fix — 2026-07-22
+
+- **Decided:** `VariantSwitcher.php` line 92 changed from `'tabindex' => $available ? '0' : '-1'`
+  to `'tabindex' => ($available && $is_selected) ? '0' : '-1'` — exactly one option (the currently
+  selected, available one) is now `tabindex="0"`; every other option (available or not) is
+  `tabindex="-1"`. One-line change, matches T's own suggested fix in handoff-T-red2.md's "Ready
+  for F" section verbatim.
+- **Decided:** `do_showcase.switcher.js` gets a new `setRovingTabindex()` helper (mirrors the
+  existing `setSelected()` helper's shape) called from inside `select()` so every path that changes
+  selection (click, Enter/Space, and the new arrow-key path) also rolls the roving tabindex
+  together with `aria-checked` — one single source of truth, not three duplicated update sites.
+- **Decided:** Arrow-key navigation (`ArrowLeft`/`ArrowRight`, plus `ArrowUp`/`ArrowDown` as a
+  bonus matching full native-radiogroup semantics) is implemented as a `moveSelection(fromOption,
+  direction)` closure operating over `availableOptions` only (options pre-filtered by
+  `aria-disabled !== 'true'`) — the unavailable "Map" option is structurally excluded from the
+  index arithmetic, so it can never become a `moveSelection` target regardless of DOM position or
+  direction. Wraps at the ends (`(currentIndex + direction + length) % length`) per the WAI-ARIA
+  Authoring Practices radiogroup pattern the wireframe's "matching native radiogroup behavior"
+  phrase invokes — T-red2's own wrap/skip semantics note already flagged this reading as correct
+  and noted the 2-available-option stub can't independently distinguish wrap from clamp; F's
+  implementation wraps, satisfying both readings for this stub's option count.
+- **Decided:** Reused the existing `select(id, persist)` function unchanged in signature — arrow
+  navigation calls `select(id, true)` (persists to localStorage, same as a click) then explicitly
+  calls `.focus()` on the new option, so focus/selection/persistence/roving-tabindex all move
+  together in one call, matching the Playwright cases' combined assertion (`toBeFocused()` +
+  `aria-checked` + `tabindex` all on the same target).
+- **Decided:** No Twig template change — `do-showcase-variant-switcher.html.twig` already emits
+  whatever `tabindex` value the render array supplies per option; the fix is entirely in the
+  render-array producer (PHP) and the dynamic DOM updater (JS), confirming T-red2's own point 3.
+- **Assumed:** None new — implemented exactly per T-red2's "Ready for F" prescription and the
+  wireframe's cited lines; no conflict found between the two authored test files and the
+  wireframe, so no STOP-and-report was needed.
+- **Hedged:** phpstan level 1 run against the single `VariantSwitcher.php` file in isolation
+  reports `class.notFound` on `Drupal\do_chrome\HelpText` (line 103, pre-existing/unchanged call,
+  not touched by this diff) — confirmed as a scan-scope artifact (no repo-level `phpstan.neon`
+  wires up Drupal's module-namespace autoloading for a single-file CLI invocation), not a defect
+  introduced by the one-line ternary change; the isolated-tree PHPUnit run (which DOES have full
+  autoloading via Drupal's own bootstrap) exercises the same `HelpText::get()` call successfully,
+  14/14 green, confirming the class resolves fine at real runtime. phpcs run against the `.js` file
+  via an ad-hoc `--extensions=js` CLI invocation flags 5 "TRUE/FALSE/NULL must be uppercase"
+  findings — confirmed false positives (Drupal's PHP-only boolean-casing sniff misapplied to
+  JavaScript, where uppercase `TRUE`/`FALSE` would be a syntax error) by cross-checking every other
+  untouched `.js` file in the module (`do_showcase.ribbon.js`, `do_chrome`'s non-minified JS) trips
+  the identical false positive on their own pre-existing lowercase `false`/`true`/`null` — not a
+  pattern introduced by this diff, and no real JS linter (ESLint) is configured in this repo to
+  give an authoritative JS Tier-1 check.
+- **Evidence:** Isolated-tree PHPUnit run (full `cp -R` of `web/core` + `vendor`, not symlinks,
+  same realpath-bootstrap-trap workaround as prior phases) — 14/14 green, `Configuration:` path
+  confirms the worktree's own copy was exercised, not the shared checkout. phpcs (Drupal +
+  DrupalPractice) against `VariantSwitcher.php`: 0 errors. Full command + output in handoff-F2.md.
+  Torn down after (`web/core`, `web/modules/custom`, `vendor` removed — `git status --short`
+  confirms only the two intended production-file diffs remain). No mutating command run against
+  the shared `groups-on-d11` checkout.
