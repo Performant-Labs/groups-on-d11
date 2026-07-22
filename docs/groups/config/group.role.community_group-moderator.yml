@@ -1,0 +1,20 @@
+uuid: f0399967-3434-4337-8ed4-fb2a4c6dbc61
+langcode: en
+status: true
+dependencies:
+  config:
+    - group.type.community_group
+id: community_group-moderator
+label: Moderator
+weight: 1
+admin: false
+scope: individual
+global_role: null
+group_type: community_group
+permissions:
+  - 'administer members'
+  - 'view group_node:documentation entity'
+  - 'view group_node:event entity'
+  - 'view group_node:forum entity'
+  - 'view group_node:page entity'
+  - 'view group_node:post entity'

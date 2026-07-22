@@ -1,0 +1,122 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the DO Group Membership module.
+ */
+
+declare(strict_types=1);
+
+/**
+ * Implements hook_install().
+ *
+ * `drupal/group` contrib ships its own optional config
+ * (`group/config/optional/views.view.group_members.yml`) carrying a
+ * `page_1` page display at `group/%group/members` — the identical path this
+ * module's own `do_group_membership.manage_members` route owns. Whenever
+ * `views.view.group_members` is (re)materialized from that contrib-shipped
+ * optional config (e.g. a fresh `drush en group`, exactly what
+ * BrowserTestBase / CI Functional bootstraps do), the `page_1` display
+ * reappears and the router permanently shadows this module's steady-state
+ * Manage-members UI with the old core Views "Members" tab.
+ *
+ * This module supersedes that stock members view (coordinator-settled
+ * decision, see decisions.md Phase 8) — so on install, strip the
+ * colliding `page_1` display from `views.view.group_members` if present,
+ * regardless of whether that config came from this project's own site
+ * config (already fixed at the source,
+ * `docs/groups/config/views.view.group_members.yml`) or from `group`'s
+ * contrib optional config (not fixable at the source — it's vendor code).
+ */
+function do_group_membership_install(bool $is_syncing): void {
+  _do_group_membership_strip_group_members_page_display($is_syncing);
+}
+
+/**
+ * Implements hook_modules_installed().
+ *
+ * Covers the reverse install ordering: if `group` (and therefore
+ * `views.view.group_members`, carrying its contrib-shipped `page_1`
+ * display) is installed AFTER this module, `do_group_membership_install()`
+ * will have already run and found no view to strip. Re-run the same strip
+ * whenever a batch of modules finishes installing, so the collision is
+ * closed regardless of which module in the batch installed first.
+ *
+ * @param string[] $modules
+ *   The list of module machine names that were just installed.
+ * @param bool $is_syncing
+ *   TRUE if the module install is part of a config synchronization.
+ */
+function do_group_membership_modules_installed(array $modules, bool $is_syncing): void {
+  // Only bother re-checking if this install batch could plausibly have
+  // (re)materialized the view: either `group` itself just landed, or the
+  // view's own config was installed directly.
+  if (!array_intersect($modules, ['group', 'views']) && !in_array('views.view.group_members', $modules, TRUE)) {
+    return;
+  }
+
+  _do_group_membership_strip_group_members_page_display($is_syncing);
+}
+
+/**
+ * Removes the colliding `page_1` display from `views.view.group_members`.
+ *
+ * Guards for the view (or the specific display) not existing at all — this
+ * must never fatal, since it runs unconditionally from two different
+ * hooks and the view may not have been created yet, may already have had
+ * `page_1` removed (this project's own site config, or a prior run of this
+ * same strip), or may not exist in a given install profile at all. Also
+ * guards for Views not being installed at all — this module does not
+ * depend on `views`, so a views-less site has no `view` entity type.
+ *
+ * Respects `$is_syncing`: during a config sync, a deliberate config import
+ * is already in control of the site's config state (including, if it
+ * chooses, this project's own `docs/groups/config/views.view.group_members.yml`,
+ * which already ships without `page_1`) — stripping again here would just
+ * be redundant, and more importantly could fight a sync that has an
+ * intentionally different shape mid-import. `BrowserTestBase`'s
+ * fresh-module-install path (the path this fix exists for) is NOT a config
+ * sync, so this guard does not suppress the fix where it's actually needed.
+ *
+ * When a strip actually occurs, also rebuilds the router. `ModuleInstaller::
+ * install()` rebuilds the router BEFORE `hook_modules_installed()` fires,
+ * and nothing rebuilds it again afterward — so within a single install
+ * request (BrowserTestBase, and a real user's first page load immediately
+ * post-install) the route table would otherwise stay stale and keep
+ * resolving `/group/{group}/members` to the just-removed `page_1` display.
+ *
+ * @param bool $is_syncing
+ *   TRUE if the current install is part of a config synchronization.
+ */
+function _do_group_membership_strip_group_members_page_display(bool $is_syncing): void {
+  if ($is_syncing) {
+    return;
+  }
+
+  // This module does not depend on `views` (`do_group_membership.info.yml`
+  // correctly omits it). On a site without Views installed, the `view`
+  // entity type does not exist at all, so there is no `group_members` view
+  // to collide with — return before touching entity-type storage.
+  if (!\Drupal::moduleHandler()->moduleExists('views')) {
+    return;
+  }
+
+  /** @var \Drupal\views\ViewEntityInterface|null $view */
+  $view = \Drupal::entityTypeManager()->getStorage('view')->load('group_members');
+  if ($view === NULL) {
+    return;
+  }
+
+  $displays = $view->get('display');
+  if (!isset($displays['page_1'])) {
+    return;
+  }
+
+  unset($displays['page_1']);
+  $view->set('display', $displays);
+  $view->save();
+
+  // Rebuild the router within this same request so the removed display is
+  // reflected immediately, only when a strip actually occurred.
+  \Drupal::service('router.builder')->rebuild();
+}

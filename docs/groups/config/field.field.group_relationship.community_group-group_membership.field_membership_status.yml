@@ -1,0 +1,23 @@
+uuid: fa67ab12-167a-4a76-ba00-71cbc2f2e00c
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.group_relationship.field_membership_status
+    - group.relationship_type.community_group-group_membership
+  module:
+    - options
+id: group_relationship.community_group-group_membership.field_membership_status
+field_name: field_membership_status
+entity_type: group_relationship
+bundle: community_group-group_membership
+label: Status
+description: ''
+required: false
+translatable: false
+default_value:
+  -
+    value: active
+default_value_callback: ''
+settings: {  }
+field_type: list_string

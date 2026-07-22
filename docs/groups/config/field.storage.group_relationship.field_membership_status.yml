@@ -1,0 +1,30 @@
+uuid: df92d434-4fb7-4411-b56c-286e518071e4
+langcode: en
+status: true
+dependencies:
+  module:
+    - group
+    - options
+id: group_relationship.field_membership_status
+field_name: field_membership_status
+entity_type: group_relationship
+type: list_string
+settings:
+  allowed_values:
+    -
+      value: active
+      label: Active
+    -
+      value: pending
+      label: Pending
+    -
+      value: blocked
+      label: Blocked
+  allowed_values_function: ''
+module: options
+locked: false
+cardinality: 1
+translatable: false
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

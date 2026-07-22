@@ -1,0 +1,230 @@
+{
+  "steps": [
+    {
+      "name": "login-organizer",
+      "action": "log in as u_organizer",
+      "expected": "redirect to /user/N",
+      "observed": "http://127.0.0.1:8080/user/8?check_logged_in=1",
+      "pass": true
+    },
+    {
+      "name": "manage-members-tab-renders",
+      "action": "view group/1 canonical page as Organizer",
+      "expected": "Manage members local task tab visible",
+      "observed": "visible",
+      "pass": true
+    },
+    {
+      "name": "real-table-with-scoped-th",
+      "action": "inspect table markup",
+      "expected": "real <table> with <th scope=\"col\">",
+      "observed": "table:true th[scope=col]:5",
+      "pass": true
+    },
+    {
+      "name": "table-rows-render",
+      "action": "count member rows",
+      "expected": ">=1 row (organizer, plain member seeded)",
+      "observed": "50 rows",
+      "pass": true
+    },
+    {
+      "name": "status-badge-text-visible",
+      "action": "inspect active badge",
+      "expected": "visible text \"Active\" (non-color-alone)",
+      "observed": "",
+      "pass": false
+    },
+    {
+      "name": "joined-date-label",
+      "action": "inspect date column",
+      "expected": "\"Joined:\" label present",
+      "observed": "absent",
+      "pass": false
+    },
+    {
+      "name": "add-member-form-renders",
+      "action": "navigate to add-member route",
+      "expected": "User autocomplete field + role checkboxes visible",
+      "observed": "userField:false",
+      "pass": false
+    },
+    {
+      "name": "add-member-role-checkboxes",
+      "action": "inspect add-member form",
+      "expected": "role checkboxes present (Organizer/Moderator/Member)",
+      "observed": "6 checkboxes",
+      "pass": true
+    },
+    {
+      "name": "add-member-submit",
+      "action": "fill user autocomplete + submit Add member",
+      "expected": "success message or validation message",
+      "observed": "no recognizable message",
+      "pass": false
+    },
+    {
+      "name": "locate-plainmember-row",
+      "action": "find u_plainmember row in table",
+      "expected": "row exists",
+      "observed": "found",
+      "pass": true
+    },
+    {
+      "name": "change-role-form-renders",
+      "action": "click Role control on plain-member row",
+      "expected": "checkboxes for Organizer/Moderator/Member",
+      "observed": "moderatorCheckbox visible:false",
+      "pass": false
+    },
+    {
+      "name": "pending-row-visible",
+      "action": "inspect table for seeded pending row",
+      "expected": "tr[data-status=pending] with (requested) role suffix",
+      "observed": "not found",
+      "pass": false
+    },
+    {
+      "name": "remove-shows-confirm-step",
+      "action": "click Remove on a row",
+      "expected": "ConfirmForm step",
+      "observed": "Remove control not found on row",
+      "pass": false
+    },
+    {
+      "name": "pagination-page1-rows",
+      "action": "load /group/1/members with 55 total memberships",
+      "expected": "exactly 50 rows on page 1, pager element present",
+      "observed": "rows:50 pagerVisible:true",
+      "pass": true
+    },
+    {
+      "name": "pagination-page2-rows",
+      "action": "click pager page 2 / Next",
+      "expected": "remaining 5 rows render",
+      "observed": "rows:5",
+      "pass": true
+    },
+    {
+      "name": "last-organizer-guard-disabled-state",
+      "action": "inspect sole-Organizer row (only u_organizer holds community_group-organizer role in group 1)",
+      "expected": "Role/Remove disabled with aria-describedby note",
+      "observed": "disabledButtons:0 aria-describedby:null",
+      "pass": false
+    },
+    {
+      "name": "plain-member-access-denied",
+      "action": "u_plainmember navigates directly to /group/1/members",
+      "expected": "HTTP 403 access denied",
+      "observed": "HTTP 403",
+      "pass": true
+    },
+    {
+      "name": "groups-moderate-can-manage",
+      "action": "u_groupsmoderate (never a member of group 1) navigates to /group/1/members",
+      "expected": "HTTP 200, table renders",
+      "observed": "HTTP 200, table:true",
+      "pass": true
+    },
+    {
+      "name": "mobile-360-renders",
+      "action": "navigate to Manage members at 360px viewport",
+      "expected": "page renders, table present (may need horizontal scroll)",
+      "observed": "table:true",
+      "pass": true
+    },
+    {
+      "name": "hard-reload-spotcheck",
+      "action": "direct hard navigation to /group/1/members (bypassing tab click)",
+      "expected": "identical rendering to navigated path (table + th scope=col)",
+      "observed": "table:true th:5",
+      "pass": true
+    }
+  ],
+  "axe": {
+    "steadyStateTable": {
+      "violationCount": 4,
+      "byImpact": {
+        "moderate": 3,
+        "serious": 1
+      },
+      "violations": [
+        {
+          "id": "heading-order",
+          "impact": "moderate",
+          "description": "Ensure the order of headings is semantically correct",
+          "nodes": 1,
+          "help": "Heading levels should only increase by one"
+        },
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "description": "Ensure landmarks are unique",
+          "nodes": 1,
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination"
+        },
+        {
+          "id": "listitem",
+          "impact": "serious",
+          "description": "Ensure <li> elements are used semantically",
+          "nodes": 1,
+          "help": "<li> elements must be contained in a <ul> or <ol>"
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "description": "Ensure all page content is contained by landmarks",
+          "nodes": 2,
+          "help": "All page content should be contained by landmarks"
+        }
+      ]
+    },
+    "addMemberForm": {
+      "violationCount": 1,
+      "byImpact": {
+        "moderate": 1
+      },
+      "violations": [
+        {
+          "id": "landmark-unique",
+          "impact": "moderate",
+          "description": "Ensure landmarks are unique",
+          "nodes": 1,
+          "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination"
+        }
+      ]
+    },
+    "lastOrganizerGuardTable": {
+      "violationCount": 0,
+      "byImpact": {},
+      "violations": []
+    }
+  },
+  "consoleErrors": {
+    "organizer-desktop": {
+      "errors": [],
+      "pageErrors": []
+    },
+    "plainmember-access": {
+      "errors": [
+        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+      ],
+      "pageErrors": []
+    },
+    "groupsmoderate-access": {
+      "errors": [],
+      "pageErrors": []
+    },
+    "organizer-mobile-360": {
+      "errors": [],
+      "pageErrors": [
+        "NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node."
+      ]
+    },
+    "organizer-hardreload": {
+      "errors": [],
+      "pageErrors": []
+    }
+  },
+  "findings": []
+}

@@ -1,0 +1,5 @@
+do_group_membership.manage_members:
+  route_name: do_group_membership.manage_members
+  title: 'Manage members'
+  base_route: entity.group.canonical
+  weight: 20

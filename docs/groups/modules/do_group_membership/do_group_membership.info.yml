@@ -1,0 +1,9 @@
+name: DO Group Membership
+type: module
+description: 'Organizer manage-members UI, group roles (Organizer/Moderator/Member), and the site-level Groups Moderate role.'
+core_version_requirement: ^11.2
+package: Custom
+dependencies:
+  - drupal:group
+  - drupal:options
+  - drupal:field
