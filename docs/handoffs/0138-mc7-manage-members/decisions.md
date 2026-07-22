@@ -1073,3 +1073,42 @@ of its OWN setUp bugs along the way (test-side). **Env-blocked count corrected D
 access tests actually run green — earlier count was pessimistic). **Route collision is FIXED.**
 
 **Evidence:** `handoff-T-green.md` "Route-collision v3 verify".
+
+## Phase 8.5 (pre-S CI-red risk) — O diagnosis of the 14 list_string errors
+
+**Decided (O did this diagnosis directly, per the "don't assume core bug" mandate):**
+
+**Finding 1 — the config format is NOT the bug.** `#138`'s
+`field.storage.group_relationship.field_membership_status.yml` uses the modern
+`allowed_values: [{value,label}, ...]` format — byte-for-byte the SAME shape as two EXISTING,
+shipped, CI-passing `list_string` fields in this repo (`field_group_visibility`,
+`field_notification_frequency`). So it is well-formed and matches repo precedent; there is no
+config-format defect for F to fix. (This rules out the coordinator's "most likely cause.")
+
+**Finding 2 — it IS a genuine core 11.4.4 + options schema bug, BUT it WILL red CI (T's "clean CI
+will pass" assumption is wrong).** T proved with a zero-module scratch test that a bare `list_string`
+field throws the identical `settings.allowed_values.0.label.0` at `ConfigSchemaChecker` /
+`ArrayElement.php:100` on this exact package set. AND: `composer.lock` pins `drupal/core` to exactly
+**11.4.4** (the buggy release); CI runs `composer install` (not update), so CI resolves the SAME
+buggy core; and the CI Kernel job runs `phpunit -c web/core/phpunit.xml.dist` over
+`find web/modules/custom .../tests/src/Kernel`, which picks up `do_group_membership` with strict
+config-schema checking ON. **Therefore CI WILL hit this and go RED — "env-blocked" here means a red
+CI Kernel job, which is not acceptable.**
+
+**Fix (honest + coverage-preserving, routed to T — it's test-file-only):** set
+`protected bool $strictConfigSchema = FALSE;` on the affected test classes
+(`GroupMembershipManagerKernelTest`, `ManageMembersPageRenderTest`, and any sibling that installs
+`field_membership_status`), with an inline comment citing the core-11.4.4 `list_string`/`options`
+`ConfigSchemaChecker` bug (path `settings.allowed_values.N.label.0`). This disables ONLY the broken
+core schema gate — the tests still RUN and assert real membership behavior (turning the ~13
+Kernel/Functional from ERROR to GREEN). This is strictly better than `markTestSkipped()` (which drops
+coverage): the behavior is verified, only the core-broken schema validation is bypassed. If any test
+CANNOT run green even with strict schema off (a real, separate failure), THAT one routes back to F.
+The `drupalLogin()` sandbox limit (a separate, small subset) is a genuine local-only limit — those
+may stay `markTestSkipped` with reason if they truly can't run in CI, but T must first check whether
+CI's Functional job (which uses a real server, unlike the local sandbox) runs them green.
+
+**Evidence:** `field.storage.*field_membership_status.yml` vs `field.storage.*field_group_visibility.yml`
+(identical format); `handoff-T-green.md` §"list_string bug" (scratch-test repro); `composer.lock`
+core 11.4.4 pin; `.github/workflows/test.yml` lines 127-130 (Kernel job discovery + phpunit config);
+`ConfigSchemaChecker.php` (`$strictConfigSchema` disables it).
