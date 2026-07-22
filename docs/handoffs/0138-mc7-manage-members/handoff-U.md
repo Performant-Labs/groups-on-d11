@@ -280,3 +280,224 @@ collision + re-verify), not a rewrite — but it must go back through F (routing
 `ManageMembersForm`) → U (re-walkthrough of the steady-state table, badges, approve/deny,
 and the last-Organizer disable-before-attempt UI, which I could not verify live this round)
 before this can reach S.
+
+---
+
+# Re-run after REWORK — Phase 8, round 2 (2026-07-22)
+
+**Verdict: PASS**
+
+## TL;DR
+
+The route-path collision that blocked round 1 is **fixed and confirmed live**. Navigating to
+`/group/1/members` via the real "Manage members" local-task-tab click now serves
+`do_group_membership.manage_members` (F's `ManageMembersForm`) — the stock
+`view.group_members.page_1` route no longer exists in the router at all (confirmed via
+`router.route_provider->getRoutesByPattern()`, which returns exactly ONE route for the path).
+Every mandated control was driven live in a real headless Chromium browser and PASSED: the
+steady-state table (badges, `th scope="col"` headers, Joined/Requested labels), add member,
+change role, remove-with-confirm-step, approve pending, deny pending, the last-Organizer
+disable-before-attempt guard (with `aria-describedby` note), 50-row pagination to page 2, and
+both access-control ACs (plain Member denied, Groups-Moderate-non-member allowed). AC-15's
+axe-core pass found **zero serious/critical violations** on the steady-state table (2
+pre-existing moderate theme findings, not module-introduced) and **zero violations at all** on
+the Add-member form.
+
+## Run environment (reproducible)
+
+Followed the mandated recipe — assemble, seed via the docs demo scripts, serve via
+`drush runserver` — mirroring `.github/workflows/test.yml`'s `e2e` job exactly:
+
+```
+cd /Users/andreangelantoni/Projects/_worktrees/groups-0138-mc7-manage-members
+bash scripts/ci/assemble-config.sh
+docker run -d --name gm138-mysql -e MYSQL_DATABASE=drupal -e MYSQL_ROOT_PASSWORD=root -p 13306:3306 mysql:8
+php vendor/drush/drush/drush.php site:install standard \
+  --db-url="mysql://root:root@127.0.0.1:13306/drupal" --account-name=admin --account-pass=admin -y
+php vendor/drush/drush/drush.php config:set system.site uuid "<config/sync uuid>" -y
+echo "\$settings['config_sync_directory'] = '../config/sync';" >> web/sites/default/settings.php
+php vendor/drush/drush/drush.php config:import -y
+php vendor/drush/drush/drush.php en -y do_group_membership do_tests do_group_extras do_group_language \
+  do_group_mission do_group_pin do_multigroup do_notifications do_profile_stats do_discovery
+# seed docs/groups/scripts/step_700_demo_data.php + step_720_group_types.php as uid 1
+php vendor/drush/drush/drush.php --root="$PWD/web" runserver --no-browser 127.0.0.1:8080
+```
+
+- **URL:** `http://127.0.0.1:8080` (group under test: group id 1, "DrupalCon Portland 2026").
+- **Auth:** created 8 dedicated test-persona users via a `drush php:script` seed helper
+  (`u_organizer` — SOLE Organizer on group 1, `community_group-organizer`; `u_plainmember` —
+  `community_group-member`, no admin permission; `u_groupsmoderate` — site role
+  `groups_moderate`, deliberately never added to group 1; `u_addtarget` — plain site user, not
+  yet a member, target for the add-member flow; `u_toremove`/`u_torole` — members for the
+  remove/change-role flows; `u_pendingapprove`/`u_pendingdeny` — seeded with
+  `field_membership_status = pending` directly via the `GroupMembership` entity API; 45×
+  `u_pag_N` to push group 1 to 56 total `group_membership` relationships for pagination) and
+  logged in via the standard `/user/login` form (username/password), matching round 1's
+  approach.
+- **Browser:** Playwright (Chromium), fully headless, ad-hoc `npm install --no-save playwright
+  @axe-core/playwright` in the session scratchpad (no repo `package.json` change, reused the
+  round-1 scratch install). Scripts: `.u-walk.mjs`, `.u-walk2.mjs`, `.axe-forms.mjs`,
+  `.check-msgs.mjs`, `.pager-recheck.mjs` (all throwaway, deleted after the run).
+- **Docker hygiene:** created only `gm138-mysql`; removed only `gm138-mysql` on teardown.
+  `docker ps -a` before and after this round: name-set diff is empty — every `ddev-*` sibling
+  and every other pre-existing container untouched.
+- **Process hygiene:** `drush runserver`'s 4 `PHP_CLI_SERVER_WORKERS` child processes
+  (`d8-rs-router.php` on 127.0.0.1:8080) confirmed killed; `lsof -i :8080` empty afterward.
+
+## THE FIX, CONFIRMED LIVE
+
+```
+$ drush php:eval '$r = Drupal::service("router.route_provider")->getRoutesByPattern("/group/1/members");
+  foreach ($r->all() as $name => $route) { echo $name . " => " . $route->getPath() . "\n"; }'
+do_group_membership.manage_members => /group/{group}/members
+```
+
+Only ONE route resolves for the path now — `view.group_members.page_1` is absent from the
+router entirely (round 1 showed both routes present, with the View winning). Confirmed at the
+config layer too:
+
+```
+$ drush php:eval '$view = Drupal::entityTypeManager()->getStorage("view")->load("group_members");
+  echo implode(",", array_keys($view->get("display")));'
+default
+```
+
+Only the `default` (Master) display remains; `page_1` is gone — matches F's hook_install fix
+(round-1 site-config deletion + round-2/3 `hook_install`/`hook_modules_installed` +
+same-request router rebuild), exercised here via the real `config:import` + `drush en` path
+(not just `drush php:eval` per-process checks, which round 1's own findings noted could mask
+staleness — this round's checks were run against the SAME long-lived served process the
+browser hit).
+
+## Steady-state renders live — DOM evidence
+
+Real navigated path: logged in as `u_organizer`, navigated to `/group/1` (canonical page),
+clicked the **"Manage members" local task tab** (not a direct URL), landed on
+`http://127.0.0.1:8080/group/1/members`.
+
+- **H1:** "Manage members" (screenshot `02-crop-top.png` — also shows the active "Manage
+  members" tab, breadcrumb "Home › DrupalCon Portland 2026", exactly matching wireframe
+  Screen 1's chrome).
+- **`do-group-membership__*` markup count:** 161 occurrences in the rendered HTML (round 1: 0).
+- **`views-table` class (the old View's marker):** absent (round 1: present).
+- **Real `<form>` elements on the page:** 3 (this is `ManageMembersForm`, a real Drupal form —
+  round 1 had 0, since the View is a controller render with no form).
+- **Table columns:** Member name / Role(s) / Status / Joined/Requested / Actions — matches
+  wireframe Screen 1 exactly (screenshot `02-crop-table.png`).
+- **Status badges:** `<span class="do-group-membership__badge do-group-membership__badge--active" data-state="active"><span aria-hidden="true">✓</span> Active</span>` —
+  confirmed live in the DOM, exact match to the wireframe's badge spec (glyph `aria-hidden`,
+  visible text, `data-state` modifier class).
+- **Hard-reload spot-check:** reloading `/group/1/members` directly produced the identical
+  markup (161 `do-group-membership` occurrences both times) — no navigated-vs-reload
+  discrepancy, the fix is deterministic on both paths.
+
+## `<th scope="col">` headers — confirmed live
+
+```json
+[
+  {"text": "Member name", "scope": "col"},
+  {"text": "Role(s)", "scope": "col"},
+  {"text": "Status", "scope": "col"},
+  {"text": "Joined/Requested", "scope": "col"},
+  {"text": "Actions", "scope": "col"}
+]
+```
+
+All 5 `<th>` elements carry `scope="col"` in the live-rendered DOM. **PASS.**
+
+## Per-control checklist (this round)
+
+| # | Control | Action | Expected | Observed | Verdict |
+|---|---|---|---|---|---|
+| 1 | Login | log in as u_organizer | authenticated | redirected past login form | PASS |
+| 2 | "Manage members" tab | navigate group/1, click tab | tab visible + navigates to the NEW controller | tab present, navigated, 161 `do-group-membership` markup hits, 0 `views-table` | PASS |
+| 3 | th scope=col | inspect all 5 `<th>` | `scope="col"` on each | confirmed on all 5 | PASS |
+| 4 | Status badge (text+glyph) | inspect `[data-state=active]` | visible "✓ Active" text, not color-only | `<span aria-hidden>✓</span> Active` present live | PASS |
+| 5 | Pending badge | inspect `[data-state=pending]` | visible "⏳ Pending" text | present live, "Member (requested)" role qualifier also present | PASS |
+| 6 | Joined/Requested labels | inspect body text | "Joined:"/"Requested:" | both present, correct per row status | PASS |
+| 7 | Hard-reload spot-check | direct reload of `/group/1/members` | identical to navigated result | identical (161 markup hits both times), no discrepancy | PASS |
+| 8 | Add member | click "+ Add member", fill autocomplete, submit | success message, relationship created | `"...has been added to this group."` (screenshot `04-add-member-result.png`) | PASS |
+| 9 | Change role | click `[Role ▾]` on u_torole's row, check Moderator, Save | success, role updated | `/role has been updated/i` matched (screenshot `06b-change-role-result.png`) | PASS |
+| 10 | Remove — confirm step | click `[Remove]` on u_toremove's row | ConfirmFormBase step, NOT instant-fire | "Are you sure..." rendered, no deletion yet (screenshot `07b-remove-confirm-step.png`) | PASS |
+| 11 | Remove — confirm | click "Remove member" | success, relationship deleted | `"...has been removed from this group."` (screenshot `08b-remove-result.png`) | PASS |
+| 12 | Last-Organizer guard — disable-before-attempt | inspect u_organizer's row (SOLE Organizer on group 1) | Role/Remove `disabled`, `aria-describedby` note visible | `removeDisabled: true`, `roleDisabled: true`, `describedBy: "do-group-membership-guard-43"`, note text `"ⓘ Last Organizer — promote another member first."` | PASS |
+| 13 | Pending row visible | inspect table for seeded pending rows | 2 pending rows present | 2 found (`u_pendingapprove`, `u_pendingdeny`) | PASS |
+| 14 | Approve pending | click `[Approve]` on u_pendingapprove's row | success, row becomes active | `/approved|now an active/i` matched, `messages--status` div present | PASS |
+| 15 | Deny pending | click `[Deny]` on u_pendingdeny's row | success, relationship deleted | `/denied/i` matched, `messages--status` div present | PASS |
+| 16 | Pagination — page 1 | load `/group/1/members` (56 total group_membership relationships) | 50 rows | 50 rows confirmed | PASS |
+| 17 | Pagination — page 2 | click pager "2" | remaining rows (6 = 56−50) | 6 rows confirmed — mathematically exact | PASS |
+| 18 | Access — plain Member denied (AC-11) | u_plainmember → `/group/1/members` | HTTP 403 | HTTP 403 (screenshot `13-access-plainmember.png`) | PASS |
+| 19 | Access — Groups-Moderate allowed (AC-12) | u_groupsmoderate (never joined group 1) → `/group/1/members` | HTTP 200, real module table renders | HTTP 200, `do-group-membership` markup present (screenshot `14-access-groupsmoderate.png`) | PASS |
+| 20 | 360px viewport | navigate at 360×740 | page renders, badges/buttons legible, no broken overflow | renders responsively via `tableresponsive` treatment, badges/buttons legible (screenshot `15-360px-manage-members.png`) | PASS |
+| 21 | Console errors | inspect console/pageerror events on the steady-state page | none | 0 console errors captured | PASS |
+
+## AC-15 axe-core pass
+
+Ran `@axe-core/playwright` against every reachable Manage-members-family surface now that the
+route resolves correctly:
+
+**Steady-state table (`/group/1/members`, the real `ManageMembersForm`, u_organizer session):**
+2 violations, both **moderate**, **zero serious/critical**:
+- `heading-order` (moderate, 1 node) — pre-existing theme-level finding (same as round 1's
+  reachable-forms result), not module-introduced.
+- `region` (moderate, 1 node) — same theme-level class of finding.
+
+**Add-member form (`/group/1/members/add`, real F code):** **0 violations at all** — fully
+axe-clean, autocomplete field present (1), 3 role checkboxes present, matching wireframe
+Screen 3.
+
+**AC-15 verdict:** **PASS.** No serious/critical violations anywhere on the now-reachable
+Manage-members surface. The badge non-color-alone requirement, the guard's `aria-describedby`
+wiring, and the every-action-a-real-button requirement (all `<input type="submit">`, keyboard
+operable, correct disabled state) are now axe- and DOM-verified live, closing the exact gap
+round 1 flagged as unverifiable.
+
+## Copy nit (carried over from round 1, still present, non-blocking)
+
+The add-member success message still reads `"...has been added to this group."` without the
+role suffix the wireframe's Screen 3 specifies (`"...as Member."`). Minor, non-blocking,
+flagged again for F/O — does not affect this verdict.
+
+## Docker/env hygiene confirmation (this round)
+
+Created only `gm138-mysql` (MySQL 8, port 13306); removed only `gm138-mysql` on teardown.
+`docker ps -a` name-set diff before/after this round: **empty** — every `ddev-*` sibling and
+every other pre-existing container (including `o119t3-mysql`, absent from the current
+inventory, and the various `ddev-pl-*`/`ddev-da-*`/`reportportal-*`/`language-buddy-*`
+containers) confirmed untouched. `drush runserver`'s 4 worker child processes on port 8080
+confirmed killed (`lsof -i :8080` empty post-teardown). Throwaway Playwright scripts
+(`.u-walk.mjs`, `.u-walk2.mjs`, `.axe-forms.mjs`, `.check-msgs.mjs`, `.pager-recheck.mjs`) and
+their scratch npm install were NOT committed (scratchpad-only). Pre-existing worktree build
+artifacts (`config/sync/*`, `web/modules/custom/`, `web/sites/simpletest/` — all
+`assemble-config.sh` output, matching the state found at session start after a `git
+stash`/restore round-trip) left as found; `web/sites/default/settings.php` is gitignored build
+output.
+
+## Evidence
+
+All screenshots + JSON results copied to
+`docs/handoffs/0138-mc7-manage-members/evidence-U-rerun/`:
+- `01-group-canonical.png` — group canonical page with the "Manage members" tab visible.
+- `02-manage-members-navigated.png`, `02-crop-top.png`, `02-crop-table.png` — the REAL
+  steady-state Manage-members table after real tab navigation (active tab, H1, badges,
+  columns — matches wireframe Screen 1).
+- `03-04` — Add-member form + success result.
+- `05b-06b` — Change-role sub-form + success result.
+- `07b-08b` — Remove confirm step + success result.
+- `09b-10b` — Approve/Deny pending results.
+- `11-12` — Pagination page 1 (50 rows) / page 2 (6 rows).
+- `13-14` — Access control (plain-Member 403 / Groups-Moderate 200).
+- `15` — 360px viewport.
+- `axe-manage-members.json`, `axe-forms.json` — raw axe results.
+- `results.json`, `results2.json` — full structured step-by-step logs.
+- `manage-members-navigated.html` — full page source for DOM-evidence cross-checks.
+
+## Verdict
+
+**PASS.** The route-collision fix (F's multi-layered `hook_install` +
+`hook_modules_installed` + same-request router rebuild + views-guard) is confirmed live: the
+steady-state Manage-members UI this story exists to ship now renders correctly on the real
+navigated path (and identically on a hard reload), with every mandated interactive control
+(add member, change role, remove-with-confirm, approve/deny pending, the last-Organizer
+disable-before-attempt guard, 50-row pagination, and both access-control ACs) exercised live
+and passing. AC-15's axe-core pass found zero serious/critical violations. Ready for S.

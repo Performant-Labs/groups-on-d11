@@ -1301,3 +1301,46 @@ allowed_values-shape bug, now fixed — the "core list_string bug" framing is fu
 source-relative-fixture recheck clean. **CI WILL BE GREEN: YES.** Nothing routes back to F.
 
 **Evidence:** `handoff-T-green.md` "Final full-suite confirmation".
+
+## Phase 8 (UI Walkthrough, re-run after REWORK) — U: PASS
+
+**Decided:** Re-ran the full live headless-browser walkthrough against the assembled layout,
+standing up the site the same way `.github/workflows/test.yml`'s `e2e` job does (assemble →
+`site:install` → `config:import` → `drush en` → seed demo data → `drush runserver`). Confirmed
+the route-collision fix (F's `hook_install`/`hook_modules_installed` + same-request router
+rebuild + views-guard) is live: `router.route_provider->getRoutesByPattern('/group/1/members')`
+now returns exactly ONE route (`do_group_membership.manage_members`); the stock
+`view.group_members.page_1` display is gone from the view's own config
+(`display keys: default` only). Navigated via the real "Manage members" local-task tab (not a
+direct URL) and confirmed the steady-state `ManageMembersForm` renders (161
+`do-group-membership` markup hits, 0 `views-table`, real `<form>` present, H1 "Manage members"
+under the active tab) — matching the wireframe's Screen 1 exactly. Every mandated control
+(add member, change role, remove-with-confirm-step, approve/deny pending, the last-Organizer
+disable-before-attempt guard with live `aria-describedby`, `th scope="col"` on all 5 headers,
+50-row pagination to an exact page-2 remainder, plain-Member 403, Groups-Moderate-non-member
+200) was driven live and passed. AC-15 axe-core pass: zero serious/critical violations on the
+steady-state table (2 pre-existing moderate theme findings) and zero violations at all on the
+Add-member form.
+
+**Assumed:** None — every claim is backed by live browser-driven DOM/HTTP/axe evidence, not
+inference or a static code read (round 1's principal gap).
+
+**Route:** Nothing routes back to F. Ready for **S** (Spec Auditor) — the visual/WCAG verdict
+is S's, not U's; U's job (behavioral live-UI proof) is now complete and PASS.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-U.md`, "Re-run after REWORK —
+Phase 8, round 2" section; `docs/handoffs/0138-mc7-manage-members/evidence-U-rerun/`. Docker
+hygiene: only `gm138-mysql` created/removed this round, confirmed via `docker ps -a` diff
+before/after (empty diff — byte-identical).
+
+## Phase 8 (U re-run) — PASS: steady-state UI renders live, REWORK resolved
+
+**Decided:** U re-ran the live headless walkthrough + axe. **PASS.** The previously-dead steady-state
+Manage-members UI now renders live: route resolves ONLY to `do_group_membership.manage_members` (old
+view gone — 161 do-group-membership markup hits, 0 views-table markers); `<th scope="col">` ×5 in the
+live DOM. Every control driven live and passing: add / change-role / remove (ConfirmForm) / approve /
+deny, last-Organizer disable-before-attempt + aria-describedby, pagination (50 + 6), AC-11 plain
+Member → 403, AC-12 Groups-Moderate never-joined → 200, 360px responsive. **axe: zero serious/
+critical violations.** The Phase-8 REWORK is fully resolved.
+
+**Evidence:** `handoff-U.md` "Re-run after REWORK" + `evidence-U/`.
