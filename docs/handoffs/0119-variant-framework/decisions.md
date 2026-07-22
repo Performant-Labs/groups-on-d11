@@ -596,3 +596,45 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   filesystem restored via `git checkout`/`git clean` to only the one intended test-file diff plus
   the one pre-existing untracked file present before this round began. No mutating command run
   against the shared `groups-on-d11` checkout. Full detail in `handoff-T-green3.md`.
+
+## O — diff gate (o4-mini second-opinion) adjudication — 2026-07-22T14:18:00Z
+- **Decided:** Ran the diff gate over the full accumulated diff (base origin/main). Verdict BLOCK ×5.
+  Adjudicated each against the actual code + T's live evidence (o4-mini sees only the diff/brief, not
+  the live runs):
+  - **B-1 (ribbon tooltip dead wiring) — REAL → F.** DoShowcaseHooks::pageTop() attaches
+    do_chrome/tooltips + sets drupalSettings.doShowcase.ribbonTooltip, but NO ribbon element carries
+    `data-do-tooltip` and ribbon.js never consumes ribbonTooltip — so the appended
+    `showcase.ribbon` HelpText copy is dead. Fix: render a real `data-do-tooltip` ⓘ trigger on the
+    ribbon (do_chrome house pattern) OR remove the unused ribbonTooltip setting + showcase.ribbon key.
+    NOTE: the SWITCHER tooltip (the one the issue actually mandates) is correctly implemented —
+    twig emits `<span class="do-showcase-info" data-do-tooltip=...>ⓘ</span>` from
+    HelpText::get('showcase.switcher.<id>'), T live-verified it. So B-1 is a ribbon-only dead-wiring
+    defect, not a switcher gap.
+  - **B-2 (localStorage vs "per session") — REAL → F.** Issue/brief say "remembers choice per
+    session" + "dismissible per session". localStorage persists across browser restarts; sessionStorage
+    (or a session cookie with no max-age) matches the per-session contract. Fix both switcher.js +
+    ribbon.js. Keep the graceful-degradation fallback.
+  - **B-3 (no positive live-entry deep-link test) — REAL coverage gap → T.** Suite asserts [coming]
+    entries have NO link but never asserts a [live] entry (Discovery ranking, route
+    do_showcase.showcase) DOES render its deep-link with the right href. Add that assertion.
+  - **B-4 (tooltip engine init "unverified") — MAINTAIN-with-evidence (REJECT).** Verified directly:
+    do_chrome/js/do_chrome.tooltips.js registers Drupal.behaviors.doChromeTooltips + once() on
+    `[data-do-tooltip]` within context — attaches to server-rendered triggers at load and re-attaches
+    on AJAX. T live-verified switcher tooltips render. Not a real gap.
+  - **B-5 (page_top #[Hook] discovery "unverified") — MAINTAIN-with-evidence (REJECT).**
+    `#[Hook('page_attachments')]` is used by 4 sibling modules (do_chrome, do_group_pin,
+    do_profile_stats); page_top uses the identical hook_implementations attribute mechanism, and T
+    LIVE-verified the ribbon renders on a real served site (T-green2 cases 11-14 PASS). Empirically runs.
+  - WARN/NIT: W-1 (anchor role=radio) — worth F's judgment; the roving-tabindex + role=radio +
+    arrow-key pattern is already live-verified accessible, but F should confirm the anchor href still
+    serves the no-JS fallback (it does — that's the ?variant= link). W-3 (t() outside trait) — phpcs
+    already passed per F/T, but F folds the B-1/B-2 fix cleanly. NITs (indentation, trailing comma,
+    @file header) — F address opportunistically while in these files.
+- **Assumed:** none.
+- **Hedged:** B-1 resolution direction (add trigger vs. remove wiring) left to F's judgment against
+  the wireframe — the wireframe shows a ribbon with a link + dismiss; it does NOT depict a ribbon ⓘ
+  tooltip, so REMOVING the dead ribbonTooltip wiring + the showcase.ribbon key is the likelier-correct
+  minimal fix (the tooltip requirement is on switchers). F decides + documents.
+- **Evidence:** dual-review-diff.md (o4-mini round 1); do_chrome.tooltips.js source; DoShowcaseHooks.php
+  lines 62-104; VariantSwitcher.php + twig lines 37-38 (switcher tooltip correct); ShowcaseCatalog.php
+  status/route; showcase.spec.ts lines 407-417; sibling page_attachments hooks; T-green2 cases 11-14.
