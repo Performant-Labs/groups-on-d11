@@ -1,0 +1,15 @@
+name: DO Streams
+type: module
+description: 'Unified content streams: membership/following scope, ranking (recent/last-activity/hot/pinned-first), and a shared stream shell (scope tabs + ranking control). Ships inert; downstream stories attach routes.'
+core_version_requirement: ^11.2
+package: Custom
+dependencies:
+  - drupal:flag
+  - drupal:group
+  - drupal:node
+  - drupal:views
+  - drupal:comment
+  - drupal:taxonomy
+  - drupal:field
+  - do_group_pin:do_group_pin
+  - do_discovery:do_discovery

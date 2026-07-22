@@ -1,0 +1,173 @@
+uuid: 6e5f6b8a-6b8b-4e6a-9f1a-2f6c9b6f6e8a
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: do_streams_demo
+label: 'Do Streams Demo'
+module: views
+description: 'Fixture/proof view for do_streams scope + ranking plugins (Kernel-level only; not shipped config).'
+tag: ''
+base_table: node_field_data
+base_field: nid
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      title: 'Do Streams Demo'
+      fields:
+        title:
+          id: title
+          table: node_field_data
+          field: title
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: title
+          plugin_id: field
+          label: ''
+        type:
+          id: type
+          table: node_field_data
+          field: type
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: type
+          plugin_id: field
+          label: Type
+        created:
+          id: created
+          table: node_field_data
+          field: created
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: created
+          plugin_id: field
+          label: ''
+      pager:
+        type: full
+        options:
+          pagination_heading_level: h4
+          items_per_page: 25
+      sorts:
+        created:
+          id: created
+          table: node_field_data
+          field: created
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: created
+          plugin_id: date
+          order: DESC
+      arguments:
+        ranking:
+          id: ranking
+          table: views
+          field: 'null'
+          relationship: none
+          group_type: group
+          admin_label: ''
+          default_action: default
+          default_argument_type: fixed
+          default_argument_options:
+            argument: recent
+          plugin_id: 'null'
+      filters:
+        status:
+          id: status
+          table: node_field_data
+          field: status
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+        do_streams_membership_scope:
+          id: do_streams_membership_scope
+          table: node_field_data
+          field: do_streams_membership_scope
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: do_streams_membership_scope
+          value: ''
+      style:
+        type: default
+      row:
+        type: fields
+      query:
+        type: views_query
+        options:
+          distinct: true
+      use_ajax: true
+  page_1:
+    id: page_1
+    display_title: 'Do Streams Demo (membership scope)'
+    display_plugin: page
+    position: 1
+    display_options:
+      path: do-streams/demo/membership
+  page_following:
+    id: page_following
+    display_title: 'Do Streams Demo (following scope)'
+    display_plugin: page
+    position: 2
+    display_options:
+      path: do-streams/demo/following
+      defaults:
+        filters: false
+      filters:
+        status:
+          id: status
+          table: node_field_data
+          field: status
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+        do_streams_following_scope:
+          id: do_streams_following_scope
+          table: node_field_data
+          field: do_streams_following_scope
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: do_streams_following_scope
+          value: ''
+  page_global:
+    id: page_global
+    display_title: 'Do Streams Demo (global scope, ranking-only proof)'
+    display_plugin: page
+    position: 3
+    display_options:
+      path: do-streams/demo/global
+      defaults:
+        filters: false
+      filters:
+        status:
+          id: status
+          table: node_field_data
+          field: status
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: status
+          plugin_id: boolean
+          value: '1'

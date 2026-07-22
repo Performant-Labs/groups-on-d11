@@ -1,0 +1,71 @@
+{#
+/**
+ * @file
+ * Shared stream shell: scope tabs + Recent/Hot ranking control + results.
+ *
+ * Issue #109 (epic #108), brief [B-3] (shell contract) + the approved
+ * wireframe (docs/handoffs/109-do-streams-scaffold/wireframe.html). Wraps a
+ * COLLECTION of existing `stream_card`-rendered nodes (in `results`) with
+ * scope-tab and ranking-control chrome — it does not redesign the card
+ * itself (owned by node--stream-card.html.twig).
+ *
+ * Every tab and pill is a plain, non-linking element: per the acceptance
+ * criterion "no hardcoded routes", this scaffold ships inert (no route table
+ * entry of its own beyond the demo view). Each scope tab's `url_or_param`
+ * (a `?scope=<id>` query-parameter mapping, never a literal route path) is
+ * surfaced as a `data-url-or-param` attribute so Phase-1 stories
+ * (#110-#115) can read it off the DOM when they wire real navigation onto
+ * these SAME preprocess variables (`scope_tabs[n].id` / `ranking_control[n].id`),
+ * per the wireframe's annotation convention.
+ *
+ * Available variables:
+ * - scope_tabs: array of {id, label, url_or_param, active} for Global/My
+ *   Feed/Following/Trending. `url_or_param` is a `?scope=<id>`
+ *   query-parameter mapping, not a hardcoded route path.
+ * - ranking_control: array of {id, label, active} for Recent/Hot. Never
+ *   carries a `disabled` key (D-gate resolution 1: Trending's Recent pill
+ *   stays enabled/clickable).
+ * - results: a pre-rendered results render array (the shell does not know
+ *   how the results were queried).
+ * - empty: bool, true when results has zero rows.
+ * - empty_copy: scope-appropriate empty-state copy string (D-gate
+ *   resolution 2: 4 distinct strings, one per scope).
+ */
+#}
+<div class="shell do-streams-shell" data-testid="do-streams-shell">
+  <nav class="shell-tabs" aria-label="{{ 'Stream scope'|t }}" data-testid="do-streams-shell-tabs">
+    {% for tab in scope_tabs %}
+      <span class="shell-tabs__item{{ tab.active ? ' is-active' : '' }}"
+            data-testid="do-streams-shell-tab"
+            data-scope-id="{{ tab.id }}"
+            data-url-or-param="{{ tab.url_or_param }}"
+            {{ tab.active ? 'aria-current="true"' : '' }}>
+        {{ tab.label }}
+      </span>
+    {% endfor %}
+  </nav>
+
+  <div class="shell-ranking" data-testid="do-streams-shell-ranking">
+    <div class="shell-ranking__group" role="group" aria-label="{{ 'Ranking'|t }}">
+      {% for pill in ranking_control %}
+        <span class="shell-ranking__btn{{ pill.active ? ' is-active' : '' }}"
+              data-testid="do-streams-shell-ranking-pill"
+              data-ranking-id="{{ pill.id }}"
+              {{ pill.active ? 'aria-pressed="true"' : 'aria-pressed="false"' }}>
+          {{ pill.label }}
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if empty %}
+    <div class="gc-empty" data-testid="do-streams-shell-empty">
+      <p class="gc-empty__title">{{ 'Nothing here yet'|t }}</p>
+      <p class="gc-empty__text">{{ empty_copy }}</p>
+    </div>
+  {% else %}
+    <div class="shell-results" data-testid="do-streams-shell-results">
+      {{ results }}
+    </div>
+  {% endif %}
+</div>

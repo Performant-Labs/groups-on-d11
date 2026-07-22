@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wireframe — do_streams shared shell (issue #109)</title>
+<style>
+  /* ---- Approximated groups_chrome design tokens (low-fi, not production CSS) ---- */
+  :root {
+    --gc-color-primary: #0678be;
+    --gc-color-primary-600: #055a91;
+    --gc-color-primary-700: #044568;
+    --gc-color-primary-050: #e7f2fb;
+    --gc-color-bg: #ffffff;
+    --gc-color-bg-subtle: #f5f7fa;
+    --gc-color-border: #d6dde5;
+    --gc-color-text: #1b2733;
+    --gc-color-text-muted: #5c6b7a;
+    --gc-radius-sm: 4px;
+    --gc-radius-md: 8px;
+    --gc-radius-lg: 12px;
+    --gc-radius-pill: 999px;
+    --gc-space-xs: 0.5rem;
+    --gc-space-sm: 0.75rem;
+    --gc-space-md: 1rem;
+    --gc-space-lg: 1.5rem;
+    --gc-space-xl: 2rem;
+    --gc-space-2xl: 3rem;
+    --gc-font-size-xs: 0.75rem;
+    --gc-font-size-sm: 0.875rem;
+    --gc-font-size-md: 1rem;
+    --gc-font-size-lg: 1.25rem;
+    --gc-font-size-xl: 1.5rem;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Arial, system-ui, sans-serif;
+    color: var(--gc-color-text);
+    background: #eef1f4;
+    margin: 0;
+    padding: var(--gc-space-2xl) var(--gc-space-lg);
+  }
+  h1.doc-title {
+    max-width: 720px;
+    margin: 0 auto var(--gc-space-xs);
+    font-size: var(--gc-font-size-xl);
+  }
+  p.doc-sub {
+    max-width: 720px;
+    margin: 0 auto var(--gc-space-2xl);
+    color: var(--gc-color-text-muted);
+    font-size: var(--gc-font-size-sm);
+  }
+  .legend {
+    max-width: 720px;
+    margin: 0 auto var(--gc-space-2xl);
+    padding: var(--gc-space-md);
+    background: #fff8e1;
+    border: 1px dashed #c9a227;
+    border-radius: var(--gc-radius-md);
+    font-size: var(--gc-font-size-sm);
+  }
+  .legend code { background: #00000010; padding: 0 4px; border-radius: 3px; }
+
+  .state {
+    max-width: 720px;
+    margin: 0 auto var(--gc-space-2xl);
+  }
+  .state__label {
+    display: inline-block;
+    margin-bottom: var(--gc-space-sm);
+    padding: 2px 10px;
+    background: var(--gc-color-primary-700);
+    color: #fff;
+    font-size: var(--gc-font-size-xs);
+    font-weight: 600;
+    border-radius: var(--gc-radius-pill);
+    letter-spacing: 0.02em;
+  }
+  .state__note {
+    margin: 0 0 var(--gc-space-sm);
+    font-size: var(--gc-font-size-xs);
+    color: var(--gc-color-text-muted);
+  }
+
+  /* ---- Shell chrome: do-streams-shell.html.twig mockup ---- */
+  .shell {
+    background: var(--gc-color-bg);
+    border: 1px solid var(--gc-color-border);
+    border-radius: var(--gc-radius-lg);
+    padding: var(--gc-space-lg);
+  }
+
+  /* scope_tabs */
+  .shell-tabs {
+    display: flex;
+    gap: var(--gc-space-xs);
+    border-bottom: 1px solid var(--gc-color-border);
+    margin-bottom: var(--gc-space-md);
+    padding-bottom: 0;
+  }
+  .shell-tabs__item {
+    padding: var(--gc-space-xs) var(--gc-space-md);
+    font-size: var(--gc-font-size-sm);
+    font-weight: 500;
+    color: var(--gc-color-text-muted);
+    border-bottom: 3px solid transparent;
+    cursor: default;
+  }
+  .shell-tabs__item.is-active {
+    color: var(--gc-color-primary-700);
+    border-bottom-color: var(--gc-color-primary);
+    font-weight: 600;
+  }
+
+  /* ranking_control */
+  .shell-ranking {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--gc-space-md);
+  }
+  .shell-ranking__group {
+    display: inline-flex;
+    background: var(--gc-color-bg-subtle);
+    border: 1px solid var(--gc-color-border);
+    border-radius: var(--gc-radius-pill);
+    padding: 2px;
+  }
+  .shell-ranking__btn {
+    padding: 4px 14px;
+    font-size: var(--gc-font-size-xs);
+    font-weight: 500;
+    color: var(--gc-color-text-muted);
+    border-radius: var(--gc-radius-pill);
+    cursor: default;
+  }
+  .shell-ranking__btn.is-active {
+    background: var(--gc-color-primary);
+    color: #fff;
+  }
+
+  /* results: simplified stream_card-shaped rows (black box, not a redesign) */
+  .shell-results { display: flex; flex-direction: column; gap: var(--gc-space-sm); }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--gc-color-bg);
+    border: 1px solid var(--gc-color-border);
+    border-radius: var(--gc-radius-lg);
+    padding: var(--gc-space-md);
+    box-shadow: 0 1px 2px rgba(27,39,51,0.06);
+  }
+  .card__head { display: flex; align-items: center; gap: 8px; }
+  .card__avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--gc-color-primary-050);
+    color: var(--gc-color-primary-700);
+    display: flex; align-items: center; justify-content: center;
+    font-size: var(--gc-font-size-xs); font-weight: 700;
+  }
+  .card__author { font-size: var(--gc-font-size-sm); font-weight: 600; }
+  .card__group-badge {
+    font-size: var(--gc-font-size-xs);
+    background: var(--gc-color-primary-050);
+    color: var(--gc-color-primary-700);
+    padding: 2px 8px;
+    border-radius: var(--gc-radius-pill);
+  }
+  .card__time { font-size: var(--gc-font-size-xs); color: var(--gc-color-text-muted); margin-left: auto; }
+  .card__title { font-size: var(--gc-font-size-md); font-weight: 600; margin: 2px 0; }
+  .card__snippet { font-size: var(--gc-font-size-sm); color: var(--gc-color-text-muted); margin: 0; }
+  .card__foot { font-size: var(--gc-font-size-xs); color: var(--gc-color-text-muted); }
+  .card--dim { opacity: 0.55; } /* used to indicate "not this scope's real data, illustrative only" is NOT needed; unused */
+  .card--pinned { border-color: var(--gc-color-primary); }
+  .card--pinned .card__title::before { content: "\1F4CC  "; font-size: 0.8em; }
+
+  /* empty state: reuses .gc-empty pattern already in chrome.css */
+  .gc-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--gc-space-xs);
+    margin: var(--gc-space-lg) auto;
+    padding: var(--gc-space-xl) var(--gc-space-lg);
+    text-align: center;
+    background-color: var(--gc-color-bg-subtle);
+    border: 1px dashed var(--gc-color-border);
+    border-radius: var(--gc-radius-lg);
+  }
+  .gc-empty__title { margin: 0; font-size: var(--gc-font-size-lg); font-weight: 600; }
+  .gc-empty__text { margin: 0; font-size: var(--gc-font-size-sm); color: var(--gc-color-text-muted); max-width: 32rem; }
+  .gc-empty__cta {
+    margin-top: 6px;
+    font-size: var(--gc-font-size-sm);
+    color: var(--gc-color-primary-700);
+    font-weight: 600;
+  }
+
+  .annot {
+    margin-top: var(--gc-space-sm);
+    font-size: var(--gc-font-size-xs);
+    color: var(--gc-color-text-muted);
+    background: var(--gc-color-bg-subtle);
+    border-radius: var(--gc-radius-sm);
+    padding: var(--gc-space-sm);
+  }
+  .annot code { background: #00000010; padding: 0 4px; border-radius: 3px; }
+  .annot ul { margin: 4px 0 0; padding-left: 18px; }
+</style>
+</head>
+<body>
+
+<h1 class="doc-title">do_streams — shared stream shell wireframe (issue #109)</h1>
+<p class="doc-sub">
+  Low-fidelity mockup of the theme hook <code>do_streams_shell</code>
+  (<code>do-streams-shell.html.twig</code>). Covers scope tabs, ranking control, and the shell
+  wrapping existing <code>stream_card</code>-rendered rows, across 6 states. This is a visual
+  mockup only — no real routes, Twig logic, or PHP are wired.
+</p>
+
+<div class="legend">
+  <strong>Parameterization note (acceptance criterion: no hardcoded routes).</strong>
+  Every tab and ranking control below is annotated with its preprocess-variable origin
+  (<code>scope_tabs[n].id</code> / <code>ranking_control[n].id</code>) rather than a literal
+  href. In the real template, each control's link/action target is built from the
+  <code>url_or_param</code> value the preprocess function supplies — never a hardcoded path
+  string in the Twig file. The wireframe below labels controls with their logical <code>id</code>
+  to make this explicit; it does not print any URL.
+</div>
+
+<!-- =====================================================================
+     STATE 1 — Default: Global / Recent, 3 cards
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 1 of 6 — Default (Global, Recent, many results)</span>
+  <p class="state__note">scope_tabs: Global active · ranking_control: Recent active · results: 3 rows · empty: false</p>
+
+  <div class="shell">
+    <nav class="shell-tabs" aria-label="Stream scope">
+      <span class="shell-tabs__item is-active">Global</span>
+      <span class="shell-tabs__item">My Feed</span>
+      <span class="shell-tabs__item">Following</span>
+      <span class="shell-tabs__item">Trending</span>
+    </nav>
+
+    <div class="shell-ranking">
+      <div class="shell-ranking__group" role="group" aria-label="Ranking">
+        <span class="shell-ranking__btn is-active">Recent</span>
+        <span class="shell-ranking__btn">Hot</span>
+      </div>
+    </div>
+
+    <div class="shell-results">
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">J</span>
+          <span class="card__author">Jamie Rivera</span>
+          <span class="card__group-badge">Garden Collective</span>
+          <span class="card__time">2h ago</span>
+        </div>
+        <h3 class="card__title">Spring planting schedule posted</h3>
+        <p class="card__snippet">We finalized bed assignments for the spring rotation&hellip;</p>
+        <div class="card__foot">4 comments</div>
+      </article>
+
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">M</span>
+          <span class="card__author">Morgan Lee</span>
+          <span class="card__group-badge">Bike Co-op</span>
+          <span class="card__time">5h ago</span>
+        </div>
+        <h3 class="card__title">Saturday ride — meetup point changed</h3>
+        <p class="card__snippet">Moving the start to the north lot due to construction&hellip;</p>
+        <div class="card__foot">1 comment</div>
+      </article>
+
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">A</span>
+          <span class="card__author">Ari Chen</span>
+          <span class="card__group-badge">Book Club</span>
+          <span class="card__time">1d ago</span>
+        </div>
+        <h3 class="card__title">March pick: discussion thread</h3>
+        <p class="card__snippet">Starting the thread early this month so everyone has time&hellip;</p>
+        <div class="card__foot">9 comments</div>
+      </article>
+    </div>
+  </div>
+
+  <div class="annot">
+    <strong>Maps to:</strong>
+    <ul>
+      <li><code>scope_tabs</code> — the 4-item tab row; each item is <code>{id, label, url_or_param, active}</code>; here <code>{id: "global", active: true}</code>.</li>
+      <li><code>ranking_control</code> — the pill toggle; <code>{id: "recent", active: true}</code> / <code>{id: "hot", active: false}</code>.</li>
+      <li><code>results</code> — the 3 rendered <code>stream_card</code> rows (existing view mode, simplified/black-boxed here).</li>
+      <li><code>empty</code> — false (results non-empty, no empty block rendered).</li>
+    </ul>
+  </div>
+</div>
+
+<!-- =====================================================================
+     STATE 2 — My Feed active
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 2 of 6 — My Feed tab active</span>
+  <p class="state__note">scope_tabs: My Feed active (membership scope) · ranking_control: Recent active · results: 2 rows</p>
+
+  <div class="shell">
+    <nav class="shell-tabs" aria-label="Stream scope">
+      <span class="shell-tabs__item">Global</span>
+      <span class="shell-tabs__item is-active">My Feed</span>
+      <span class="shell-tabs__item">Following</span>
+      <span class="shell-tabs__item">Trending</span>
+    </nav>
+
+    <div class="shell-ranking">
+      <div class="shell-ranking__group" role="group" aria-label="Ranking">
+        <span class="shell-ranking__btn is-active">Recent</span>
+        <span class="shell-ranking__btn">Hot</span>
+      </div>
+    </div>
+
+    <div class="shell-results">
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">J</span>
+          <span class="card__author">Jamie Rivera</span>
+          <span class="card__group-badge">Garden Collective</span>
+          <span class="card__time">2h ago</span>
+        </div>
+        <h3 class="card__title">Spring planting schedule posted</h3>
+        <p class="card__snippet">We finalized bed assignments for the spring rotation&hellip;</p>
+        <div class="card__foot">4 comments</div>
+      </article>
+
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">S</span>
+          <span class="card__author">Sam Patel</span>
+          <span class="card__group-badge">Garden Collective</span>
+          <span class="card__time">1d ago</span>
+        </div>
+        <h3 class="card__title">Compost bin sign-up sheet</h3>
+        <p class="card__snippet">Add your name if you want a weekly turn&hellip;</p>
+        <div class="card__foot">2 comments</div>
+      </article>
+    </div>
+  </div>
+
+  <div class="annot">
+    <strong>Maps to:</strong> <code>scope_tabs</code> item <code>{id: "my_feed", active: true}</code> —
+    results restricted to groups the current viewing user belongs to (membership-scope plugin,
+    [B-9]). Ranking control unaffected by scope selection — remains independently toggleable.
+  </div>
+</div>
+
+<!-- =====================================================================
+     STATE 3 — Following active
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 3 of 6 — Following tab active</span>
+  <p class="state__note">scope_tabs: Following active · ranking_control: Recent active · results: 1 row (deduped across follow_content/follow_user/follow_term)</p>
+
+  <div class="shell">
+    <nav class="shell-tabs" aria-label="Stream scope">
+      <span class="shell-tabs__item">Global</span>
+      <span class="shell-tabs__item">My Feed</span>
+      <span class="shell-tabs__item is-active">Following</span>
+      <span class="shell-tabs__item">Trending</span>
+    </nav>
+
+    <div class="shell-ranking">
+      <div class="shell-ranking__group" role="group" aria-label="Ranking">
+        <span class="shell-ranking__btn is-active">Recent</span>
+        <span class="shell-ranking__btn">Hot</span>
+      </div>
+    </div>
+
+    <div class="shell-results">
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">M</span>
+          <span class="card__author">Morgan Lee</span>
+          <span class="card__group-badge">Bike Co-op</span>
+          <span class="card__time">5h ago</span>
+        </div>
+        <h3 class="card__title">Saturday ride — meetup point changed</h3>
+        <p class="card__snippet">Moving the start to the north lot due to construction&hellip;</p>
+        <div class="card__foot">1 comment</div>
+      </article>
+    </div>
+  </div>
+
+  <div class="annot">
+    <strong>Maps to:</strong> <code>scope_tabs</code> item <code>{id: "following", active: true}</code> —
+    results are the OR of follow_content/follow_user/follow_term, deduped (a single row even if a
+    node matches more than one follow branch). Single-row illustrates the dedupe guarantee, not a
+    literal count expectation.
+  </div>
+</div>
+
+<!-- =====================================================================
+     STATE 4 — Trending active (Global scope + Hot ranking forced/defaulted)
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 4 of 6 — Trending tab active (Hot ranking pre-selected)</span>
+  <p class="state__note">scope_tabs: Trending active (= Global scope, [B-8]) · ranking_control: Hot pre-selected · results: 2 rows</p>
+
+  <div class="shell">
+    <nav class="shell-tabs" aria-label="Stream scope">
+      <span class="shell-tabs__item">Global</span>
+      <span class="shell-tabs__item">My Feed</span>
+      <span class="shell-tabs__item">Following</span>
+      <span class="shell-tabs__item is-active">Trending</span>
+    </nav>
+
+    <div class="shell-ranking">
+      <div class="shell-ranking__group" role="group" aria-label="Ranking">
+        <span class="shell-ranking__btn">Recent</span>
+        <span class="shell-ranking__btn is-active">Hot</span>
+      </div>
+    </div>
+
+    <div class="shell-results">
+      <article class="card card--pinned">
+        <div class="card__head">
+          <span class="card__avatar">A</span>
+          <span class="card__author">Ari Chen</span>
+          <span class="card__group-badge">Book Club</span>
+          <span class="card__time">1d ago</span>
+        </div>
+        <h3 class="card__title">March pick: discussion thread</h3>
+        <p class="card__snippet">Starting the thread early this month so everyone has time&hellip;</p>
+        <div class="card__foot">9 comments &middot; hot score high</div>
+      </article>
+
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">J</span>
+          <span class="card__author">Jamie Rivera</span>
+          <span class="card__group-badge">Garden Collective</span>
+          <span class="card__time">2h ago</span>
+        </div>
+        <h3 class="card__title">Spring planting schedule posted</h3>
+        <p class="card__snippet">We finalized bed assignments for the spring rotation&hellip;</p>
+        <div class="card__foot">4 comments</div>
+      </article>
+    </div>
+  </div>
+
+  <div class="annot">
+    <strong>Maps to:</strong> <code>scope_tabs</code> item <code>{id: "trending", active: true}</code>.
+    Per [B-8], "Trending" is not its own scope plugin — it is Global scope (no scope filter) with
+    <code>ranking_control</code> item <code>{id: "hot", active: true}</code> pre-selected/defaulted
+    by the view/route that attaches to this shell. The Hot pill is shown already active here
+    specifically to make that default visible — this is the key visual cue the wireframe must
+    convey per the brief. The pin icon on the first card is illustrative of "hot" ordering only,
+    not a claim about pinned-first ranking (a separate ranking option, not shown as its own state
+    since it's not in the brief's required 6).
+  </div>
+</div>
+
+<!-- =====================================================================
+     STATE 5 — Ranking toggled to Hot under a non-Trending tab (My Feed)
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 5 of 6 — Ranking control toggled to Hot (shown under My Feed, independent of scope)</span>
+  <p class="state__note">scope_tabs: My Feed active · ranking_control: Hot active (user-toggled, not scope-defaulted) · results: 2 rows re-ordered by hot score</p>
+
+  <div class="shell">
+    <nav class="shell-tabs" aria-label="Stream scope">
+      <span class="shell-tabs__item">Global</span>
+      <span class="shell-tabs__item is-active">My Feed</span>
+      <span class="shell-tabs__item">Following</span>
+      <span class="shell-tabs__item">Trending</span>
+    </nav>
+
+    <div class="shell-ranking">
+      <div class="shell-ranking__group" role="group" aria-label="Ranking">
+        <span class="shell-ranking__btn">Recent</span>
+        <span class="shell-ranking__btn is-active">Hot</span>
+      </div>
+    </div>
+
+    <div class="shell-results">
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">S</span>
+          <span class="card__author">Sam Patel</span>
+          <span class="card__group-badge">Garden Collective</span>
+          <span class="card__time">1d ago</span>
+        </div>
+        <h3 class="card__title">Compost bin sign-up sheet</h3>
+        <p class="card__snippet">Add your name if you want a weekly turn&hellip;</p>
+        <div class="card__foot">2 comments &middot; hot score high</div>
+      </article>
+
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">J</span>
+          <span class="card__author">Jamie Rivera</span>
+          <span class="card__group-badge">Garden Collective</span>
+          <span class="card__time">2h ago</span>
+        </div>
+        <h3 class="card__title">Spring planting schedule posted</h3>
+        <p class="card__snippet">We finalized bed assignments for the spring rotation&hellip;</p>
+        <div class="card__foot">4 comments</div>
+      </article>
+    </div>
+  </div>
+
+  <div class="annot">
+    <strong>Maps to:</strong> <code>ranking_control</code> item <code>{id: "hot", active: true}</code>
+    combined with <code>scope_tabs</code> item <code>{id: "my_feed", active: true}</code> — this
+    demonstrates the ranking control is an orthogonal parameter, selectable under ANY scope tab
+    (per [B-2], a plugin-selected mode passed as a query parameter/argument, not tied to a
+    particular scope). The row order changes (highest hot score first) but the visible card set
+    stays within the My Feed scope.
+  </div>
+</div>
+
+<!-- =====================================================================
+     STATE 6 — Empty state
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 6 of 6 — Empty state (zero results)</span>
+  <p class="state__note">scope_tabs: Following active (example) · ranking_control: Recent active · results: 0 rows · empty: true</p>
+
+  <div class="shell">
+    <nav class="shell-tabs" aria-label="Stream scope">
+      <span class="shell-tabs__item">Global</span>
+      <span class="shell-tabs__item">My Feed</span>
+      <span class="shell-tabs__item is-active">Following</span>
+      <span class="shell-tabs__item">Trending</span>
+    </nav>
+
+    <div class="shell-ranking">
+      <div class="shell-ranking__group" role="group" aria-label="Ranking">
+        <span class="shell-ranking__btn is-active">Recent</span>
+        <span class="shell-ranking__btn">Hot</span>
+      </div>
+    </div>
+
+    <div class="gc-empty">
+      <p class="gc-empty__title">Nothing here yet</p>
+      <p class="gc-empty__text">
+        You're not following any content, people, or tags yet. Follow a post, a member, or a tag
+        to see their activity here.
+      </p>
+      <span class="gc-empty__cta">Browse groups to find people and tags to follow &rarr;</span>
+    </div>
+  </div>
+
+  <div class="annot">
+    <strong>Maps to:</strong> <code>empty</code> = true, gating the template's branch from
+    printing <code>results</code> to printing this block instead. Reuses the EXISTING
+    <code>.gc-empty</code> / <code>.gc-empty__title</code> / <code>.gc-empty__text</code> classes
+    already defined in <code>groups_chrome/css/chrome.css</code> (used today by the all_groups
+    directory and group_nodes stream empty-text areas) — the shell's empty state is copy-adapted
+    per scope, not a new visual pattern. <strong>Truthful copy:</strong> the message names the
+    concrete prerequisite for this scope (follow something) rather than a generic "no results"
+    — the CTA is illustrative wording; F/the real preprocess should tailor per-scope copy (e.g.
+    Global empty would read differently than Following empty, since "browse groups" isn't the
+    right CTA if Global itself is empty). This is flagged as an open question below.
+  </div>
+</div>
+
+</body>
+</html>
