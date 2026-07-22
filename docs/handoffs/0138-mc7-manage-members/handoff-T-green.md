@@ -789,3 +789,224 @@ and not environment artifacts:
 Route back to F for both. T then re-runs `ManageMembersRouteResolutionTest` (must go 3/3 RED→GREEN)
 AND the 3 previously-authored Functional files (must return to their prior env-blocked-only state,
 not a new install-time crash) before U re-walks.
+
+## Route-collision v3 verify (independent re-verification, 2026-07-22)
+
+F's v3 fix (`docs/handoffs/0138-mc7-manage-members/handoff-F.md`, "Route-collision fix v3 (router
+rebuild + views guard)") addresses the two BLOCKs from the previous T round: (1) the router staying
+stale within a single install request (fix: `router.builder->rebuild()` inside the strip helper,
+only when a strip occurred), (2) `getStorage('view')` crashing on views-less sites (fix: an early
+`moduleHandler()->moduleExists('views')` guard). F verified via a one-off in-request PHP script
+(`module_installer->install(...)` in a single bootstrap). This round independently re-confirms via a
+REAL PHPUnit run of the actual authored suite (`BrowserTestBase`/`KernelTestBase`, not a bespoke
+script), which is the strongest form of confirmation since it's the exact harness CI will use.
+
+### Environment stood up this round
+
+- `vendor/` in this worktree was thin (missing `web/core`'s lib tree resolution artifacts and
+  contrib packages) at session start — PHP 8.3 (`brew`-linked) can't satisfy `doctrine/instantiator
+  2.1.0`'s `^8.4` constraint from `composer.lock`. Ran `composer install` with the unlinked **PHP
+  8.5.6** binary at `/opt/homebrew/opt/php@8.5/bin/php` (matching F's own PHP version, confirmed in
+  `handoff-F.md`) — succeeded cleanly, full `web/core` + `web/modules/contrib/group` materialized.
+- Own Docker MySQL 8 container **`gm138t-mysql`** (port 33091), created and removed only by me this
+  round. `docker ps -a` before this round showed zero `gm138-*` containers (prior rounds' had already
+  been torn down); the pre-existing sibling `o119u1-mysql` (a different, concurrently-running task's
+  container) was present before I started and confirmed **untouched** — `docker ps -a` diffed
+  before/after teardown shows only `gm138t-mysql` added then removed, every other container
+  byte-identical.
+- A local PHP 8.5 built-in webserver (`php -S 127.0.0.1:8993 .ht.router.php` from `web/`) for
+  `BrowserTestBase`'s `SIMPLETEST_BASE_URL`, killed at teardown.
+- `SIMPLETEST_DB=mysql://root@127.0.0.1:33091/drupal`, `SIMPLETEST_BASE_URL=http://127.0.0.1:8993`,
+  `BROWSERTEST_OUTPUT_DIRECTORY` pointed at the session scratchpad.
+- `web/sites/simpletest/` (gitignored/untracked BrowserTestBase scaffolding) removed at teardown;
+  confirmed untracked (`git ls-files` empty) before removal, so no git-visible impact.
+
+### 1. `ManageMembersRouteResolutionTest` — 3/3 GREEN (real PHPUnit execution)
+
+First run (unmodified test file) surfaced **2 genuine T-authorship bugs in the test's own `setUp()`**
+— NOT defects in F's v3 fix — that must be fixed before the suite can prove anything:
+
+- `testLocalTaskNavigatesToNewRoute` initially failed with `Current response status code is 403,
+  but 200 expected` on `drupalGet($this->group->toUrl())` itself (before even reaching the tab
+  click). Root cause: this test's `setUp()` grants the `community_group-organizer` role only
+  `['administer members']` — it never granted `'view group'`, so the Organizer fixture couldn't even
+  view the group canonical page. The real, shipped `docs/groups/config/group.role.community_group-
+  organizer.yml` carries a much richer permission set (`edit group` + 20 content permissions);
+  the test's minimal fixture role was simply missing a permission the production role always has.
+  **Fix:** added `'view group'` to the fixture role's `permissions` array (confirmed `'view group'`
+  is a real Group-4.x-generated permission string via `GroupAccessControlHandler::checkAccess()`'s
+  `case 'view'` branch — not invented).
+- After that fix, the same test failed differently: `No link containing href /group/1/members found`
+  on the group canonical page. Root cause: this test declares `protected $defaultTheme = 'stark'`,
+  and `stark` ships no `page.html.twig`/default block layout — a fresh `BrowserTestBase` install
+  places **zero blocks**, so no local-tasks block (and therefore no "Manage members" tab link) was
+  ever rendered on the page, regardless of the route/menu-link registration being entirely correct.
+  This is page-chrome test setup, not a module defect. **Fix:** added `block` to `$modules`, used
+  `BlockCreationTrait::placeBlock('local_tasks_block')` in `setUp()` (standard Drupal-core testing
+  convention; no sibling test in this suite had needed a block before because none of them assert
+  against a *navigated* tab link, only direct GETs).
+
+Both fixes are test-only (T's own authorship, not production code, not a route-back to F — matches
+this role's mandate: "if a test is wrong, T fixes the test").
+
+**Real GREEN, this run:**
+```
+$ SIMPLETEST_DB=mysql://root@127.0.0.1:33091/drupal SIMPLETEST_BASE_URL=http://127.0.0.1:8993 \
+  vendor/bin/phpunit -c web/core \
+  docs/groups/modules/do_group_membership/tests/src/Functional/ManageMembersRouteResolutionTest.php
+DDD                                                                 3 / 3 (100%)
+Time: 00:31.066, Memory: 16.00 MB
+OK, but there were issues!
+Tests: 3, Assertions: 22, Deprecations: 3, PHPUnit Deprecations: 4.
+```
+(`D` = deprecation-only, not a failure marker; PHPUnit's dot-report shows no `F`/`E`. All 3 methods
+— `testRouterResolvesToModuleRoute`, `testPageServesNewFormNotOldView`,
+`testLocalTaskNavigatesToNewRoute` — pass.) The 3 deprecation notices are pre-existing Drupal-core/
+Twig deprecations unrelated to this module (confirmed identical wording/location to deprecations
+seen in every other test file run this round).
+
+This directly confirms both v3 fixes work for real, in the same harness CI uses:
+- `testRouterResolvesToModuleRoute` passing proves the router is NOT stale within the single install
+  request `BrowserTestBase` performs — FIX 1 (the `router.builder->rebuild()` call) closes the gap.
+- All 3 methods running to completion with `views` enabled (this test's `$modules` includes `views`)
+  and no `PluginNotFoundException` anywhere confirms the views-guard doesn't regress the
+  views-enabled path either (FIX 2 is additive/guarded, not a behavior change when views IS present).
+
+### 2. The 3 previously-erroring pre-existing Functional/Kernel test files — regression closed
+
+Per the mandate, ran the exact files whose 8 methods F's v2 regression made ERROR with
+`PluginNotFoundException` (none of these declare `views` in `$modules`):
+
+```
+$ vendor/bin/phpunit -c web/core .../Functional/ManageMembersRouteAccessTest.php
+Tests: 4, Assertions: 18, Deprecations: 2, PHPUnit Deprecations: 5.   -- OK, 4/4 GREEN (real)
+
+$ vendor/bin/phpunit -c web/core .../Functional/ManageMembersPageRenderTest.php
+Tests: 3, Assertions: 0, Errors: 3, Deprecations: 2, PHPUnit Deprecations: 4.  -- ERROR, 0/3
+
+$ vendor/bin/phpunit -c web/core .../Functional/ManageMembersPaginationTest.php
+Tests: 1, Assertions: 0, Errors: 1, Deprecations: 2, PHPUnit Deprecations: 2.  -- ERROR, 0/1
+
+$ vendor/bin/phpunit -c web/core .../Kernel/GroupMembershipManagerKernelTest.php
+Tests: 10, Assertions: 0, Errors: 10, Deprecations: 1, PHPUnit Deprecations: 11. -- ERROR, 0/10
+
+$ vendor/bin/phpunit -c web/core .../Kernel/ManageMembersAccessTest.php
+Tests: 4, Assertions: 98, Deprecations: 2, PHPUnit Deprecations: 5.  -- OK, 4/4 GREEN (real)
+```
+
+**Regression check (the specific thing that must be proven):** grepped every ERROR's stack trace —
+`grep -i "PluginNotFound"` across all 5 runs returns **zero matches**. Every ERROR is the identical,
+already-diagnosed, pre-existing, code-independent core bug: `InvalidArgumentException: The
+configuration property settings.allowed_values.0.label.0 doesn't exist.` at
+`FieldStorageConfig::create([...'list_string'...])->save()` — same exception class, same message,
+same call site shape documented and root-caused in Phase 6 (reproduced there with a throwaway
+zero-`do_group_membership`-code scratch test on both `group_relationship` and `user` entity types,
+PHP 8.3 and PHP 8.5, Drupal 11.4.4). **FIX 2 (the `views`-existence guard) closes the regression: no
+test in this run crashed with the v2-introduced `PluginNotFoundException` on `view` entity-type
+storage.** The 14 methods across these 3 files (`ManageMembersPageRenderTest` ×3,
+`ManageMembersPaginationTest` ×1, `GroupMembershipManagerKernelTest` ×10) are back to their prior
+GREEN-except-for-the-pre-existing-core-bug status, exactly as expected — not a new install-time
+crash class.
+
+**New, favorable finding beyond the mandate:** `ManageMembersRouteAccessTest` (4 methods) and
+`ManageMembersAccessTest` (Kernel, 4 methods) are BOTH **real GREEN** in this environment — this
+contradicts the prior round's characterization of `ManageMembersRouteAccessTest` as blocked by a
+"pre-existing `drupalLogin()`/`BrowserTestBase` cookie-session sandbox limitation." That limitation
+does not reproduce in this session's environment (PHP 8.5.6 + a fresh Docker MySQL 8 + a fresh
+built-in PHP webserver) — most likely an artifact specific to the prior sandbox's networking/cookie
+handling, not a defect of any kind. Flagging as a genuine, favorable tally correction, not silently
+absorbed: **the "18 env-blocked" figure from earlier rounds is stale.** See the corrected tally
+below.
+
+### 3. Install-hook-fires + router-rebuild confirmation (in-request, real harness)
+
+`ManageMembersRouteResolutionTest::testRouterResolvesToModuleRoute()` IS the install-hook-fires
+confirmation, run for real in `BrowserTestBase`'s own install lifecycle (not a bespoke script): the
+test's `$modules` array includes `do_group_membership`, so `BrowserTestBase::setUp()`'s module
+installer runs `hook_install()`/`hook_modules_installed()` for real as part of bootstrapping the
+test site, in the exact same single request the assertions execute in. The test asserts, in that
+same request, that `router.route_provider->getRoutesByPattern()` returns ONLY the module's route as
+a candidate and `router.no_access_checks->matchRequest()` resolves to it — this is only possible if
+(a) the `page_1` strip actually ran during install (removing the View's route as a candidate) AND
+(b) the router was rebuilt within that same request afterward. Passing proves both empirically, in
+the real BrowserTestBase bootstrap path — the identical lifecycle CI's Functional tier uses.
+
+### 4. Unit tier — 16/16 GREEN (regression sweep)
+
+```
+$ vendor/bin/phpunit -c web/core docs/groups/modules/do_group_membership/tests/src/Unit/
+.DDD.D..........                                                  16 / 16 (100%)
+Tests: 16, Assertions: 63, PHPUnit Deprecations: 7.
+```
+No failures/errors — confirms the `.install`-only change (no `src/` PHP touched this round) has zero
+effect on the Unit-mocked manager/config-shape tests, as expected.
+
+### 5. #109 lesson recheck (source-relative fixture reads) — still holds
+
+```
+grep -rn "__DIR__" docs/groups/modules/do_group_membership/tests/src/Unit/*.php
+```
+Both `GroupRoleConfigShapeTest.php` and `MembershipStatusFieldConfigShapeTest.php` still use the
+walk-up-from-`__DIR__`-searching-for-`docs/groups/config/*.yml` pattern (matching `do_tests`'
+`GroupAddFormFieldsTest::locateFormDisplayYaml()` precedent), not a hardcoded source-relative or
+checkout-relative literal path. No new fixture-reading code was added this round (the only test file
+touched, `ManageMembersRouteResolutionTest.php`, reads no fixtures at all — it's Functional-tier,
+driving real HTTP against a real installed site). Confirmed still compliant; no fix needed.
+
+### Corrected final test tally (real execution, this round)
+
+| Tier | File | Methods | Result |
+|---|---|---|---|
+| Unit | `GroupMembershipManagerTest` + `GroupRoleConfigShapeTest` + `MembershipStatusFieldConfigShapeTest` | 16 | **16/16 GREEN** (real) |
+| Kernel | `ManageMembersAccessTest` | 4 | **4/4 GREEN** (real — not env-blocked this round) |
+| Kernel | `GroupMembershipManagerKernelTest` | 10 | 0/10 — env-blocked (core `list_string` schema bug) |
+| Functional | `ManageMembersRouteResolutionTest` | 3 | **3/3 GREEN** (real, NOT env-blocked by design) |
+| Functional | `ManageMembersRouteAccessTest` | 4 | **4/4 GREEN** (real — not env-blocked this round) |
+| Functional | `ManageMembersPageRenderTest` | 3 | 0/3 — env-blocked (same core bug) |
+| Functional | `ManageMembersPaginationTest` | 1 | 0/1 — env-blocked (same core bug) |
+
+**Env-blocked count is now 14** (all `GroupMembershipManagerKernelTest`'s 10 + `ManageMembersPage
+RenderTest`'s 3 + `ManageMembersPaginationTest`'s 1 — all one root cause, the pre-existing Drupal
+11.4.4 `list_string` config-schema bug), **down from the previously-reported 18**. The 4-method drop
+is `ManageMembersRouteAccessTest`, previously counted as env-blocked via a `drupalLogin()` sandbox
+limitation that did not reproduce in this session's environment — a real, favorable correction, not
+a defect fix. All 14 remaining env-blocked methods are CI-pinned (expected to pass in a clean
+CI/DDEV environment where the core bug's specific package-resolution quirk doesn't reproduce,
+consistent with this repo's green `.github/workflows/test.yml` history for sibling Functional
+suites) — this is an assumption carried forward unchanged from Phase 6, not re-verified in a second
+environment this round.
+
+**Real-executed, real-GREEN total this round (these 7 files): 27/27 GREEN** (16 Unit + 4
+`ManageMembersAccessTest` + 3 `ManageMembersRouteResolutionTest` + 4 `ManageMembersRouteAccessTest`),
+plus **14 env-blocked/CI-pinned** (`GroupMembershipManagerKernelTest` ×10 + `ManageMembersPageRenderTest`
+×3 + `ManageMembersPaginationTest` ×1) = **41 total PHPUnit methods across these 7 files**, all
+accounted for as either real-GREEN or CI-pinned-for-the-known-core-bug — none unexplained, none newly
+broken.
+
+### Docker hygiene (this round)
+
+`docker ps -a` before this round: no `gm138-*` container of any kind existed (prior rounds' were
+already torn down); `o119u1-mysql` (a different, concurrently-running task's container) was present
+and is confirmed **untouched** — before/after container name-set diff shows only `gm138t-mysql`
+added then removed, everything else byte-identical. Local PHP webserver on port 8993 killed at
+teardown. `web/sites/simpletest/` (untracked scaffolding) removed at teardown.
+
+### Verdict
+
+**GREEN.** Both v3 fixes (router rebuild + views guard) independently confirmed via real PHPUnit
+execution in the actual BrowserTestBase/KernelTestBase harness:
+- Route-resolution suite: **3/3 GREEN** (was 3/3 RED before F's original REWORK fix; confirmed not
+  env-blocked, runs for real).
+- Views-less-site regression: **closed** — zero `PluginNotFoundException` across all 5 re-run files;
+  every remaining failure is the identical pre-existing core bug, not a new crash class.
+- Install-hook-fires + same-request router-rebuild: confirmed empirically via the real
+  `BrowserTestBase` bootstrap lifecycle, not just F's bespoke script.
+- Unit: 16/16 GREEN, no regression.
+- #109 lesson: still holds, no violation.
+- 2 T-authorship bugs found and fixed in `ManageMembersRouteResolutionTest.php`'s own `setUp()`
+  (missing `'view group'` permission on the fixture role; missing `local_tasks_block` placement for
+  the `stark` theme) — neither traces to F's code, both are test-only fixes per this role's mandate.
+
+**No route-back to F.** Ready for A (anti-duplication re-check on the test-only diff, if warranted)
+then back into the U (UI Walkthrough) re-walk of the now-unblocked steady-state Manage-members
+surface, per the original Phase 8 REWORK sequencing.

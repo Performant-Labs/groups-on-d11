@@ -6,6 +6,7 @@ namespace Drupal\Tests\do_group_membership\Functional;
 
 use Drupal\group\PermissionScopeInterface;
 use Drupal\Tests\BrowserTestBase;
+use Drupal\Tests\block\Traits\BlockCreationTrait;
 use Drupal\Tests\group\Traits\GroupTestTrait;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -43,11 +44,12 @@ use Symfony\Component\HttpFoundation\Request;
 class ManageMembersRouteResolutionTest extends BrowserTestBase {
 
   use GroupTestTrait;
+  use BlockCreationTrait;
 
   /**
    * {@inheritdoc}
    */
-  protected static $modules = ['group', 'do_group_membership', 'field', 'options', 'views'];
+  protected static $modules = ['group', 'do_group_membership', 'field', 'options', 'views', 'block'];
 
   /**
    * {@inheritdoc}
@@ -76,7 +78,7 @@ class ManageMembersRouteResolutionTest extends BrowserTestBase {
       'id' => 'community_group-organizer',
       'scope' => PermissionScopeInterface::INDIVIDUAL_ID,
       'admin' => FALSE,
-      'permissions' => ['administer members'],
+      'permissions' => ['administer members', 'view group'],
     ]);
     $this->createGroupRole([
       'group_type' => $group_type->id(),
@@ -91,6 +93,14 @@ class ManageMembersRouteResolutionTest extends BrowserTestBase {
       'label' => 'Route Resolution Test Group',
       'status' => 1,
     ]);
+
+    // The `stark` default theme carries no `page.html.twig` / block layout
+    // of its own — a fresh BrowserTestBase install places zero blocks. Place
+    // the core local-tasks block so `testLocalTaskNavigatesToNewRoute()` can
+    // assert against a real rendered "Manage members" tab link, matching how
+    // a themed site actually renders the tab (this is page-chrome test
+    // setup, not a gap in the module under test).
+    $this->placeBlock('local_tasks_block');
   }
 
   /**

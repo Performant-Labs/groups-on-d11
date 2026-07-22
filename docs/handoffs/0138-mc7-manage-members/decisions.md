@@ -1024,3 +1024,52 @@ pre-existing Functional files (8 methods) no longer crash in hook_install, Unit 
 
 **Evidence:** `do_group_membership.install` lines 100 (views guard) + 121 (router rebuild);
 handoff-F.md "Route-collision fix v3".
+
+## Phase 8 (route-collision v3 verify) — Tester (T)
+
+**Decided:** Independently re-verified F's v3 fix via a REAL PHPUnit run of the actual authored
+suite (`BrowserTestBase`/`KernelTestBase`), not F's bespoke in-request script — stood up own
+environment: PHP 8.5.6 (matching F, since the linked PHP 8.3 can't satisfy `composer.lock`'s PHP
+^8.4 constraint), a fresh `composer install`, own Docker MySQL 8 (`gm138t-mysql`, port 33091), and a
+local PHP built-in webserver.
+
+**Found and fixed 2 T-authorship bugs in `ManageMembersRouteResolutionTest.php`'s own `setUp()`**
+(not F's defects; per this role's mandate, T fixes its own tests rather than routing back to F):
+(1) the fixture `community_group-organizer` role was missing `'view group'`, so the Organizer
+couldn't even view the group canonical page (403 before the tab-click assertion ever ran); (2) the
+test's `$defaultTheme = 'stark'` ships no block layout, so no local-tasks block rendered at all — a
+fresh `BrowserTestBase` install places zero blocks by default. Fixed by adding `'view group'` to the
+fixture role's permissions and placing `local_tasks_block` via `BlockCreationTrait` in `setUp()`.
+
+**Result: `ManageMembersRouteResolutionTest` 3/3 GREEN (real)** — confirms both v3 fixes work in the
+actual harness CI uses, not just F's diagnostic script. The 3 previously-erroring Functional/Kernel
+files (`ManageMembersPageRenderTest`, `ManageMembersPaginationTest`, `ManageMembersRouteAccessTest`,
+`GroupMembershipManagerKernelTest`, `ManageMembersAccessTest` — 22 methods total) were re-run: zero
+`PluginNotFoundException` anywhere (the views-less-site regression is closed); remaining failures
+are all the identical, already-diagnosed, pre-existing core `list_string` config-schema bug.
+
+**Favorable tally correction:** `ManageMembersRouteAccessTest` (4 methods) and `ManageMembersAccessTest`
+(Kernel, 4 methods) both ran real-GREEN in this session's environment — the previously-reported
+`drupalLogin()`/`BrowserTestBase` sandbox limitation did not reproduce here. **Env-blocked count
+corrected from 18 to 14** (all attributable to the one core `list_string` bug). Unit 16/16 GREEN, no
+regression. #109 lesson (no source-relative fixture reads) rechecked, still holds — no violation.
+
+**Verdict: GREEN, no route-back to F.** Ready for A (anti-duplication re-check on the test-only
+diff, optional) then the U (UI Walkthrough) re-walk of the now-unblocked Manage-members surface.
+
+**Docker hygiene:** created and removed only `gm138t-mysql`; `docker ps -a` diff before/after
+confirms every sibling container (including the concurrently-running `o119u1-mysql`) untouched.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-T-green.md` ("Route-collision v3
+verify" section) — full PHPUnit transcripts for all 7 re-run files, phpcs/phpstan 0 findings on the
+1 test file touched + `do_group_membership.install` (unchanged, re-confirmed clean).
+
+## Phase 8 (route-collision v3 verify) — T: 3/3 GREEN, collision FIXED
+
+**Decided:** T independently re-verified F v3 in real BrowserTestBase: `ManageMembersRouteResolution
+Test` **3/3 GREEN** (same-request resolution to `do_group_membership.manage_members`), the 8
+previously-erroring methods no longer crash (views-guard regression closed), Unit 16/16. T fixed 2
+of its OWN setUp bugs along the way (test-side). **Env-blocked count corrected DOWN to 14** (the
+access tests actually run green — earlier count was pessimistic). **Route collision is FIXED.**
+
+**Evidence:** `handoff-T-green.md` "Route-collision v3 verify".
