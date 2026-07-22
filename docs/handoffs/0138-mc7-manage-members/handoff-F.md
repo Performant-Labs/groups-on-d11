@@ -570,3 +570,141 @@ service/form level in the original Phase 5/6 rounds — only its *reachability* 
   typically left unstaged/uncommitted by F — O stages it if/when needed; CI regenerates it anyway.
 - `docs/groups/modules/do_group_membership/do_group_membership.links.task.yml` — inspected, no net
   change (title stays "Manage members" per the wireframe, see decision above).
+
+## Route-collision fix v2 (hook_install) — Phase 8 REWORK round 2, 2026-07-22
+
+**Trigger:** T's `ManageMembersRouteResolutionTest` (3 methods) is a genuine, locally-runnable RED
+that PERSISTS after the round-1 site-config fix. Root cause, verified by T and O: `drupal/group`
+CONTRIB ships its own optional config
+(`web/modules/contrib/group/config/optional/views.view.group_members.yml`, line 708) which still
+carries the `page_1` display at `group/%group/members`. Any fresh `drush en group` — exactly what
+`BrowserTestBase`/CI Functional does — re-materializes `views.view.group_members` from that
+contrib-shipped optional config, independent of this project's own (already-fixed)
+`docs/groups/config/views.view.group_members.yml`. The round-1 fix closed the deployed
+`config:import` path but not the fresh-module-install path.
+
+### The fix: `do_group_membership.install`
+
+New file: `docs/groups/modules/do_group_membership/do_group_membership.install`.
+
+**Two hooks, one shared private helper — covers both install orderings:**
+
+1. **`do_group_membership_install(bool $is_syncing)`** — `hook_install()`. Runs when
+   `do_group_membership` itself is installed. Since the module's own `.info.yml` depends on
+   `group`, Drupal's `ModuleInstaller` guarantees `group` (and therefore
+   `views.view.group_members`, materialized from either source config or the contrib optional
+   config) is already installed by the time this hook fires — this is the common-case ordering.
+2. **`do_group_membership_modules_installed(array $modules, bool $is_syncing)`** —
+   `hook_modules_installed()`. Runs after ANY batch of modules finishes installing. Covers the
+   reverse ordering: if `group`/`views` are installed in a batch that does NOT also include
+   `do_group_membership` (e.g. `group` installed standalone, `do_group_membership` enabled later
+   in a separate step), `hook_install()` will already have run (or not run yet) and missed the
+   view. This hook re-checks whenever `group`, `views`, or `views.view.group_members` itself
+   appears in the just-installed module list, so the collision is closed regardless of which side
+   installs first. Cheap early-return (`array_intersect`) when the installed batch is unrelated.
+3. **Shared helper: `_do_group_membership_strip_group_members_page_display(bool $is_syncing)`** —
+   both hooks call this one function (no duplicated logic). It:
+   - Loads `views.view.group_members` via `entityTypeManager()->getStorage('view')->load(...)`.
+   - Guards for the view not existing at all (`load()` returns `NULL`) — returns silently, no
+     fatal. Correct for install profiles/scenarios where the view never materializes.
+   - Guards for the `page_1` display key not being present in `$view->get('display')` — returns
+     silently. Correct for: this project's own already-fixed site config (0 `page_1` matches,
+     confirmed), a second run of either hook (idempotent), or any future site where `group`'s own
+     shipped config drops `page_1` upstream.
+   - Only when `page_1` IS present: `unset()`s that one key from the `display` array and
+     `->save()`s the view. The `default` (Master) display — and any future block/page display
+     that isn't `page_1` — is left completely untouched (confirmed: this view currently has only
+     `default` + `page_1`, no block display, so nothing else is at risk).
+
+**`$is_syncing` handling:** both hooks pass `$is_syncing` straight through to the helper, which
+returns immediately if `$is_syncing` is `TRUE`. During a real config sync, the sync itself is
+already in deliberate control of the site's config state (including this project's own
+`docs/groups/config/views.view.group_members.yml`, which already ships without `page_1`) —
+stripping again here would be redundant at best and could fight an in-progress import at worst.
+`BrowserTestBase`'s fresh `$modules = [...]` bootstrap — the actual path this fix exists for — is
+NOT a config sync, so this guard does not suppress the fix on the path that needs it.
+
+### Fresh-install verification — REAL, not assumed
+
+Stood up a throwaway install (own Docker container `gm138v2-mysql`, created and removed only by
+me this round; confirmed via `docker ps -a` before/after that no other container, including any
+`gm138-*`/`o119-*` sibling, was touched — none existed at the time). Ran a real
+`drush site:install standard` (via a temporary local `$databases` override in
+`web/sites/default/settings.php`, restored to its pre-verification state afterward — this file is
+gitignored build output, not a tracked production source, so nothing to stage/revert in git), then
+exercised BOTH module-install orderings against the real DB:
+
+**Ordering 1 (the common case — `do_group_membership`'s own dependency resolution):**
+```
+$ drush en group views do_group_membership -y
+[success] Module group has been installed.
+[success] Module do_group_membership has been installed.
+$ drush php:eval '... load("group_members") ... print displays ...'
+Displays: default
+page_1 present: no (fixed)
+$ drush php:eval '... router.route_provider->getRoutesByPattern("/group/1/members") ...'
+do_group_membership.manage_members
+```
+Only the module's route resolves for the path — no collision, confirmed via the real router
+service (not a static route-table read).
+
+**Ordering 2 (the adversarial case — `group`/`views` installed FIRST, standalone, with NO
+`do_group_membership` yet):**
+```
+$ drush pmu do_group_membership group -y && drush en group -y
+$ drush php:eval '... load("group_members") ... print displays ...'
+Displays (group installed alone): default, page_1    <- collision confirmed present, as expected
+$ drush en do_group_membership -y
+[success] Module do_group_membership has been installed.
+$ drush php:eval '... load("group_members") ... print displays ...'
+Displays (after do_group_membership installed second): default
+page_1 present: no (fixed)                            <- hook_modules_installed() retroactively fixed it
+```
+This is the direct, live proof that `hook_modules_installed()` (not just `hook_install()`) is
+doing real work — the view was materialized WITH the collision before `do_group_membership`
+existed on the site at all, and installing the module afterward still closed it.
+
+Module installs cleanly in every combination tried (`drush en` reported `[success]` every time, no
+errors). Docker hygiene: `docker ps -a` before this round showed zero `gm138-*`/`o119-*`
+containers; created and removed only `gm138v2-mysql`; the full 40-container pre-existing set
+(`ddev-*` + others) confirmed byte-identical before/after via a diff of `docker ps -a` names.
+
+### Nothing else depends on `page_1` — re-confirmed
+
+Re-ran the same reference check as the round-1 fix (`grep -rn "group_members" docs/groups/
+config/sync web/themes`): still zero block placements, menu links, or config referencing
+`group_members.page_1` specifically. The hook only removes the one display key; the view's
+`default` (Master) display, which the removed `page_1` inherited its fields/filters/sorts from,
+is untouched — confirmed both by reading the YAML (only `default`/`page_1` keys exist in the
+contrib source) and live, post-hook (`Displays: default` in every `drush php:eval` check above).
+
+### Tier 1 self-check (this round)
+
+| Check | Command | Result |
+|---|---|---|
+| phpcs | `vendor/bin/phpcs --standard=Drupal,DrupalPractice docs/groups/modules/do_group_membership/do_group_membership.install` | 0 errors, 0 warnings |
+| phpstan level 1 | `vendor/bin/phpstan analyse --level=1 docs/groups/modules/do_group_membership/do_group_membership.install` | 0 findings |
+| `php -l` | on both the source and the `assemble-config.sh`-materialized copy | No syntax errors, files identical |
+| `scripts/ci/assemble-config.sh` | re-run after adding the `.install` file | Clean: `copied 95 file(s), excluded 7`, `copied 11 custom module(s)`; materialized `.install` copy diffed byte-identical to source |
+| Site-config deletion still in place | `grep -c page_1 docs/groups/config/views.view.group_members.yml` and the `config/sync/` copy | 0 matches, both files |
+| Module install | `drush en do_group_membership -y` (both orderings, see above) | Clean success, both times |
+| Live route resolution | `router.route_provider`/`drush php:eval` against a fresh real DB | Only `do_group_membership.manage_members` resolves for `/group/{group}/members`; contrib's `page_1` display stripped in both install orderings |
+
+I did not run T's `ManageMembersRouteResolutionTest` PHPUnit suite directly this round (per my
+mandate: implement, don't touch tests — T re-verifies). The live `drush php:eval` + router-service
+checks above independently exercise the exact same real mechanism the test asserts against
+(`router.no_access_checks->matchRequest()` resolving to the module route, not the View), through a
+real fresh-install path, which is the strongest self-check available to me without running T's
+file.
+
+### Known issues
+
+None. The fix closes both known collision sources (this project's own site config — round 1 — and
+`drupal/group`'s contrib-shipped optional config — this round), verified live in both plausible
+module-install orderings.
+
+### Files changed (this round)
+
+- `docs/groups/modules/do_group_membership/do_group_membership.install` (new) — `hook_install()` +
+  `hook_modules_installed()`, both calling one shared private helper that strips the `page_1`
+  display from `views.view.group_members` if present, skipping during `$is_syncing`.

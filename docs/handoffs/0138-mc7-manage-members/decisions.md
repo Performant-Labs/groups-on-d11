@@ -816,3 +816,59 @@ and the hook_install fix.
 **Evidence:** `web/modules/contrib/group/config/optional/views.view.group_members.yml` line 708
 (page_1 present); `handoff-T-green.md` "Route-collision covering test"; `handoff-F.md`
 "Route-collision fix".
+
+## Phase 8 REWORK round 2 (hook_install fix for the contrib-optional-config collision source) — F
+
+**Decided:** Added `docs/groups/modules/do_group_membership/do_group_membership.install` with
+`do_group_membership_install()` (`hook_install()`) + `do_group_membership_modules_installed()`
+(`hook_modules_installed()`), both delegating to one shared private helper
+(`_do_group_membership_strip_group_members_page_display()`) that loads `views.view.group_members`,
+guards for the view/display not existing, and — only if the `page_1` display key is present —
+removes it and saves. Both hooks respect `$is_syncing` (skip during a deliberate config sync; the
+`BrowserTestBase` fresh-module-install path this fix targets is not a sync, so the fix still fires
+where needed). Kept the round-1 site-config deletion in `docs/groups/config/
+views.view.group_members.yml` as belt-and-suspenders for the deployed `config:import` path.
+
+**Verified true, live, both install orderings** (own `gm138v2-mysql` Docker container, created and
+removed only this round; confirmed via `docker ps -a` diff that all 40 pre-existing containers,
+including any `gm138-*`/`o119-*` siblings — none existed at the time — were untouched):
+1. `drush en group views do_group_membership -y` (group installs first via dependency
+   resolution, the common case) → `views.view.group_members` ends up with only the `default`
+   display; `router.route_provider->getRoutesByPattern('/group/1/members')` returns only
+   `do_group_membership.manage_members`.
+2. `drush en group -y` alone first (no `do_group_membership` on the site yet) → confirmed the view
+   materializes WITH `page_1` present (collision reproduced, as expected) → THEN `drush en
+   do_group_membership -y` → `hook_modules_installed()` retroactively strips `page_1`, confirmed
+   via `drush php:eval` reading the saved view's `display` keys.
+
+**Re-confirmed:** nothing else in the repo references the view's `page_1` display specifically
+(same grep as round 1, re-run clean); the view's `default` (Master) display is untouched in every
+live check. phpcs/phpstan/`php -l` all clean on the new `.install` file;
+`scripts/ci/assemble-config.sh` re-run clean, materialized copy byte-identical to source.
+
+**Not run this round:** T's `ManageMembersRouteResolutionTest` PHPUnit file itself (F does not run
+T's tests as the verification instrument — T re-verifies GREEN). The live `drush php:eval` +
+real router-service checks above exercise the identical underlying mechanism
+(`router.no_access_checks`-equivalent resolution) the test asserts, through a real fresh-install
+path, as the strongest available self-check without touching T's file.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-F.md` "Route-collision fix v2
+(hook_install)" section.
+
+## Phase 8 (route-collision v2) — F: robust hook_install all-paths fix
+
+**Decided:** F added `do_group_membership.install` with `do_group_membership_install()` +
+`do_group_membership_modules_installed()`, both calling a shared helper
+`_do_group_membership_strip_group_members_page_display($is_syncing)` that loads
+`views.view.group_members` and removes its `page_1` display if present — stripping the collision
+regardless of whether the view came from site config OR contrib optional config, and covering both
+module-install orderings (module-before-group and group-before-module). Respects `$is_syncing`
+(skips during deliberate config sync) but still fires in BrowserTestBase's non-sync fresh bootstrap
+(the real CI trigger). The site-config `page_1` deletion is KEPT as belt+suspenders for the deployed
+config:import path. F reports verified live in BOTH install orderings; Tier-1 clean.
+
+**Next:** T re-runs `ManageMembersRouteResolutionTest` — all 3 methods must go RED→GREEN from a fresh
+`drush en` bootstrap (not just config:import). If GREEN → re-run U (live steady-state + axe) → S.
+
+**Evidence:** `docs/groups/modules/do_group_membership/do_group_membership.install`; handoff-F.md
+"Route-collision fix v2 (hook_install)".
