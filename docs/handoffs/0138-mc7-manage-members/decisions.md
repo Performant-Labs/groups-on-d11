@@ -73,3 +73,50 @@ not copied into this fresh worktree (git worktrees don't share untracked/gitigno
 direct file reads of `config/sync/group.role.community_group-{member,admin}.yml`,
 `do_chrome/src/PermissionMatrix.php`, `do_group_extras/src/Hook/DoGroupExtrasHooks.php`,
 `do_notifications/do_notifications.routing.yml`, `do_tests/tests/src/Kernel/GroupsKernelTestBase.php`.
+
+## Phase 1 (brief gate) — o4-mini second-opinion review
+
+**Decided:** Ran `docs/playbook/workflow/dual-review.sh --mode brief` (round 1) against
+`brief.md`. Result: **BLOCK**, 7 blocking findings (B-1..B-7), 4 WARN, 4 NIT — all substantive, none
+dismissed as noise.
+
+**Key correction (B-5, factual, not just a design gap):** the brief's original assumption that a
+bare `administer group` permission on a global role bypasses per-group membership-management access
+was **wrong**. Verified directly against `drupal/group` 4.0.x source
+(`git.drupalcode.org/project/group`, fetched live since no local vendor checkout exists in this
+worktree): `admin_permission: 'administer group'` on the `GroupRole` entity type gates who may
+administer `group_role` **config entities** (a site-administration permission), not a per-group
+access bypass. The actual "site role administers every group without membership" mechanism is
+Group's built-in **synchronized global role**: a `group_role` config entity with
+`scope: insider|outsider` + `global_role: <user.role ID>` is auto-applied to every account holding
+that site role, for every group of the matching type (confirmed via `GroupRoleStorage.php`'s
+`condition('scope', ...)->condition('global_role', $roles, 'IN')` and `PermissionScopeInterface::
+SYNCHRONIZED_IDS`). Corrected design: `user.role.groups_moderate.yml` (site role, no group perms of
+its own) + `group.role.community_group-groups_moderate.yml` (`scope: insider`, `admin: true`,
+`global_role: groups_moderate`). Also verified `admin_permission: 'administer members'` IS the real,
+correct permission on the `GroupMembership` relation-type plugin attribution (`src/Plugin/Group/
+Relation/GroupMembership.php`) — the B-1/B-2 Organizer/Moderator permission lists using
+`administer members` were correct as originally drafted.
+
+**All 7 BLOCKs resolved by decision** (not deferred to D/A): exact permission lists (B-1), exact
+route/path/access logic (B-2), a full status state-machine incl. the pending-deny-vs-blocked
+distinction (B-3), joined-date via reused `created` base field — confirmed present on
+`GroupRelationship::baseFieldDefinitions()` (B-4), the corrected Groups-Moderate mechanism (B-5),
+the add-member form + validation rules (B-6), and 4 new edge-case acceptance criteria (B-7). Brief
+acceptance criteria renumbered AC-1..AC-15 for traceability (NIT-4).
+
+**Round 2 re-submission: PASS** — all 7 BLOCK findings accepted as resolved by o4-mini. Transcript:
+`docs/handoffs/0138-mc7-manage-members/dual-review-brief.md`.
+
+**Assumed (flagged for A to re-verify with actual DDEV/PHPStorm access, since I verified via
+`git.drupalcode.org` source reads rather than a local vendor install):** the exact permission string
+`administer members` and the synchronized-global-role `GroupRoleStorage` query behavior as described
+above. High confidence (read directly from `4.0.x` branch source), but A should confirm against the
+actual installed `vendor/drupal/group` in DDEV before F starts, since no local vendor tree was
+available in this worktree to cross check.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/dual-review-brief.md` (full o4-mini transcript,
+both rounds); `git.drupalcode.org/project/group` blob reads at ref `4.0.x`:
+`src/Entity/GroupRole.php`, `src/Entity/Storage/GroupRoleStorage.php`, `src/PermissionScopeInterface.php`,
+`src/Plugin/Group/Relation/GroupMembership.php`, `src/Entity/GroupRelationship.php`,
+`src/Entity/Access/GroupAccessControlHandler.php`, `group.permissions.yml`.
