@@ -230,3 +230,76 @@
   `docs/groups/modules/do_tests/tests/src/Kernel/GroupsKernelTestBase.php`,
   `docs/groups/modules/do_group_pin/{do_group_pin.services.yml,do_group_pin.info.yml,do_group_pin.module}`,
   `docs/groups/modules/do_discovery/{do_discovery.services.yml,do_discovery.info.yml}`.
+
+## T — Phase 4 (author/RED) — 2026-07-22T15:25:00Z
+- **Decided:** [A-W3]'s open choice ("`$view->args` or `$view->exposed_data`" for the ranking
+  parameter) is pinned to a Views **contextual argument** (`$view->args`), matching do_group_pin's
+  `$view->args[0]` gid pattern per the brief's own (non-binding) recommendation — T's call, binding
+  for F. The fixture demo view's `ranking` argument uses `table: views, field: 'null'` (Views
+  core's own "Global: Null argument" convention for a pass-through parameter with no intrinsic
+  filtering semantics), NOT `table: node_field_data, field: nid` — discovered during RED
+  verification that Views resolves an argument handler by the field's OWN `views_data`
+  registration regardless of a config-level `plugin_id` override, so `field: nid` silently forced
+  the `Nid` argument handler (which filters `WHERE nid = <value>`) no matter what `plugin_id` I set
+  in config. This is now the reference shape F's shipped view must also use for the `ranking`
+  argument.
+- **Decided:** Anchored `StreamsInstallTest::testModuleInstallsWithZeroSchemaChanges` to the
+  module's actual minimum contract (both Views filter plugins + the `do_streams_shell` theme hook
+  discoverable), not just "installs without a fatal error" — a bare `.info.yml` with zero code
+  trivially satisfies "installs cleanly, zero schema" and would have made this test pass BEFORE the
+  feature exists (an invalid RED per the pipeline's own rule). Verified the fix produces a genuine
+  failing assertion (`Failed asserting that false is true` on `hasDefinition('do_streams_membership_scope')`)
+  before treating the test as valid.
+- **Decided:** Warmed up core's own lazily-created tables (`router`, `menu_tree`, `cachetags`,
+  `cache_file_parsing`, `users_data`) via a schema-free control-module install/uninstall cycle
+  (`do_group_pin`) in `StreamsInstallTest::setUp()` BEFORE taking the "before" table snapshot —
+  without this, the zero-new-tables assertion false-positived on tables ANY module install creates,
+  not tables do_streams itself would create. Confirmed by first observing the false positive
+  (`New tables found: cache_file_parsing, cachetags, menu_tree, router`) and then rerunning clean
+  after the fix.
+- **Decided:** Stripped `docs/groups/config/flag.flag.follow_content.yml`'s
+  `flagTypeConfig.access_author` key when loading the fixture in `StreamsScopeTest::setUp()` — a
+  pre-existing config-schema gap (`SchemaIncompleteException`) in the SHIPPED flag config,
+  unrelated to do_streams' own scope, discovered only because this is the first test suite to
+  install `follow_content` under strict config schema. Mirrors `PinnedStreamOrderingTest`'s own
+  precedent of stripping non-semantic keys from its view fixture rather than disabling strict
+  schema checking. Flagged in the T-red handoff as an adjacent finding for O, not silently patched
+  into shipped config (out of this story's scope).
+- **Decided:** Every test extends `GroupsKernelTestBase` and grants the SAME outsider group role
+  `PinnedStreamOrderingTest` grants (view permission on every `group_node:*` bundle) wherever the
+  fixture view touches Group's own access-policy query alter (`StreamsRankingTest`'s `page_global`
+  display included, once discovered its LEFT JOIN to `group_relationship_field_data` hides ANY
+  group-content node from a non-permissioned viewer regardless of do_streams' own scope filter) —
+  isolates every ranking/scope assertion to do_streams' OWN behavior, not an incidental Group
+  access-denial artifact.
+- **Decided:** Ran the full 23-test suite together (not just file-by-file) to rule out cross-test
+  pollution before writing the handoff; confirmed 17 genuine failures / 6 legitimate passing
+  regression guards, zero fatal/bootstrap errors, and re-verified each of the 6 passing tests is not
+  masking an uncovered acceptance criterion (every criterion has at least one FAILING sibling test
+  in the same file).
+- **Decided:** Reverted every build-artifact side effect of standing up an isolated DDEV instance
+  (`.ddev/config.yaml` project-name rename, `assemble-config.sh`'s copies into `config/sync/` +
+  `web/modules/custom/`, composer scaffold file touches) before finishing, via `git checkout --` +
+  `git clean -fd` scoped to exactly those paths, then staged ONLY the 6 genuine test-authoring files
+  by explicit path (`git add <path> <path> ...`, never `git add -A`/`.`) — confirmed via `git status
+  --porcelain` showing exactly those 6 files as the sole tracked changes.
+- **Assumed:** No isolated DDEV/DB existed for this worktree at Phase-4 start (`.ddev/config.yaml`
+  inherited the shared `pl-groups-on-d11` project name, colliding with the primary checkout) — a
+  pre-existing setup gap, not something Phase 4 was asked to permanently fix. I stood one up
+  LOCALLY (uncommitted rename + `ddev start`/`composer install`/`site:install`) purely to execute
+  and verify RED, then reverted it, rather than committing an isolation fix myself; O/F will need to
+  redo the same bring-up to run the suite (documented explicitly in handoff-T-red.md's Environment
+  note) — this matches `preflight-checklist.md`'s existing "distinct port + DB from the primary
+  checkout" requirement for worktrees, so it is not a NEW gap this story introduces, but it IS an
+  operational step every subsequent phase (F, T-green, U) will also need to repeat.
+- **Evidence:** `docs/groups/modules/do_group_pin/tests/src/Kernel/PinnedStreamOrderingTest.php`
+  (setUp() outsider-role pattern, fixture-stripping precedent), `docs/groups/modules/do_tests/tests/
+  src/Kernel/GroupsKernelTestBase.php`, `docs/groups/modules/do_discovery/{src/Hook/
+  DoDiscoveryHooks.php,do_discovery.install}` (hot-score table + views_data shape),
+  `web/core/modules/views/src/Plugin/ViewsHandlerManager.php` (`getHandler()` table+field
+  resolution, read directly to diagnose the `Nid` argument-handler override), `web/core/modules/
+  views/src/Hook/ViewsViewsHooks.php` (`views.null` argument registration), `web/core/modules/
+  views/src/Plugin/views/argument/NullArgument.php`, `web/modules/contrib/flag/config/schema/
+  flag.schema.yml` (confirmed the `access_author` schema gap), live DDEV run output (23 tests, 17
+  failures documented in handoff-T-red.md verbatim), `git status --porcelain` (post-cleanup, 6
+  files only).
