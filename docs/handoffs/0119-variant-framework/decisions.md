@@ -66,3 +66,39 @@ each phase boundary from here on, not trusting a remembered read.
 - Orchestrator (this session) and all downstream role subagents run Sonnet, **except** the Spec
   Auditor (S), which must run Opus. Recorded so O does not let S inherit Sonnet by default, and
   does not let any other role inherit Opus.
+
+## O — Phase 1 brief gate (dual-review, second-opinion) — 2026-07-22T08:58:00Z
+- **Decided:** Ran the o4-mini brief gate (`dual-review.sh --mode brief`, DUAL_REVIEW=1). Verdict
+  **BLOCK ×5**. Resolved all five before advancing to D/A:
+  - B-1 (tooltip init) — folded as a design constraint (switcher is server-rendered; F/T verify
+    `do_chrome.tooltips.js` init path).
+  - B-2 (tempstore.private anonymous cross-contamination) — reviewer premise **corrected** against
+    core source: `PrivateTempStore::getOwner()` (lines 220-226) generates a per-session random owner
+    for anonymous, so NO cross-anon leak. BUT a real issue remains: any server session write busts
+    the anonymous page cache. **Amended the design to client-side persistence (cookie/localStorage)
+    instead of tempstore** — better for a public demo, satisfies per-session semantics.
+  - B-3 (test surface) — accepted; brief now enumerates switcher+ribbon+page e2e cases + a PHPUnit
+    `VariantSwitcher::build()` contract test.
+  - B-4 (data model) — accepted; comparison/persona lists are t()-wrapped code constants
+    (`ShowcaseCatalog`), not config/content.
+  - B-5 (wireframes pending) — **rejected as a brief defect**: the pipeline produces + signs off the
+    wireframe in Phase 2 (D), the very next step; "pending" is the correct Phase-1 state.
+  - WARN/NIT: W-2 (WCAG specifics) + W-3 (i18n) folded into Acceptance/Operating rules; W-4 (split
+    story) rejected (epic scopes SC-F1 as one foundation story; SC-4/5/6 are the splits); W-5
+    reinforced in Operating rules.
+- **Assumed:** Client-side persistence is acceptable for the demo's "remembers per session"
+  requirement (no cross-device carry needed). A/D can revisit if the wireframe implies otherwise.
+- **Hedged:** B-1's AJAX re-attach path is only relevant if a future consumer swaps switcher options
+  without a full page load — not this story's stub, so noted as a forward-looking constraint, not
+  built now.
+- **Evidence:** `dual-review-brief.md` (o4-mini round 1, full findings); core
+  `web/core/lib/Drupal/Core/TempStore/PrivateTempStore.php` lines 106-226 read to correct B-2.
+
+### Infra note (repeated worktree reaping)
+The isolated worktree keeps being reaped by a concurrent process (coordinator confirmed: sibling
+story agents + stray-worktree cleanup churning `.git/worktrees/`). Mitigation adopted per coordinator
+guardrail #1: (a) durable artifacts mirrored to the session scratchpad
+(`scratchpad/o119-handoffs/`), (b) recreate-worktree + populate + commit done inside single atomic
+Bash calls so the reaper can't strike mid-sequence, (c) commit early/often so work survives as git
+objects on the branch even if the working dir is reaped. NEVER run mutating git/composer against the
+shared `groups-on-d11` checkout (that churn is what reaps worktrees).
