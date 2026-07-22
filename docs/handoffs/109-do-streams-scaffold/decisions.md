@@ -131,3 +131,70 @@
   dual-review-brief-response.md,review-comparison.md}`, `config/sync/field.field.node.*.yml`
   (grep + read, confirming `field_group_tags` vs `field_tags` bundle coverage),
   `config/sync/field.storage.node.field_group_tags.yml`.
+
+## D — Phase 2 (design/wireframe) — 2026-07-22T10:15:00Z
+- **Decided:** Mode (a) — generated a low-fi wireframe (no user-supplied wireframe was provided).
+  Single HTML file (`wireframe.html`) with all 6 required states section-labeled, rather than 6
+  separate files, for legibility per the role doc's "your call, prioritize legibility."
+- **Decided:** Reused the EXISTING `.gc-group-tabs` active-tab convention (from
+  `group--full.html.twig`) for the shell's scope tabs, and the EXISTING `.gc-empty` /
+  `.gc-empty__title` / `.gc-empty__text` classes (already in `groups_chrome/css/chrome.css`,
+  documented there as used by the all_groups directory and group_nodes stream empty states) for
+  the empty state — did not invent a new visual language for either.
+- **Decided:** State 4 (Trending) renders the Hot ranking pill as visually `is-active` even though
+  no user click occurred, specifically to make [B-8]'s "ranking forced/defaulted to hot" behavior
+  legible in a static wireframe. Flagged as an open question for approval (whether Recent should
+  render as disabled/locked vs merely unselected under Trending) since the brief's "forced/
+  defaulted" wording is ambiguous between those two.
+- **Decided:** Every scope tab and ranking-control element is annotated with its preprocess-
+  variable id (`scope_tabs[n].id` / `ranking_control[n].id`) rather than any literal href, to
+  make the "no hardcoded routes" acceptance criterion visually explicit at the wireframe stage —
+  no `<a href="...">` with a literal path appears anywhere in the mockup.
+- **Decided:** Card rows are simplified/black-boxed versions of the real `stream_card`
+  rendering (`node--stream-card.html.twig` / `groups_chrome_preprocess_node()`'s `gc_stream`
+  variable) — same shape (avatar, author, group badge, snippet, comment count), not a redesign,
+  and not the real markup/classes.
+- **Hedged:** Empty-state copy is only mocked for one scope (Following); annotated in the
+  wireframe and handoff that the real preprocess needs per-scope copy (Global-empty vs
+  Following-empty vs My-Feed-empty are different situations), per the brief's own "empty state:
+  ... show appropriate empty-state messaging" instruction — not designing all 4 variants since the
+  brief explicitly allows "a simple centered message" for this gate.
+- **Assumed:** No visible rendering/screenshot check was performed (working headlessly per
+  standing user instruction); only structural HTML validation (tag-balance, section/state counts)
+  was run. Flagged explicitly in handoff-D.md as unverified-by-me should the human approver want a
+  visual pass before sign-off.
+- **Evidence:** `web/themes/custom/groups_chrome/templates/content/node--stream-card.html.twig`,
+  `groups_chrome_preprocess_node()` in `groups_chrome.theme`, `web/themes/custom/groups_chrome/
+  templates/group/group--full.html.twig` (`.gc-group-tabs` pattern), `web/themes/custom/
+  groups_chrome/css/{chrome.css,primitives.css,tokens.css}` (`.gc-empty`, `.gc-badge`, `.gc-card`,
+  design tokens), brief.md §[B-2]/[B-3]/[B-8], survey.md §Reuse & Analogous-Feature map.
+
+## O — Phase 2 approval gate + coordinator resolutions — 2026-07-22T09:55:00Z
+- **Decided:** Presented the wireframe to the operator; **APPROVED** (via coordinator relay,
+  2026-07-22T09:55:00Z). Recorded the approval in handoff-D.md §Approval and the brief's Approved
+  wireframe section — no tests/code started before this sign-off (D-gate honored).
+- **Decided (resolves D open question 1):** Trending's Recent pill is **ENABLED (unselected but
+  clickable), NOT disabled/locked** — operator ruling on [B-2] orthogonality grounds: ranking is
+  independent of scope; Trending only *defaults* to Hot, the user may still pick Recent. F wires
+  the Recent control under Trending as a normal unselected pill, never `disabled`. Folded into
+  brief §Approved wireframe.
+- **Decided (resolves D open question 2):** The shell preprocess supplies **4 distinct empty-state
+  copy strings** (one per scope: global / my_feed / following / trending), NOT one shared string —
+  operator ruling. Global-empty must NOT reuse a follow-oriented CTA. F implements a per-scope
+  branch (e.g. an `empty_copy` variable keyed by active scope). Folded into brief §Approved
+  wireframe; T must add a covering assertion (each scope yields its own empty copy).
+- **Decided (coordinator guardrails, added to brief §Operating rules):** (a) work ONLY in this
+  `_worktrees/groups-109-do-streams` worktree, never mutate the shared `~/Projects/groups-on-d11`
+  checkout (no git reset/checkout -f/composer there); (b) `drupal/grequest` is NOT installed
+  (incompatible with `group 4.0.x-dev`) — do_streams must not assume it, and the follow-scope work
+  uses `flag`'s `follow_*` flags only (no membership-request flows); (c) PR creation is serialized
+  by the coordinator — O PAUSES before opening the PR and reports back for a go-ahead.
+- **Decided (model tiers, reconciled):** confirmed T/F/A/U spawn with `model: sonnet` explicit; S
+  spawns with `model: opus`. This supersedes the earlier Phase-1 note that hedged on A's tier —
+  the coordinator confirmed A runs on Sonnet for this run (an explicit operator instruction that
+  overrides the pipeline doc's "never run A on the throughput tier" default; noted as a conscious
+  deviation, not silent).
+- **Decided (rigor at diff gate):** o4-mini second-opinion only at the diff gate (no fresh-Opus
+  panel arm) — confirmed by coordinator.
+- **Evidence:** coordinator message (D-GATE APPROVED + 2 resolutions + guardrails), handoff-D.md,
+  wireframe.html, brief.md (amended §Approved wireframe + §Operating rules).

@@ -194,12 +194,23 @@ Key findings:
 
 ### Approved wireframe
 
-Pending — D produces it this phase. Path: `docs/handoffs/109-do-streams-scaffold/wireframe.*` +
-`handoff-D.md`. Scope: the shared stream shell only — scope tabs `[Global | My Feed | Following |
-Trending]` + ranking control `[Recent | Hot]`, rendered inert (no live routes; ST-1/2/4/6 wire
-routes to it later). States to cover: default (Global/Recent selected), each tab active, each
-ranking-control state, empty-result state (shell with zero cards), and the shell wrapping 1-3
-`stream_card`-rendered nodes.
+**APPROVED 2026-07-22T09:55:00Z** (operator, via coordinator). Path:
+`docs/handoffs/109-do-streams-scaffold/wireframe.html` + `handoff-D.md`. Covers all 6 states,
+reuses the existing `.gc-group-tabs` (scope tabs) and `.gc-empty` (empty state) patterns, and
+annotates every control with its `scope_tabs[n].id` / `ranking_control[n].id` preprocess origin.
+
+**Two D-gate resolutions F MUST implement (binding):**
+- **Trending's Recent pill = ENABLED (unselected but clickable), NOT disabled/locked.** Ranking is
+  orthogonal to scope ([B-2]); Trending only *defaults* the ranking to Hot — the user may still
+  switch to Recent (yielding global+recent, harmless). Do NOT render the Recent control as
+  `disabled` under the Trending tab; render it as a normal unselected-but-clickable pill.
+- **Per-scope empty-state copy (4 distinct strings, not one shared).** The preprocess must branch
+  on scope to supply scope-appropriate empty copy + CTA for `global` / `my_feed` / `following` /
+  `trending`. The wireframe's Following copy is the model; F writes the other three. Critically:
+  the Global empty state must NOT say "browse groups to follow" (that CTA only makes sense for
+  My Feed / Following) — each scope gets truthful, scope-appropriate copy. Bake this into the
+  shell preprocess as a per-scope branch feeding the `empty` render (e.g. an `empty_copy` variable
+  keyed by active scope).
 
 ### Input documents
 
@@ -259,3 +270,14 @@ S writes:      `docs/handoffs/109-do-streams-scaffold/handoff-S.md`
   ship inert.
 - Model assignment (per O-109 task, strict): every spawned role runs Sonnet, EXCEPT Spec Auditor
   (S) which runs Opus. Never let a role inherit Opus otherwise.
+- **Worktree isolation (coordinator guardrail):** work ONLY in this worktree
+  (`/Users/andreangelantoni/Projects/_worktrees/groups-109-do-streams`). NEVER mutate the shared
+  `~/Projects/groups-on-d11` checkout — no `git reset` / `git checkout -f` / `composer` operations
+  there. Commit early and often on this branch.
+- **`drupal/grequest` is NOT installed** (incompatible with `group 4.0.x-dev`). do_streams must
+  not assume it exists. The follow-scope work here uses the `flag` module's `follow_*` flags only
+  — it does NOT touch group-membership *request* flows. If any part of the design appears to need
+  grequest, STOP and raise it — do not add the dependency.
+- **PR creation is serialized by the coordinator across the wave.** O PAUSES before opening the
+  PR and reports back for a go-ahead — the pipeline runs T(RED) -> F -> T(GREEN) -> A-dup -> U -> S
+  fully, then HOLDS at the PR step until the coordinator grants it.
