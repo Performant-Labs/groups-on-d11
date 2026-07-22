@@ -347,13 +347,36 @@ class StreamsRankingTest extends GroupsKernelTestBase {
    * `do_group_pin:...` (do_group_pin's own tag is per-GROUP, not per-user,
    * and reusing its namespace here would be the wrong scope entirely).
    * Mirrors PinnedStreamOrderingTest::testPinToggleInvalidatesStreamCacheTagWithoutFlush.
+   *
+   * T's Phase-6 adjudication note (T-green): the ORIGINAL version of this test
+   * (Phase 4) asserted that pinning invalidates a THIRD PARTY's ($viewer, who
+   * neither flags nor is a group member) tag while a symmetric bystander
+   * ($otherViewer) is untouched — but nothing in the fixture ties $viewer
+   * (as opposed to $otherViewer) to the flag event, the node, or its group;
+   * they are fully interchangeable bystanders. do_group_pin's OWN precedent
+   * test (PinnedStreamOrderingTest::testPinToggleInvalidatesStreamCacheTag-
+   * WithoutFlush) derives its tag from the NODE'S GROUP (a real,
+   * fixture-derivable relationship — the flagging entity's flaggable has a
+   * group), which do_group_pin's per-group tag can express; do_streams' tag
+   * is per-VIEWING-USER instead (per [A-W2]'s own resolution: membership/
+   * following scope is per-user, so a per-user tag is the correct
+   * granularity) — pinned-first ranking is a GLOBAL reorder (no scope
+   * argument gates it, see [B-2]/[A-W3]), so there is no membership or
+   * following relationship to derive "which viewing user is affected" from
+   * the flagging entity alone. The only viewing-user tag this module CAN
+   * correctly derive without a broadcast is the FLAGGER'S OWN tag (the one
+   * user whose action just made their own cached "pinned" ranking stale).
+   * Rewritten so $viewer performs the toggle themselves — this still pins
+   * the AC's actual contract: a pin toggle invalidates the affected user's
+   * `do_streams:user_stream:<uid>` tag WITHOUT a full flush, and that
+   * invalidation is SCOPED (an uninvolved bystander's tag is untouched) —
+   * while asserting only what is honestly derivable from the flagging event.
    */
   public function testPinToggleInvalidatesUserStreamCacheTagWithoutFlush(): void {
     $viewer = $this->createUser();
     $otherViewer = $this->createUser();
     $group = $this->createGroup();
     $node = $this->addNode($group, 'page', ['title' => 'Target']);
-    $flagger = $this->createUser();
 
     $cache = $this->container->get('cache.default');
 
@@ -373,14 +396,17 @@ class StreamsRankingTest extends GroupsKernelTestBase {
 
     $seed();
     $this->assertNotFalse($cache->get('do_streams_test:stream:' . $tag), 'The stream cache item is seeded.');
-    $this->flagService->flag($this->pinFlag, $node, $flagger);
+    // $viewer performs the pin toggle themselves -- the one viewing user the
+    // implementation can correctly derive as affected from the flagging
+    // entity alone (its owner), per the adjudication note above.
+    $this->flagService->flag($this->pinFlag, $node, $viewer);
     $this->assertFalse(
       $cache->get('do_streams_test:stream:' . $tag),
-      'Pinning invalidated the viewing-user stream cache tag (no manual flush).'
+      'Pinning invalidated the flagging viewing-user\'s own stream cache tag (no manual flush).'
     );
     $this->assertNotFalse(
       $cache->get('do_streams_test:stream:' . $otherTag),
-      'Pinning did NOT invalidate an unrelated viewing user\'s stream cache tag (invalidation is scoped per-user).'
+      'Pinning did NOT invalidate an unrelated viewing user\'s stream cache tag (invalidation is scoped per-user, never a blanket flush).'
     );
   }
 

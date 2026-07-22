@@ -64,6 +64,18 @@ class StreamsInstallTest extends KernelTestBase {
     parent::setUp();
     $this->installSchema('user', ['users_data']);
 
+    // Uninstalling ANY config entity fires flag_entity_predelete() (a core
+    // `flag` module hook, unrelated to do_streams), which queries the
+    // `flagging` table -- confirmed via handoff-F.md's Tests-that-look-wrong
+    // item 1 and independently verified against flag.module's own source
+    // (flag_entity_predelete() at flag.module:521 calls FlagService::
+    // getRelevantFlags(), which runs an entity query against `flagging`).
+    // Without this table, testModuleUninstallsCleanly() throws
+    // SQLSTATE[42S02] with a stack trace that has zero do_streams frames --
+    // this is a genuine test-authoring gap (a missing setUp() call), not an
+    // implementation bug.
+    $this->installEntitySchema('flagging');
+
     // Warm up router/menu/cache tables + any other lazily-created core
     // tables that ANY module install/uninstall cycle triggers, using a
     // schema-free control module (do_group_pin, per the class docblock) so

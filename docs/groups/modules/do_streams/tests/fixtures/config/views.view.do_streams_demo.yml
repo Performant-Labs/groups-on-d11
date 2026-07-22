@@ -127,6 +127,8 @@ display:
     position: 2
     display_options:
       path: do-streams/demo/following
+      defaults:
+        filters: false
       filters:
         status:
           id: status
@@ -155,6 +157,8 @@ display:
     position: 3
     display_options:
       path: do-streams/demo/global
+      defaults:
+        filters: false
       filters:
         status:
           id: status

@@ -132,6 +132,27 @@ class StreamsScopeTest extends GroupsKernelTestBase {
       'global_role' => RoleInterface::AUTHENTICATED_ID,
       'permissions' => $permissions,
     ]);
+
+    // Insider-scope group role granting the SAME view permission set to
+    // group MEMBERS. Group 4.x's own QueryAccess layer
+    // (PluginBasedQueryAlterBase::addSynchronizedConditions()) grants the
+    // outsider-scope role's permissions ONLY when the membership join column
+    // is NULL (`isNull("$membership_alias.entity_id")` when
+    // scope === OUTSIDER_ID) -- i.e. only to users who are NOT already a
+    // group member. A viewing user who IS a member of the group under test
+    // (testMembershipScopeReturnsOnlyMemberGroupsNodes /
+    // testMembershipScopeCoversAllOfTheUsersGroups) therefore has ZERO view
+    // access on their own group's content without a separate insider-scope
+    // grant, which would make Group's own access layer (not do_streams' own
+    // filter) the reason those tests' assertions fail -- masking the
+    // behavior under test. Confirmed by reading
+    // group/src/QueryAccess/PluginBasedQueryAlterBase.php directly.
+    $this->createGroupRole([
+      'group_type' => static::GROUP_TYPE_ID,
+      'scope' => PermissionScopeInterface::INSIDER_ID,
+      'global_role' => RoleInterface::AUTHENTICATED_ID,
+      'permissions' => $permissions,
+    ]);
   }
 
   /**

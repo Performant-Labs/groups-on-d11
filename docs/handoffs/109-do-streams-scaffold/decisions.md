@@ -376,3 +376,69 @@
   YAML shape against a genuine core-exported view), live DDEV kernel-test + `drush en`/`pmu`
   output (captured verbatim in handoff-F.md), `git status --porcelain` (post-cleanup, production
   files only).
+
+## T — Phase 6 (verify GREEN + adjudication) — 2026-07-22T21:10:00Z
+- **Decided:** Independently re-derived every one of F's 5 claimed test-authoring gaps from
+  primary source (Views core `DisplayPluginBase::isDefaulted()`, Group core
+  `PluginBasedQueryAlterBase::addSynchronizedConditions()`, `flag.module`'s
+  `flag_entity_predelete()`, and this worktree's own DDEV-mounted
+  `Renderer::doRender()`/`ThemeManager::render()`) rather than accepting F's patch description on
+  faith — all 6 (gaps #1/#2/#4 + the pin cache-tag test + the 5 shell tests) confirmed as genuine
+  test-authoring bugs, none an implementation gap in disguise.
+- **Decided:** Fixed gaps #1 (missing `installEntitySchema('flagging')` in
+  `StreamsInstallTest::setUp()`), #2 (missing `defaults: {filters: false}` on the fixture's
+  `page_following`/`page_global` displays, now matching F's shipped
+  `config/install/views.view.do_streams_demo.yml` exactly), and #4 (missing `INSIDER_ID`-scope
+  group role grant in `StreamsScopeTest::setUp()`) exactly as F suggested, each with an
+  explanatory comment citing the core-source read that confirmed the mechanism, not merely
+  copy-pasting F's patch.
+- **Decided:** Rewrote `testPinToggleInvalidatesUserStreamCacheTagWithoutFlush` so `$viewer`
+  performs the pin toggle themselves rather than an unrelated `$flagger` — the ORIGINAL 3-way
+  symmetric-bystander construction ($viewer / $otherViewer / $flagger, none tied to the flag event
+  by any fixture relationship) asserted an underivable contract, confirmed by comparing against
+  do_group_pin's own precedent test (which derives its per-group tag from the flagged node's real
+  group membership, a link do_streams' per-VIEWING-USER tag has no equivalent for under a
+  scope-free "pinned" ranking). The AC itself (scoped per-user invalidation, no full flush, an
+  uninvolved bystander untouched) remains fully pinned by the rewrite.
+- **Decided:** Rewrote all 5 `StreamsShellTest` render-array-contract tests to invoke
+  `DoStreamsHooks::preprocessDoStreamsShell()` DIRECTLY (it is `public`, required for its own
+  `#[Hook]` attribute wiring — no `ReflectionMethod` needed) rather than asserting
+  `$build['scope_tabs']` etc. after `$renderer->renderRoot($build)` — confirmed via direct core
+  source reads that NO `#theme`-based render array can ever expose a preprocess mutation on the
+  caller's array (`ThemeManager::render(string $hook, array $variables)` takes `$variables` by
+  value and rebuilds a fresh local array before invoking any preprocess hook). This mirrors the
+  existing in-repo `ContributionStatsTest::countGroups()` reflection-into-protected-method
+  precedent (here direct, since the method is already public). Left the 6th shell test
+  (`testNoHardcodedRoutePathsInRenderedTabMarkup`) untouched — it only asserts the rendered HTML
+  STRING, which is what `renderRoot()` legitimately returns; its use of `renderRoot()` was never
+  the bug.
+- **Decided:** Ran two temporary, immediately-reverted implementation-break-and-restore spot-checks
+  (commenting out the `Cache::invalidateTags()` call; adding a hardcoded `'disabled' => TRUE` key
+  to the Trending-scope Recent pill) to independently confirm the two rewritten test FAMILIES
+  (cache-tag + shell) still fail for the right reason if the corresponding behavior regresses —
+  neither rewrite is vacuously green. Both breaks produced the expected single test failure; both
+  were restored and the full suite reconfirmed 23/23 GREEN afterward.
+- **Decided:** Verdict is GREEN, 23/23. No blocking issues. Advancing to A-dup (anti-duplication
+  review) next per the pipeline's Phase order.
+- **Decided:** Stood up an ISOLATED DDEV project (`t109green-do-streams`) distinct from both F's
+  `f109-do-streams` and the shared `pl-groups-on-d11`, using the correct-tree (copy via
+  `scripts/ci/assemble-config.sh`) method per the coordinator's explicit realpath-symlink-trap
+  guardrail — never symlinked core. Ran `ddev drush site:install` + `ddev drush en/pmu` against
+  this SAME isolated instance to independently reproduce F's real-site install/uninstall claim
+  (not merely trusting F's report), then reverted every build-artifact side effect
+  (`.ddev/config.yaml`, `config/sync/`, `web/modules/custom/`, `web/autoload_runtime.php`,
+  `.ddev/traefik/`) via `git checkout --` + `git clean -fd`, and stopped/unlisted the isolated DDEV
+  project, confirmed via `git status --porcelain` showing only the 5 intended test/fixture files as
+  changed.
+- **Evidence:** `web/core/modules/views/src/Plugin/views/display/DisplayPluginBase.php`
+  (`isDefaulted()`), `web/modules/contrib/group/src/QueryAccess/PluginBasedQueryAlterBase.php`
+  (`addSynchronizedConditions()`), `web/modules/contrib/flag/flag.module`
+  (`flag_entity_predelete()`), `web/core/lib/Drupal/Core/Render/Renderer.php:504`,
+  `web/core/lib/Drupal/Core/Theme/ThemeManager.php:134-165` (all read directly in this worktree's
+  own DDEV-mounted core, not taken from F's citations alone), `docs/groups/modules/do_group_pin/
+  tests/src/Kernel/PinnedStreamOrderingTest.php::testPinToggleInvalidatesStreamCacheTagWithoutFlush`
+  (the per-group precedent test compared against), `docs/groups/modules/do_profile_stats/tests/src/
+  Kernel/ContributionStatsTest.php::countGroups()` (the reflection-into-preprocess-equivalent
+  precedent), live DDEV run output (23/23 pass, 709 assertions, captured verbatim in
+  handoff-T-green.md), two temporary break-and-restore diffs (not committed), `git status
+  --porcelain` (post-cleanup, 5 test/fixture files only).
