@@ -498,3 +498,19 @@ does the axe pass (U mandate: add the dep in a throwaway or run axe manually + w
 **No route-back to F.** Proceed to o4-mini diff gate → A-dup → U → S.
 
 **Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-T-green.md`.
+
+## Phase 6.5 (o4-mini diff gate) — round 1: BLOCK
+
+**Decided:** Ran `dual-review.sh --mode diff` (base origin/main). Verdict **BLOCK**, 1 finding:
+- **[B-1] pagination is non-functional.** `ManageMembersForm::buildForm()` fetches ALL members
+  (`$group->getMembers()`, line 72), renders `#type => pager` (line 94), but never calls
+  `pager_default_initialize()` nor slices the dataset — so the pager is decorative and AC-15's
+  "paginate at 50 rows" is unmet. **O independently confirmed the finding against the actual code**
+  (lines 72/90-92/94: full loop, no slice) — it is a real defect, not a false positive.
+- 2 WARN (incomplete cache contexts on the access result; `addMember()` typed `AccountInterface`
+  should be `UserInterface`), 4 NIT (stale CSS comment, unused library `version:`, trailing comma,
+  role weights). These are advisory; O is routing the BLOCK + the 2 WARN + the cheap NITs to F in
+  one pass to avoid a second round-trip.
+
+**Action:** route back to F for the pagination fix (+ WARN/NIT sweep). Per pipeline, re-enters at F;
+T then re-verifies (GREEN) before A-dup. Transcript: `dual-review-diff.md`.
