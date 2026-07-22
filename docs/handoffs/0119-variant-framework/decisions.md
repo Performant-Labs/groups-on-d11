@@ -833,3 +833,20 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   (decisions.md L600-640) confirming all 5 BLOCKs dispositioned. Did not re-provision Docker/DB — T
   verified GREEN twice + U once on this exact HEAD; S's mandate is Tier-3 spec/quality, not re-running
   Tier-1/2. Full detail in handoff-S.md (both worktree handoff dir + scratchpad o119-handoffs/).
+
+## O — PR opened — 2026-07-22T15:00:00Z
+- **Decided:** Full pipeline complete, S (Opus) PASS with 3 non-blocking advisories. Per coordinator
+  go-ahead (docs-in-PR, matching #147's convention): rebased onto origin/main @ 37e8582 (clean, 18
+  commits, no conflict — origin/main confirmed ancestor of HEAD), ran the #109 config-path check
+  (do_showcase Unit tests are pure — no config/fixture file reads, nothing source-relative to
+  relocate), pushed 0119-variant-framework to origin (GitHub canonical — this repo's PR flow, unlike
+  the groupsdrupalorg GitLab fork model), opened PR #148 → main. Assigned aangelinsf; labels
+  enhancement + showcase (mirroring issue #119); AI involvement disclosed in the body + Co-Authored-By
+  on every commit. MERGEABLE; CI (E2E Playwright, Functional BrowserTestBase, Kernel) pending.
+- **Assumed:** none.
+- **Hedged:** The 3 S advisories are carried into the PR body as non-blocking (persona names not
+  t()-wrapped [defensible]; stale page_attachments doc-comment; ?variant= replaces vs merges query
+  string — a note for SC-4/5/6). None gates this PR.
+- **Evidence:** PR https://github.com/Performant-Labs/groups-on-d11/pull/148; `git rebase origin/main`
+  clean; `gh pr checks 148` (3 pending).
+- **Do NOT merge** — a human maintainer merges; the coordinator watches CI to green.
