@@ -304,3 +304,51 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   `ShowcaseController::create()`), confirmed identical to the pre-existing finding on
   `NotificationSettingsController::create()` — not a defect introduced here. No mutating command run
   against the shared `groups-on-d11` checkout at any point.
+
+## Phase 6 — T (GREEN) + Tier 2
+
+- **Decided:** Verified PHPUnit against a full copy of `web/core` (not a symlink), matching F's own
+  documented workaround for the realpath-bootstrap trap. Confirmed the isolated tree was actually
+  exercised via PHPUnit's own printed `Configuration:` path (the worktree path, not the shared
+  checkout). 37/37 green (23 new do_showcase + 14 pre-existing do_chrome non-regression).
+- **Decided:** Stood up a real namespaced Docker (mysql:8) + composer install (PHP 8.4 via Homebrew
+  — the default system PHP 8.3 fails composer's lock-file platform check) + assemble-config.sh +
+  drush site:install + config:import + demo-data seed + `drush runserver`, mirroring
+  `.github/workflows/test.yml`'s e2e job, and ran `npx playwright test tests/e2e/showcase.spec.ts`
+  for real. 15/15 green (after fixing one test locator — see below). Also ran nav.spec.ts (6/6, ribbon
+  non-regression confirmed) and the broader phase1-4/directory-cards regression suite (18/18) for
+  extra confidence given a mid-run infra casualty (see Hedged below). Full teardown after (Docker
+  container removed, server killed, worktree filesystem restored to only the one intentional test
+  fix via git checkout/clean).
+- **Decided (test fix, not a silent change):** `showcase.spec.ts`'s "lists the persona switcher
+  naming all four public personas" case failed on a REAL run — not because of a production defect,
+  but because its own `page.getByText('Anonymous', { exact: false })` locator (case-insensitive by
+  default) collided with the persona-switcher catalog entry's legitimate decision_sentence text
+  ("...one generic **anonymous** view..."), a strict-mode violation. Fixed by scoping the assertion
+  to the entry's own `<ul>` via the `data-do-showcase-entry="persona-switcher"` attribute F's DOM
+  contract already documents. This is T fixing its own test per the pipeline's own rule ("F writes
+  no tests... if a test is wrong, T fixes it") — not F's code being wrong, and not silently
+  papered over: full root-cause + before/after re-run recorded in handoff-T-green.md.
+- **Found (BLOCKER, routed to F+T, not fixed here):** the approved wireframe (`wireframe.md` lines
+  29-31, 271) explicitly specifies roving-tabindex + Arrow-Left/Right keyboard navigation for the
+  switcher ("matching native radiogroup behavior"). Shipped code gives every available option
+  `tabindex="0"` (not roving) and implements no arrow-key handler — Tab-only, one stop per option.
+  Neither my Phase-4 PHPUnit nor Playwright suite tested this specific wireframe-committed behavior
+  either — a genuine hole in the RED I authored, flagged against myself, not just F. See
+  handoff-T-green.md's BLOCKER section for the full precise citation and routing.
+- **Hedged:** Mid-run, the throwaway MySQL Docker container was reaped by a concurrent process on
+  this shared machine (matching the task's own stated risk), producing 11 apparent regression
+  failures (login timeouts, one 403→500) partway through a broader (non-required) regression pass.
+  Diagnosed precisely (container gone from `docker ps -a`, `/user/login` itself 500ing — a server/DB
+  casualty, not a do_showcase code path) rather than reported as a false blocker. Recreated the
+  container + site fresh on a new port with a single-worker `runserver` and reran everything to a
+  clean, uninterrupted 18/18 + 21/21. Flagged as an advisory note for O — this machine's
+  worktree/process reaping is a recurring operational hazard for any phase doing live-environment
+  verification, not specific to this story.
+- **Evidence:** `handoff-T-green.md` (this phase's full output — PHPUnit command+output, phpcs/
+  phpstan cross-check against F's report, Playwright per-case table, Tier 2 findings, acceptance-
+  criteria table). Mutation spot-check (temporarily broke `VariantSwitcher::resolveSelection()`'s
+  fallback, confirmed 2 tests fail for the right reason, restored, confirmed 10/10 green again) —
+  proves the suite pins behavior, not implementation. `git status --short` in the worktree after
+  teardown: only `tests/e2e/showcase.spec.ts` (the one intentional fix) plus one pre-existing
+  untracked file not touched by me.

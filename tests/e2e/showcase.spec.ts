@@ -313,13 +313,29 @@ test.describe('SC-F1 — /showcase tour page (#119)', () => {
   }) => {
     await page.goto('/showcase');
     await expect(page.getByText('Persona switcher')).toBeVisible();
+    // Scoped to the persona-switcher catalog entry's own DOM
+    // (data-do-showcase-entry="persona-switcher", per handoff-F.md's DOM
+    // contract) rather than a page-wide text search: the entry's own
+    // decision_sentence legitimately contains the substring "anonymous"
+    // (lowercase, "...one generic anonymous view...") and Playwright's
+    // getByText is case-insensitive by default, so an unscoped page-wide
+    // getByText('Anonymous') collides with that unrelated sentence in a
+    // strict-mode violation. Scoping to the entry's persona <ul> pins the
+    // real behavior (all four personas are named IN THE PERSONA LIST)
+    // without being sensitive to incidental word overlap elsewhere on the
+    // page.
+    const personaList = page.locator(
+      '[data-do-showcase-entry="persona-switcher"] ul',
+    );
     for (const persona of [
       'Anonymous',
       'Elena Garcia',
       'Maria Chen',
       'Moderator',
     ]) {
-      await expect(page.getByText(persona, { exact: false })).toBeVisible();
+      await expect(
+        personaList.getByText(persona, { exact: false }),
+      ).toBeVisible();
     }
   });
 });
