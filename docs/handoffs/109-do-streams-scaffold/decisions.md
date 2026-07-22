@@ -554,3 +554,39 @@
   (`git checkout -- .ddev/config.yaml config/sync/ web/...` + `git clean -fd config/sync/
   web/modules/custom/ web/autoload_runtime.php`); `git status --porcelain` confirms the tree
   carries ONLY the `StreamsShellTest.php` edit — no production code touched.
+
+## A — Phase 7 (anti-duplication) — 2026-07-22T22:00:00Z
+- **Decided:** Verdict **PASS**. Diff (c18f417..HEAD, incl. the [B-1] rework commit) extends the
+  `do_group_pin` `views_query_alter`/compiled-query-rewrite/cache-tag *pattern* in a new module
+  exactly as the Reuse map specified, and does NOT fork the `do_group_pin` object — verified
+  `do_group_pin`'s hooks are hardcoded to `STREAM_VIEW_ID = 'group_content_stream'` and its own
+  relationship alias, so they structurally cannot be called for `do_streams_demo`'s different join
+  set without an out-of-scope `do_group_pin` refactor. The one legitimate cross-module reuse
+  (`DoGroupPinHooks::PIN_FLAG_ID`, a `public const`) is used by direct reference in both
+  `applyPinnedRanking()` and `onFlaggingChange()`, never redeclared as a literal string.
+- **Decided:** `queryViewsDoStreamsDemoAlter()`'s generic table-name-based column discovery (per
+  [A-W1]) is confirmed present and NOT a copy of do_group_pin's hardcoded
+  `group_relationship_field_data_node_field_data` alias — do_streams discovers its 3 join-side
+  tables (`do_streams_comment_stats`, `do_streams_hot_score`, `do_streams_pin_flagging`) by
+  membership check against its own static list, distinct per ranking branch.
+- **Decided:** Confirmed `applyHotRanking()` only consumes `do_discovery_hot_score.score` via a
+  LEFT JOIN + `COALESCE(...,0) DESC` — the scoring formula itself
+  (`comment_count*3 + view_count*0.5`) stays solely in `DoDiscoveryHooks::cron()`, never
+  duplicated.
+- **Decided:** Confirmed the shared shell (`do-streams-shell.html.twig` +
+  `preprocessDoStreamsShell()`) wraps a pre-rendered `results` render array and does not touch or
+  reimplement `groups_chrome_preprocess_node()` / `node--stream-card.html.twig` — zero diff lines
+  outside `docs/groups/modules/do_streams/` confirm no drive-by edit to shared/other-module code.
+- **Decided:** The Phase-5 rework commit (71a1ebc, diff-gate [B-1] fix) added a `url_or_param` key
+  to the EXISTING `scope_tabs` array inside the EXISTING `preprocessDoStreamsShell()` method and a
+  `data-*` attribute on the EXISTING template — no new object, no drift reintroduced during
+  rework.
+- **Evidence:** `git diff c18f417 HEAD --stat` (all production/test changes confined to
+  `docs/groups/modules/do_streams/`), `docs/groups/modules/do_streams/src/Hook/DoStreamsHooks.php`
+  (full read), `docs/groups/modules/do_streams/src/Plugin/views/filter/{MembershipScope,
+  FollowingScope}.php` (full read), `docs/groups/modules/do_streams/templates/
+  do-streams-shell.html.twig` (full read), `docs/groups/modules/do_group_pin/src/Hook/
+  DoGroupPinHooks.php` (full read, comparison baseline), `docs/groups/modules/do_discovery/src/
+  Hook/DoDiscoveryHooks.php` (grep for `views_data`/scoring logic), `handoff-F.md` +
+  `handoff-F-rework.md` §Reuse/extend-vs-new, `survey.md` §Reuse & Analogous-Feature map,
+  `handoff-A.md` (own Phase-3 review). Output: `handoff-A-dup.md`.
