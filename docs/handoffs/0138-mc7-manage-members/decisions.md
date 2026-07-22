@@ -181,3 +181,58 @@ AC-compliant); OQ-2's guard must stay a trivial per-render count query, not over
 
 **Evidence:** `docs/handoffs/0138-mc7-manage-members/wireframe.md`, `handoff-D.md`; coordinator
 D-gate approval message.
+
+## Phase 3 (Architecture) — A — Up-front plan review
+
+**Decided:** PASS. Verified the plan's reuse-first fidelity and architectural soundness against
+actual sibling-module source (`do_notifications`, `do_discovery`, `do_group_extras`, plus every
+other `do_*` module's `.services.yml`) and the mandatory Services-over-Hooks playbook doc. Group-role
+extension, relationship-type field addition, and B-5's synchronized-global-role mechanism for
+Groups-Moderate all check out. No `block` findings.
+
+**Two `warn` findings recorded** (full detail in `handoff-A-plan.md`):
+1. The brief's "manager service" pattern is not exemplified in any *existing* `do_*` module (all of
+   them use only a `*Hooks` class or inline controller logic) — but it IS the mandatory documented
+   pattern in `docs/playbook/frameworks/drupal/best-practices.md`. Not drift; flagged so F builds the
+   DI/service shape from the playbook's own example rather than copy-pasting `do_notifications`'s
+   inline-logic controller style.
+2. The B-5 synchronized-global-role mechanism remains a verified-via-source-read assumption (no local
+   `vendor/drupal/group` tree exists in this worktree or the reference checkout to do a byte-level
+   check) — but is independently corroborated by this repo's own live
+   `AccessPolicyEnforcementTest`, which already documents `SynchronizedGroupRoleAccessPolicy` feeding
+   the OUTSIDER/INSIDER scopes via `GroupInterface::hasPermission()`. Recommended T add one Kernel
+   test asserting the exact `groups_moderate` config grants cross-group access, to close this
+   empirically at GREEN.
+
+**Evidence:** `docs/groups/modules/do_notifications/*`, `docs/groups/modules/do_group_extras/*`,
+`docs/groups/modules/do_discovery/*`, every `do_*` `.services.yml`,
+`docs/playbook/frameworks/drupal/best-practices.md`,
+`docs/groups/modules/do_tests/tests/src/Kernel/{GroupsKernelTestBase.php,AccessPolicyEnforcementTest.php}`,
+`composer.json`/`composer.lock` (confirmed no local vendor tree, `drupal/group: 4.0.x-dev`).
+
+**Handoff:** `docs/handoffs/0138-mc7-manage-members/handoff-A-plan.md`
+
+## Phase 3 (up-front architecture review) — Architecture Reviewer (A)
+
+**Decided:** A reviewed the plan (brief + approved wireframe + reuse map) against actual sibling
+modules. **Verdict: PASS** — no `block` findings; plan is reuse-first and architecturally sound.
+The B-5 synchronized-global-role correction is corroborated live in this repo's own
+`do_tests/tests/src/Kernel/AccessPolicyEnforcementTest.php` (documents `SynchronizedGroupRole
+AccessPolicy` feeding OUTSIDER/INSIDER scopes), not just the git.drupalcode.org source read.
+
+**Two `warn`s carried forward (not blocking, but must reach F and T):**
+- **warn-1 (for F):** NO existing `do_*` module implements the mandatory Services-over-Hooks
+  manager-service pattern — they all put logic in a `*Hooks` class or inline in the controller
+  (`do_notifications` even service-locates `\Drupal::state()` inline, the exact anti-pattern the
+  brief avoids). F must base `do_group_membership.manager` + its `*.services.yml` DI wiring on the
+  playbook's own `MyModuleManager` example (`docs/playbook/frameworks/drupal/best-practices.md`
+  §"Services over Hooks"), and use `do_notifications` ONLY for the routing / `links.task.yml` /
+  `{group}`-param-upcasting shape — NOT for the service-injection pattern.
+- **warn-2 (for T):** the synchronized-global-role mechanism could not be closed by a byte-level
+  vendor read (no local `vendor/drupal/group` tree in this worktree or the reference checkout). T
+  must add one Kernel test asserting that a `group.role` config with `scope: insider` +
+  `global_role: groups_moderate` + `admin: true` actually grants
+  `hasPermission('administer members', $groups_moderate_user)` on a group the user never joined —
+  this closes the residual assumption empirically at GREEN.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-A-plan.md`.
