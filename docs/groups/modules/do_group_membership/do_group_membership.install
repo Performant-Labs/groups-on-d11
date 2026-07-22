@@ -65,7 +65,9 @@ function do_group_membership_modules_installed(array $modules, bool $is_syncing)
  * must never fatal, since it runs unconditionally from two different
  * hooks and the view may not have been created yet, may already have had
  * `page_1` removed (this project's own site config, or a prior run of this
- * same strip), or may not exist in a given install profile at all.
+ * same strip), or may not exist in a given install profile at all. Also
+ * guards for Views not being installed at all — this module does not
+ * depend on `views`, so a views-less site has no `view` entity type.
  *
  * Respects `$is_syncing`: during a config sync, a deliberate config import
  * is already in control of the site's config state (including, if it
@@ -76,11 +78,26 @@ function do_group_membership_modules_installed(array $modules, bool $is_syncing)
  * fresh-module-install path (the path this fix exists for) is NOT a config
  * sync, so this guard does not suppress the fix where it's actually needed.
  *
+ * When a strip actually occurs, also rebuilds the router. `ModuleInstaller::
+ * install()` rebuilds the router BEFORE `hook_modules_installed()` fires,
+ * and nothing rebuilds it again afterward — so within a single install
+ * request (BrowserTestBase, and a real user's first page load immediately
+ * post-install) the route table would otherwise stay stale and keep
+ * resolving `/group/{group}/members` to the just-removed `page_1` display.
+ *
  * @param bool $is_syncing
  *   TRUE if the current install is part of a config synchronization.
  */
 function _do_group_membership_strip_group_members_page_display(bool $is_syncing): void {
   if ($is_syncing) {
+    return;
+  }
+
+  // This module does not depend on `views` (`do_group_membership.info.yml`
+  // correctly omits it). On a site without Views installed, the `view`
+  // entity type does not exist at all, so there is no `group_members` view
+  // to collide with — return before touching entity-type storage.
+  if (!\Drupal::moduleHandler()->moduleExists('views')) {
     return;
   }
 
@@ -98,4 +115,8 @@ function _do_group_membership_strip_group_members_page_display(bool $is_syncing)
   unset($displays['page_1']);
   $view->set('display', $displays);
   $view->save();
+
+  // Rebuild the router within this same request so the removed display is
+  // reflected immediately, only when a strip actually occurred.
+  \Drupal::service('router.builder')->rebuild();
 }

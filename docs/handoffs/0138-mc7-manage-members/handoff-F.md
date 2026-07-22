@@ -708,3 +708,153 @@ module-install orderings.
 - `docs/groups/modules/do_group_membership/do_group_membership.install` (new) — `hook_install()` +
   `hook_modules_installed()`, both calling one shared private helper that strips the `page_1`
   display from `views.view.group_members` if present, skipping during `$is_syncing`.
+
+## Route-collision fix v3 (router rebuild + views guard) — Phase 8 REWORK round 3, 2026-07-22
+
+**Trigger:** T re-verified the round-2 (`hook_install`) fix via a REAL in-request install
+(`module_installer->install([...], TRUE)` in a single bootstrap, matching `BrowserTestBase` —
+not per-process `drush php:eval`, which rebuilds the router fresh on every process and masks
+same-request staleness) and found two issues, both confirmed correct.
+
+### FIX 1 — stale router within the install request
+
+`ModuleInstaller::install()` rebuilds the router BEFORE `hook_modules_installed()` fires, and
+nothing rebuilds it again afterward. So within a SINGLE install request, the route table stayed
+stale and kept resolving `/group/{group}/members` to the just-stripped `page_1` view display —
+this is why `ManageMembersRouteResolutionTest` was still RED 3/3 even though the config-level
+strip itself was correct. My round-2 `drush php:eval` checks passed only because each drush
+invocation is its own process, which rebuilds the router fresh on bootstrap — masking the
+same-request bug.
+
+**Fix (`_do_group_membership_strip_group_members_page_display()`):** after `$view->save()`,
+call `\Drupal::service('router.builder')->rebuild();` — but ONLY inside the `unset($displays['page_1']); ... $view->save();`
+block, i.e. only when a strip actually occurred. The early-return paths (view not found,
+`page_1` not present, `$is_syncing`, views not installed) do not rebuild the router — no
+pointless rebuild when there was nothing to strip.
+
+Exact change (end of the helper):
+```php
+  unset($displays['page_1']);
+  $view->set('display', $displays);
+  $view->save();
+
+  // Rebuild the router within this same request so the removed display is
+  // reflected immediately, only when a strip actually occurred.
+  \Drupal::service('router.builder')->rebuild();
+}
+```
+
+### FIX 2 — views-less sites crash (new regression, 8 methods ERROR)
+
+The helper called `\Drupal::entityTypeManager()->getStorage('view')` unconditionally.
+`do_group_membership.info.yml` correctly does not depend on `views`, so on a site without
+Views installed (3 pre-existing Functional test files' `$modules` arrays don't include
+`views`), `hook_install()` threw `PluginNotFoundException` ("view entity type does not exist").
+
+**Fix:** guard the helper early, before touching view storage:
+```php
+  if (!\Drupal::moduleHandler()->moduleExists('views')) {
+    return;
+  }
+```
+placed immediately after the existing `if ($is_syncing) { return; }` guard, before the
+`entityTypeManager()->getStorage('view')` call. If Views isn't installed, there is no
+`group_members` view to collide with, so returning early is correct — no behavior change
+on views-enabled sites.
+
+Everything else in the file is untouched: both `do_group_membership_install()` and
+`do_group_membership_modules_installed()` still call the shared helper unchanged; the
+`$is_syncing` handling is unchanged; the site-config `page_1` deletion in
+`docs/groups/config/views.view.group_members.yml` (round 1, belt+suspenders) is untouched.
+
+### Verification — REAL in-request install, not per-process drush
+
+Per the explicit mandate, did NOT rely on separate `drush php:eval` processes (each rebuilds
+the router fresh on its own bootstrap, which would mask exactly the staleness bug being fixed).
+Instead wrote a one-off PHP script that boots a single `DrupalKernel`, calls
+`\Drupal::service('module_installer')->install(['do_group_membership'], TRUE)`, and checks
+router state in the SAME request/process, with no second bootstrap in between. Own Docker MySQL
+container `gm138f2-mysql` (created and removed only by me this round; `docker ps -a` before/after
+confirms the full pre-existing container set, including any `gm138-*`/`gm138v2-*`/`o119-*`
+siblings, if any existed, was untouched — none existed at the time I started).
+
+**Ordering exercised — `group`+`views` installed first (reproduces the collision), then
+`do_group_membership` installed in-request:**
+```
+Displays BEFORE install: default,page_1
+module_installer->install() returned: true
+Displays AFTER install (same request): default
+Routes matching /group/1/members (same request): do_group_membership.manage_members
+```
+`router.route_provider->getRoutesByPattern('/group/1/members')` — called in the SAME request as
+the install, no new process — resolves to exactly one route,
+`do_group_membership.manage_members`. The `page_1`-provided `view.group_members.page_1` route no
+longer exists as a candidate at all. This is the direct, same-request proof FIX 1 closes the gap
+T identified; a stale router would have shown `view.group_members.page_1` still present or
+ambiguous at this point.
+
+**Idempotency check** (re-running the helper on an already-fixed site, still same-request):
+```
+Displays after re-running helper (idempotent call): default
+Routes matching /group/1/members after re-run: do_group_membership.manage_members
+```
+No error, no duplicate rebuild side effect, route table still correct — confirms the
+early-return path (no `page_1` present) is safe to hit repeatedly.
+
+**Views-less-site regression check** (uninstalled `views`/`views_ui`, installed `group` alone —
+which does not hard-depend on `views` — then in-request installed `do_group_membership`):
+```
+views module enabled? no
+module_installer->install() returned: true (no exception thrown)
+do_group_membership enabled after install? yes
+```
+No `PluginNotFoundException`, no fatal — confirms FIX 2 closes the regression on a real
+views-less bootstrap, not just by code inspection.
+
+Docker hygiene: `docker ps -a` before this round showed no `gm138-*` container of any kind
+(prior round's `gm138v2-mysql` no longer existed). Created and removed only `gm138f2-mysql`;
+`docker ps -a` after removal is byte-identical in name-set to before creation (confirmed by
+listing all container names both times). No other container — `ddev-*` or otherwise — was
+started, stopped, or removed.
+
+`web/sites/default/settings.php`'s DB port was temporarily flipped from `33061` to `33071` to
+point at my throwaway container, then restored to `33061` and the file's/directory's read-only
+permissions restored afterward — this file is gitignored build output (not a tracked production
+source), consistent with the round-2 handoff's documented handling of the same file.
+
+### Tier 1 self-check (this round)
+
+| Check | Command | Result |
+|---|---|---|
+| phpcs | `vendor/bin/phpcs --standard=Drupal,DrupalPractice docs/groups/modules/do_group_membership/do_group_membership.install` | 0 errors, 0 warnings |
+| phpstan level 1 | `vendor/bin/phpstan analyse --level=1 docs/groups/modules/do_group_membership/do_group_membership.install` | 0 findings |
+| `php -l` | source file | No syntax errors |
+| `scripts/ci/assemble-config.sh` | re-run after editing the `.install` file | Clean: `copied 95 file(s), excluded 7`, `copied 11 custom module(s)`; materialized copy at `web/modules/custom/do_group_membership/do_group_membership.install` byte-identical (`diff` clean) to the source |
+| Module install (in-request) | `module_installer->install(['do_group_membership'], TRUE)` inside a single `DrupalKernel` bootstrap | Returns `true`, no exception, both with and without `views` enabled |
+| Same-request router resolution | `router.route_provider->getRoutesByPattern('/group/1/members')` immediately after the in-request install call, no new process | Resolves to exactly `do_group_membership.manage_members` |
+
+I did not run T's `ManageMembersRouteResolutionTest` PHPUnit suite directly this round (per my
+mandate: implement, don't touch tests — T re-verifies). The in-request script above exercises
+the exact same real mechanism the test asserts against
+(`router.route_provider`/`router.no_access_checks` resolving to the module route within a single
+bootstrap, matching `BrowserTestBase`'s lifecycle) — this is the strongest self-check available
+without running T's file, and specifically avoids the per-process-drush blind spot T flagged.
+
+### Known issues
+
+None. Both fixes are narrow, isolated to the one shared helper function, and independently
+verified live via a real in-request install matching `BrowserTestBase`'s actual bootstrap
+lifecycle (not the flawed per-process drush method).
+
+### Tests that look wrong (for T)
+
+None from this round.
+
+### Files changed (this round)
+
+- `docs/groups/modules/do_group_membership/do_group_membership.install` — added the
+  `router.builder->rebuild()` call (only on an actual strip) and the early
+  `moduleHandler()->moduleExists('views')` guard, inside
+  `_do_group_membership_strip_group_members_page_display()`. No other function touched;
+  `do_group_membership_install()` and `do_group_membership_modules_installed()` are byte-for-byte
+  unchanged from round 2.

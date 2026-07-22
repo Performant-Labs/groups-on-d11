@@ -963,3 +963,64 @@ route-resolution 3/3 GREEN AND the 3 pre-existing Functional files (8 methods) n
 
 **Evidence:** `handoff-T-green.md` "Route-resolution GREEN verify"; `do_group_membership.install`
 line 88 (unconditional `getStorage('view')`, no router rebuild).
+
+## Phase 8 REWORK round 3 — F — Route-collision fix v3 (router rebuild + views guard)
+
+**Decided:** Applied both fixes T diagnosed, exactly as specified, no other change to
+`do_group_membership.install`:
+1. `router.builder->rebuild()` called only inside the actual-strip branch of
+   `_do_group_membership_strip_group_members_page_display()`, after `$view->save()` — not on the
+   early-return paths (nothing to rebuild when nothing was stripped).
+2. `if (!\Drupal::moduleHandler()->moduleExists('views')) { return; }` guard added immediately
+   after the existing `$is_syncing` guard, before `entityTypeManager()->getStorage('view')` is
+   ever called.
+
+**Evidence (not per-process drush — a real single-bootstrap in-request install, per T's own
+diagnosis of why the prior verification method was structurally blind to this bug):** wrote a
+one-off script booting one `DrupalKernel`, calling
+`\Drupal::service('module_installer')->install(['do_group_membership'], TRUE)`, then checking
+`router.route_provider->getRoutesByPattern('/group/1/members')` in the SAME process/request, no
+second bootstrap. Result: `Displays BEFORE install: default,page_1` →
+`module_installer->install()` returns `true` → `Displays AFTER install (same request): default`
+→ `Routes matching /group/1/members (same request): do_group_membership.manage_members` — the
+single-route resolution proves the router is not stale within the install request. Re-ran the
+helper idempotently (already-fixed site) with no error and unchanged correct route table.
+Separately, on a real views-uninstalled site (`drush pm:uninstall views -y`, then `group`
+installed alone — `group` has no hard dependency on `views`), the same in-request install
+returned `true` with no exception, confirming the views-less crash regression is closed.
+
+**Assumed:** Own throwaway Docker MySQL container `gm138f2-mysql` (created and removed only this
+round; `docker ps -a` before/after confirmed no other container touched) is an acceptable
+verification vehicle since no `gm138-*`/`gm138v2-*` container from prior rounds still existed to
+reuse. `web/sites/default/settings.php`'s DB port was temporarily pointed at this container then
+restored to its prior value (`33061`) and its read-only permissions restored — this file is
+gitignored build output per the round-2 handoff's own documented precedent, not a tracked source.
+
+**Hedged:** Did not run T's `ManageMembersRouteResolutionTest` PHPUnit file directly (per F's
+mandate: implement, don't execute/edit T's suite as the verification of record — that's T's
+Phase 6 job). The in-request script is the strongest self-check available without doing so, and
+specifically targets the exact same-request router-resolution mechanism the test asserts, using
+the same lifecycle (`module_installer->install(..., TRUE)` in one bootstrap) T flagged as the
+only valid verification method.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-F.md` "Route-collision fix v3
+(router rebuild + views guard)"; `do_group_membership.install` diff (both fixes, ~20 lines
+total); in-request verification transcripts (collision-reproduction ordering, idempotency check,
+views-less-site check) pasted in the handoff section above.
+
+## Phase 8 (route-collision v3) — F: router rebuild + views guard
+
+**Decided:** F applied both fixes to `do_group_membership.install` helper: (1) line ~121
+`\Drupal::service('router.builder')->rebuild()` after saving the stripped view, only on an actual
+strip — closes the same-request stale-router hole; (2) line ~100 early guard
+`if (!\Drupal::moduleHandler()->moduleExists('views')) { return; }` — closes the views-less
+`PluginNotFoundException` regression. F verified via a REAL in-request install
+(`module_installer->install([...], TRUE)`, not per-process drush): route now resolves to
+`do_group_membership.manage_members` IN THE SAME REQUEST, and a views-less install returns clean
+(zero exception). `$is_syncing` handling + site-config deletion retained. Tier-1 clean.
+
+**Next:** T independently re-verifies via in-request install: route-resolution 3/3 GREEN, the 3
+pre-existing Functional files (8 methods) no longer crash in hook_install, Unit 16/16 GREEN.
+
+**Evidence:** `do_group_membership.install` lines 100 (views guard) + 121 (router rebuild);
+handoff-F.md "Route-collision fix v3".
