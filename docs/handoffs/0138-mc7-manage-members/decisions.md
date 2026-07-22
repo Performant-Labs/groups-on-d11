@@ -581,3 +581,41 @@ schema bug) → **CI-pinned; env-blocked test count is now 18**. Unit re-run **1
 held (`gm138-*`). Proceed to A-dup → U → S.
 
 **Evidence:** `handoff-T-green.md` "Round-2 re-verify"; `tests/src/Functional/ManageMembersPaginationTest.php`.
+
+## Phase 7 — Architecture Reviewer (A) — anti-duplication gate
+
+**Decided:** Reviewed the implemented diff (`docs/groups/` only; `config/sync/`/
+`web/modules/custom/` are `assemble-config.sh` build artifacts, out of scope) against the survey's
+Reuse & Analogous-Feature map. **Verdict: PASS.** Confirmed F extended, not forked: group roles
+(new `organizer`/`moderator` siblings, `community_group-member.yml` untouched — absent from diff
+entirely), membership status (one new field on the existing relationship type, orthogonal to
+`group_roles`, no parallel relationship type), manager-service centralization (controller is
+access-only, all four Forms delegate every mutation to `GroupMembershipManager`, honoring
+Phase-3's warn-1 to follow the playbook's `MyModuleManager` shape rather than `do_notifications`'s
+inline-logic anti-pattern), and Groups-Moderate (Group 4.x's built-in synchronized-global-role
+mechanism via `GroupRoleStorage`, not a hand-rolled access check). Scope discipline held: zero
+touches to `do_chrome/PermissionMatrix.php`, the #121/#134 vestigial-role files, or `grequest`.
+One `warn` (not blocking): `ManageMembersForm` copy-pastes the manager's `relationshipStatus()`
+read-helper and active-Organizer counting loop for UI-only disable-before-attempt logic, because
+the manager's equivalent method is `protected` — the manager's `assertNotLastOrganizer()` remains
+the sole server-side enforcement point on every mutation, so this is duplicate read logic, not a
+duplicate enforcement path. Flagged as optional low-priority cleanup (promote to `public` on the
+service), not routed back to F.
+
+**Evidence:** `handoff-A-dup.md`.
+
+**Verdict:** PASS. Proceed to U (UI Walkthrough) → S.
+
+## Phase 7 (anti-duplication gate) — Architecture Reviewer (A-dup)
+
+**Decided:** A-dup **PASS** — reuse-first held; single enforcement path. Role family EXTENDED (new
+organizer/moderator/groups_moderate siblings, `community_group-member` unchanged); status field
+orthogonal to `group_roles`; CRUD/status logic centralized in the one `GroupMembershipManager`
+service; Groups-Moderate reuses Group's synchronized-global-role mechanism; scope discipline held
+(no do_chrome/PermissionMatrix.php, no #121/#134 vestigial-role edits, no grequest/join-flow).
+
+**1 warn — accepted as-is (POC), NOT respawning F:** the UI duplicates the Organizer-count read
+(a helper) because the manager's count methods are `protected` — a small UI-only duplicate, not a
+parallel enforcement path. **Recorded as a known follow-up for the PR description**, not a blocker.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-A-dup.md`.
