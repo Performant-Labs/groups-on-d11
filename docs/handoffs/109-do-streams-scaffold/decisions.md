@@ -709,3 +709,50 @@ internally consistent and convention-compliant.
   cleanup; the `@todo` to derive aggregate targets from `$query->getTables()` when a new ranking
   join is added). These travel with the module (in-repo), not as tracker tickets, per the epic's
   append-only/downstream-owns-its-surface model.
+
+## T — Phase 6 rework (CI: module-local fixtures) — 2026-07-22T14:00:00Z
+- **Decided:** Root cause per O's brief confirmed on inspection — both `StreamsScopeTest.php` and
+  `StreamsRankingTest.php` read config fixtures via `FileStorage(__DIR__ . '/../../../../../config')`,
+  a SOURCE-tree-relative path that resolves to `docs/groups/config/` locally but to the
+  non-existent `web/modules/custom/config/` in CI's assembled layout, silently returning `FALSE`
+  and erroring every scope/ranking test only in CI.
+- **Decided:** Fix is test-domain-only — copy the exact config fixtures the tests need into the
+  module's own `tests/fixtures/config/` (alongside the already-correct `views.view.do_streams_demo.yml`)
+  and repoint both `FileStorage` constructors at that module-local dir, matching the pattern
+  `do_group_pin`'s `PinnedStreamOrderingTest` already uses. No production code, no test assertions
+  changed.
+- **Decided:** Reused `do_group_pin`'s own existing fixture copy of `flag.flag.pin_in_group.yml`
+  (`docs/groups/modules/do_group_pin/tests/fixtures/config/`) rather than re-deriving one, after
+  confirming via `diff` it is byte-identical to `do_group_pin`'s shipped
+  `config/optional/flag.flag.pin_in_group.yml` — avoids a second source of truth for the same
+  fixture.
+- **Decided:** Preserved the pre-existing `flagTypeConfig.access_author`-unset workaround in
+  `StreamsScopeTest.php` verbatim (a pre-existing config-schema gap on `follow_content`, unrelated
+  to this story) — only its `FileStorage` source path changed.
+- **Evidence:** Reproduced CI's exact layout in an isolated DDEV project (`t109ci-do-streams`,
+  distinct from the shared `pl-groups-on-d11` instance/checkout) via `ddev composer install` +
+  `bash scripts/ci/assemble-config.sh` (the same script and command CI's Kernel job runs), then ran
+  `php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox web/modules/custom/do_streams/tests/src/Kernel/`
+  from the ASSEMBLED location (`web/modules/custom/do_streams/`, not the source tree). Result:
+  **23/23 GREEN** (`Tests: 23, Assertions: 723`, zero Failures/Errors; "OK, but there were issues"
+  refers only to pre-existing, unrelated deprecation notices). Also ran the full 86-test
+  custom-module Kernel suite from the same assembled layout — zero failures. Confirmed the
+  module-local fixtures directory travels with the module after `assemble-config.sh`
+  (`web/modules/custom/do_streams/tests/fixtures/config/` contains all 7 fixture files).
+- **Evidence (regression check):** Temporarily reverted ONLY the assembled copy's `FileStorage`
+  path back to the fragile original and re-ran the same two test classes from the assembled
+  location — reproduced the exact CI failure (`15 Errors`, first error: "Automatic conversion of
+  false to array is deprecated" at the `FileStorage->read()` call site), confirming the fixture-path
+  fix — not something incidental — is what resolves it. Assembled copy restored to the fix
+  immediately after, then removed entirely in the mandatory cleanup.
+- **Decided:** phpcs Tier-1 check skipped as N/A for this rework — the repo has no project-level
+  `phpcs.xml.dist` (only Drupal core's own, irrelevant `web/core/phpcs.xml.dist`), so a bare phpcs
+  run reports ~285 PSR2-default violations unrelated to this change; out of scope for a
+  precisely-scoped fixture-path rework per O's brief.
+- **Cleanup:** reverted all build artifacts (`git checkout -- .ddev/config.yaml config/sync/
+  web/.htaccess web/example.gitignore web/index.php web/robots.txt web/update.php`;
+  `git clean -fd config/sync/ web/modules/custom/ web/autoload_runtime.php .ddev/traefik/`) and
+  stopped/unlisted the isolated DDEV project (`t109ci-do-streams`). Final `git status --porcelain`
+  carries only the two edited test files + 6 new module-local fixture YAML files — no build
+  artifacts, no production-code changes.
+- **Handoff:** `docs/handoffs/109-do-streams-scaffold/handoff-T-green-ci-fix.md`.

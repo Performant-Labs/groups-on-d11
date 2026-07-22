@@ -92,15 +92,17 @@ class StreamsRankingTest extends GroupsKernelTestBase {
     $this->installSchema('flag', ['flag_counts']);
     $this->installSchema('do_discovery', ['do_discovery_hot_score']);
 
-    $fixtures = new FileStorage(__DIR__ . '/../../../../../config');
+    // Module-local fixtures dir (NOT a source-tree-relative path) so it
+    // resolves identically whether the module sits in the source worktree
+    // or an assembled web/modules/custom/ layout (e.g. in CI).
+    $fixtures = new FileStorage(__DIR__ . '/../../fixtures/config');
     $entity_type_manager = $this->container->get('entity_type.manager');
     $entity_type_manager->getStorage('flag')
       ->create($fixtures->read('flag.flag.pin_in_group'))
       ->save();
 
-    $view_fixtures = new FileStorage(__DIR__ . '/../../fixtures/config');
     $entity_type_manager->getStorage('view')
-      ->create($view_fixtures->read('views.view.do_streams_demo'))
+      ->create($fixtures->read('views.view.do_streams_demo'))
       ->save();
 
     // Group's own access-policy query alter LEFT JOINs

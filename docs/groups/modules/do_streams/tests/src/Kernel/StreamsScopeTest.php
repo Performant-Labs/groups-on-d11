@@ -79,15 +79,19 @@ class StreamsScopeTest extends GroupsKernelTestBase {
 
     // Following-scope needs the follow_* flags + the field_group_tags field
     // ([B-4]: NOT field_tags) on at least one NODE_BUNDLES bundle so the
-    // follow_term join has somewhere to attach. Install the real shipped
-    // config fixtures byte-identical to docs/groups/config/ (mirrors
+    // follow_term join has somewhere to attach. Install module-local fixture
+    // copies, byte-identical to the shipped docs/groups/config/ YAML (mirrors
     // PinnedStreamOrderingTest's fixture-install pattern), stripping the one
     // key with no matching config schema (`flagTypeConfig.access_author` on
     // follow_content — a pre-existing gap in the shipped config, unrelated
     // to do_streams / this story, that trips strict config-schema checking).
     // This keeps strict config schema ON while exercising the real flag
-    // definitions do_streams' following-scope plugin joins against.
-    $fixtures = new FileStorage(__DIR__ . '/../../../../../config');
+    // definitions do_streams' following-scope plugin joins against. The
+    // fixtures live under the module's own tests/fixtures/config/ (NOT a
+    // source-tree-relative path) so they resolve identically whether the
+    // module sits in the source worktree or an assembled
+    // web/modules/custom/ layout (e.g. in CI).
+    $fixtures = new FileStorage(__DIR__ . '/../../fixtures/config');
     $entity_type_manager = $this->container->get('entity_type.manager');
     foreach (['flag.flag.follow_content', 'flag.flag.follow_user', 'flag.flag.follow_term'] as $config_name) {
       $values = $fixtures->read($config_name);
@@ -109,10 +113,9 @@ class StreamsScopeTest extends GroupsKernelTestBase {
     $entity_type_manager->getStorage('field_config')->create($field_config)->save();
 
     // Install the do_streams_demo fixture view (Kernel-level "test view" per
-    // [B-7]; NOT shipped config).
-    $view_fixtures = new FileStorage(__DIR__ . '/../../fixtures/config');
+    // [B-7]; NOT shipped config). Same module-local fixtures dir as above.
     $entity_type_manager->getStorage('view')
-      ->create($view_fixtures->read('views.view.do_streams_demo'))
+      ->create($fixtures->read('views.view.do_streams_demo'))
       ->save();
 
     // Outsider-scope group role granting view permission on every
