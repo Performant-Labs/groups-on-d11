@@ -590,3 +590,34 @@
   Hook/DoDiscoveryHooks.php` (grep for `views_data`/scoring logic), `handoff-F.md` +
   `handoff-F-rework.md` §Reuse/extend-vs-new, `survey.md` §Reuse & Analogous-Feature map,
   `handoff-A.md` (own Phase-3 review). Output: `handoff-A-dup.md`.
+
+## U — Phase 8 (walkthrough) — 2026-07-22T19:55:24Z
+- **Decided:** Verdict **CANNOT-WALK**, resolved as **N/A for Phase 8** (not a REWORK, not a
+  tooling-blocked CANNOT-VERIFY). Grounds: no controller/block/route anywhere in this diff
+  assembles `#theme => do_streams_shell` with live `results` — the three demo view page displays
+  (`page_1`/`page_following`/`page_global`) all use plain `row: {type: fields}` / `style:
+  {type: default}`, never the shell theme hook. The shell's own template carries zero client-side
+  JS (no `*.js`/`*.libraries.yml` in the module) and every tab/pill is deliberately non-linking
+  markup (`<span>` with `data-*`, no `<a href>`) — by the template's own docblock, wiring real
+  navigation is explicitly deferred to downstream stories #110-#115. This is the story's approved,
+  already-reviewed scope (Phase 3 architecture PASS + Phase 7 anti-dup PASS both already accepted
+  "ships inert" as the shape), not an oversight.
+- **Decided:** Did not stand up DDEV or author a Playwright spec — doing so would not add signal
+  over the static evidence (template markup, JS asset inventory, demo view row/style plugins,
+  grep for the theme hook's only call sites) and risks manufacturing a walkthrough where nothing
+  is interactive, which the U role explicitly says not to do.
+- **Decided:** Performed a static wireframe-conformance check in lieu of a live pass (table in
+  handoff-U.md) — every element the approved wireframe (6 states, both D-gate binding
+  resolutions) specifies is present and correctly conditioned in the built template, cross-checked
+  against T's already-GREEN `StreamsShellTest.php` assertions (scope tabs, ranking pills, Trending
+  Recent-not-disabled, empty flag + 4 distinct per-scope copy incl. Global's no-follow-CTA rule,
+  no hardcoded route hrefs). No mismatch found.
+- **Recommended to O:** Re-run Phase 8 against whichever of #110-#115 first attaches a live
+  route/controller to the shell with real navigation — that is the first point a live headless
+  pass has an actual target.
+- **Evidence:** grep of `do_streams_shell` across `docs/` + `web/`; `find` for `*.js`/
+  `*.libraries.yml` in the module (empty); full reads of `do-streams-shell.html.twig`,
+  `views.view.do_streams_demo.yml`, `DoStreamsHooks.php`, `StreamsShellTest.php`, `README.md`,
+  `brief.md`, `handoff-D.md`, `wireframe.html`; `git log --oneline -15` confirming Phase 3/5/6/7
+  already signed off on the inert-shell scope. Output: `handoff-U.md`. No files modified; no DDEV
+  project created or torn down; `git status --porcelain` unchanged.
