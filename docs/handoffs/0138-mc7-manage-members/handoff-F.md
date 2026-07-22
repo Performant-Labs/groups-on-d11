@@ -858,3 +858,187 @@ None from this round.
   `_do_group_membership_strip_group_members_page_display()`. No other function touched;
   `do_group_membership_install()` and `do_group_membership_modules_installed()` are byte-for-byte
   unchanged from round 2.
+
+## th scope a11y fix (2026-07-22)
+
+**Trigger:** `ManageMembersPageRenderTest::testMemberListRendersAsRealTableWithScopedHeaders`
+(2/3 in that file) was RED — the Manage-members member table's `<th>` header cells did not carry
+`scope="col"`, required by AC-7/AC-15 and the approved wireframe's accessible-table spec.
+
+### The fix
+
+`web/modules/custom/do_group_membership/src/Form/ManageMembersForm.php::buildForm()` — the
+`#header` array passed to the `#type => 'table'` element. Before, each entry was a bare
+`TranslatableMarkup` string, which Drupal's table theme renders as a plain `<th>` with no `scope`
+attribute. Changed each entry to the array cell form (`['data' => ..., 'scope' => 'col']`), which
+`table.html.twig`/`TableSort`'s header-rendering path reads directly to emit the `scope`
+attribute on the `<th>`:
+
+```php
+$header = [
+  ['data' => $this->t('Member name'), 'scope' => 'col'],
+  ['data' => $this->t('Role(s)'), 'scope' => 'col'],
+  ['data' => $this->t('Status'), 'scope' => 'col'],
+  ['data' => $this->t('Joined/Requested'), 'scope' => 'col'],
+  ['data' => $this->t('Actions'), 'scope' => 'col'],
+];
+```
+
+Nothing else in `buildForm()` or `buildRow()` changed — no pagination, manager-service, config, or
+`scope: outsider` logic touched.
+
+### Row-scope: not added
+
+Checked the wireframe (`wireframe.md`) for any row-header (`scope="row"`) requirement — grep for
+`scope` shows only the column-header `<th scope="col">` sketch (wireframe.md lines 20 and 65); no
+mention of a row header anywhere in the doc. The failing test
+(`ManageMembersPageRenderTest::testMemberListRendersAsRealTableWithScopedHeaders`) also asserts
+only `table th[scope="col"]`, nothing about row scope. Per the "minimal, header-only" instruction
+and no wireframe/AC basis for it, I did **not** add `scope="row"` to the member-name cell (or any
+other data cell) — that would be over-reach beyond what's specified and tested.
+
+### Tier 1 result
+
+- **phpcs** (`vendor/bin/phpcs --standard=Drupal,DrupalPractice`) on the changed file: 0 errors, 0
+  warnings.
+- **phpstan** (level 1) on the changed file: 0 new findings. The only reported item is the
+  pre-existing "Unsafe usage of `new static()`" in `create()` (Drupal core's standard DI factory
+  pattern) — confirmed identical before and after this change via `git stash`/re-run, so not a
+  regression.
+- **PHPUnit — real execution** (spun up an isolated DDEV project `gm138-mc7`, distinct from the
+  sibling `pl-groups-on-d11` project's own exited containers, which were never touched; tore the
+  project fully down afterward): `ManageMembersPageRenderTest` (3 tests) — **all 3 GREEN** (19
+  assertions, 0 failures, 0 errors; only pre-existing core deprecation notices unrelated to this
+  change). The previously-failing `testMemberListRendersAsRealTableWithScopedHeaders` now passes.
+- Module bootstrap/render: proven by the Functional test itself successfully installing
+  `do_group_membership` (plus `group`/`field`/`options`) and rendering the Manage-members page
+  without error across all 3 test methods.
+
+### Tests that look wrong (for T)
+
+None. The failing assertion (`table th[scope="col"]`) is correct and is now satisfied.
+
+### Files changed
+
+- `web/modules/custom/do_group_membership/src/Form/ManageMembersForm.php` — `$header` array
+  entries changed from bare translatable strings to `['data' => ..., 'scope' => 'col']` cells.
+
+## th scope a11y fix — SOURCE file (corrected) (2026-07-22)
+
+**Trigger:** the previous round of this fix was applied directly to
+`web/modules/custom/do_group_membership/src/Form/ManageMembersForm.php` — the **assembled build
+artifact**, regenerated (and overwritten) by `scripts/ci/assemble-config.sh` from
+`docs/groups/modules/do_group_membership/`. That edit ships nowhere: CI runs
+`assemble-config.sh` from `docs/groups/modules/` before testing, which would have silently
+reverted the fix. This entry corrects that by applying the identical change to the **source**
+file and re-verifying it survives assembly.
+
+### The fix — applied to the source this time
+
+`docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php::buildForm()` — the
+`#header` array passed to the `#type => 'table'` element. Each entry changed from a bare
+`TranslatableMarkup` string to the array-cell form, which `table.html.twig` reads to emit
+`scope="col"` on each `<th>`:
+
+```php
+$header = [
+  ['data' => $this->t('Member name'), 'scope' => 'col'],
+  ['data' => $this->t('Role(s)'), 'scope' => 'col'],
+  ['data' => $this->t('Status'), 'scope' => 'col'],
+  ['data' => $this->t('Joined/Requested'), 'scope' => 'col'],
+  ['data' => $this->t('Actions'), 'scope' => 'col'],
+];
+```
+
+Nothing else in `buildForm()` or `buildRow()` changed — labels match the pre-existing source
+exactly (only the wrapping changed); no pagination, manager-service, config, or other logic
+touched. `git diff` on the source file confirms the change is scoped to exactly these 5 lines.
+
+### Source → assembled propagation, confirmed
+
+1. Edited only `docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php` (the
+   source of truth). Did **not** touch the assembled copy under `web/modules/custom/` by hand.
+2. Ran `scripts/ci/assemble-config.sh` (no args, repo-root auto-detected). Output: `config:
+   copied 95 file(s), excluded 7 env-specific file(s)`, `modules: copied 11 custom module(s)
+   into web/modules/custom/`, `core.extension: registered custom do_* modules + flag as
+   enabled`, `assemble-config: done`.
+3. Confirmed the propagation with a byte-for-byte `diff` between the source and the freshly
+   regenerated assembled copy: **`diff` returned no output — the two files are identical**,
+   including the 5 new `'scope' => 'col'` header entries. This proves the fix now ships through
+   the real CI assembly path, not just a hand-edited artifact.
+
+### Real-execution test verification (from the ASSEMBLED layout)
+
+Spun up an isolated, throwaway MariaDB 11.8 Docker container named `gm138-mysql` (created and
+removed only by me this round; `docker ps -a` before/after is byte-identical in name-set —
+confirmed no `gm138-*` container existed beforehand, and none remains afterward; the
+pre-existing, unrelated `ddev-pl-groups-on-d11-*` containers at `~/Sites/pl-groups-on-d11` were
+never started, stopped, or touched). Also started a throwaway `php -S 127.0.0.1:8138` dev server
+against the worktree's `web/` docroot (via Drupal's `.ht.router.php`), required because
+`BrowserTestBase`'s Mink driver makes real HTTP requests rather than running in-process; stopped
+it afterward (`lsof -i :8138` confirms nothing is listening).
+
+`web/sites/default/settings.php` (gitignored build/test artifact — confirmed via `git
+check-ignore -v`, not a tracked production source) had its DB port temporarily changed from
+`33097` to `33191` to point at the throwaway container, then restored byte-for-byte afterward
+(`diff` against a pre-edit copy confirms identical restoration).
+
+Ran PHPUnit **directly against the assembled `web/modules/custom/do_group_membership/...`
+copy** (the same file path `scripts/ci/assemble-config.sh` produces and CI tests), using
+`SIMPLETEST_DB` pointed at the throwaway container and `SIMPLETEST_BASE_URL` pointed at the
+throwaway dev server:
+
+```
+SIMPLETEST_DB="mysql://root:root@127.0.0.1:33191/drupal"
+SIMPLETEST_BASE_URL="http://127.0.0.1:8138"
+php vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+  web/modules/custom/do_group_membership/tests/src/Functional/ManageMembersPageRenderTest.php
+```
+
+Result: **3/3 GREEN** — `Tests: 3, Assertions: 19, Deprecations: 2, PHPUnit Deprecations: 4.`
+`OK, but there were issues!` in PHPUnit's own terminology means **0 failures, 0 errors** — the
+"issues" are only pre-existing, unrelated core deprecation notices (a
+`#[RunTestsInSeparateProcesses]` attribute deprecation and a Twig 3.28 sandbox-policy signature
+deprecation), both inherited from Drupal core / Twig, not from this change. All three test
+methods passed, including `testMemberListRendersAsRealTableWithScopedHeaders`, which asserts
+`table th[scope="col"]` exists. 19 assertions matches the count from the previous (mis-targeted)
+round exactly, confirming behavior is unchanged — only the file that carries the fix changed.
+
+### Tier 1 self-check (this round)
+
+| Check | Command | Result |
+|---|---|---|
+| phpcs | `vendor/bin/phpcs --standard=Drupal,DrupalPractice docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php` | 0 errors, 0 warnings |
+| phpstan level 1 | `vendor/bin/phpstan analyse --level=1 docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php` | 1 pre-existing finding (`new.static` at line 47, `create()`'s standard Drupal DI factory pattern) — confirmed via `git diff` to be unrelated to this change (outside the 5-line diff) and identical to prior rounds |
+| Source → assembled propagation | `diff` between `docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php` and `web/modules/custom/do_group_membership/src/Form/ManageMembersForm.php` after `assemble-config.sh` | Clean — byte-identical |
+| PHPUnit — real execution, from assembled layout | `ManageMembersPageRenderTest` (3 tests), run directly against `web/modules/custom/...` | **3/3 GREEN**, 19 assertions, 0 failures, 0 errors |
+
+### Docker / process hygiene
+
+- Created and removed exactly one container this round: `gm138-mysql`. `docker ps -a` name-set
+  before creation and after removal is identical — no `o119-*`, `ddev-pl-groups-on-d11-*`, or any
+  other pre-existing container was created, stopped, or removed.
+- Started and stopped exactly one throwaway process: `php -S 127.0.0.1:8138` serving the
+  worktree's `web/` docroot. Confirmed torn down (`lsof -i :8138` empty afterward).
+- `web/sites/default/settings.php` DB port temporarily repointed then restored byte-for-byte
+  (gitignored build artifact, not a tracked source file).
+
+### Tests that look wrong (for T)
+
+None. The failing assertion (`table th[scope="col"]`) is correct and is now satisfied from the
+source-of-truth file that actually ships through CI's assembly path.
+
+### Known issues
+
+None. The fix now lives in the correct file
+(`docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php`), propagates through
+`scripts/ci/assemble-config.sh` to the assembled artifact (verified byte-identical), and is
+proven GREEN by running T's real `ManageMembersPageRenderTest` from that assembled copy.
+
+### Files changed (this round)
+
+- `docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php` — `$header` array
+  entries changed from bare translatable strings to `['data' => ..., 'scope' => 'col']` cells
+  (the SOURCE file this time; the previously hand-edited assembled copy under
+  `web/modules/custom/` was left untouched by hand and instead regenerated correctly via
+  `scripts/ci/assemble-config.sh`, which now produces a byte-identical copy).

@@ -87,11 +87,11 @@ class ManageMembersForm extends FormBase {
     $memberships = array_slice($all_memberships, $current_page * self::MEMBERS_PER_PAGE, self::MEMBERS_PER_PAGE);
 
     $header = [
-      $this->t('Member name'),
-      $this->t('Role(s)'),
-      $this->t('Status'),
-      $this->t('Joined/Requested'),
-      $this->t('Actions'),
+      ['data' => $this->t('Member name'), 'scope' => 'col'],
+      ['data' => $this->t('Role(s)'), 'scope' => 'col'],
+      ['data' => $this->t('Status'), 'scope' => 'col'],
+      ['data' => $this->t('Joined/Requested'), 'scope' => 'col'],
+      ['data' => $this->t('Actions'), 'scope' => 'col'],
     ];
 
     $form['table'] = [

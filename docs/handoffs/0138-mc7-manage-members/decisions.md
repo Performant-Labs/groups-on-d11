@@ -1251,3 +1251,16 @@ tests, never the hand-edited artifact.
 **Route:** F re-applies the identical `#header` array-cell change to the SOURCE file, runs
 assemble-config.sh so the artifact regenerates FROM source, and re-verifies `ManageMembersPageRender
 Test` 3/3 from the assembled layout (proving the fix survives assembly).
+
+## Phase 8.6 (corrected) — F: th scope=col in the SOURCE file
+
+**Decided:** F re-applied the `#header` array-cell change (`['data' => $this->t(...), 'scope' =>
+'col']` ×5) to the SOURCE `docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php`
+(verified: 5 occurrences in source), ran assemble-config.sh (assembled copy now byte-identical —
+diff empty), and re-verified `ManageMembersPageRenderTest` **3/3 GREEN from the ASSEMBLED LAYOUT**
+(what CI tests). phpcs/phpstan clean. The a11y fix now ships from source and survives assembly.
+
+**Next:** T confirms the FULL suite GREEN from the assembled layout (CI-representative posture),
+then U (live steady-state + axe) → S.
+
+**Evidence:** source file 5× `'scope' => 'col'`; handoff-F.md "th scope a11y fix — SOURCE file".
