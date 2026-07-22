@@ -199,6 +199,114 @@ test.describe('SC-F1 — Variant switcher (#119)', () => {
     // Truthful copy: labeled with a reason, not a bare dead click.
     await expect(map).toContainText(/soon/i);
   });
+  test('roving tabindex: only the selected option is Tab-reachable, not every available option', async ({
+    page,
+  }) => {
+    // wireframe.md lines 29-31 / 271: "one option in tab order at a time" —
+    // roving tabindex, not every available option simultaneously tabbable.
+    // RED reason against current shipped code: VariantSwitcher.php line 92
+    // sets tabindex="0" on EVERY available option, so BOTH "Compact list"
+    // and "Cards" (the two available stub options) would report
+    // tabindex="0" here — this assertion fails on the second (non-selected)
+    // option's tabindex, not on a missing locator/selector.
+    await page.goto(SWITCHER_HOST_PATH);
+    const switcher = page
+      .locator(`[role="radiogroup"][aria-label]:has([role="radio"])`)
+      .first();
+
+    const cards = switcher.getByRole('radio', { name: /Cards/i });
+    const compact = switcher.getByRole('radio', { name: /Compact list/i });
+
+    // "Cards" is the page's default selection (handoff-F.md: ShowcaseController
+    // defaults ?variant= to 'cards').
+    await expect(cards).toHaveAttribute('aria-checked', 'true');
+    await expect(cards).toHaveAttribute('tabindex', '0');
+    // The non-selected AVAILABLE option must be tabindex="-1" — reachable
+    // only via arrow keys once focus is inside the radiogroup, not via Tab.
+    await expect(compact).toHaveAttribute('tabindex', '-1');
+  });
+
+  test('ArrowRight moves selection to the next available option and rolls the roving tabindex', async ({
+    page,
+  }) => {
+    // wireframe.md lines 29-31: "Arrow-Left/Right moves selection, matching
+    // native radiogroup behavior." RED reason: do_showcase.switcher.js has
+    // no keydown handler for ArrowRight/ArrowLeft at all (only Enter/Space) —
+    // pressing ArrowRight does nothing, so selection/focus/tabindex all stay
+    // on "Cards" and this assertion fails on the unchanged aria-checked/
+    // tabindex state, not on a missing locator.
+    await page.goto(SWITCHER_HOST_PATH);
+    const switcher = page
+      .locator(`[role="radiogroup"][aria-label]:has([role="radio"])`)
+      .first();
+    const compact = switcher.getByRole('radio', { name: /Compact list/i });
+    const cards = switcher.getByRole('radio', { name: /Cards/i });
+    const map = switcher.getByRole('radio', { name: /Map/i });
+
+    // Focus starts on the selected option ("Cards", tabindex=0) via Tab.
+    await cards.focus();
+    await expect(cards).toBeFocused();
+
+    // ArrowRight from "Cards" must skip the unavailable "Map" option (per
+    // native radiogroup behavior — arrow nav only visits enabled radios) and
+    // wrap around to "Compact list", the next AVAILABLE option in the ring.
+    await page.keyboard.press('ArrowRight');
+
+    await expect(compact).toBeFocused();
+    await expect(compact).toHaveAttribute('aria-checked', 'true');
+    await expect(compact).toHaveAttribute('tabindex', '0');
+    await expect(cards).toHaveAttribute('aria-checked', 'false');
+    await expect(cards).toHaveAttribute('tabindex', '-1');
+    // The unavailable option is never a valid arrow-nav target.
+    await expect(map).toHaveAttribute('aria-checked', 'false');
+  });
+
+  test('ArrowLeft moves selection to the previous available option, skipping the unavailable one', async ({
+    page,
+  }) => {
+    // Same wireframe contract, opposite direction — also proves arrow nav
+    // SKIPS the unavailable "Map" option rather than landing on it (a naive
+    // "previous DOM sibling" implementation would stop on Map, which is
+    // disabled and must never become the roving-tabindex/selected target).
+    await page.goto(SWITCHER_HOST_PATH);
+    const switcher = page
+      .locator(`[role="radiogroup"][aria-label]:has([role="radio"])`)
+      .first();
+    const compact = switcher.getByRole('radio', { name: /Compact list/i });
+    const cards = switcher.getByRole('radio', { name: /Cards/i });
+
+    await cards.focus();
+    // ArrowLeft from "Cards" must skip unavailable "Map" (previous DOM
+    // sibling order: Compact list, Cards, Map) and land on "Compact list" —
+    // the only other AVAILABLE option, reached by wrapping/skipping over Map
+    // depending on DOM order; either way Map must never receive focus.
+    await page.keyboard.press('ArrowLeft');
+
+    await expect(compact).toBeFocused();
+    await expect(compact).toHaveAttribute('aria-checked', 'true');
+    await expect(compact).toHaveAttribute('tabindex', '0');
+    await expect(cards).toHaveAttribute('tabindex', '-1');
+  });
+
+  test('no-JS ?variant= fallback still works unmodified by the arrow-key fix', async ({
+    page,
+  }) => {
+    // Regression guard requested by the task: F's roving-tabindex/arrow-key
+    // fix must not disturb the existing no-JS query-param fallback. This
+    // duplicates the assertion shape of the existing "no-JS ?variant=" case
+    // deliberately (as a narrow regression pin for this specific follow-up),
+    // not as new coverage of the base fallback behavior itself.
+    await page.goto(`${SWITCHER_HOST_PATH}?variant=map`);
+    // "map" is unavailable, so per VariantSwitcher::resolveSelection() this
+    // must fall back to the first available option ("compact"), unaffected
+    // by any arrow-key change to the JS.
+    const switcher = page
+      .locator(`[role="radiogroup"][aria-label]:has([role="radio"])`)
+      .first();
+    const compact = switcher.getByRole('radio', { name: /Compact list/i });
+    await expect(compact).toHaveAttribute('aria-checked', 'true');
+  });
+
 });
 
 test.describe('SC-F1 — POC ribbon (#119)', () => {

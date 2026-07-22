@@ -246,4 +246,121 @@ final class VariantSwitcherTest extends UnitTestCase {
     $this->assertNotSame('', $build['#tooltip'], 'Tooltip copy must be non-empty (sourced from HelpText, not hardcoded and not blank).');
   }
 
+
+  /**
+   * Roving-tabindex initial state: exactly ONE option (the currently
+   * selected/available one) carries tabindex="0"; every other AVAILABLE
+   * option carries tabindex="-1" (wireframe.md lines 29-31: "one option in
+   * tab order at a time"; line 271 comparison table: "roving-tabindex
+   * radiogroup, arrow keys"). This is the structural gap named in
+   * handoff-T-green.md's BLOCKER: the shipped code currently sets
+   * tabindex="0" on EVERY available option (VariantSwitcher.php line 92,
+   * `$available ? '0' : '-1'`), which is Tab-only / all-in-tab-order, not
+   * roving. This test must fail against that code because more than one
+   * option (both "compact" and "cards", the two available options) will
+   * carry tabindex="0" simultaneously.
+   *
+   * @covers ::build
+   */
+  public function testExactlyOneAvailableOptionHasRovingTabindexZero(): void {
+    $build = $this->switcher->build('directory.layout', $this->stubOptions(), 'cards');
+    $items = $build['#options'];
+
+    $zeroTabindex = array_values(array_filter(
+      $items,
+      static fn (array $item): bool => (string) ($item['tabindex'] ?? '') === '0',
+    ));
+    $this->assertCount(
+      1,
+      $zeroTabindex,
+      'Roving-tabindex pattern (wireframe.md lines 29-31, 271): exactly ONE option may carry tabindex=0 at a time — the rest of the radiogroup must be reachable only via arrow keys, not Tab. Got ' . count($zeroTabindex) . ' options with tabindex=0.',
+    );
+    $this->assertSame(
+      'cards',
+      $zeroTabindex[0]['id'],
+      'The single tabindex=0 option must be the currently SELECTED option (roving tabindex tracks selection, not just availability).',
+    );
+
+    // Every other AVAILABLE option (here: "compact") must be tabindex=-1,
+    // not tabindex=0 — this is the exact defect handoff-T-green.md names:
+    // "every AVAILABLE option carries tabindex=0 ... ALL available options
+    // are simultaneously in the tab order, not roving."
+    $compact = current(array_filter($items, static fn (array $i): bool => $i['id'] === 'compact'));
+    $this->assertNotFalse($compact);
+    $this->assertSame(
+      '-1',
+      (string) ($compact['tabindex'] ?? '0'),
+      'A non-selected AVAILABLE option ("compact") must be tabindex=-1 under roving tabindex — it is reachable via arrow keys once focus enters the radiogroup, not via Tab directly.',
+    );
+  }
+
+  /**
+   * When the roving tabindex moves (selection changes to a different
+   * available option), the single tabindex=0 slot moves WITH it — never
+   * stays pinned to the first option or duplicates across two options.
+   * Pins the same wireframe.md contract using a different $current so the
+   * assertion is not coincidentally true only for the stub's default
+   * ("cards").
+   *
+   * @covers ::build
+   */
+  public function testRovingTabindexZeroFollowsSelectionToADifferentOption(): void {
+    $build = $this->switcher->build('directory.layout', $this->stubOptions(), 'compact');
+    $items = $build['#options'];
+
+    $zeroTabindex = array_values(array_filter(
+      $items,
+      static fn (array $item): bool => (string) ($item['tabindex'] ?? '') === '0',
+    ));
+    $this->assertCount(1, $zeroTabindex, 'Exactly one tabindex=0 option regardless of which option is selected.');
+    $this->assertSame('compact', $zeroTabindex[0]['id'], 'The roving tabindex=0 slot must follow $current, not stay pinned to a fixed option.');
+
+    $cards = current(array_filter($items, static fn (array $i): bool => $i['id'] === 'cards'));
+    $this->assertSame('-1', (string) ($cards['tabindex'] ?? '0'), 'The previously-selected-by-default option ("cards") must roll to tabindex=-1 once selection moves elsewhere.');
+  }
+
+  /**
+   * The unavailable option is never the roving tabindex=0 target — it stays
+   * tabindex=-1 regardless of selection (already covered structurally by
+   * testUnavailableOptionCarriesDisabledMarkers, restated here to make the
+   * roving-vs-disabled distinction explicit: an unavailable option must
+   * never accidentally become the "exactly one" tabindex=0 slot even though
+   * it is excluded from the available-options roving set).
+   *
+   * @covers ::build
+   */
+  public function testUnavailableOptionIsNeverTheRovingTabindexTarget(): void {
+    $build = $this->switcher->build('directory.layout', $this->stubOptions(), 'cards');
+    $items = $build['#options'];
+    $map = current(array_filter($items, static fn (array $i): bool => $i['id'] === 'map'));
+    $this->assertSame('-1', (string) ($map['tabindex'] ?? '0'), 'Unavailable option ("map") must never be the roving tabindex=0 target.');
+  }
+
+  /**
+   * Forward-compat: the "exactly one tabindex=0" roving invariant holds for
+   * an arbitrary option count too (brief.md Acceptance criterion #2 — the
+   * render-array contract must hold for SC-4/SC-5/SC-6/ST-8's own option
+   * sets, not just this story's 3-option stub).
+   *
+   * @covers ::build
+   */
+  public function testRovingTabindexInvariantHoldsForArbitraryOptionCount(): void {
+    $five = [
+      ['id' => 'a', 'label' => 'A'],
+      ['id' => 'b', 'label' => 'B'],
+      ['id' => 'c', 'label' => 'C'],
+      ['id' => 'd', 'label' => 'D', 'available' => FALSE],
+      ['id' => 'e', 'label' => 'E'],
+    ];
+    $build = $this->switcher->build('persona.switcher', $five, 'e');
+    $items = $build['#options'];
+
+    $zeroTabindex = array_values(array_filter(
+      $items,
+      static fn (array $item): bool => (string) ($item['tabindex'] ?? '') === '0',
+    ));
+    $this->assertCount(1, $zeroTabindex, 'Exactly one tabindex=0 option must hold for a 5-option instance, not just the 3-option stub.');
+    $this->assertSame('e', $zeroTabindex[0]['id']);
+  }
+
 }

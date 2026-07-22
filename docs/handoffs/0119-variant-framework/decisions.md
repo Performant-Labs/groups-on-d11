@@ -352,3 +352,52 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   proves the suite pins behavior, not implementation. `git status --short` in the worktree after
   teardown: only `tests/e2e/showcase.spec.ts` (the one intentional fix) plus one pre-existing
   untracked file not touched by me.
+
+## T — Phase T(RED round 2) — fix loop, roving-tabindex/arrow-key gap — 2026-07-22
+
+- **Decided:** Authored 4 new PHPUnit methods in the existing `VariantSwitcherTest.php` (Unit
+  tier — pure render-array/data-shape contract, matching the file's existing tier) pinning the
+  wireframe's roving-tabindex invariant (exactly one option carries `tabindex="0"` at a time, and
+  it must be the selected option), plus 4 new Playwright cases in the existing
+  `SC-F1 — Variant switcher (#119)` describe block of `showcase.spec.ts` (E2E tier — dynamic
+  keyboard/focus behavior a headless test cannot observe) pinning the ArrowRight/ArrowLeft
+  selection-move contract and a no-JS-fallback regression guard. Neither test file's existing
+  methods/cases were edited.
+- **Decided:** Executed the PHPUnit cases to a real RED against the current shipped code, on a
+  freshly-recreated isolated tree (full `cp -R` of `web/core` + `vendor`, not symlinks — same
+  realpath-bootstrap-trap workaround F/T-green documented). 3/4 new methods failed on the roving-
+  tabindex assertion itself (`actual size 2/4 matches expected size 1`), never a bootstrap/class
+  error; the 4th correctly passed (an already-true invariant, not a false RED). All 10 pre-existing
+  methods stayed green. Isolated-tree marker (`Configuration:` path = the worktree's own copy)
+  captured in handoff-T-red2.md. Torn down after (scratch copies were gitignored, untracked —
+  `git status --short` confirms only the two intended test-file diffs remain).
+- **Decided:** Did NOT stand up a live site to execute the Playwright cases this round — this
+  environment lacks PHP 8.4 (T-green's own documented composer-install requirement; only PHP 8.3
+  is present here), and standing up the full namespaced-Docker/composer/drush stack purely to
+  exercise 3 narrow keyboard-interaction assertions is disproportionate for this scoped fix-loop.
+  Marked RED-by-construction instead, per the task's explicit fallback allowance, with precise
+  per-case reasoning against the current committed `do_showcase.switcher.js` (confirmed: zero
+  occurrences of "Arrow" in the file — no keydown branch for ArrowLeft/ArrowRight exists) and
+  `VariantSwitcher.php` (confirmed: `tabindex => $available ? '0' : '-1'`, not roving). Verified
+  the spec file is syntactically valid and all 19 cases (15 existing + 4 new) collect cleanly via
+  `npx playwright test --list` (against a read-only `node_modules` symlink to the shared checkout,
+  removed after).
+- **Assumed:** Native-radiogroup arrow-key semantics (WAI-ARIA Authoring Practices radiogroup
+  pattern — arrow keys move among enabled/available options only, skipping disabled ones) is the
+  correct reading of the wireframe's "matching native radiogroup behavior" phrase, since the
+  wireframe does not spell out wrap-vs-clamp verbatim. The stub instance's 2-available-option shape
+  means wrap-at-the-end is not independently distinguishable from a hard clamp in this round's
+  cases — flagged in handoff-T-red2.md as a note for a future story with 3+ available options, not
+  a gap in this round.
+- **Hedged:** No Kernel/Functional test added for this gap — the PHPUnit (static contract) +
+  Playwright (dynamic interaction) pairing already covers both the render-array shape and the real
+  keyboard/focus behavior at their cheapest sufficient tiers; a Kernel test would duplicate the
+  PHPUnit case at a more expensive tier for no new coverage, and Functional (browser-less) cannot
+  observe `keydown`/focus transfer at all.
+- **Evidence:** `handoff-T-red2.md` (this phase's full output — PHPUnit command + isolated-tree
+  marker + full RED output, Playwright `--list` output + per-case RED-by-construction reasoning
+  quoting the exact absence of Arrow-key handling in `do_showcase.switcher.js`). Files changed:
+  `docs/groups/modules/do_showcase/tests/src/Unit/VariantSwitcherTest.php`,
+  `tests/e2e/showcase.spec.ts` (both mirrored to
+  `scratchpad/o119-handoffs/tests-red-round2/`). No mutating command run against the shared
+  `groups-on-d11` checkout.
