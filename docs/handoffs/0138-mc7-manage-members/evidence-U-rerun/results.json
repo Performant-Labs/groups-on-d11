@@ -1,0 +1,409 @@
+{
+  "steps": [
+    {
+      "name": "login-u_organizer",
+      "verdict": "PASS",
+      "url": "http://127.0.0.1:8080/user/8?check_logged_in=1",
+      "consoleErrors": []
+    },
+    {
+      "name": "manage-members-tab-present",
+      "verdict": "PASS",
+      "tabHref": "/group/1/members"
+    },
+    {
+      "name": "steady-state-renders-new-controller",
+      "verdict": "PASS",
+      "url": "http://127.0.0.1:8080/group/1/members",
+      "hasDoGroupMembershipMarkupCount": 161,
+      "hasFormElementCount": 3,
+      "hasStatusColumn": true,
+      "hasViewsTable": false,
+      "h1Text": "Manage members"
+    },
+    {
+      "name": "th-scope-col-check",
+      "verdict": "PASS",
+      "thScopes": [
+        {
+          "text": "Member name",
+          "scope": "col"
+        },
+        {
+          "text": "Role(s)",
+          "scope": "col"
+        },
+        {
+          "text": "Status",
+          "scope": "col"
+        },
+        {
+          "text": "Joined/Requested",
+          "scope": "col"
+        },
+        {
+          "text": "Actions",
+          "scope": "col"
+        }
+      ]
+    },
+    {
+      "name": "status-badges-text-glyph",
+      "verdict": "PASS",
+      "badges": [
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-1-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-9-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-10-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-11-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-12-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-13-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-43-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-44-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-45-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-46-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "⏳ Pending",
+          "dataState": "pending",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--pending\" data-state=\"pending\" data-drupal-selector=\"edit-table-row-47-status\"><span aria-hidden=\"true\">⏳</span> Pending</span>"
+        },
+        {
+          "text": "⏳ Pending",
+          "dataState": "pending",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--pending\" data-state=\"pending\" data-drupal-selector=\"edit-table-row-48-status\"><span aria-hidden=\"true\">⏳</span> Pending</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-49-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-50-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-51-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-52-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-53-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-54-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-55-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-56-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-57-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-58-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-59-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-60-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-61-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-62-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-63-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-64-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-65-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-66-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-67-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-68-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-69-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-70-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-71-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-72-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-73-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-74-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-75-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-76-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-77-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-78-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-79-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-80-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-81-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-82-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-83-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-84-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-85-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        },
+        {
+          "text": "✓ Active",
+          "dataState": "active",
+          "html": "<span class=\"do-group-membership__badge do-group-membership__badge--active\" data-state=\"active\" data-drupal-selector=\"edit-table-row-86-status\"><span aria-hidden=\"true\">✓</span> Active</span>"
+        }
+      ]
+    },
+    {
+      "name": "pending-rows-visible",
+      "verdict": "PASS",
+      "pendingRows": 2
+    },
+    {
+      "name": "last-organizer-guard-ui",
+      "verdict": "FAIL",
+      "guardInfo": {
+        "organizerRowCount": 1,
+        "disabledButtons": 0,
+        "guardNote": 2,
+        "ariaDescribedBy": null
+      }
+    },
+    {
+      "name": "console-errors-manage-members-page",
+      "verdict": "PASS",
+      "consoleErrors": []
+    },
+    {
+      "name": "hard-reload-spot-check",
+      "verdict": "PASS",
+      "reloadHasMarkupCount": 161,
+      "discrepancyFromNavigated": false
+    },
+    {
+      "name": "add-member-flow",
+      "verdict": "PASS",
+      "successMsg": "has been added to this group.\n                      ",
+      "memberCheckboxDefaultChecked": true
+    },
+    {
+      "name": "change-role-flow",
+      "verdict": "FAIL",
+      "reason": "no Moderator checkbox"
+    },
+    {
+      "name": "remove-member-confirm-flow",
+      "verdict": "FAIL",
+      "reason": "no confirm step or confirm button",
+      "isConfirmStep": false
+    },
+    {
+      "name": "last-organizer-guard-remove-disabled",
+      "verdict": "FAIL",
+      "isDisabled": null
+    },
+    {
+      "name": "approve-pending-flow",
+      "verdict": "FAIL",
+      "reason": "no Approve button"
+    },
+    {
+      "name": "deny-pending-flow",
+      "verdict": "FAIL",
+      "reason": "no Deny button"
+    },
+    {
+      "name": "pagination",
+      "verdict": "PASS",
+      "page1RowCount": 50,
+      "pagerLinksCount": 3,
+      "navigatedToPage2": true,
+      "page2RowCount": 7,
+      "page2Url": "http://127.0.0.1:8080/group/1"
+    },
+    {
+      "name": "access-plain-member-denied",
+      "verdict": "PASS",
+      "status": 403
+    },
+    {
+      "name": "access-groups-moderate-allowed",
+      "verdict": "PASS",
+      "status": 200,
+      "hasTable": true
+    },
+    {
+      "name": "viewport-360px",
+      "verdict": "PASS",
+      "note": "screenshot captured"
+    },
+    {
+      "name": "axe-steady-state-table",
+      "verdict": "PASS",
+      "totalViolations": 2,
+      "seriousOrCritical": [],
+      "allViolations": [
+        {
+          "id": "heading-order",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "nodes": 1
+        }
+      ]
+    }
+  ],
+  "findings": []
+}
