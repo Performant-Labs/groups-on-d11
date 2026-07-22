@@ -530,3 +530,10 @@ rows on page 1 + pager exists + page 2 shows remainder + countActiveOrganizers s
 If only CI-runnable, add it to the env-blocked list — do NOT leave AC-15 pagination unpinned.
 
 **Evidence:** `handoff-F.md` "Diff-gate round-1 fixes"; `ManageMembersForm.php` lines 85/87.
+
+## Phase 6.5 (o4-mini diff gate) — round 2: PASS
+
+**Decided:** Re-ran `dual-review.sh --mode diff` round 2. **Verdict PASS** — B-1 accepted (real
+PagerManager pagination, whole-group Organizer count preserved). No new findings. Proceed to
+T(GREEN re-verify + add pagination-covering test) → A-dup → U → S.
+Transcript: `dual-review-diff.md`.
