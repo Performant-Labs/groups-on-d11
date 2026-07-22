@@ -619,3 +619,84 @@ service; Groups-Moderate reuses Group's synchronized-global-role mechanism; scop
 parallel enforcement path. **Recorded as a known follow-up for the PR description**, not a blocker.
 
 **Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-A-dup.md`.
+
+## Phase 8 — UI Walkthrough (U)
+
+**Decided:** Stood up the live site via raw `drush site:install` + `config:import` +
+`drush en` + `drush runserver` (mirrors `.github/workflows/test.yml`'s `e2e` job, not DDEV —
+faster, self-contained, avoided touching the worktree's own idle DDEV project). Ran a
+headless Playwright walkthrough (ad-hoc `npm install --no-save playwright
+@axe-core/playwright` in a scratch dir, not committed) driving real navigation (group
+canonical page → "Manage members" local task click), 6 dedicated test personas
+(Organizer/plain-Member/Groups-Moderate/add-target/2 pending-status seeds/40 pagination
+seeds), plus a hard-reload spot-check and a 360px viewport pass.
+
+**Evidence found:** a route-path collision — `do_group_membership.manage_members` and the
+pre-existing (untouched-by-this-story, present since the repo's initial commit)
+`views.view.group_members.page_1` both claim the identical path `/group/{group}/members`.
+Drupal's router resolves the View for every GET request, permanently shadowing this story's
+entire steady-state Manage-members page (status badges, Approve/Deny/Unblock, Role/Remove
+buttons, the last-Organizer disable-before-attempt guard) on both the navigated path AND a
+hard reload (deterministic, not a caching artifact). Independently verified via
+`router.route_provider`/`router.no_access_checks` service calls that the View, not the
+module's Form, wins the match.
+
+**Also verified (real, live):** the module's own code is correct where reachable — the three
+satellite routes (`/members/add`, `/members/{id}/role`, `/members/{id}/remove`), which do NOT
+collide, all work end to end (real add-member submit, real role change, real remove with a
+genuine ConfirmFormBase step, real last-Organizer server-side backstop block). The manager
+service's `approvePending()` was verified working at the service layer via `drush php:eval`
+(pending → active transition on a real relationship). AC-11 (plain Member denied, HTTP 403)
+and AC-12 (Groups-Moderate manages a group never joined, HTTP 200) both verified live and
+PASS — the `_custom_access` gate logic is correct and proven independent of the routing
+collision. Axe-core (ad-hoc, not committed) on the two reachable module forms: 1 moderate
+`landmark-unique` finding each (a pre-existing, site-theme-level issue, not module-introduced,
+present on every page in this theme) — no serious/critical findings. The shadowed
+steady-state table + badges + guard could NOT be axe-scanned live (the route never renders
+that code) — only statically read from source, confirming the intended markup matches the
+wireframe's non-color-alone + `aria-describedby` spec, but this is not a live-verified result.
+
+**Verdict:** REWORK. This is a narrow, well-understood routing fix (not a rewrite — the
+Form/service code underneath is proven correct), but it fully blocks AC-7, the UI half of
+AC-9/AC-10, and most of AC-15 as currently shipped, and must go back through F → T → U before
+reaching S.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-U.md`,
+`docs/handoffs/0138-mc7-manage-members/evidence-U/` (24 screenshots + axe/step JSON).
+
+## Phase 8 (UI walkthrough) — U: REWORK (real blocking defect caught live)
+
+**Decided:** U ran the live headless walkthrough + axe and caught a **route collision every prior
+gate and the env-blocked CI Functional tests missed**: the new route
+`do_group_membership.manage_members` at `/group/{group}/members` collides with the pre-existing
+config View `views.view.group_members` display `page_1` (path `group/%group/members`, which also
+provides a "Members" tab). Drupal's router serves the OLD View, so the entire new Manage-members
+steady-state UI (table, badges, approve/deny/unblock, Role/Remove, last-Organizer guard) NEVER
+renders. Satellite routes (`/members/add`, `/role`, `/remove`) work; AC-11/AC-12 (access) pass; the
+main page is dead.
+
+**Coordinator decision (settled, not re-opened):** the new Manage-members UI must SUPERSEDE the
+stock members view — the wireframe titles it as THE members page, and this POC wants a single clear
+members experience. Do NOT move the new UI to a separate path.
+
+**Collision-class check (O, this story's other new routes):** `/members/add`, `/members/{rel}/role`,
+`/members/{rel}/remove` — NONE collide with any existing View path (the other group views use
+`/nodes`, `/events`, `/stream`, `/stream/feed`). Only the one route is affected.
+
+**Root cause of the miss:** no test asserted that GET `/group/{group}/members` resolves to the NEW
+controller. T adds that now (patch-the-prompt: a route-resolution assertion is the covering test
+class that would have caught this).
+
+**Route back to F + T (concurrent, disjoint files):**
+- **F:** delete the `page_1` display from `docs/groups/config/views.view.group_members.yml` (this is
+  the project's own source config, editable) — removes BOTH the colliding path AND its "Members" tab,
+  leaving the new controller's route + "Manage members" local task to own `/group/{group}/members`.
+  Config change only, no route-priority hacks. Verify nothing else links to the old view's page.
+- **T:** add a Functional route-resolution test — GET `/group/{group}/members` renders a unique
+  marker from the NEW Manage-members UI AND the old group_members view's markers are absent
+  (CI-pinned if env-blocked locally → would become the 19th).
+
+**Axe/access (U, on the reachable surfaces):** AC-11/AC-12 pass live; axe result on the now-dead
+steady-state page is not yet meaningful — re-run U after the fix to axe the reachable table.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-U.md`, `evidence-U/`.
