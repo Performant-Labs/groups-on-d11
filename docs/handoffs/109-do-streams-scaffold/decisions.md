@@ -198,3 +198,35 @@
   panel arm) — confirmed by coordinator.
 - **Evidence:** coordinator message (D-GATE APPROVED + 2 resolutions + guardrails), handoff-D.md,
   wireframe.html, brief.md (amended §Approved wireframe + §Operating rules).
+
+## A — Phase 3 (up-front review) — 2026-07-22T00:00:00Z
+- **Decided:** Verdict **PASS**. The plan correctly extends the `do_group_pin` `views_query_alter`/
+  compiled-query-rewrite/cache-tag *pattern* (new module, same technique) rather than forking the
+  object, calls `DoGroupPinHooks::streamCacheTag()` (confirmed `public static`) only for
+  pinned-first, and defines a distinct per-user cache-tag namespace (`do_streams:user_stream:<uid>`)
+  for membership/following scope per [W-4] — the correct architectural split, not drift. The two
+  scope Views plugins (membership filter/argument-default, following filter) are justified new
+  objects: `find . -path "*/src/Plugin/views*" -type d` returned zero results codebase-wide, so
+  there is no existing Views plugin to extend instead. Module scaffold shape (`src/Hook/
+  DoStreamsHooks.php`, `#[Hook]` attributes, `*.services.yml` with `autowire: false` +
+  `hook_implementations` tag, docblock-only `.module`) matches `do_group_pin`/`do_discovery`
+  exactly.
+- **Assumed:** No blocking risk in [B-2]'s "args or exposed_data" either/or being left open by the
+  brief — this is a legitimate deferred implementation choice (both are standard Views mechanisms),
+  not a contract ambiguity that risks Phase-7 anti-dup drift, since T pins down the concrete choice
+  in the RED-phase tests before F implements. Flagged as WARN #3 for T/F awareness, not blocking.
+- **Hedged:** WARN #1 flags that `DoGroupPinHooks::queryViewsGroupContentStreamAlter()`'s
+  relationship-column detection uses a hardcoded alias string; if F implements following-scope via
+  LEFT JOINs (the [W-1] fallback the brief explicitly allows) rather than EXISTS, do_streams' own
+  compiled-query alter will need its own column-detection logic, not a copy of do_group_pin's exact
+  alias. Not blocking — T's tests assert results/dedupe, not implementation shape — but flagged so
+  F doesn't silently under-dedupe a join shape do_group_pin's precedent doesn't cover.
+- **Evidence:** `docs/groups/modules/do_group_pin/src/Hook/DoGroupPinHooks.php`,
+  `docs/groups/modules/do_group_pin/tests/src/Kernel/PinnedStreamOrderingTest.php`,
+  `docs/groups/modules/do_discovery/src/Hook/DoDiscoveryHooks.php`,
+  `docs/groups/config/views.view.group_content_stream.yml`,
+  `config/sync/field.field.node.*.field_group_tags.yml`,
+  `docs/groups/config/flag.flag.follow_{content,user,term}.yml`,
+  `docs/groups/modules/do_tests/tests/src/Kernel/GroupsKernelTestBase.php`,
+  `docs/groups/modules/do_group_pin/{do_group_pin.services.yml,do_group_pin.info.yml,do_group_pin.module}`,
+  `docs/groups/modules/do_discovery/{do_discovery.services.yml,do_discovery.info.yml}`.

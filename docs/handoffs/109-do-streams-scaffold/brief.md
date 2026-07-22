@@ -192,6 +192,33 @@ Key findings:
   unrelated user's membership-scope stream cache (over-broad) or, worse, under-invalidate if scopes
   share no tag at all.
 
+### Architecture review notes (Phase 3, A returned PASS — WARN items T/F must observe)
+
+- **[A-W1] Generic column discovery in the compiled-query-alter hook.** Do NOT copy
+  `do_group_pin`'s hardcoded relationship alias string (`group_relationship_field_data_node_field_data`).
+  do_streams' join set differs — discover the columns to aggregate generically (by table-name
+  membership of the join, e.g. the follow-scope join table and the `do_discovery_hot_score` table),
+  not by a literal alias. If following-scope is implemented via LEFT JOINs (the [W-1] fallback)
+  rather than EXISTS, its join-side column needs the same MIN/MAX aggregate + GROUP BY treatment as
+  do_group_pin's relationship id — discovered by table name, not alias string. T should include a
+  fan-out case per join type actually implemented so a missing/wrong aggregate fails loudly.
+- **[A-W2] Cache-tag namespace is `do_streams:user_stream:<uid>`, NOT `do_group_pin:...`.**
+  Membership/following scope is per-viewing-user, so its invalidation scope is per-user (distinct
+  from do_group_pin's per-group tag). Emit `do_streams:user_stream:<uid>`. Do not prefix with
+  `do_group_pin:` "for consistency" — the correct call is a new `do_streams:` namespace. (When the
+  pinned-first ranking's per-group pin cache-tag reuse via `DoGroupPinHooks::streamCacheTag()`
+  applies — a specific group context — that per-group tag is still correct; the per-user tag is the
+  ADDITIONAL scope-level tag for user-relative streams.)
+- **[A-W3] Pin down `args` vs `exposed_data` for the ranking parameter in the RED phase.** The
+  brief [B-2] leaves the exact Views carrier open ("`$view->args` or `$view->exposed_data`"). T
+  must assert against ONE concrete choice so the contract downstream stories (#110-#115) consume is
+  unambiguous — F implements whichever T pins. Recommendation (not binding): a named Views
+  contextual **argument** (`$view->args`) is the simpler, more testable carrier for a
+  fixture/demo view and matches how do_group_pin reads `$view->args[0]` for its gid; T decides.
+- **[A-W4] "Trending = Global scope + hot ranking" confirmed as NOT a third plugin** — a
+  shell-level tab→parameter mapping only. Plugin count stays at exactly 2 scope plugins (POC-scope
+  guardrail satisfied).
+
 ### Approved wireframe
 
 **APPROVED 2026-07-22T09:55:00Z** (operator, via coordinator). Path:
