@@ -228,6 +228,17 @@ class DoStreamsHooks {
     // one-row-per-node (it comes from a relationship/LEFT JOIN this hook
     // controls), so it must be aggregated before GROUP BY on the node's own
     // columns is legal under ONLY_FULL_GROUP_BY.
+    //
+    // @todo [W-1, diff-gate NIT] Consider deriving this list from the
+    // compiled query's own join set (e.g. iterating $query->getTables() for
+    // aliases this hook's viewsQueryAlter() itself registered) instead of a
+    // static name list, for robustness as new ranking joins are added. Left
+    // as a static list here: the compiled SelectInterface at this stage does
+    // not expose a stable, reliably-introspectable "which joins came from
+    // this hook" signal without added bookkeeping, and only one ranking
+    // branch is ever active per request — a dynamic-discovery refactor risks
+    // the #56 dedupe correctness this hook exists to guarantee for a
+    // non-blocking NIT, so it is intentionally deferred rather than rushed.
     $join_side_tables = [
       'do_streams_comment_stats',
       'do_streams_hot_score',
@@ -366,7 +377,7 @@ class DoStreamsHooks {
    */
   #[Hook('theme')]
   public function theme(array $existing, string $type, string $theme, string $path): array {
-    return [
+    return $existing + [
       'do_streams_shell' => [
         'variables' => [
           'active_scope' => 'global',
@@ -391,6 +402,12 @@ class DoStreamsHooks {
    * hardcoded route/href strings, per the acceptance criterion and the
    * approved wireframe's annotation convention (`scope_tabs[n].id` /
    * `ranking_control[n].id`).
+   *
+   * Diff-gate [B-1]: each `scope_tabs` entry also carries `url_or_param`, a
+   * plain query-PARAMETER-mapping string derived from the tab's own `id`
+   * (`?scope=<id>`) — NOT a hardcoded route path. Downstream stories
+   * (#110-#115) wire their own routes and read `?scope=` off the query
+   * string; this shell never bakes in a page path.
    *
    * D-gate resolution 1 (handoff-D.md, binding): the Recent ranking pill is
    * NEVER rendered `disabled`, even under the Trending scope — ranking stays
@@ -417,6 +434,12 @@ class DoStreamsHooks {
       $scope_tabs[] = [
         'id' => $id,
         'label' => $label,
+        // [B-3]/diff-gate [B-1]: a query-PARAMETER mapping derived from the
+        // tab's own id (e.g. `?scope=global`), NEVER a hardcoded route path
+        // — downstream stories (#110-#115) wire their own routes and read
+        // `?scope=` off the query string; this shell never bakes in a page
+        // path, preserving the "no hardcoded routes" acceptance criterion.
+        'url_or_param' => '?scope=' . $id,
         'active' => $id === $active_scope,
       ];
     }

@@ -470,3 +470,39 @@
   `StreamsShellTest.php:164` (docblock cites url_or_param, assertion omits it),
   `StreamsRankingTest::testPinnedRankingLeadsAsPrimaryKeyNotTiebreaker` (the [B-2] behavioral
   proof).
+
+## F — Phase 5 rework (diff-gate B-1) — 2026-07-22T00:00:00Z
+- **Decided:** [B-1] `scope_tabs` entries now carry `url_or_param` as a `'?scope=' . $id` string,
+  derived purely from the tab's own `id` — a query-PARAMETER mapping, never a hardcoded route path,
+  per the "no hardcoded routes" acceptance criterion and O's disposition. Downstream stories
+  (#110-#115) wire their own routes and read `?scope=` off the query string.
+- **Decided:** Surfaced `url_or_param` on the rendered tab markup as a `data-url-or-param="..."`
+  attribute in `do-streams-shell.html.twig` (not an `<a href>`), so downstream stories can read it
+  off the DOM without the shell itself linking anywhere. Verified this does not trip
+  `testNoHardcodedRoutePathsInRenderedTabMarkup` (it asserts against `href="/` / `href='/`, and the
+  value always starts with `?`, never `/`).
+- **Decided:** [NIT-1] `theme()` now returns `$existing + [...]` instead of only the new
+  definition, so any earlier `hook_theme()` implementer's `do_streams_shell`-adjacent entries (or
+  future ones) are not silently dropped.
+- **Decided:** [NIT-3] Added a one-line `url_or_param` shape example
+  (`'?scope=following'`) to README.md's shell-contract section.
+- **Confirmed (no change needed):** [NIT-4] `MembershipScope.php` and `FollowingScope.php` already
+  carried the "why `base_field` not `realField`" comment (synthetic filter-only field) from the
+  original Phase-5 pass — verified present, no edit required.
+- **Assumed:** [W-1] (generic join-table discovery for `queryViewsDoStreamsDemoAlter()`) is NOT a
+  safe/cheap refactor at this time — the compiled `SelectInterface` at that hook's stage does not
+  expose a stable, easily-introspectable "which joins came from this hook" signal without added
+  bookkeeping, and only one ranking branch is ever active per request. Risking the #56 dedupe
+  correctness for a non-blocking NIT is not warranted; left a `@todo` comment documenting the
+  suggestion and why it's deferred, per the rework brief's explicit "skip if not genuinely small/
+  safe" instruction.
+- **Evidence:** `DoStreamsHooks.php` (scope_tabs loop ~415-427, `theme()` ~367-383,
+  `queryViewsDoStreamsDemoAlter()` ~224-236 `@todo`), `do-streams-shell.html.twig` (tab markup +
+  docblock), `README.md` (shell contract section). Self-check: `ddev phpunit
+  docs/groups/modules/do_streams/tests/src/Kernel/` → 23/23 GREEN, 0 failures/errors (23
+  pre-existing deprecation notices only). `phpcs --standard=Drupal,DrupalPractice` and `phpstan
+  analyse --level=1` on all 3 changed PHP files → 0 errors, only the pre-existing `\Drupal::`
+  DI-pattern warnings on lines untouched by this rework (114/143/175/292 in DoStreamsHooks.php,
+  61 in FollowingScope.php, 65 in MembershipScope.php — none newly introduced). Git tree verified
+  clean of build artifacts post-teardown (`git status --porcelain` shows only the 3 production
+  files edited).

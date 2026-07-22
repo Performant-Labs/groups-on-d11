@@ -73,8 +73,11 @@ Theme hook `do_streams_shell`
 (`templates/do-streams-shell.html.twig`), preprocessed by
 `DoStreamsHooks::preprocessDoStreamsShell()`:
 
-- `scope_tabs` — array of `{id, label, active}` for
-  `global` / `my_feed` / `following` / `trending`.
+- `scope_tabs` — array of `{id, label, url_or_param, active}` for
+  `global` / `my_feed` / `following` / `trending`. `url_or_param` is a plain
+  query-PARAMETER-mapping string derived from the tab's own `id` (e.g.
+  `'?scope=following'`), NEVER a hardcoded route path — downstream stories
+  (#110-#115) wire their own routes and read `?scope=` off the query string.
 - `ranking_control` — array of `{id, label, active}` for `recent` / `hot`.
   Never carries a `disabled` key, even under the `trending` scope (D-gate
   resolution 1 — ranking is orthogonal to scope).
@@ -84,9 +87,10 @@ Theme hook `do_streams_shell`
 - `empty_copy` — one of 4 DISTINCT, scope-truthful empty-state strings
   (D-gate resolution 2). Global's copy never contains a follow-oriented CTA.
 
-No hardcoded routes: every tab/pill is a plain, non-linking element. Wiring
-a `url_or_param` for real navigation is each Phase-1 story's own job,
-attaching to these same preprocess variables.
+No hardcoded routes: every tab/pill is a plain, non-linking element (the
+template surfaces each tab's `url_or_param` as a `data-url-or-param`
+attribute, not an `<a href>`). Wiring real navigation off `url_or_param` is
+each Phase-1 story's own job, attaching to these same preprocess variables.
 
 ## Shipped demo view
 

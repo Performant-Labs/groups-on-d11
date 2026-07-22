@@ -11,14 +11,17 @@
  *
  * Every tab and pill is a plain, non-linking element: per the acceptance
  * criterion "no hardcoded routes", this scaffold ships inert (no route table
- * entry of its own beyond the demo view) — a `url_or_param` wiring for real
- * navigation is Phase-1 stories' (#110-#115) own job, attaching to these
- * SAME preprocess variables (`scope_tabs[n].id` / `ranking_control[n].id`),
+ * entry of its own beyond the demo view). Each scope tab's `url_or_param`
+ * (a `?scope=<id>` query-parameter mapping, never a literal route path) is
+ * surfaced as a `data-url-or-param` attribute so Phase-1 stories
+ * (#110-#115) can read it off the DOM when they wire real navigation onto
+ * these SAME preprocess variables (`scope_tabs[n].id` / `ranking_control[n].id`),
  * per the wireframe's annotation convention.
  *
  * Available variables:
- * - scope_tabs: array of {id, label, active} for Global/My Feed/Following/
- *   Trending.
+ * - scope_tabs: array of {id, label, url_or_param, active} for Global/My
+ *   Feed/Following/Trending. `url_or_param` is a `?scope=<id>`
+ *   query-parameter mapping, not a hardcoded route path.
  * - ranking_control: array of {id, label, active} for Recent/Hot. Never
  *   carries a `disabled` key (D-gate resolution 1: Trending's Recent pill
  *   stays enabled/clickable).
@@ -35,6 +38,7 @@
       <span class="shell-tabs__item{{ tab.active ? ' is-active' : '' }}"
             data-testid="do-streams-shell-tab"
             data-scope-id="{{ tab.id }}"
+            data-url-or-param="{{ tab.url_or_param }}"
             {{ tab.active ? 'aria-current="true"' : '' }}>
         {{ tab.label }}
       </span>
