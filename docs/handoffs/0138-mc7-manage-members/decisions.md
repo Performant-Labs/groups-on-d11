@@ -1112,3 +1112,87 @@ CI's Functional job (which uses a real server, unlike the local sandbox) runs th
 (identical format); `handoff-T-green.md` §"list_string bug" (scratch-test repro); `composer.lock`
 core 11.4.4 pin; `.github/workflows/test.yml` lines 127-130 (Kernel job discovery + phpunit config);
 `ConfigSchemaChecker.php` (`$strictConfigSchema` disables it).
+
+## Phase 8.5 (pre-S CI-red risk fix) — T: root cause is NOT a core bug, it's a T-authorship data-shape bug
+
+**Decided:** Applied O's prescribed fix (`strictConfigSchema = FALSE` on the 3 affected test classes)
+first, exactly as specified. **It did not fix the error** — re-ran `GroupMembershipManagerKernelTest`
+for real and got the identical 10/10 ERROR, identical stack trace. Root-caused why: the exception
+(`ArrayElement::get()` via `StorableConfigBase::castValue()`, called from `Config::save()`
+unconditionally when `$has_trusted_data` is not `TRUE`) is core's mandatory config-type-casting path,
+not the optional `ConfigSchemaChecker` event-subscriber `strictConfigSchema` gates — the two are
+different mechanisms and the fix targeted the wrong one.
+
+**Independently re-diagnosed via debug instrumentation (reverted, zero core files modified in the
+final diff) + empirical proof on unmodified core 11.4.4:** `FieldStorageConfig::create()`'s PHP
+entity API takes `settings.allowed_values` as a **simple `[value => label]` array**
+(`['active' => 'Active']`) — the runtime/entity shape. The on-disk config YAML uses a different
+**structured** `[{value, label}, ...]` shape — the config-storage shape, converted by
+`ListItemBase::storageSettingsToConfigData()`/`FromConfigData()` at the YAML load/save boundary. All
+3 of T's own Phase-4-authored test files passed the structured (YAML) shape directly to `create()`,
+which is the wrong shape for that API and produces garbled double-structured data. Proved via
+`drush php:eval` with zero test/module code: structured shape fails deterministically with the exact
+reported error; simple shape saves cleanly with `strictConfigSchema` untouched (still `TRUE`, core
+default). **This overturns O's Phase 8.5 Finding 2 — it is not a genuine core/options bug.**
+
+**Fix applied (test-file-only, all 3 classes: `GroupMembershipManagerKernelTest`,
+`ManageMembersPageRenderTest`, `ManageMembersPaginationTest`):** reverted the (non-working)
+`strictConfigSchema = FALSE` addition; fixed the `allowed_values` shape to simple `[value => label]`
+in each `FieldStorageConfig::create()` call, with an inline comment documenting the shape contract
+and citing the empirical proof.
+
+**Real-execution results (own `gm138t2-mysql` container, `drush site:install`, PHP built-in
+webserver):**
+- `GroupMembershipManagerKernelTest`: **10/10 PASS** (was 10 ERROR).
+- `ManageMembersPaginationTest`: **1/1 PASS** (was 1 ERROR).
+- `ManageMembersPageRenderTest`: **2/3 PASS, 1 genuine FAIL** (was 3 ERROR) —
+  `testMemberListRendersAsRealTableWithScopedHeaders` fails on a real, separate, pre-existing defect:
+  `ManageMembersForm::buildForm()`'s `$header` is a flat string array, so core's table theme emits
+  `<th>` without `scope="col"`, unmet by AC-7/AC-15. Confirmed reproducible in isolation, not flaky.
+  Routes to F — out of T's remit (T does not write production code).
+- Zero `markTestSkipped` used anywhere. Zero tests remain in an ERROR state.
+- Re-confirmed unchanged (no regression): Unit 16/16 GREEN, `ManageMembersAccessTest` (Kernel) 4/4
+  GREEN, `ManageMembersRouteAccessTest` (Functional) 4/4 GREEN, `ManageMembersRouteResolutionTest`
+  (Functional) 3/3 GREEN.
+
+**CI Kernel job confirmed GREEN** by real local execution against the same pinned core 11.4.4
+`composer.lock` CI resolves — not an assumption. CI Functional job will see 1 genuine (non-ERROR)
+FAIL that must reach F.
+
+**Docker hygiene:** created and removed only `gm138t2-mysql`; `docker ps -a` before/after confirms
+all 40 pre-existing containers (no `gm138-*`/`o119-*` collisions) untouched.
+
+**Verdict:** list_string investigation fully closed (zero ERROR, correct root cause, no
+schema-disabling needed). Routes back to F narrowly for the `th[scope="col"]` accessibility gap —
+unrelated to the list_string fix itself.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-T-green.md` "list_string CI-red fix"
+section; `git diff docs/groups/modules/do_group_membership/tests/src/{Kernel,Functional}/*.php`
+(3 files, 15 lines changed each, test-only).
+
+## Phase 8.5 (CORRECTED) — the "14 env-blocked" were a TEST-AUTHORSHIP bug, not core
+
+**Decided — record corrected (prior characterizations by BOTH coordinator and O were WRONG):**
+T pushed past the "env-blocked / core list_string bug" framing and proved:
+- **`strictConfigSchema=FALSE` does NOT fix it** — the exception comes from `Config::save()`'s
+  MANDATORY `castValue` path, not the optional `ConfigSchemaChecker` (which that property disables).
+  T correctly reverted my `strictConfigSchema=FALSE` prescription.
+- **Real cause = a TEST bug:** the 3 test files passed the on-disk YAML shape
+  `allowed_values: [{value,label}, ...]` straight into `FieldStorageConfig::create()`, which expects
+  the SIMPLE PHP shape `['active' => 'Active', ...]`. Not core, not the module's shipped config (the
+  shipped YAML is correct — the YAML→PHP conversion is what the test skipped). T fixed the shape.
+- **Result:** `GroupMembershipManagerKernelTest` 10/10, `ManageMembersPaginationTest` 1/1,
+  `ManageMembersPageRenderTest` 2/3 PASS — **zero markTestSkipped, zero ERROR, coverage preserved.
+  CI Kernel job will be GREEN.** The prior "14 env-blocked" number is retired — they run and pass.
+- **Fixing them surfaced 1 GENUINE production defect:** `ManageMembersForm`'s `<th>` header cells
+  lack `scope="col"` (AC-7 / AC-15 accessibility) — real, reproduced in isolation (the failing
+  assertion in `ManageMembersPageRenderTest` 2/3). Routes to F.
+
+**Lesson:** "env-blocked / core bug" was an assumption that masked both a real test bug AND a real
+a11y defect. Pushing past it (per the coordinator's "diagnose, don't assume" mandate) was correct
+and is what a test-first pipeline is for.
+
+**Route:** F fixes the `<th scope="col">` a11y defect (header-only, minimal); T confirms
+`ManageMembersPageRenderTest` 3/3 + full suite GREEN.
+
+**Evidence:** `handoff-T-green.md` "list_string CI-red fix" (corrected); the 3 fixed test files.

@@ -76,15 +76,24 @@ class GroupMembershipManagerKernelTest extends GroupsKernelTestBase {
     // API (mirrors the field.storage/field.field YAML shape pinned by
     // MembershipStatusFieldConfigShapeTest) so relationship entities in this
     // suite can actually carry a status value.
+    // NOTE: FieldStorageConfig::create()'s PHP entity API takes the SIMPLE
+    // key=>label 'allowed_values' array (as below). This differs from the
+    // structured [{value,label}, ...] array used in the on-disk config YAML
+    // (field.storage.*.field_membership_status.yml) - ListItemBase::
+    // storageSettingsToConfigData()/FromConfigData() converts between the two
+    // shapes at the config-storage boundary. Passing the structured shape
+    // directly to create() double-structures it and throws
+    // "settings.allowed_values.0.label.0 doesn't exist" - confirmed
+    // empirically against unmodified core 11.4.4, not a core/schema bug.
     FieldStorageConfig::create([
       'field_name' => 'field_membership_status',
       'entity_type' => 'group_relationship',
       'type' => 'list_string',
       'settings' => [
         'allowed_values' => [
-          ['value' => 'active', 'label' => 'Active'],
-          ['value' => 'pending', 'label' => 'Pending'],
-          ['value' => 'blocked', 'label' => 'Blocked'],
+          'active' => 'Active',
+          'pending' => 'Pending',
+          'blocked' => 'Blocked',
         ],
       ],
     ])->save();

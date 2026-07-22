@@ -1010,3 +1010,165 @@ execution in the actual BrowserTestBase/KernelTestBase harness:
 **No route-back to F.** Ready for A (anti-duplication re-check on the test-only diff, if warranted)
 then back into the U (UI Walkthrough) re-walk of the now-unblocked steady-state Manage-members
 surface, per the original Phase 8 REWORK sequencing.
+
+## list_string CI-red fix (pre-S CI-red risk, O's Phase 8.5 diagnosis) — T
+
+O diagnosed (Phase 8.5, `decisions.md`) that ~13-14 Kernel/Functional tests ERROR at `setUp()` with
+`InvalidArgumentException: The configuration property settings.allowed_values.0.label.0 doesn't
+exist`, and that `composer.lock` pins core to the exact 11.4.4 build that reproduces this, so CI's
+Kernel job would go RED on merge — not just "env-blocked locally." O's proposed fix was
+`protected $strictConfigSchema = FALSE;` on the 3 affected test classes. I implemented that fix
+first, then **independently re-diagnosed the root cause during real-execution verification and found
+it is NOT a core/schema bug at all** — it is a T-authorship bug in these same 3 test files' own
+`FieldStorageConfig::create()` calls. Reporting both steps for the record, since the initial fix
+attempt (as specified) does not actually resolve the error, and the real fix is different from what
+was prescribed.
+
+### Step 1 — applied `strictConfigSchema = FALSE` as instructed; it did NOT fix the error
+
+Set `protected $strictConfigSchema = FALSE;` (untyped, to match the untyped parent property
+declaration in `KernelTestBase`/`BrowserTestBase` on this core version — a `bool`-typed override
+throws a PHP `Fatal error: Type ... must be omitted to match the parent definition`) on
+`GroupMembershipManagerKernelTest`, `ManageMembersPageRenderTest`, `ManageMembersPaginationTest` (the
+3 classes confirmed — by grep for `field_membership_status`/`FieldStorageConfig::create` across every
+Kernel/Functional file — to install the field). Re-ran `GroupMembershipManagerKernelTest` for real
+against a fresh `gm138t2-mysql` Docker MySQL 8 + `drush site:install` + PHP built-in webserver:
+**still 10/10 ERROR, identical stack trace, identical line.**
+
+**Root-caused why:** the exception is thrown from `StorableConfigBase::castValue()` →
+`ArrayElement::get()`, called unconditionally from `Config::save()` (`Config.php:214`,
+`$this->data = $this->castValue(NULL, $this->data)`) whenever `$has_trusted_data` is not passed as
+`TRUE` — this is **core's normal, mandatory config-type-casting path**, not the optional
+`ConfigSchemaChecker` event-subscriber `strictConfigSchema` gates (that subscriber only runs
+*after* save, as a separate strict-mode assertion; it was never in this stack trace to begin with).
+So `strictConfigSchema = FALSE` cannot fix this class of error — it disables the wrong mechanism.
+
+### Step 2 — independently traced the real cause: a T-authorship bug (data-shape mismatch), not a core bug
+
+Instrumented `ArrayElement::get()` and `StorableConfigBase::castValue()` with temporary debug logging
+(reverted immediately after, confirmed via `git status` — zero core files modified in the final
+diff) and traced the exact value being cast at `settings.allowed_values.0.label`:
+
+```
+KEY=settings.allowed_values.0 VALUE = [
+  'value' => '0',
+  'label' => [
+    0 => ['value' => 'value', 'label' => 'active'],
+    1 => ['value' => 'label', 'label' => 'Active'],
+  ],
+]
+```
+
+This is a garbled double-structuring of our own data. `Drupal\options\Plugin\Field\FieldType\
+ListItemBase::structureAllowedValues()`/`simplifyAllowedValues()` documents the real contract:
+`FieldStorageConfig::create()`'s **PHP entity API** takes `settings.allowed_values` as a **simple
+`[value => label]` associative array** (e.g. `['active' => 'Active']`) — the *runtime/entity* shape.
+The **on-disk config YAML** (`field.storage.*.yml`, e.g. the shipped `field_group_visibility.yml`)
+uses a different, **structured** `[{value: ..., label: ...}, ...]` shape — the *config-storage*
+shape. `ListItemBase::storageSettingsToConfigData()`/`FromConfigData()` convert between the two at
+the config-storage boundary (YAML load/save), which is why the two existing shipped fields
+(`field_group_visibility`, `field_notification_frequency`) — loaded from YAML, never round-tripped
+through `create()` in PHP — never hit this. **All 3 of T's test files passed the structured shape
+directly into `FieldStorageConfig::create()`**, which is the wrong shape for that API and produces
+exactly the garbled data traced above (each `value`/`label` *key* of the structured array's first
+item gets misread as a raw value).
+
+**Proved empirically on completely unmodified core 11.4.4** (via `drush php:eval`, zero test files,
+zero do_group_membership code):
+- Structured shape `[['value' => 'active', 'label' => 'Active']]` → **fails**, identical
+  `InvalidArgumentException`, reproduced deterministically.
+- Simple shape `['active' => 'Active', 'pending' => 'Pending', 'blocked' => 'Blocked']` → **saves
+  cleanly**, zero exception, `strictConfigSchema` untouched (still `TRUE`, core default).
+
+This conclusively overturns Phase 8.5's diagnosis: **it is not a genuine core/options bug** (O's
+Finding 2 was wrong on the mechanism, though right that it would red CI) — it is a real, fixable
+test-authorship bug T introduced in Phase 4, and the correct fix is fixing the test data shape, not
+disabling any schema-checking machinery.
+
+### Fix applied (test-file-only)
+
+Reverted the `strictConfigSchema = FALSE` addition (removed from all 3 files — strict schema
+checking should stay ON; there is no real schema defect to hide from it) and changed
+`'allowed_values' => [['value' => 'active', 'label' => 'Active'], ...]` to
+`'allowed_values' => ['active' => 'Active', 'pending' => 'Pending', 'blocked' => 'Blocked']` in the
+`FieldStorageConfig::create()` calls in all 3 files, with an inline comment documenting the
+simple-vs-structured shape contract and citing the empirical proof (so a future reader doesn't
+reintroduce the same mistake). No other lines changed. `php -l` clean on all 3 files;
+`git diff --stat` confirms a minimal, test-only diff (15 lines changed per file).
+
+### Real-execution PASS counts after the fix (own `gm138t2-mysql` container, `drush site:install`,
+PHP built-in webserver — all real PHPUnit runs, not static validation)
+
+| File | Before (ERROR) | After (fix) |
+|---|---|---|
+| `GroupMembershipManagerKernelTest` (Kernel) | 10 ERROR | **10/10 PASS** |
+| `ManageMembersPageRenderTest` (Functional) | 3 ERROR | **2/3 PASS, 1 real FAIL** (see below — not a setUp/schema issue) |
+| `ManageMembersPaginationTest` (Functional) | 1 ERROR | **1/1 PASS** |
+
+**Total: 13/14 real-execution PASS, 0 ERROR, 1 real FAIL** (a genuine, separate, pre-existing
+production defect exposed once `setUp()` stopped erroring — see below).
+
+Re-ran the previously-green sibling files to confirm zero regression from the `strictConfigSchema`
+removal / data-shape fix (none of these 3 touch `field_membership_status` themselves):
+- `ManageMembersAccessTest` (Kernel): **4/4 GREEN** (unchanged).
+- `ManageMembersRouteAccessTest` (Functional): **4/4 GREEN** (unchanged).
+- `ManageMembersRouteResolutionTest` (Functional): **3/3 GREEN** (unchanged).
+- Unit tier (all 3 files, `GroupMembershipManagerTest`/`GroupRoleConfigShapeTest`/
+  `MembershipStatusFieldConfigShapeTest`): **16/16 GREEN** (unchanged — confirms no regression from
+  this round's changes).
+
+### The 1 real FAIL — routes to F, NOT a schema/test-authorship issue
+
+`ManageMembersPageRenderTest::testMemberListRendersAsRealTableWithScopedHeaders` genuinely fails,
+reproduced in isolation (not flaky):
+
+```
+Behat\Mink\Exception\ElementNotFoundException: Element matching css "table th[scope="col"]" not found.
+```
+
+Inspected the live rendered HTML (`BROWSERTEST_OUTPUT_DIRECTORY` dump) and the production source:
+`ManageMembersForm::buildForm()` builds `$header` as a flat array of plain translated strings
+(`$this->t('Member name')`, etc.) passed to `#type => 'table'`'s `#header`. Drupal 11's core table
+theme renders these as real `<th>` elements but does **not** auto-add `scope="col"` for a flat
+string header array — that requires either a `['data' => ..., 'scope' => 'col']` structured header
+array, or explicit theming. This is AC-7/AC-15's own semantic-table/accessibility requirement (a
+real `<table>` with `<th scope="col">`, not a div-grid or unscoped headers) — the test is pinning
+real, still-unmet behavior, not asserting a false requirement. **This is a genuine production-code
+gap, out of T's remit to fix** (T does not write production code). Confirmed the other 2 methods in
+the same file (`testStatusBadgeCarriesVisibleTextNotColorAlone`, `testEmptyGroupShowsGuidingEmptyStateCopy`)
+pass cleanly — the `setUp()` fix is confirmed sufficient on its own merits; this 1 failure is
+unrelated to the list_string investigation.
+
+**No `markTestSkipped` used anywhere in this round.** Every test that installs
+`field_membership_status` now genuinely RUNS (no ERROR); 13 of 14 assert real, passing behavior; 1
+fails on a real, separately-diagnosed defect that must go to F, not be silently skipped.
+
+### Zero-error / CI Kernel-job-green confirmation
+
+- **Zero tests remain in an ERROR state** across all 3 previously-erroring files (10 + 3 + 1 = 14
+  methods, all now either PASS or a genuine assertion FAIL — never a `setUp()`/bootstrap ERROR).
+- The CI Kernel job (`phpunit -c web/core/phpunit.xml.dist` over `web/modules/custom/*/tests/src/
+  Kernel`) will see `GroupMembershipManagerKernelTest` **10/10 GREEN** — the only Kernel-tier file in
+  this defect class. **CI Kernel job: GREEN**, confirmed by real local execution against the same
+  pinned core 11.4.4 `composer.lock`, not an assumption.
+- The CI Functional job will see `ManageMembersPaginationTest` 1/1 GREEN and
+  `ManageMembersPageRenderTest` 2/3 GREEN + 1 genuine FAIL (not ERROR) — a real, addressable defect
+  CI is now correctly positioned to catch, exactly as test-first is supposed to work.
+- **Unit 16/16 GREEN, `ManageMembersRouteAccessTest` 4/4 GREEN, `ManageMembersRouteResolutionTest`
+  3/3 GREEN, `ManageMembersAccessTest` 4/4 GREEN — all re-confirmed unchanged, zero regression.**
+
+### Docker hygiene
+
+Created and removed only `gm138t2-mysql` (checked `docker ps -a` before creating — zero `gm138-*`
+containers existed at session start — and after removal, confirming the 40 pre-existing containers,
+none `gm138-*`/`o119-*` prefixed, were untouched throughout). Killed only the PHP built-in webserver
+process this session started (PID captured at launch). No `docker rm`/`stop`/`kill` issued against
+any container not created this run.
+
+### Verdict
+
+**Routes back to F**, but narrowly: the `table th[scope="col"]` accessibility gap in
+`ManageMembersForm::buildForm()`'s `$header` array (add `'data' => ...`/`'scope' => 'col'`
+structuring, or equivalent). This is unrelated to the list_string investigation, which is now fully
+closed (zero ERROR, correct root cause identified and fixed at the test level, no schema-disabling
+needed). **Unit 16/16 and route-resolution 3/3 confirmed still GREEN, no regression.**
