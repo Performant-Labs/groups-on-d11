@@ -236,3 +236,75 @@ AccessPolicy` feeding OUTSIDER/INSIDER scopes), not just the git.drupalcode.org 
   this closes the residual assumption empirically at GREEN.
 
 **Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-A-plan.md`.
+
+## Phase 4 (author tests / RED) — Tester (T)
+
+**Decided:** Authored 41 test methods across 8 files backing all 15 acceptance criteria:
+3 Unit files (config-shape via raw YAML read off `docs/groups/config/`, mirroring
+`GroupAddFormFieldsTest`'s `locateFormDisplayYaml()` technique; + the manager-service contract with
+mocked deps per the playbook's Services-over-Hooks pattern), 2 Kernel files (route-access enforcement
+incl. the warn-2 synchronized-groups_moderate-role empirical proof; manager behavior against real
+`group_relationship` entities incl. AC-9's last-Organizer guard, AC-10's race no-op, AC-8's
+add-member validation), 2 Functional files (real HTTP 200/403 on the route; rendered `<table>` +
+non-color-alone badge + empty-state copy), 1 Playwright spec (role-change + pending-approval E2E,
+keyboard-reachable real-button assertions, visible badge text).
+
+**Assumed:** The manager service's exact constructor/method contract (since it doesn't exist yet) —
+`GroupMembershipManager::__construct(EntityTypeManagerInterface)`, `addMember/changeRole/
+changeStatus/removeMember/approvePending/denyPending`, plus two new exception classes
+(`LastOrganizerGuardException`, `DuplicateMembershipException`, `BlockedAccountException` under
+`Drupal\do_group_membership\Exception\`) and a nullable-relationship no-op contract for
+approve/denyPending (AC-10). This is the CONTRACT F must implement against — RED confirms it doesn't
+exist yet, not that it's wrong; if F has a principled reason to deviate (e.g. different exception
+naming), that's a T/F conversation before GREEN, not a silent implementation choice.
+
+**Hedged:** AC-15's axe-core WCAG scan is NOT automated in the Playwright spec — this repo's
+package.json carries no `@axe-core/playwright` dependency, and adding one is a tooling decision
+outside T's remit (T does not add production/tooling deps). Flagged explicitly in the spec's file
+comment and in handoff-T-red.md for O/F awareness; either F adds the dependency or U performs a
+manual/documented-exception axe pass.
+
+**Evidence:** RED confirmed via a REAL PHPUnit run for all 16 Unit-tier tests (executed against the
+read-only reference checkout's vendor `phpunit` binary, pointed at this worktree's test files — no
+mutation of the reference repo) — 9 errors ("Class ... not found", the manager service doesn't exist)
++ 5 failures ("assertNotNull(...)", the config YAML doesn't exist) + 2 legitimate passes (asserting
+already-true negative/unchanged invariants). Kernel/Functional tiers (25 tests) could not be executed
+in this sandbox — no local `vendor/` in the worktree (confirmed absent, matching A's Finding #2), and
+the reference checkout's Drupal-core PHPUnit autoloader cannot resolve classes living only in this
+worktree's `web/modules/custom` tree for isolated-process Kernel tests (confirmed via a real attempt:
+`Class "Drupal\Tests\do_tests\Kernel\GroupsKernelTestBase" not found` even with a custom
+`auto_prepend_file` autoloader, because Kernel tests run in a separate PHP process PHPUnit spawns
+per-test). Kernel/Functional tests were instead validated STATICALLY: every entity/trait API call
+(`Group::hasPermission()`, `::addMember()`, `::getMember()`, `::getRelationshipsByEntity()`,
+`::addRelationship()`, `GroupTestTrait::createGroupRole()`, `UserCreationTrait::createRole()`,
+`EntityStorageInterface::loadUnchanged()`, `FieldStorageConfig`/`FieldConfig::create()`) was
+cross-checked byte-for-byte against the real `drupal/group` 4.0.x source in the read-only reference
+checkout's `vendor/`/`web/modules/contrib/group/` (this DOES exist there, unlike in this worktree) —
+this caught and fixed one real bug pre-emptively (`UserCreationTrait::createRole()` returns a
+`string` role id, not an object; `ManageMembersAccessTest` originally called `->id()` on it).
+
+**Handoff:** `docs/handoffs/0138-mc7-manage-members/handoff-T-red.md`
+
+## Phase 4 (test-first RED) — Tester (T)
+
+**Decided:** T authored the suite backing AC-1..AC-15: 8 files / 41 test methods — 16 Unit
+(real-RED, executed), 21 Kernel/Functional (RED-by-static-validation: no `vendor/` in this
+worktree, so validated for correct namespaces/base-classes/signatures + why-would-be-RED rationale),
+4 Playwright e2e. Reuses `GroupsKernelTestBase` (do_tests) for the Kernel bootstrap. Includes the
+warn-2 Kernel test: a `group.role` with `scope:insider` + `global_role:groups_moderate` +
+`admin:true` grants `hasPermission('administer members', $user)` on a never-joined group.
+
+**Three T flags carried to F (must not silently pass):**
+- **AC-15 axe-core is NOT automated** (no `@axe-core/playwright` dep in the repo). F should add the
+  dep so the a11y scan runs in the e2e suite, OR explicitly hand AC-15 to U for a manual axe pass.
+  AC-15 must not silently pass unverified.
+- **Playwright pending-approval e2e self-skips** if no pending-request fixture exists (the
+  join-request UI that creates `pending` memberships is #121's territory, out of scope here). AC-5/
+  AC-10 are covered at Kernel/Unit tier — that is acceptable; F must NOT build #121's join flow to
+  satisfy the e2e.
+- **The 21 Kernel/Functional tests were RED-by-static-validation** (no vendor tree in worktree). F
+  MUST re-confirm them by REAL execution at GREEN once its DDEV/vendor env is up — not assume they
+  pass.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-T-red.md`; test files under
+`docs/groups/modules/do_group_membership/tests/` + `tests/e2e/manage-members.spec.ts`.
