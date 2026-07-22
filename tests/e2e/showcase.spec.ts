@@ -416,6 +416,27 @@ test.describe('SC-F1 — /showcase tour page (#119)', () => {
     await expect(comingLinks).toHaveCount(0);
   });
 
+  test('a live entry (Discovery ranking) renders its deep-link to /showcase', async ({
+    page,
+  }) => {
+    // diff-gate B-3: the spec previously only asserted the ABSENCE of a
+    // dead link on "coming" entries, never the PRESENCE of the required
+    // deep-link on a "live" one. Per ShowcaseController::page(), a live
+    // entry gets `#type => 'link'`, title "View this comparison", scoped
+    // inside the entry's own `data-do-showcase-entry` container (the DOM
+    // contract handoff-F.md documents) — resolving `do_showcase.showcase`
+    // (the only route this story builds) to `/showcase`. If a live entry's
+    // link were omitted or mis-scoped, this fails on a missing/zero-count
+    // locator or a wrong href, not on an unrelated symptom.
+    await page.goto('/showcase');
+    const entry = page.locator(
+      '[data-do-showcase-entry="discovery-ranking"]',
+    );
+    const link = entry.getByRole('link', { name: 'View this comparison' });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', '/showcase');
+  });
+
   test('lists the persona switcher naming all four public personas', async ({
     page,
   }) => {

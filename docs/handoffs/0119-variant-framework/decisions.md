@@ -687,3 +687,50 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   `git clean -fd` on `config/sync/`+`web/`, scaffold files removed); `git status --short` after
   shows only the 4 intended production-file diffs. No mutating command run against the shared
   `groups-on-d11` checkout. Full detail in `handoff-F4.md`.
+  instruction; the catalog has exactly two `status: 'live'` entries (`discovery-ranking`,
+  `persona-switcher`) and both route through the identical `ShowcaseController::page()` link-render
+  branch, so one live-entry assertion is sufficient to pin the mechanism without duplicating
+  coverage.
+- **Decided:** Asserted the exact `href="/showcase"` value (not just link presence) by reading
+  `ShowcaseController::page()`'s actual render-array contract (`#url => Url::fromRoute($entry
+  ['route'])` where `route = 'do_showcase.showcase'`) and cross-checking `do_showcase.routing.yml`
+  (`path: '/showcase'`) rather than guessing — per the task's explicit instruction not to guess the
+  href.
+- **Decided:** Verified B-2's "per-session" contract using two independent Playwright
+  `browser.newContext()` instances (not two tabs/pages in one context) as the live proxy for "a
+  fresh session" — Playwright contexts do not share `sessionStorage`/`localStorage`, so this is the
+  strongest automatable stand-in for "browser restart" available without literally restarting the
+  browser process between test steps.
+- **Assumed:** None new.
+- **Hedged:** None — both halves of the B-2 contract (same-tab persists, fresh-context reverts) were
+  independently confirmed live per the task's explicit gate ("Report GREEN for the sessionStorage/
+  per-session behavior ONLY if a real browser confirmed both halves").
+- **Evidence:** PHPUnit 42/42 GREEN (277 assertions), run twice (pre- and post-live-verify),
+  identical both times; tree marker confirms the worktree's own real, non-symlinked `web/core`.
+  phpcs: 0 new findings on the 2 files F4 actually changed (`DoShowcaseHooks.php`: 3 pre-existing
+  `t()`-in-class warnings, lines 86/90/99, predate this round; `HelpText.php`: 18 errors/6 warnings
+  total, all on lines 21-139, zero in the 150-169 diff region). phpstan level 1 on the 2 changed
+  files: `[OK] No errors` (the 1 pre-existing `new.static` finding on `ShowcaseController.php` is
+  unrelated/out-of-scope, confirmed unchanged from F3/T-green3's prior reports). Real `drush
+  site:install` + `config:import` (config_sync_directory + UUID fixes reused from T-green3's
+  recipe) → clean; both `do_showcase`/`do_chrome` `Enabled`. New B-3 Playwright case added,
+  mutation-spot-checked (short-circuited the link-render condition in `ShowcaseController::page()`,
+  reran alone — failed on the exact missing-locator symptom the diff-gate named; restored, reran —
+  passed). Full target-spec Playwright suite (`showcase.spec.ts` + `nav.spec.ts`): 26/26 PASS (25
+  prior + 1 new). LIVE sessionStorage re-verify: same-tab persistence (switcher choice + ribbon
+  dismissal both survive same-context navigation, confirmed via direct `sessionStorage`/
+  `localStorage` key inspection — sessionStorage non-empty, localStorage empty) AND fresh-context
+  reversion (a second, independent `browser.newContext()` reverts the switcher to the server default
+  "cards" and re-shows the ribbon, with zero inherited sessionStorage keys) both independently
+  confirmed in a real Chromium browser. LIVE B-1 re-verify: zero `ribbonTooltip` string in
+  server-rendered markup, zero `[data-do-tooltip]` elements inside the ribbon's own DOM, zero
+  console/page errors on `/` or `/showcase`, switcher's own tooltip trigger unaffected. New recipe
+  note: `php -S` must be started with `web/` as cwd (`cd web && php -S host:port .ht.router.php`),
+  not `php -S host:port web/.ht.router.php` from the repo root, or the router's relative
+  `index.php` resolution fatals on every request. Full Docker teardown (`o119t4-mysql` removed,
+  confirmed empty via `docker ps -a --filter name=o119t4`) + worktree filesystem restore
+  (`git checkout --`/`git clean -fd` on `config/sync/`+`web/`, scaffold files/settings.php/vendor/
+  node_modules removed); `git status --short` after teardown shows only the 1 intended test-file
+  diff (`tests/e2e/showcase.spec.ts`) plus the 2 pre-existing untracked files present before this
+  round began. No mutating command run against the shared `groups-on-d11` checkout — all work
+  confined to the isolated worktree. Full detail in `handoff-T-green4.md`.
