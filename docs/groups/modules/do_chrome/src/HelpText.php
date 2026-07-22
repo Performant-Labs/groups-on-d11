@@ -140,6 +140,22 @@ final class HelpText {
       // the render hook / template (they are structural, not prose copy).
       'permissions.panel.intro' => 'What each kind of person can do in this group, based on the roles actually enforced on this demo.',
       'permissions.panel.footnote' => 'A group admin holds every management capability. Members can read, join, post, and remove their own posts; managing members stays admin-only. Finer-grained roles (moderation, request-to-join) are planned but not yet enabled on the demo.',
+
+      // --- do_showcase (SC-F1, #119): variant-switcher framework, the ------
+      // /showcase tour page, and the site-wide POC ribbon. Appended here per
+      // the append-only HelpText contract — do_showcase does NOT create a
+      // parallel copy store.
+      //
+      // 'showcase.switcher.<instance_id>' is the ⓘ tooltip copy for a
+      // switcher instance (one entry per wired instance; this story ships
+      // the one stub instance, 'directory.layout'). Copy describes what
+      // differs between the variants (the issue's own phrasing), matching
+      // the wireframe's own example options (Compact list / Cards / Map).
+      'showcase.switcher.directory.layout' => 'Compact list favors scanning many groups fast; Cards shows more per-group detail; Map plots groups geographically.',
+
+      // 'showcase.ribbon' is the ⓘ tooltip for the site-wide POC demo
+      // ribbon, explaining what the ribbon is for.
+      'showcase.ribbon' => 'This ribbon marks the site as a proof-of-concept demo. Dismissing it is remembered on this device only; it does not affect other visitors.',
     ];
   }
 

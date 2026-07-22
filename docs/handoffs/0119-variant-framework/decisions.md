@@ -245,3 +245,62 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   CI's kernel/functional jobs run assemble-config.sh before phpunit, matching this run's RED
   reasoning); direct PHPUnit + `npx playwright test --list` runs (output captured in
   handoff-T-red.md). No mutating command run against the shared `groups-on-d11` checkout.
+
+## F — Phase 5 (implement / drive to GREEN) — 2026-07-22
+
+- **Decided:** Implemented the `do_showcase` module against T's authored RED suite exactly as
+  written — no test edited. `VariantSwitcher::build()` returns a `#theme`-based render array
+  (`do_showcase_variant_switcher`, a new Twig template) rather than a raw nested-container array, so
+  the roving-tabindex/ARIA radiogroup markup is real presentation code (matching
+  `PermissionMatrixPanel`'s `#theme` pattern), while still exposing `#attributes`/`#options`/
+  `#tooltip` at the top level so the PHPUnit contract test can assert the render-array shape without
+  a full render cycle.
+- **Decided:** Used `hook_page_top` (not `hook_page_attachments`) for the ribbon, since the ribbon
+  is visible markup (`<button>`/`<a>`) and `page_attachments` can only carry `#attached`
+  (library/settings). Kept `DoChromeHooks::pageAttachments()`'s "single global attach point" shape
+  for the *pattern*, just the correct hook for actual chrome content.
+- **Decided:** `VariantSwitcher` is a plain service (`do_showcase.variant_switcher`), not a Block
+  plugin — one-sentence rationale recorded in handoff-F.md per A's Phase-3 action item: the repo's
+  only embeddable-render-surface precedent (`GroupMissionBlock`/`ContributionStatsBlock`) is
+  context-derived (group from block placement), while the switcher's callers always supply explicit
+  params and call it inline.
+- **Decided:** Appended exactly two new keys to `\Drupal\do_chrome\HelpText::all()`
+  (`showcase.switcher.directory.layout`, `showcase.ribbon`) — verified append-only by re-running
+  `do_chrome`'s own pre-existing `HelpTextTest.php` after the append (14/14 still green, no existing
+  key's assertion changed).
+- **Decided:** Client-side-only persistence (`localStorage`, keyed per switcher `instance_id` for
+  the switcher and a single flag for ribbon dismissal) — no `tempstore.private`, no session write
+  anywhere in new code, per Brief-gate B-2 and the corrected brief.md/wireframe.md (not the stale
+  survey.md Reuse-map line A already flagged as non-blocking doc-hygiene).
+- **Assumed:** A `?variant=` query param on the URL always wins over a stored (localStorage) choice
+  — not spelled out verbatim in the wireframe, but implied by the no-JS-fallback needing to work
+  deterministically even after a prior visit stored a different choice.
+- **Hedged:** Module install/enable-clean and the Playwright e2e suite were NOT run against a live
+  Drupal site in this environment (no groups-on-d11 DDEV/Docker site running here; this environment
+  is explicitly scoped to read-only reference against the shared vendor). Verified instead: `php -l`
+  on every new PHP file, YAML parse-validity on every new `.yml`, `node --check` on both new JS
+  files, and a real PHPUnit run proving the module's classes autoload correctly under Drupal's own
+  module-discovery bootstrap (the same PSR-4 mechanism `drush en` relies on). Full install +
+  `npx playwright test tests/e2e/showcase.spec.ts` against the namespaced Docker is T-GREEN's job
+  (Phase 6), per the brief's own Acceptance criterion — not a gap I'm closing here, an explicit
+  phase boundary.
+- **Hedged:** While reproducing T's PHPUnit RED locally to verify GREEN, discovered that a
+  **symlinked** `web/core` inside the worktree silently redirects PHPUnit's `bootstrap=` resolution
+  back to the SHARED checkout (Drupal core resolves the bootstrap path relative to the *realpath* of
+  `phpunit.xml.dist`'s directory) — producing misleading `Class ... not found` errors even after the
+  module was correctly implemented. Fixed by using a full copy of `web/core` (not a symlink) for
+  local verification only; torn down completely afterward (confirmed via `git status` — worktree
+  clean of anything but the intended production files). Recorded here in case T-GREEN or a future
+  phase hits the same trap.
+- **Evidence:** `docs/groups/modules/do_chrome/src/Hook/{DoChromeHooks,GroupTypeContentHelp,
+  ArchivePinHooks}.php`, `do_chrome/src/{HelpText,PermissionMatrix}.php`,
+  `do_chrome/templates/do-chrome-permission-matrix.html.twig`,
+  `do_notifications/src/Controller/NotificationSettingsController.php`,
+  `do_discovery/do_discovery.routing.yml`, `tests/e2e/nav.spec.ts` (NAV selector reuse, confirmed
+  non-regression), all three T-red PHPUnit test files + `showcase.spec.ts` read in full before
+  implementing. PHPUnit run: 37/37 green (23 new do_showcase + 14 pre-existing do_chrome
+  non-regression) — full command + output in handoff-F.md. phpcs (Drupal+DrupalPractice): 0 errors
+  across all new production PHP files. phpstan level 1: 1 finding (`new.static` on
+  `ShowcaseController::create()`), confirmed identical to the pre-existing finding on
+  `NotificationSettingsController::create()` — not a defect introduced here. No mutating command run
+  against the shared `groups-on-d11` checkout at any point.

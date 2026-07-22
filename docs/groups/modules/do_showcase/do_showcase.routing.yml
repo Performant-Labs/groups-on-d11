@@ -1,0 +1,7 @@
+do_showcase.showcase:
+  path: '/showcase'
+  defaults:
+    _controller: '\Drupal\do_showcase\Controller\ShowcaseController::page'
+    _title: 'POC Showcase — What this demo compares'
+  requirements:
+    _permission: 'access content'

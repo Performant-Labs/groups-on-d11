@@ -1,0 +1,26 @@
+# do_showcase's own libraries — switcher interaction + ribbon dismiss. Both
+# are locally-authored (no CDN, matching epic #78's locally-vendored house
+# style). Neither adds a new tooltip engine — tooltips are rendered by
+# do_chrome/tooltips (attached alongside these on the pages that need it).
+switcher:
+  version: '1.0'
+  js:
+    js/do_showcase.switcher.js: {}
+  css:
+    theme:
+      css/do_showcase.css: {}
+  dependencies:
+    - core/drupal
+    - core/once
+    - core/drupalSettings
+
+ribbon:
+  version: '1.0'
+  js:
+    js/do_showcase.ribbon.js: {}
+  css:
+    theme:
+      css/do_showcase.css: {}
+  dependencies:
+    - core/drupal
+    - core/once
