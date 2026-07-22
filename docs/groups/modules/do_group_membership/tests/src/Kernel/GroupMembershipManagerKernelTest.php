@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\do_group_membership\Kernel;
 
+use Drupal\do_group_membership\Exception\BlockedAccountException;
+use Drupal\do_group_membership\Exception\DuplicateMembershipException;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\do_group_membership\Exception\LastOrganizerGuardException;
 use Drupal\field\Entity\FieldConfig;
@@ -291,7 +293,7 @@ class GroupMembershipManagerKernelTest extends GroupsKernelTestBase {
     $this->addMember($group, $account, ['community_group-member']);
     $this->membershipRelationship($group, $account)->set('field_membership_status', 'blocked')->save();
 
-    $this->expectException(\Drupal\do_group_membership\Exception\DuplicateMembershipException::class);
+    $this->expectException(DuplicateMembershipException::class);
     $this->manager->addMember($group, $account, ['community_group-member']);
   }
 
@@ -304,7 +306,7 @@ class GroupMembershipManagerKernelTest extends GroupsKernelTestBase {
     $account->block();
     $account->save();
 
-    $this->expectException(\Drupal\do_group_membership\Exception\BlockedAccountException::class);
+    $this->expectException(BlockedAccountException::class);
     $this->manager->addMember($group, $account, ['community_group-member']);
   }
 

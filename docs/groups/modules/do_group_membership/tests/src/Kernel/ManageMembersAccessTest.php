@@ -58,10 +58,22 @@ class ManageMembersAccessTest extends GroupsKernelTestBase {
       'admin' => FALSE,
       'permissions' => ['administer members'],
     ]);
+    // CORRECTED at T-green (Phase 6) from INSIDER_ID: T independently
+    // re-derived and empirically verified against real drupal/group 4.0.x
+    // source (GroupPermissionChecker::hasPermissionInGroup(),
+    // git.drupalcode.org/project/group @ 4.0.x) that a Groups-Moderate
+    // account -- never a member of the group it moderates, by design -- can
+    // only ever be resolved via the OUTSIDER_ID scope item; INSIDER_ID is
+    // selected only when GroupMembership::loadSingle() is truthy (i.e. the
+    // account IS a member), which a Groups-Moderate account never is. This
+    // matches the corrected group.role.community_group-groups_moderate.yml
+    // (scope: outsider) that F shipped in production config. Confirmed
+    // empirically in this worktree: this exact test fails with INSIDER_ID
+    // ("Failed asserting that false is true") and passes with OUTSIDER_ID.
     $this->createGroupRole([
       'id' => 'community_group-groups_moderate',
       'group_type' => static::GROUP_TYPE_ID,
-      'scope' => PermissionScopeInterface::INSIDER_ID,
+      'scope' => PermissionScopeInterface::OUTSIDER_ID,
       'admin' => TRUE,
       'global_role' => 'groups_moderate',
     ]);
@@ -114,7 +126,7 @@ class ManageMembersAccessTest extends GroupsKernelTestBase {
    * AC-12 + Handoff-A warn-2 (the residual synchronized-global-role
    * assumption A flagged for empirical closure at GREEN): a user holding the
    * SITE-LEVEL `groups_moderate` role — via
-   * group.role.community_group-groups_moderate.yml's `scope: insider` +
+   * group.role.community_group-groups_moderate.yml's `scope: outsider` +
    * `global_role: groups_moderate` + `admin: true` — holds
    * `administer members` on a `community_group` group they have NEVER
    * joined (no `group_relationship` entity exists for them at all).

@@ -7,7 +7,6 @@ namespace Drupal\Tests\do_group_membership\Functional;
 use Drupal\group\PermissionScopeInterface;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\Tests\group\Traits\GroupTestTrait;
-use Drupal\user\RoleInterface;
 
 /**
  * AC-6, AC-11 — the Manage-members route on a real HTTP request/response,
@@ -126,7 +125,17 @@ class ManageMembersRouteAccessTest extends BrowserTestBase {
    * just insufficiently privileged).
    */
   public function testUnprivilegedAuthenticatedUserGetsAccessDenied(): void {
-    $this->createRole([], RoleInterface::AUTHENTICATED_ID);
+    // CORRECTED at T-green (Phase 6): removed a redundant
+    // createRole([], RoleInterface::AUTHENTICATED_ID) call — a
+    // test-authorship bug (copied from the Kernel-tier convention, where the
+    // authenticated role genuinely does not exist yet). BrowserTestBase's
+    // own site install already creates the authenticated/anonymous roles, so
+    // this call threw EntityStorageException("'user_role' entity with ID
+    // 'authenticated' already exists.") on real execution — confirmed no
+    // sibling Functional test in this repo makes this call.
+    // drupalCreateUser() with no permissions already yields a plain
+    // authenticated user with neither a group role nor the site escape
+    // hatch, which is exactly this test's AC-11 negative case.
     $outsider = $this->drupalCreateUser();
     $this->drupalLogin($outsider);
 

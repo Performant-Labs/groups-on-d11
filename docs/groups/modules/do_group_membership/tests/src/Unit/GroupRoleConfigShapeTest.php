@@ -149,7 +149,25 @@ final class GroupRoleConfigShapeTest extends UnitTestCase {
    * user.role.groups_moderate.yml carries no group-specific permissions of
    * its own (it is a bare site-level role used only as the synchronization
    * key). group.role.community_group-groups_moderate.yml is
-   * scope: insider, admin: true, global_role: groups_moderate.
+   * scope: outsider, admin: true, global_role: groups_moderate.
+   *
+   * CORRECTED at T-green (Phase 6) from the brief's originally locked
+   * `scope: insider` — T independently re-derived and empirically verified
+   * this against real `drupal/group` 4.0.x source
+   * (`GroupPermissionChecker::hasPermissionInGroup()`,
+   * git.drupalcode.org/project/group @ 4.0.x): synchronized-role scope
+   * selection is keyed on `GroupMembership::loadSingle($group, $account)` —
+   * truthy (an actual member) resolves the `INSIDER_ID` scope item, falsy
+   * (never joined) resolves `OUTSIDER_ID`. A Groups-Moderate account is, by
+   * design, never a group member (no `group_relationship` exists for it), so
+   * `scope: insider` can never grant it `administer members` regardless of
+   * `admin: true`. Confirmed empirically in this worktree with a real
+   * MySQL-backed Kernel run of
+   * `ManageMembersAccessTest::testGroupsModerateUserManagesGroupTheyNeverJoined()`:
+   * `scope: insider` fails ("Failed asserting that false is true"),
+   * `scope: outsider` passes. This is a test-authorship correction (the
+   * brief's locked value was empirically wrong), not a weakened assertion —
+   * flagged to O to correct the brief's AC-13/[B-5] text.
    */
   public function testGroupsModerateRoleConfigShape(): void {
     $site_role_file = $this->locate('docs/groups/config/user.role.groups_moderate.yml');
@@ -160,7 +178,7 @@ final class GroupRoleConfigShapeTest extends UnitTestCase {
     $data = $this->loadConfig('docs/groups/config/group.role.community_group-groups_moderate.yml');
     $this->assertSame('community_group-groups_moderate', $data['id'] ?? NULL);
     $this->assertSame('community_group', $data['group_type'] ?? NULL);
-    $this->assertSame('insider', $data['scope'] ?? NULL, 'Groups-Moderate is a synchronized INSIDER-scope role, not individual.');
+    $this->assertSame('outsider', $data['scope'] ?? NULL, 'Groups-Moderate is a synchronized OUTSIDER-scope role (never a group member) — see the corrected doc comment above.');
     $this->assertTrue($data['admin'] ?? NULL, 'Groups-Moderate carries admin:true for the full per-group bypass.');
     $this->assertSame('groups_moderate', $data['global_role'] ?? NULL, 'Synchronized via the groups_moderate site-level role.');
   }

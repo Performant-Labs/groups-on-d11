@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Drupal\Tests\do_group_membership\Unit;
 
 use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\Session\AccountInterface;
 use Drupal\do_group_membership\GroupMembershipManager;
 use Drupal\group\Entity\GroupInterface;
 use Drupal\group\Entity\GroupRelationshipInterface;
 use Drupal\Tests\UnitTestCase;
+use Drupal\user\UserInterface;
 
 /**
  * AC-14 (+ [W-1]) — Unit coverage for `do_group_membership`'s manager service
@@ -71,8 +71,18 @@ final class GroupMembershipManagerTest extends UnitTestCase {
    * territory, out of scope here).
    */
   public function testAddMemberCreatesActiveRelationship(): void {
+    // CORRECTED at T-green (Phase 6): mocking $account as the looser
+    // AccountInterface fails with a TypeError regardless of how
+    // GroupMembershipManager::addMember() is implemented, because the REAL
+    // GroupInterface::addMember(UserInterface $account, $values = [])
+    // (confirmed against drupal/group 4.0.x source,
+    // git.drupalcode.org/project/group @ 4.0.x, src/Entity/GroupInterface.php)
+    // declares a strict UserInterface parameter type, and PHPUnit's mock
+    // enforces the real method's type declaration on every call. This is a
+    // test-authorship fix (T's own mock too loose), not a production-code
+    // defect.
     $group = $this->createMock(GroupInterface::class);
-    $account = $this->createMock(AccountInterface::class);
+    $account = $this->createMock(UserInterface::class);
 
     $relationship = $this->createMock(GroupRelationshipInterface::class);
     $relationship->expects($this->once())->method('save');

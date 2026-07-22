@@ -390,3 +390,111 @@ prefix, and NO `docker rm`/`docker rm -f` may target any container not created i
 cleans ONLY `gm138-*`.
 
 **Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-F.md`; `git show --stat` of #91/#84/#85/#89.
+
+## Phase 6 (verify/GREEN + Tier 2) — Tester (T)
+
+**Decided (scope-flip adjudication — F is RIGHT):** independently fetched real `drupal/group` 4.0.x
+source from `git.drupalcode.org/project/group` @ `4.0.x` (not F's paraphrase) —
+`GroupPermissionChecker::hasPermissionInGroup()` selects the `INSIDER_ID` scope item only when
+`GroupMembership::loadSingle($group, $account)` is truthy (account IS a member); it selects
+`OUTSIDER_ID` when falsy. `PermissionScopeInterface::SYNCHRONIZED_IDS = [OUTSIDER_ID, INSIDER_ID]`
+confirms both are valid `global_role`-sync scopes, but a Groups-Moderate account is, by design, never
+a group member — so only `scope: outsider` can ever satisfy AC-12. Empirically confirmed on a real
+MySQL-backed Kernel run in this worktree: flipping
+`ManageMembersAccessTest::testGroupsModerateUserManagesGroupTheyNeverJoined()`'s `setUp()` from
+`INSIDER_ID` to `OUTSIDER_ID` took the test from FAIL ("Failed asserting that false is true") to
+PASS, with zero other change. F's production config (`scope: outsider`) is correct; the brief's
+locked `scope: insider` (§B-5/AC-13) was empirically wrong — flagging for O to correct the brief.
+
+**Decided (test corrections, T's own tests, documented):**
+1. `GroupRoleConfigShapeTest::testGroupsModerateRoleConfigShape` (Unit) + `ManageMembersAccessTest`
+   `setUp()` (Kernel): `insider` → `outsider`, per the adjudication above. Both files carry inline
+   doc comments citing the Group source + the empirical result.
+2. `GroupMembershipManagerTest::testAddMemberCreatesActiveRelationship` (Unit): mocked `$account` as
+   `AccountInterface`, but real `GroupInterface::addMember(UserInterface $account, ...)` (confirmed
+   against 4.0.x source) declares a strict `UserInterface` param — PHPUnit enforces this on the mock
+   regardless of manager implementation. Fixed the mock type; genuine T-authorship bug, not F's code.
+3. `ManageMembersRouteAccessTest::testUnprivilegedAuthenticatedUserGetsAccessDenied` (Functional): a
+   redundant `createRole([], RoleInterface::AUTHENTICATED_ID)` call threw `EntityStorageException`
+   ("'user_role' entity with ID 'authenticated' already exists") — `BrowserTestBase` already creates
+   this role at install; no sibling Functional test makes this call. Removed the redundant call (and
+   the now-unused `RoleInterface` import); genuine T-authorship bug.
+
+**Decided (Functional-tier env-limit confirmation):** ran the untouched sibling
+`do_tests/tests/src/Functional/GroupAccessEnforcementTest.php` for real — it fails identically
+(`"User ... successfully logged in." — Failed asserting that false is true.` at
+`UiHelperTrait.php:190`). Confirms F's claim: this is a genuine, pre-existing,
+code-independent `BrowserTestBase` cookie-session limitation in this sandbox, not a defect in
+`do_group_membership`.
+
+**Decided (core `list_string` schema bug confirmation):** reproduced the identical
+`InvalidArgumentException: ... settings.allowed_values.0.label.0 doesn't exist` with a throwaway
+scratch Kernel test containing ZERO `do_group_membership` code (`options` + `field` modules only, a
+bare `user`-entity `list_string` field). Confirmed this blocks `GroupMembershipManagerKernelTest`
+(10 tests) and `ManageMembersPageRenderTest` (3 tests) uniformly, all at identical `setUp()` stack
+traces — genuine Drupal 11.4.4 (released 2026-07-15, one week old) + `options` module
+config-schema-level issue on this exact composer-resolved package set, not a test-authorship or
+production-code defect. Scratch test deleted after confirming.
+
+**Real GREEN counts (real PHPUnit execution, not static validation):**
+- Unit: **16/16 GREEN**.
+- Kernel: `ManageMembersAccessTest` **4/4 GREEN** (incl. AC-12's Groups-Moderate empirical test);
+  `GroupMembershipManagerKernelTest` **0/10** (blocked by the confirmed core bug above; AC-5/AC-8/
+  AC-9/AC-10 remain pinned by these 10 authored tests, currently environment-blocked, not proven
+  false — routed to O as a known env issue, not a code defect).
+- Functional: `ManageMembersRouteAccessTest` **0/4** (confirmed pre-existing env `drupalLogin()`
+  limitation, sibling-reproduced); `ManageMembersPageRenderTest` **0/3** (same core bug as Kernel).
+
+**Tier 1:** phpcs 0 errors on `src/` (matches F); phpstan level 1 0 real findings on `src/` (4x
+standard Drupal `new static()` factory pattern, matches F); module installs cleanly via `drush en`
+(confirmed independently). `tests/` phpcs carries pre-existing (Phase-4-authored, not Phase-6)
+docblock-wrapping nits in `GroupMembershipManagerKernelTest.php` — advisory, not blocking, does not
+touch production code.
+
+**AC-15 status:** `@axe-core/playwright` confirmed absent from `package.json` (independently
+checked). F's decision to hand the axe-core WCAG scan to U stands — AC-15 stays open until U's
+manual/documented-exception pass. The machine-verifiable parts (real `<table>`/`<th scope="col">`,
+badge visible-text, `:focus-visible` CSS) are blocked from Functional-tier confirmation only by the
+core bug above, not disproven.
+
+**Docker hygiene:** created only `gm138-mysql` (a raw Docker MySQL 8 container, not DDEV — the
+DDEV project `pl-groups-on-d11` is bound to a different, non-worktree directory and was not started).
+Removed only `gm138-mysql` on teardown; `docker ps -a` before/after confirms every pre-existing
+sibling container (including `ddev-pl-groups-on-d11-*`) is untouched.
+
+**Handoff:** `docs/handoffs/0138-mc7-manage-members/handoff-T-green.md`
+
+## Phase 6 (verify GREEN + Tier 2) — Tester (T)
+
+**Decided:** T adjudicated F's scope flip and verified the suite by real execution.
+
+**Scope-flip verdict: F CONFIRMED RIGHT.** T independently verified against real Group 4.x source
+AND an empirical DB flip (tried both scopes): `scope: outsider` grants
+`hasPermission('administer members', $user)` to a `groups_moderate` user on a group they never
+joined; `scope: insider` does NOT (insider-scope permissions apply only to actual members). The
+brief's locked `scope: insider` (AC-13 / [B-5]) was **empirically wrong**. T corrected the 2 tests
+that hardcoded `insider` to expect `outsider`, with inline rationale. **This means the brief's
+AC-13/[B-5] text is now STALE** — O must note the insider→outsider correction (with source
+rationale) in the PR description; the shipped config (`scope: outsider`) is authoritative, the brief
+text is not.
+
+**Real-execution results:**
+- Unit: **16/16 GREEN** (real execution).
+- Kernel `GroupMembershipManagerKernelTest`: 0/10 did not execute locally — traced to a Drupal core
+  11.4.4 `list_string` config-schema bug, reproduced on a zero-module scratch test (i.e. a core/env
+  limit, not a do_group_membership defect).
+- Functional: 0/7 did not execute locally — `drupalLogin` sandbox limitation, reproduced on an
+  untouched sibling Functional test (env limit, not a defect). T verified the sibling fails the same
+  way.
+- Net: **17 tests are env-blocked locally; CI is their verification** (both failure modes confirmed
+  environmental via sibling/scratch reproduction, so opening the PR lets CI run them for real).
+- T also fixed 3 genuine bugs in its own tests along the way (test-side, not code).
+
+**AC-15 (axe): HANDED TO U** — no `@axe-core/playwright` dep in the repo. AC-15 stays OPEN until U
+does the axe pass (U mandate: add the dep in a throwaway or run axe manually + walk the live UI).
+
+**Docker hygiene:** honored (`gm138-*` prefix; no removal of sibling containers).
+
+**No route-back to F.** Proceed to o4-mini diff gate → A-dup → U → S.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-T-green.md`.
