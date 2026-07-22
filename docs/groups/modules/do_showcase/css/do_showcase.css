@@ -1,0 +1,94 @@
+/**
+ * @file
+ * SC-F1 (#119) styling: variant switcher + POC ribbon.
+ *
+ * Low-fi wireframe -> real CSS pass. No color-only state cues: selection and
+ * disabled state are ALSO conveyed by glyph/text (see the render arrays in
+ * VariantSwitcher.php / DoShowcaseHooks.php); this stylesheet only adds the
+ * visual affordance, never the sole cue.
+ */
+
+/* --- POC ribbon (Surface 3) --------------------------------------------- */
+
+.do-showcase-ribbon {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.do-showcase-ribbon a {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.do-showcase-ribbon-dismiss {
+  background: transparent;
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+}
+
+.do-showcase-ribbon a:focus-visible,
+.do-showcase-ribbon-dismiss:focus-visible {
+  outline: 2px solid #4da3ff;
+  outline-offset: 2px;
+}
+
+/* --- Variant switcher (Surface 1) --------------------------------------- */
+
+.do-showcase-variant-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.do-showcase-variant-switcher [role="radio"] {
+  display: inline-block;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #888888;
+  cursor: pointer;
+  background: #ffffff;
+}
+
+.do-showcase-variant-switcher [role="radio"][aria-checked="true"] {
+  border-width: 2px;
+  font-weight: bold;
+}
+
+.do-showcase-variant-switcher [role="radio"][aria-disabled="true"] {
+  cursor: not-allowed;
+  color: #767676;
+  background: #f0f0f0;
+}
+
+.do-showcase-variant-switcher [role="radio"]:focus-visible {
+  outline: 2px solid #4da3ff;
+  outline-offset: 2px;
+}
+
+.do-showcase-info {
+  cursor: help;
+}
+
+/* --- /showcase catalog (Surface 2) -------------------------------------- */
+
+.do-showcase-catalog-entry {
+  border-top: 1px solid #cccccc;
+  padding: 1rem 0;
+}
+
+.do-showcase-status-badge {
+  font-weight: bold;
+}

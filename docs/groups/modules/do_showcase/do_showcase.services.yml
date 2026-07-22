@@ -1,0 +1,12 @@
+services:
+  do_showcase.variant_switcher:
+    class: Drupal\do_showcase\VariantSwitcher
+    autowire: false
+    calls:
+      - [setStringTranslation, ['@string_translation']]
+
+  do_showcase.hooks:
+    class: Drupal\do_showcase\Hook\DoShowcaseHooks
+    autowire: false
+    tags:
+      - { name: 'hook_implementations' }

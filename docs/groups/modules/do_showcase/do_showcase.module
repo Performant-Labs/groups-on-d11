@@ -1,0 +1,24 @@
+<?php
+
+/**
+ * @file
+ * Variant-switcher framework, /showcase tour page, and POC ribbon (#119).
+ *
+ * This module is the FOUNDATION the SC-4/SC-5/SC-6/ST-8 comparison stories
+ * plug into. It ships:
+ *  - `\Drupal\do_showcase\VariantSwitcher` — a reusable labeled-radiogroup
+ *    render-array builder (do_showcase.variant_switcher service),
+ *  - `\Drupal\do_showcase\ShowcaseCatalog` — the code-constant list of every
+ *    planned comparison + the persona switcher, rendered by `/showcase`,
+ *  - the site-wide "POC demo" ribbon (page_attachments hook).
+ *
+ * Reuses (does not duplicate) `do_chrome`'s tooltip library
+ * (`do_chrome/tooltips`) and `\Drupal\do_chrome\HelpText` (append-only copy
+ * store) for tooltip copy.
+ *
+ * All hook implementations live in DoShowcaseHooks via the #[Hook] attribute.
+ *
+ * @see \Drupal\do_showcase\VariantSwitcher
+ * @see \Drupal\do_showcase\ShowcaseCatalog
+ * @see \Drupal\do_showcase\Hook\DoShowcaseHooks
+ */

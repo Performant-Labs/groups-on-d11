@@ -1,0 +1,40 @@
+{#
+/**
+ * @file
+ * Labeled variant-switcher device (do_showcase, SC-F1 #119).
+ *
+ * Renders a role="radiogroup" segmented control. Data comes from
+ * \Drupal\do_showcase\VariantSwitcher::build() via the
+ * do_showcase_variant_switcher theme hook — this template is
+ * presentation-only.
+ *
+ * Available variables:
+ * - instance_id: the switcher instance machine id (also used as the
+ *   data-do-showcase-instance attribute the switcher JS keys on).
+ * - wrapper_attributes: attributes for the radiogroup wrapper
+ *   (role/aria-label/data-*).
+ * - options: list of { id, label, plain_label, aria_checked, aria_disabled,
+ *   tabindex, available, href }, in display order.
+ * - tooltip: the HelpText-sourced ⓘ tooltip copy for this instance (one
+ *   trigger per switcher instance, not per option).
+ * - tooltip_attributes: attributes for the ⓘ trigger
+ *   (tabindex/role/aria-label/data-do-tooltip).
+ */
+#}
+<div{{ create_attribute(wrapper_attributes) }}>
+  <span class="do-showcase-switcher-label">{{ 'Viewing:'|t }}</span>
+  {% for option in options %}
+    <a href="{{ option.href }}"
+       role="radio"
+       aria-checked="{{ option.aria_checked ? 'true' : 'false' }}"
+       {% if option.aria_disabled %}aria-disabled="true"{% endif %}
+       tabindex="{{ option.tabindex }}"
+       data-do-showcase-id="{{ option.id }}"
+       data-do-showcase-plain-label="{{ option.plain_label }}">
+      <span data-do-showcase-label="true">{{ option.label }}</span>
+    </a>
+  {% endfor %}
+  {% if tooltip %}
+    <span class="do-showcase-info"{{ create_attribute(tooltip_attributes) }}>ⓘ</span>
+  {% endif %}
+</div>
