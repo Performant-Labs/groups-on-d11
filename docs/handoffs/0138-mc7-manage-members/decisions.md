@@ -1458,3 +1458,14 @@ deterministic Kernel test. Verified the CI way (full seeded demo site mirroring 
 production defect.
 
 **Evidence:** `handoff-T-green.md` "PR #149 E2E fix".
+
+## Phase 10.5 (E2E fix) — rebased onto integrated main, re-pushed to PR #149
+
+**Decided:** Committed T's spec fix (source `tests/e2e/manage-members.spec.ts`). Rebased onto
+`origin/main` @ 57d6043 (now includes merged #147 do_streams + #148 do_showcase + POC ribbon) —
+29 commits, clean, **zero file overlap** with #147/#148 (verified: no do_streams/do_showcase/ribbon/
+variant paths in #138's diff), diff still source-only. Force-pushed (with-lease) to the PR #149
+branch. New CI run **29962977198** on head 942ceb3, all 3 jobs (Kernel/Functional/E2E) pending —
+now running against the integrated main. PR MERGEABLE. Still held for human merge.
+
+**Evidence:** `gh run 29962977198`; PR #149 head 942ceb3.
