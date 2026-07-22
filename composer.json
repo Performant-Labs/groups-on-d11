@@ -22,7 +22,12 @@
         "drupal/core-recipe-unpack": "^11.4",
         "drupal/core-recommended": "^11.4",
         "drupal/flag": "^4.0",
+        "drupal/geofield": "^10.3",
+        "drupal/geofield_map": "^11.1",
         "drupal/group": "4.0.x-dev",
+        "drupal/masquerade": "^2.2",
+        "drupal/message": "^1.8",
+        "drupal/message_notify": "^1.5",
         "drush/drush": "^13"
     },
     "conflict": {
