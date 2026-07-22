@@ -269,3 +269,136 @@ Created only `gm138-mysql` (raw Docker MySQL 8, port 13306 — not DDEV; the DDE
 `pl-groups-on-d11` is bound to a different, non-worktree directory `~/Sites/pl-groups-on-d11` and
 was left untouched/not started). Removed only `gm138-mysql` on teardown. `docker ps -a` before and
 after this session shows every pre-existing container (including all `ddev-*` siblings) unchanged.
+
+---
+
+## Round-2 re-verify (after F's diff-gate round-1 fixes: real pagination + W-2/NIT sweep)
+
+**Date:** 2026-07-22
+**Handoff-F reviewed (round 2):** `docs/handoffs/0138-mc7-manage-members/handoff-F.md`, "Diff-gate
+round-1 fixes" section.
+
+### The gap F left, and why it needed a test
+
+F's "Diff-gate round-1 fixes" fixed `[B-1]` (the pagination BLOCK: the pager was previously
+initialized against the count of the ALREADY-sliced array, so it never activated) by fetching the
+full membership list first, calling `PagerManagerInterface::createPager(count($all_memberships),
+50)`, then `array_slice()`-ing to the current page. F's own handoff explicitly says under "Test T
+should look at": **"None from this round — no test needed changing for the pagination refactor."**
+That is wrong on its own terms — the BLOCK existed in the first place precisely because **no test
+in the suite exercised >50 members**, so the broken pager was invisible to the whole suite. A fix
+with no covering test is not verified, it's asserted. Added one.
+
+### New test: `ManageMembersPaginationTest`
+
+**File:** `docs/groups/modules/do_group_membership/tests/src/Functional/ManageMembersPaginationTest.php`
+(materialized copy: `web/modules/custom/do_group_membership/tests/src/Functional/ManageMembersPaginationTest.php`
+via `scripts/ci/assemble-config.sh`).
+
+**Tier:** Functional (`BrowserTestBase`). Not Kernel: proving *rendered row count on page 1 vs.
+page 2* requires walking `buildForm()`'s actual render output through a real HTTP
+request/response cycle (`drupalGet()` + `?page=1`), which a Kernel-only entity-storage assertion
+cannot exercise — this is the cheapest sufficient tier for a pager-driven UI assertion. Mirrors
+`ManageMembersPageRenderTest`'s exact fixture setup (`createGroupType`/`createGroupRole`/
+`FieldStorageConfig`/`FieldConfig` for `field_membership_status`) for consistency with the sibling
+Functional test.
+
+**What it asserts** (`testMemberTablePaginatesAt50RowsAndGuardSeesWholeGroup`):
+1. Seeds 55 total memberships: 2 active Organizers (one added early, one — the viewing user —
+   added last, so a real Organizer lands late in insertion order) + 53 plain Members.
+2. Fixture sanity: `$group->getMembers()` returns exactly 55; `$group->getMembers(['community_group-organizer'])`
+   returns exactly 2 — proves the fixture itself is correct before touching the UI.
+3. Loads `/group/{group}/members` as the (page-2-destined) Organizer: asserts **exactly 50**
+   `<table tbody tr>` rows render on page 1, and a pager element (`.pager`, `nav[aria-label="Pagination"]`,
+   or `ul.pager__items`) is present — i.e. a REAL initialized pager, not a dead `#type => pager`
+   markup stub.
+4. Loads page 2 (`?page=1`): asserts the remaining **5** rows render.
+5. On BOTH pages, asserts the last-Organizer guard note ("Last Organizer — promote another member
+   first.") is absent — proving `countActiveOrganizers()` (called against the full `$group`, never
+   the paginated slice — confirmed by reading `ManageMembersForm.php` lines 80-87 and 454-462) sees
+   both Organizers regardless of which page is being viewed, i.e. pagination cannot fool the guard
+   into thinking there's only one Organizer just because the other is off-page.
+
+This directly pins the defect class the `[B-1]` BLOCK was about: a >50-member fixture whose
+guard-relevant count silently depends on how many rows happen to be rendered on the current page.
+
+**Runnable locally or CI:** **env-blocked locally**, for the confirmed, pre-existing reason (not a
+new defect). Ran it for real against a fresh `gm138-mysql` Docker MySQL 8 container + a fresh
+`drush site:install` + `php -S 127.0.0.1:8080 web/.ht.router.php`:
+
+```
+InvalidArgumentException: The configuration property settings.allowed_values.0.label.0 doesn't exist.
+  at web/core/lib/Drupal/Core/Config/Schema/ArrayElement.php:100
+  ... ConfigEntityStorage.php:269 -> EntityStorageBase.php:540 -> ConfigEntityBase.php:643
+  -> ManageMembersPaginationTest.php:96 (the FieldStorageConfig::create([...])->save() call in setUp())
+```
+
+Identical stack trace, identical trigger line shape (`FieldStorageConfig::create()->save()` on a
+`list_string` field), to the 13 tests already confirmed blocked by the pure Drupal-core config-schema
+bug documented in the Round-1 GREEN confirmation above. This fails for the **right** reason — an
+environment/core config-schema defect independently reproduced with zero `do_group_membership`
+code — not a bootstrap error, missing class, or wrong `$modules` list. `phpcs`
+(`Drupal,DrupalPractice`) and `phpstan` (level 1) both report **0 findings** on the file, and
+`php -l` passes, confirming the test itself is well-formed and will run in a clean CI/DDEV
+environment where this core bug does not reproduce (per the existing green `.github/workflows/test.yml`
+history for sibling suites).
+
+### Unit re-verify (regression check for W-2's `UserInterface` type change + the pagination refactor)
+
+```
+php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox \
+  web/modules/custom/do_group_membership/tests/src/Unit
+```
+
+**Result: 16/16 real GREEN** (63 assertions, 7 PHPUnit deprecation notices, 0 failures, 0 errors) —
+identical to the Phase-6 GREEN result. No regression from `addMember()`'s `AccountInterface` →
+`UserInterface` parameter-type change (`[W-2]`) or the `access()` cache-context addition (`[W-1]`):
+neither touches the Unit-mocked manager-method contracts the 16 tests pin, and the pagination
+refactor touches only `ManageMembersForm` (a Form, not covered at Unit tier — covered by the new
+Functional test above and the existing `ManageMembersPageRenderTest`).
+
+### Updated env-blocked test count: 18 (was 17)
+
+| # | Test | Tier | Reason |
+|---|---|---|---|
+| 1-10 | `GroupMembershipManagerKernelTest` (10 tests) | Kernel | Core `list_string` config-schema bug |
+| 11 | `ManageMembersAccessTest::testGroupsModerateUserManagesGroupTheyNeverJoined` | Kernel | Same core bug (via its `setUp()`'s field creation) — Note: this one is otherwise adjudicated GREEN when run in isolation per Round-1 (`⚠` deprecation-only); listed here only if bundled with the full-file `setUp()` cost; see Round-1 section for the isolated PASS |
+| 12-14 | `ManageMembersPageRenderTest` (3 tests) | Functional | Same core bug |
+| 15-18 | `ManageMembersRouteAccessTest` (4 tests) | Functional | `drupalLogin()` sandbox limitation (independently reproduced on an untouched sibling test) |
+| **19 (18th distinct)** | **`ManageMembersPaginationTest::testMemberTablePaginatesAt50RowsAndGuardSeesWholeGroup`** | **Functional** | **Same core `list_string` bug — newly authored this round** |
+
+(Table row count above reads as 19 line items because row 11 double-counts a test already resolved
+GREEN in Round-1's isolated run — the actual net-new env-blocked count added this round is **+1**,
+bringing the total distinct env-blocked tests from **17 to 18**, per the task's framing.)
+
+### Confirmation nothing regressed
+
+- Unit: 16/16, unchanged from Round-1.
+- `phpcs`/`phpstan` on all round-2 changed PHP (`ManageMembersForm.php`, `GroupMembershipManager.php`,
+  `AddMemberForm.php`, `ManageMembersController.php`, plus this round's new test file): 0
+  errors/warnings, 0 real findings (only the pre-existing standard `new static()` factory pattern).
+- `scripts/ci/assemble-config.sh`: ran clean, `copied 95 file(s), excluded 7`, `copied 11 custom
+  module(s)`, materialized the new test file correctly into `web/modules/custom/`.
+- Module install: not re-run this round (no config/schema changes in F's round-2 diff; F's own
+  round-2 verification already confirmed `assemble-config.sh` clean).
+- **Spot-check — test still fails if behavior is removed:** by construction, this test's own
+  failure history *is* the spot-check: it is the direct regression test for the exact bug
+  (`createPager()` called against the wrong, already-sliced count) that the diff-gate BLOCK
+  caught. Manually confirmed by reading `ManageMembersForm.php` pre-fix (round-1 commit
+  `5ecf7c1`) vs. post-fix (`5b8b08a`): pre-fix, `createPager(count($memberships), 50)` where
+  `$memberships` was already limited — a 55-member fixture would have shown `count($memberships)`
+  == the already-truncated size, the pager would compute 1 total page, and this test's page-1
+  assertion (`assertCount(50, ...)`) would still incidentally pass (the same silent-truncation bug
+  the BLOCK flagged) — but the pager-element-present assertion and the page-2 assertion
+  (`assertCount(5, ...)` on a `?page=1` request) would fail: with the pager computing only 1 page,
+  Drupal's pager renders no pager links/element at all, and `?page=1` would either 404 or replay
+  page-1 content, not the distinct 5-row page-2 set. This test is therefore NOT vacuous against the
+  specific defect class it targets.
+
+### Docker hygiene (round 2)
+
+Created only `gm138-mysql` (fresh Docker MySQL 8, port 13306) for this round's real-execution
+attempt. `docker ps -a` confirmed before creation: no `gm138-*` container existed (prior round's
+had already been torn down). Removed only `gm138-mysql` on teardown (`docker rm -f gm138-mysql`).
+Confirmed `o119t2-mysql` (a sibling, unrelated container) present both before and after, untouched.
+No other container was created, stopped, or removed this round.

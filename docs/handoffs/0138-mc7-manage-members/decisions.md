@@ -537,3 +537,47 @@ If only CI-runnable, add it to the env-blocked list — do NOT leave AC-15 pagin
 PagerManager pagination, whole-group Organizer count preserved). No new findings. Proceed to
 T(GREEN re-verify + add pagination-covering test) → A-dup → U → S.
 Transcript: `dual-review-diff.md`.
+
+## Phase 6 (round 2) — Tester (T) — GREEN re-verify + pagination-covering test
+
+**Decided:** Authored the required pagination-covering test
+(`docs/groups/modules/do_group_membership/tests/src/Functional/ManageMembersPaginationTest.php`)
+that F's round-2 handoff wrongly claimed was unnecessary. Seeds 55 memberships (2 active
+Organizers + 53 Members), asserts exactly 50 rows on page 1, a real pager element present, the
+remaining 5 rows on page 2, and — the specific defect class the diff-gate BLOCK was about — that
+the last-Organizer guard note is absent on BOTH pages, proving `countActiveOrganizers()` counts
+across the whole group and is not fooled by which page is being viewed.
+
+**Verified true:** ran the test for real against a fresh `gm138-mysql` Docker MySQL 8 + a real
+`drush site:install` + `php -S` webserver. It fails at the identical `FieldStorageConfig::create()
+->save()` stack trace (`InvalidArgumentException: settings.allowed_values.0.label.0 doesn't exist`)
+as the 13 already-confirmed core-bug-blocked tests — the same pre-existing, code-independent
+Drupal-11.4.4 `list_string` config-schema issue, not a new defect and not a bootstrap/authorship
+error. `phpcs`/`phpstan` both 0 findings on the new file.
+
+**Assumed:** the test will run and pass unmodified in a clean CI/DDEV environment where the core
+`list_string` bug does not reproduce (consistent with the existing green `.github/workflows/test.yml`
+history for sibling Functional suites) — not independently re-confirmed in a second environment
+this round, flagging for O same as the other 17 env-blocked tests.
+
+**Re-verified unchanged:** Unit tier 16/16 real GREEN (no regression from F's `UserInterface`
+param-type change or the pagination refactor — neither touches the Unit-mocked manager contracts).
+
+**Evidence:** `handoff-T-green.md` "Round-2 re-verify" section; env-blocked test count now 18 (was
+17), net +1 this round. Docker hygiene: created + removed only `gm138-mysql`; `o119t2-mysql`
+confirmed untouched before/after.
+
+**Verdict:** GREEN confirmed, no blocking issues routed back to F. Ready for A (anti-duplication)
+then U (UI Walkthrough — this story touches an interactive UI surface).
+
+## Phase 6 (re-verify) — Tester (T) round 2
+
+**Decided:** T added `ManageMembersPaginationTest` (Functional): seeds 55 members → asserts exactly
+50 rows on page 1 + pager present + 5 rows on page 2, and that the last-Organizer guard note is
+absent on both pages (proving `countActiveOrganizers()` sees the whole group, not just a page
+slice — AC-9 not fooled by pagination). Env-blocked locally (same core 11.4.4 `list_string`
+schema bug) → **CI-pinned; env-blocked test count is now 18**. Unit re-run **16/16 GREEN** (the W-2
+`UserInterface` type change + pagination refactor did not regress). No route-back. Docker hygiene
+held (`gm138-*`). Proceed to A-dup → U → S.
+
+**Evidence:** `handoff-T-green.md` "Round-2 re-verify"; `tests/src/Functional/ManageMembersPaginationTest.php`.
