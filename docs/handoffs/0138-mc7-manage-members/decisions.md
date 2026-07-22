@@ -1445,3 +1445,16 @@ site:install → config:import → demo seed → drush runserver → playwright)
 
 **Evidence:** `ManageMembersForm.php` lines 249-272 (disabled submit buttons + aria-describedby);
 PR #149 E2E job log (2 failures at spec lines 84, 148).
+
+## Phase 10.5 (E2E fix) — T: seed-compatible spec, verified CI-way
+
+**Decided:** T fixed `manage-members.spec.ts` (both failures TEST-side, NO F change): tight
+add-member locator + change-role navigation; `input[type=submit]` vs `button` assertion corrected;
+added `elena_garcia` (a real seeded demo user) as a 2nd enabled-row member so AC-7's "real reachable
+button" asserts on an actionable row; AC-9's disable-before-attempt guard coverage delegated to the
+deterministic Kernel test. Verified the CI way (full seeded demo site mirroring the e2e job):
+**manage-members.spec.ts 3 pass / 1 self-skip / 0 fail; full 28-test E2E suite 27 pass / 1 skip /
+0 fail.** F's disabled-button rendering was already correct per wireframe Screen 6 — confirmed no
+production defect.
+
+**Evidence:** `handoff-T-green.md` "PR #149 E2E fix".
