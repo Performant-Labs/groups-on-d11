@@ -363,4 +363,46 @@ final class VariantSwitcherTest extends UnitTestCase {
     $this->assertSame('e', $zeroTabindex[0]['id']);
   }
 
+  /**
+   * The render array declares the url.query_args:variant cache context.
+   *
+   * Build()'s own render-array CONTENT (`#options`' `aria_checked`,
+   * `tabindex`, and selection state) is a pure function of the caller-
+   * supplied $current argument. This module's one caller
+   * (ShowcaseController::page()) derives $current directly from the
+   * `variant` query string, so if this render array does not declare the
+   * `url.query_args:variant` cache context, Drupal's Dynamic Page Cache
+   * has no way to know the array's content varies by that query argument
+   * and will serve a stale, wrong-variant-selected render to a different
+   * `?variant=` request once any variant has been cached for the page
+   * (the exact live defect handoff-T-green2.md reproduced via curl +
+   * X-Drupal-Dynamic-Cache headers, fixed in handoff-F3.md).
+   *
+   * This pins the MECHANISM (the declared cache metadata), not just the
+   * symptom: reverting F3's added `'#cache' => ['contexts' =>
+   * ['url.query_args:variant']]` entry from VariantSwitcher::build() makes
+   * this assertion fail (`#cache` key absent / contexts empty), while the
+   * render-array CONTENT assertions elsewhere in this file (e.g.
+   * testExactlyOneOptionMarkedSelected) would still pass — content
+   * correctness and cache-context correctness are independent contracts,
+   * and only this test guards the latter.
+   *
+   * @covers ::build
+   */
+  public function testBuildDeclaresUrlQueryArgsVariantCacheContext(): void {
+    $build = $this->switcher->build('directory.layout', $this->stubOptions(), 'cards');
+
+    $this->assertArrayHasKey(
+      '#cache',
+      $build,
+      'The render array must declare #cache metadata so Drupal\'s render/page cache layers know this output varies by request context.',
+    );
+    $contexts = $build['#cache']['contexts'] ?? [];
+    $this->assertContains(
+      'url.query_args:variant',
+      $contexts,
+      'build()\'s render array must carry the url.query_args:variant cache context: its own content (#options aria_checked/tabindex) is a pure function of $current, which this module\'s one caller derives from the variant query string. Without this context, Drupal\'s Dynamic Page Cache cannot distinguish a /showcase?variant=map render from a /showcase?variant=compact render and will serve a stale cross-variant HIT (the defect handoff-T-green2.md reproduced live).',
+    );
+  }
+
 }

@@ -543,3 +543,56 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   torn down after (composer-installed `web/core`/`vendor`/etc. removed) — `git status --short`
   confirms only the two intended production-file diffs plus the one pre-existing untracked file
   remain. No mutating command run against the shared `groups-on-d11` checkout.
+
+## T — Phase T (GREEN round 3) — cache-context fix VERIFY + covering assertion — 2026-07-22
+
+- **Decided:** Added exactly one new PHPUnit covering assertion
+  (`testBuildDeclaresUrlQueryArgsVariantCacheContext`) to `VariantSwitcherTest.php`, pinning that
+  `VariantSwitcher::build()`'s render array declares `#cache['contexts']` containing
+  `'url.query_args:variant'` — the mechanism, not just the symptom. Placed at Unit tier (the
+  cheapest sufficient tier `build()` is reachable at). Did not add a matching assertion for
+  `ShowcaseController::page()` because `do_showcase` has no Kernel/Functional test tier and the
+  controller requires a real `Request`/DI container to exercise — that surface's coverage is closed
+  instead by the live cache-header verification (see below), which is a stronger, full-stack signal
+  for a caching defect than a hypothetical new Kernel tier would be for one assertion.
+- **Decided:** Verified the new assertion is a genuine covering test, not a tautology — reverted
+  F3's `#cache` addition on `VariantSwitcher::build()`, reran: the new test failed for the right
+  reason (`#cache` key absent), all 14 other `VariantSwitcherTest` cases (including content-shape
+  assertions) still passed under the same mutation, confirming cache-context correctness is an
+  independent contract from content correctness. Restored; reran green.
+- **Decided:** Ran the live no-JS-fallback Playwright case (case 4,
+  `showcase.spec.ts:291`) plus the full `showcase.spec.ts` + `nav.spec.ts` target suite against a
+  freshly-provisioned, namespaced Docker environment (`o119t3-mysql`, port 33064; served on
+  127.0.0.1:38083) — real Chromium (cached `chromium-1228`), no mocks. Result: 25/25 PASS (was
+  24/25 with 1 blocker in T-green2). Directly inspected `X-Drupal-Cache`/`X-Drupal-Dynamic-Cache`
+  headers across a 5-request sequence (`/showcase`, `?variant=map`, `?variant=compact`, repeat
+  `?variant=map`, repeat `?variant=compact`) — confirmed each `?variant=` value gets its own
+  correct cache entry (MISS-then-HIT per distinct URL) with zero cross-variant bleed (the repeat
+  `?variant=map` request correctly re-served `compact`, never the earlier-cached `cards`).
+- **Assumed:** `dynamic_page_cache` module is genuinely disabled in this repo's config
+  (`core.extension.yml: dynamic_page_cache: 0`, confirmed via `drush pm:list --status=enabled`
+  showing an empty status column for it) — so `X-Drupal-Dynamic-Cache` reads `MISS` throughout and
+  the observable cache layer in this environment is `page_cache` (Internal Page Cache,
+  `X-Drupal-Cache` header) instead. Assumed this matches the real deployed config (per F3's own
+  note) rather than being an environment misconfiguration, and that `page_cache` is a valid
+  observation point for this defect class since it is driven by the same `#cache['contexts']`
+  render-array metadata F3 added.
+- **Hedged:** Did not independently re-run phpcs/phpstan against the two F3-changed *production*
+  files this round (`ShowcaseController.php`, `VariantSwitcher.php`) — accepted F3's own Tier-1
+  report at face value since those files are unmodified since F3's self-check. Re-ran phpcs/phpstan
+  only against the new/changed *test* file (0 new findings after fixing 2 self-introduced
+  doc-comment-style errors during authoring).
+- **Hedged:** Flagged (advisory, not blocking) that `ShowcaseController::page()`'s own cache-context
+  addition has no dedicated headless/CI-gated PHPUnit assertion — only the live, manually-run
+  cache-header check in this handoff covers it. Judged disproportionate to stand up a new Kernel
+  test tier for `do_showcase` solely for this one assertion in this round's narrow scope; left as a
+  known gap for a future story if the module's controller-level logic grows.
+- **Evidence:** Real `composer install` (PHP 8.5.6) + `assemble-config.sh`. PHPUnit 42/42 GREEN
+  (`Configuration:` path confirms the worktree's own real composer-installed tree). Mutation
+  spot-check output showing the new test fails for the right reason without F3's fix, and passes
+  again once restored. Live Playwright 25/25 PASS against a real served site + real Chromium. Full
+  5-request `curl` + header + body-content sequence showing correct per-variant caching with no
+  stale cross-variant HIT. Docker (`o119t3-mysql`) + runserver process torn down; worktree
+  filesystem restored via `git checkout`/`git clean` to only the one intended test-file diff plus
+  the one pre-existing untracked file present before this round began. No mutating command run
+  against the shared `groups-on-d11` checkout. Full detail in `handoff-T-green3.md`.
