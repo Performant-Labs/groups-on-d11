@@ -799,3 +799,37 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
 - **Evidence:** Full raw results JSON + 4 screenshots at
   `/private/tmp/claude-501/-Users-andreangelantoni-Projects-groupsdrupalorg/99b8a43d-3273-49d0-a460-63e285878867/scratchpad/o119-handoffs/u-walkthrough/`.
   Full detail in `handoff-U.md`.
+
+## S — Phase 9 (spec audit / final quality gate) — 2026-07-22
+
+- **Decided:** **PASS.** All 8 #119 acceptance criteria are backed by non-vacuous tests (AC-to-test
+  table in handoff-S.md); implementation conforms to the brief (incl. Brief-gate B-2 sessionStorage =
+  genuinely "per session", proven by T-green4 Case B fresh-context reversion), the wireframe, and
+  both D-gate resolutions; all five dual-review diff-gate BLOCKs correctly resolved (B-1/B-2/B-3 fixed
+  + verified, B-4/B-5 rejected with direct source evidence); access/security sound (real
+  `_permission: 'access content'`, no server-session write, no secrets); WCAG 2.2 AA holds live (U
+  axe-core 0 violations, 3 surfaces × 2 viewports); scope is exactly the phase scope (SC-4/5/6 real
+  comparisons correctly NOT built — copy-only [coming] with NULL routes). A-plan + A-dup gates hold
+  under S's own independent read. Ready for O to open the MR.
+- **Assumed:** Tier-3 visual pixel-diff is N/A for this story — the wireframe is low-fidelity,
+  structure-only, with no color system / hex values (AA contrast explicitly deferred to F's CSS
+  pass), so there is no static pixel reference to diff against. U's rendered-DOM + navigated-path +
+  axe-core walkthrough (Phase 8, PASS) is the correct visual/WCAG gate and it passed; no report.html
+  produced.
+- **Hedged:** Two ADVISORY items raised but resolved to PASS (not ADVISORY-HOLD, not REWORK): (1)
+  persona `name` fields ("Anonymous"/proper names) are raw strings not t()-wrapped — the catalog test
+  consciously scopes t()-wrap to entry title/decision_sentence, proper names correctly aren't
+  translated; residual "Anonymous"-is-a-common-noun ambiguity is a one-word i18n nit on a POC, a
+  defensible reading of Brief-gate W-3, not a source-of-truth defect. (2) `showcase.spec.ts`
+  "lists all six comparison entries" uses a page-level badge assertion inside its per-entry loop
+  (proves *a* badge exists, not *this* entry's) — but per-entry status is fully pinned by
+  ShowcaseCatalogTest + the B-3 live-deep-link case, so no AC is unbacked; loose-but-not-vacuous,
+  advisory only. Also flagged: stale `page_attachments` doc-comment in do_showcase.module (code is
+  correctly `page_top`), and the `?variant=` fallback href dropping pre-existing query strings —
+  both cosmetic/forward-looking, non-blocking.
+- **Evidence:** Read the full diff (origin/main...HEAD; 6629 insertions, one new module + one
+  append-only HelpText edit + one e2e spec, no out-of-Owns files); `php -l` clean on all 5 changed
+  PHP files; read every source + test file line by line; read O's diff-gate adjudication
+  (decisions.md L600-640) confirming all 5 BLOCKs dispositioned. Did not re-provision Docker/DB — T
+  verified GREEN twice + U once on this exact HEAD; S's mandate is Tier-3 spec/quality, not re-running
+  Tier-1/2. Full detail in handoff-S.md (both worktree handoff dir + scratchpad o119-handoffs/).
