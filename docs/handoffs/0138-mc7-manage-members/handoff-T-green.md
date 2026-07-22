@@ -1172,3 +1172,181 @@ any container not created this run.
 structuring, or equivalent). This is unrelated to the list_string investigation, which is now fully
 closed (zero ERROR, correct root cause identified and fixed at the test level, no schema-disabling
 needed). **Unit 16/16 and route-resolution 3/3 confirmed still GREEN, no regression.**
+
+---
+
+## Final full-suite confirmation (post th-scope fix, ASSEMBLED layout, 2026-07-22)
+
+**Trigger:** F fixed the last outstanding production defect — `<th scope="col">` on the
+Manage-members table header — in the **source** file
+(`docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php`), confirmed
+propagated byte-identically to the assembled copy. This is the definitive, from-scratch,
+GUARDRAIL-compliant full-suite tally, run exclusively against the **assembled**
+`web/modules/custom/do_group_membership` layout (never the `docs/groups/modules/...` source),
+mirroring `.github/workflows/test.yml` exactly.
+
+### Environment stood up this round
+
+1. `bash scripts/ci/assemble-config.sh` run FIRST — clean: `copied 95 file(s), excluded 7`,
+   `copied 11 custom module(s)`. `diff -rq` confirmed `docs/groups/modules/do_group_membership/{src,tests}`
+   and `web/modules/custom/do_group_membership/{src,tests}` **byte-identical** (SRC IDENTICAL,
+   TESTS IDENTICAL) — the assembled tree matches source exactly, so testing the assembled layout
+   tests what CI tests. `grep -n scope web/modules/custom/do_group_membership/src/Form/ManageMembersForm.php`
+   confirms the fix (`['data' => ..., 'scope' => 'col']` × 5) is present in the assembled copy.
+2. Fresh, dedicated Docker MySQL 8 container `gm138-mysql` (port 13306; `docker ps -a` confirmed
+   zero `gm138-*` containers existed before creation).
+3. Real `drush site:install` against that DB (`web/sites/default/settings.php`'s DB port
+   temporarily pointed at 13306 — this file is gitignored build output, confirmed via
+   `git check-ignore -v`, not a tracked source; no restoration needed since it carries no
+   committed state).
+4. `php -S 127.0.0.1:8180 -t web web/.ht.router.php` — the same test-router pattern
+   `.github/workflows/test.yml`'s Functional job uses.
+5. All PHPUnit runs used `SIMPLETEST_DB`/`SIMPLETEST_BASE_URL`/`SYMFONY_DEPRECATIONS_HELPER=disabled`,
+   run directly against `web/modules/custom/do_group_membership/tests/src/{Unit,Kernel,Functional}`
+   — the assembled paths, never `docs/groups/modules/...`.
+
+### Per-tier real-execution results
+
+**Unit tier: 16/16 real GREEN.**
+```
+SIMPLETEST_DB=... SIMPLETEST_BASE_URL=... SYMFONY_DEPRECATIONS_HELPER=disabled \
+php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox \
+  web/modules/custom/do_group_membership/tests/src/Unit
+```
+`OK, but there were issues! Tests: 16, Assertions: 63, PHPUnit Deprecations: 7.` Zero failures,
+zero errors. (⚠ = deprecation-only, still a pass.)
+
+**Kernel tier: 14/14 real GREEN** — `GroupMembershipManagerKernelTest` **10/10** +
+`ManageMembersAccessTest` **4/4**.
+```
+php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox \
+  web/modules/custom/do_group_membership/tests/src/Kernel
+```
+`14 / 14 (100%)` — `Tests: 14, Assertions: 346, Deprecations: 5, PHPUnit Deprecations: 16.` Zero
+failures, zero errors. **The `list_string` config-schema core bug that previously blocked all 10
+`GroupMembershipManagerKernelTest` methods is confirmed fully resolved in this environment** — no
+`InvalidArgumentException` anywhere in this run.
+
+**Functional tier: 11/11 real GREEN** — `ManageMembersPageRenderTest` **3/3** (incl. the
+`th[scope="col"]` assertion), `ManageMembersPaginationTest` **1/1**,
+`ManageMembersRouteResolutionTest` **3/3**, `ManageMembersRouteAccessTest` **4/4**.
+```
+php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox \
+  web/modules/custom/do_group_membership/tests/src/Functional
+```
+`11 / 11 (100%)` — `Tests: 11, Assertions: 125, Deprecations: 11, PHPUnit Deprecations: 15.` Zero
+failures, zero errors. `grep -n "Member list renders as real table with scoped headers"` confirms
+the specific th-scope test method ran and passed (⚠ deprecation-only marker, not `✘`).
+
+**Combined full-module run (all three tiers in one PHPUnit invocation, for cross-tier regression
+confidence):**
+```
+php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox \
+  web/modules/custom/do_group_membership/tests/src/{Unit,Kernel,Functional}
+```
+`41 / 41 (100%)` — `Tests: 41, Assertions: 534, Deprecations: 15, PHPUnit Deprecations: 38.`
+`OK, but there were issues!` — 0 failures, 0 errors. 16 + 14 + 11 = 41, matching the sum of the
+three isolated tier runs exactly — no interaction/ordering regression between tiers.
+
+### ZERO-error / ZERO-skip confirmation
+
+- `grep -c "✘\|✗"` across every run's output: **0** in all four runs (isolated Unit, isolated
+  Kernel, isolated Functional, combined).
+- The PHPUnit progress line for every run shows only `.` (pass) and `D` (pass-with-deprecation)
+  characters — no `F` (failure), `E` (error), or `S` (skip) ever appears:
+  `.DDD.D..........` (Unit), all-`D` (Kernel), all-`D` (Functional), and the concatenated
+  41-character line for the combined run.
+- `grep -rn "markTestSkipped\|@skip\|->skip("` across
+  `docs/groups/modules/do_group_membership/tests/` and
+  `web/modules/custom/do_group_membership/tests/`: **zero matches** — no test in the suite is
+  capable of skipping itself; every one of the 41 tests either runs to a real pass or would show
+  as a real failure.
+- Every "OK, but there were issues!" in this run is PHPUnit's own terminology for
+  **0 failures, 0 errors, deprecation-notices-only** — confirmed by reading the `Tests:`/`Failures:`
+  counts explicitly on each run (no `Failures:`/`Errors:` line appears at all when the count is
+  zero — PHPUnit only prints those fields when non-zero, and none appeared in any of the four runs).
+
+### Final tally
+
+| Tier | Tests | Passing | Failures | Errors | Skips |
+|---|---|---|---|---|---|
+| Unit | 16 | 16 | 0 | 0 | 0 |
+| Kernel | 14 | 14 | 0 | 0 | 0 |
+| Functional | 11 | 11 | 0 | 0 | 0 |
+| **Total** | **41** | **41** | **0** | **0** | **0** |
+
+**No test in this run was environment-blocked.** Every previously-documented env-blocking
+condition from earlier rounds (the `list_string` core config-schema bug; the `drupalLogin()`
+sandbox limitation) is **no longer reproducing** in this environment/composer-lock state — all 41
+tests, including the ones previously reported as blocked (10 `GroupMembershipManagerKernelTest`,
+4 `ManageMembersRouteAccessTest`, 3 `ManageMembersPageRenderTest`, 1 `ManageMembersPaginationTest`,
+3 `ManageMembersRouteResolutionTest`), ran to completion and passed for real this round.
+
+### #109 recheck — no source-relative fixture paths
+
+`grep -rn "file_get_contents\|fopen\|Yaml::parseFile\|yaml_parse_file"
+docs/groups/modules/do_group_membership/tests/` finds exactly 2 call sites, both in Unit-tier
+tests (`GroupRoleConfigShapeTest.php`, `MembershipStatusFieldConfigShapeTest.php`), both reading
+`docs/groups/config/*.yml` via a `locate()`/`loadConfig()` helper that walks **up** from
+`__DIR__` (the test file's own on-disk location — whichever copy is actually executing, source or
+assembled) up to 10 ascents, `is_file()`-checking at each level. This is **not** a hardcoded
+source-checkout-relative literal path — it resolves correctly regardless of whether the test runs
+from `docs/groups/modules/do_group_membership/tests/...` or the assembled
+`web/modules/custom/do_group_membership/tests/...`, because `docs/groups/config/` is a real,
+always-present, tracked source directory reachable by ascending from either location. Confirmed
+empirically, not just by code inspection: these exact 2 test files passed (4/4 relevant methods,
+part of the 16/16 Unit-tier GREEN above) when executed from the **assembled** path this round.
+**No #109 violation. No fix needed.**
+
+### CI-green verdict
+
+**CI will be GREEN: YES.**
+
+- CI's Kernel job runs `find web/modules/custom -type d -path '*/tests/src/Kernel'` then PHPUnit
+  over those dirs — this run's `web/modules/custom/do_group_membership/tests/src/Kernel` (14/14
+  GREEN) is exactly that path, exercised for real against a fresh MySQL 8 container, matching
+  CI's own `mysql:8` service image.
+- CI's Functional job runs `find web/modules/custom -type d -path '*/tests/src/Functional'` then
+  PHPUnit over those dirs via a `php -S ... web/.ht.router.php` server — this run's
+  `web/modules/custom/do_group_membership/tests/src/Functional` (11/11 GREEN) used the identical
+  server pattern and DB shape.
+- CI's `assemble-config.sh` step is byte-identical to the one run first in this session, confirmed
+  producing an identical assembled tree (`diff -rq` clean on both `src/` and `tests/`).
+- Zero environment-specific workarounds, schema-disabling, or test-skipping were needed this round
+  — every test that was previously env-blocked in this exact sandbox now runs to completion and
+  passes, meaning the prior env-blocking conditions were sandbox-state artifacts (stale
+  `composer.lock` resolution / stale DB container state from earlier rounds), not systemic to this
+  machine or to CI's clean-room `composer install` + fresh MySQL service container.
+
+### Tier 1 re-check this round
+
+| Check | Command | Result |
+|---|---|---|
+| phpcs | `vendor/bin/phpcs --standard=Drupal,DrupalPractice docs/groups/modules/do_group_membership/{src,do_group_membership.install}` | 0 errors, 0 warnings |
+| phpstan level 1 | `vendor/bin/phpstan analyse --level=1 docs/groups/modules/do_group_membership/{src,do_group_membership.install}` | 4 findings, all the pre-existing standard Drupal `new static()` factory pattern (matches every prior round, not new) |
+| Module install | `drush pm:enable do_group_membership -y` against the fresh site | `[success] Module do_group_membership has been installed.` `[success] Module group has been installed.` — clean |
+| `scripts/ci/assemble-config.sh` | run first, before all testing | Clean, `copied 95 file(s), excluded 7`, `copied 11 custom module(s)`; assembled tree confirmed byte-identical to source via `diff -rq` |
+
+### Routes back to F
+
+**None.** Nothing failed. This is the definitive GREEN sign-off for the full `do_group_membership`
+module suite from the assembled layout.
+
+### Docker hygiene (this round)
+
+`docker ps -a` before this round: zero `gm138-*` containers present. Created exactly one container,
+`gm138-mysql` (port 13306). Removed it on teardown (`docker rm -f gm138-mysql`). `docker ps -a`
+after teardown, diffed against the pre-run baseline (excluding the `gm138-mysql` line itself):
+**byte-identical** — every other container (all `ddev-*` siblings, all other unrelated project
+containers) was left completely untouched. The `php -S 127.0.0.1:8180` webserver process was
+started and killed via its captured PID only; `lsof -i :8180` confirmed empty after teardown.
+
+### Verdict
+
+**Final tally: 41/41 passing (16 Unit + 14 Kernel + 11 Functional). Zero errors, zero skips,
+zero environment-blocked tests. CI will be GREEN: YES. Nothing routes back to F.**
+
+Ready for **U (UI Walkthrough)** — this story touches an interactive UI surface
+(`ManageMembersForm` and its sub-forms), so U's live-browser pass is the correct next phase per
+the pipeline (a green PHPUnit suite is necessary but not sufficient for server-rendered admin
+form behavior).

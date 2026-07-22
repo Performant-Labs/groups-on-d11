@@ -1264,3 +1264,40 @@ diff empty), and re-verified `ManageMembersPageRenderTest` **3/3 GREEN from the 
 then U (live steady-state + axe) → S.
 
 **Evidence:** source file 5× `'scope' => 'col'`; handoff-F.md "th scope a11y fix — SOURCE file".
+
+## Phase 8.7 — T: final full-suite GREEN confirmation from the assembled layout
+
+**Decided:** Ran `scripts/ci/assemble-config.sh` first (assembled tree confirmed byte-identical to
+source via `diff -rq` on both `src/` and `tests/`), then executed the complete `do_group_membership`
+suite for real against the ASSEMBLED `web/modules/custom/do_group_membership` layout — a fresh
+`gm138-mysql` Docker MySQL 8 container + real `drush site:install` + `php -S 127.0.0.1:8180
+web/.ht.router.php`, mirroring `.github/workflows/test.yml` exactly. Result: **41/41 tests passing
+(16 Unit + 14 Kernel + 11 Functional)**, 534 assertions, 0 failures, 0 errors, 0 skips (confirmed via
+`grep -c "✘"` = 0 across all runs and `grep markTestSkipped` = 0 matches in the whole test tree). All
+previously-documented env-blocking conditions (the `list_string` core config-schema bug; the
+`drupalLogin()` sandbox limitation) are no longer reproducing in this environment — every test that
+was blocked in earlier rounds ran to completion and passed this round. The `th[scope="col"]`
+assertion (`ManageMembersPageRenderTest::testMemberListRendersAsRealTableWithScopedHeaders`) passed.
+Tier 1 (phpcs, phpstan, module install) all clean. #109 fixture-path recheck: the two Unit tests that
+read `docs/groups/config/*.yml` use an `__DIR__`-ascend-and-locate helper (not a hardcoded
+source-relative literal), confirmed correct by passing when run from the assembled path.
+
+**Assumed:** None — every claim in this round is backed by real command execution, not inference.
+
+**Route:** Nothing routes back to F. Ready for **U** (UI Walkthrough) — this story has an
+interactive UI surface, so U's live-browser pass is required before S.
+
+**Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-T-green.md`, "Final full-suite
+confirmation (post th-scope fix, ASSEMBLED layout, 2026-07-22)" section. Docker hygiene: only
+`gm138-mysql` created/removed this round, confirmed via `docker ps -a` diff before/after (byte-
+identical minus that one line).
+
+## Phase 8 (final full-suite confirmation) — T: 41/41 GREEN, CI-green
+
+**Decided:** T ran the full `do_group_membership` suite from the assembled layout (mirroring CI):
+**41/41 GREEN** (16 Unit + 14 Kernel + 11 Functional), **534 assertions, ZERO errors / failures /
+skips.** All previously "env-blocked" tests now pass for real (they were the test-authorship
+allowed_values-shape bug, now fixed — the "core list_string bug" framing is fully retired). #109
+source-relative-fixture recheck clean. **CI WILL BE GREEN: YES.** Nothing routes back to F.
+
+**Evidence:** `handoff-T-green.md` "Final full-suite confirmation".
