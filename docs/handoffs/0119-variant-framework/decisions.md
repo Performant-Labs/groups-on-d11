@@ -163,3 +163,26 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   one-shot summary for the serialized PR go-ahead. Surface early only for a genuine unresolvable
   blocker. Guardrails unchanged: isolated worktree only, Sonnet for A/T/F/U, Opus only for S,
   o4-mini second-opinion (no fresh-Opus arm).
+
+## A — Phase 3 (up-front plan review) — 2026-07-22T09:10:00Z
+- **Decided:** PASS. Plan reviewed against `do_chrome` (HelpText append-only store,
+  `page_attachments` global-chrome pattern, `PermissionMatrix` as a direct shape analog for
+  `ShowcaseCatalog`), `do_notifications`/`do_discovery` (ControllerBase + routing.yml), and the
+  repo's two existing `Plugin/Block` implementations (`do_group_mission`, `do_profile_stats`) as
+  the comparison baseline for the `VariantSwitcher` service-vs-block question. No block findings.
+- **Assumed:** The plan's divergence from the Block-plugin pattern (a plain
+  `do_showcase.variant_switcher` service instead) is deliberate and correct — the switcher is
+  always called with explicit caller-supplied parameters (instance_id/options/current), not
+  derived from block placement/region context the way `GroupMissionBlock` derives its group from
+  route/context. Not drift; flagged as warn #2 asking F to state this reasoning in handoff-F for
+  Phase-7 traceability, not a plan change.
+- **Hedged:** Warn #1 — `survey.md`'s Reuse map still states the pre-Brief-gate-B-2 "EXTEND
+  tempstore.private" line verbatim, while brief.md/wireframe.md correctly carry the corrected
+  client-side-persistence decision. Doc-hygiene only; does not block Phase 4 start since brief.md
+  is authoritative and already correct.
+- **Evidence:** `handoff-A-plan.md` (this phase's output); read in full:
+  `do_chrome/src/PermissionMatrix.php`, `do_chrome/src/Hook/{DoChromeHooks,VisibilityTooltip}.php`,
+  `do_chrome/src/HelpText.php`, `do_chrome.{module,info.yml,services.yml,libraries.yml}`,
+  `do_notifications/{do_notifications.routing.yml,src/Controller/NotificationSettingsController.php}`,
+  `do_discovery/do_discovery.routing.yml`, `do_group_mission/src/Plugin/Block/GroupMissionBlock.php`,
+  `playwright.config.ts`. No mutating command run against the shared `groups-on-d11` checkout.
