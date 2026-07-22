@@ -1,0 +1,5 @@
+manage_members:
+  version: 1.x
+  css:
+    theme:
+      css/manage-members.css: {}

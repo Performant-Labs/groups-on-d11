@@ -1,0 +1,51 @@
+do_group_membership.manage_members:
+  path: '/group/{group}/members'
+  defaults:
+    _form: '\Drupal\do_group_membership\Form\ManageMembersForm'
+    _title: 'Manage members'
+  requirements:
+    _custom_access: '\Drupal\do_group_membership\Controller\ManageMembersController::access'
+  options:
+    parameters:
+      group:
+        type: entity:group
+
+do_group_membership.add_member:
+  path: '/group/{group}/members/add'
+  defaults:
+    _form: '\Drupal\do_group_membership\Form\AddMemberForm'
+    _title: 'Add member'
+  requirements:
+    _custom_access: '\Drupal\do_group_membership\Controller\ManageMembersController::access'
+  options:
+    parameters:
+      group:
+        type: entity:group
+
+do_group_membership.change_role:
+  path: '/group/{group}/members/{group_relationship}/role'
+  defaults:
+    _form: '\Drupal\do_group_membership\Form\ChangeRoleForm'
+    _title: 'Change role'
+  requirements:
+    _custom_access: '\Drupal\do_group_membership\Controller\ManageMembersController::access'
+  options:
+    parameters:
+      group:
+        type: entity:group
+      group_relationship:
+        type: entity:group_relationship
+
+do_group_membership.remove_member:
+  path: '/group/{group}/members/{group_relationship}/remove'
+  defaults:
+    _form: '\Drupal\do_group_membership\Form\RemoveMemberForm'
+    _title: 'Remove member'
+  requirements:
+    _custom_access: '\Drupal\do_group_membership\Controller\ManageMembersController::access'
+  options:
+    parameters:
+      group:
+        type: entity:group
+      group_relationship:
+        type: entity:group_relationship

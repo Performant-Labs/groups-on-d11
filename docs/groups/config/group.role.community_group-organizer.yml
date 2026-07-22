@@ -1,0 +1,36 @@
+uuid: 152eec61-e024-4f16-99f4-559575e94f54
+langcode: en
+status: true
+dependencies:
+  config:
+    - group.type.community_group
+id: community_group-organizer
+label: Organizer
+weight: 0
+admin: false
+scope: individual
+global_role: null
+group_type: community_group
+permissions:
+  - 'edit group'
+  - 'administer members'
+  - 'view group_node:documentation entity'
+  - 'create group_node:documentation entity'
+  - 'update own group_node:documentation entity'
+  - 'delete own group_node:documentation entity'
+  - 'view group_node:event entity'
+  - 'create group_node:event entity'
+  - 'update own group_node:event entity'
+  - 'delete own group_node:event entity'
+  - 'view group_node:forum entity'
+  - 'create group_node:forum entity'
+  - 'update own group_node:forum entity'
+  - 'delete own group_node:forum entity'
+  - 'view group_node:page entity'
+  - 'create group_node:page entity'
+  - 'update own group_node:page entity'
+  - 'delete own group_node:page entity'
+  - 'view group_node:post entity'
+  - 'create group_node:post entity'
+  - 'update own group_node:post entity'
+  - 'delete own group_node:post entity'

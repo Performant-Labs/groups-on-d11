@@ -1,0 +1,79 @@
+/**
+ * @file
+ * Manage-members page styling (do_group_membership).
+ *
+ * Module-owned CSS, attached only on the Manage-members route (#attached
+ * library), per every existing UI-bearing do_* module (do_chrome,
+ * do_group_extras, do_multigroup, do_profile_stats) — no groups_chrome
+ * theme edits (coexistence single-owner rule).
+ *
+ * WCAG 2.2 AA: status is conveyed via a visible text label + glyph, never
+ * color alone (the color classes below are a secondary reinforcement, not
+ * the only signal — see the badge markup in ManageMembersController).
+ * Every focusable control gets an explicit :focus-visible outline, since
+ * browser UA defaults are not consistently visible enough across this
+ * codebase's supported browsers (matches the do-chrome-info:focus
+ * precedent in do_chrome.css).
+ */
+
+.do-group-membership__intro {
+  margin-bottom: 1em;
+}
+
+.do-group-membership__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.do-group-membership__table th,
+.do-group-membership__table td {
+  padding: 0.5em 0.75em;
+  text-align: left;
+  vertical-align: top;
+}
+
+.do-group-membership__badge {
+  display: inline-block;
+  padding: 0.15em 0.6em;
+  border-radius: 0.25em;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.do-group-membership__badge--active {
+  background-color: #d9f2d9;
+  color: #1a5c1a;
+  border: 1px solid #1a5c1a;
+}
+
+.do-group-membership__badge--pending {
+  background-color: #fff3cd;
+  color: #6b5200;
+  border: 1px solid #6b5200;
+}
+
+.do-group-membership__badge--blocked {
+  background-color: #f8d7da;
+  color: #7a1420;
+  border: 1px solid #7a1420;
+}
+
+.do-group-membership__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  align-items: center;
+}
+
+.do-group-membership__guard-note {
+  display: block;
+  font-size: 0.85em;
+  color: #555;
+  margin-top: 0.25em;
+}
+
+.do-group-membership__table button:focus-visible,
+.do-group-membership__table a:focus-visible {
+  outline: 2px solid #0b5fff;
+  outline-offset: 2px;
+}

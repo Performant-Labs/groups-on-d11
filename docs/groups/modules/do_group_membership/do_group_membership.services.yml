@@ -1,0 +1,5 @@
+services:
+  do_group_membership.manager:
+    class: Drupal\do_group_membership\GroupMembershipManager
+    arguments:
+      - '@entity_type.manager'

@@ -1,0 +1,15 @@
+uuid: 7f83307b-6e83-45f8-853f-b05a02584541
+langcode: en
+status: true
+dependencies:
+  config:
+    - group.type.community_group
+    - user.role.groups_moderate
+id: community_group-groups_moderate
+label: 'Groups Moderate'
+weight: 0
+admin: true
+scope: outsider
+global_role: groups_moderate
+group_type: community_group
+permissions: {  }

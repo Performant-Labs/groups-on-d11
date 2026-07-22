@@ -1,0 +1,9 @@
+uuid: cdd4f338-977c-451b-916f-93977870f96b
+langcode: en
+status: true
+dependencies: {  }
+id: groups_moderate
+label: 'Groups Moderate'
+weight: 3
+is_admin: false
+permissions: {  }
