@@ -1,0 +1,10 @@
+<?php
+
+/**
+ * @file
+ * Unified content streams: membership/following scope, ranking, shared shell.
+ *
+ * All hook implementations are in DoStreamsHooks via the #[Hook] attribute.
+ *
+ * @see \Drupal\do_streams\Hook\DoStreamsHooks
+ */

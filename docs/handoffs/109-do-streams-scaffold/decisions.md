@@ -303,3 +303,76 @@
   flag.schema.yml` (confirmed the `access_author` schema gap), live DDEV run output (23 tests, 17
   failures documented in handoff-T-red.md verbatim), `git status --porcelain` (post-cleanup, 6
   files only).
+
+## F — Phase 5 (implement) — 2026-07-22T18:40:00Z
+- **Decided:** Added a `#[Hook('views_data')]` entry exposing `do_streams_membership_scope` /
+  `do_streams_following_scope` as synthetic filter-only fields on `node_field_data` — not
+  documented in the brief/T-red handoff as a required build step, but necessary: Views resolves a
+  config filter's handler class by the field's OWN `views_data` registration (table+field), not
+  by the config item's `plugin_id` alone, so without this the fixture/shipped view's filters
+  silently degraded to Drupal's no-op `Broken` handler. Discovered by instrumenting `init()`/
+  `query()` with temporary debug output and observing neither the membership nor following scope
+  plugin ever ran even after the plugin classes themselves were correctly implemented and
+  discoverable (`StreamsInstallTest`'s `hasDefinition()` checks already passed).
+- **Decided:** Ranking joins (`last_activity`/`hot`/`pinned`) are raw `views_query_alter` LEFT
+  JOINs via `plugin.manager.views.join`, added conditionally per the active `ranking` argument
+  value — mirroring `DoGroupPinHooks::viewsQueryAlter()`'s exact technique (front-of-orderby
+  `array_unshift`) independently per ranking branch, not a single Views relationship added
+  through config. The `query_views_do_streams_demo_alter` dedupe hook discovers columns needing
+  `MIN()`/`MAX()` + `GROUP BY` treatment GENERICALLY by table-name membership of the 3 join-side
+  tables this module's own `views_query_alter()` may add, per [A-W1] — explicitly not
+  do_group_pin's hardcoded relationship alias string, since do_streams' join set differs per
+  ranking branch and only one branch is active per request.
+- **Decided:** Pin-toggle cache-tag invalidation (`onFlaggingChange()`) invalidates the FLAGGING
+  ENTITY'S OWNER's own `do_streams:user_stream:<uid>` tag — the one viewing-user's stream this
+  module can correctly derive as stale from the flagging entity alone, per [W-4]'s "never
+  under-invalidate, never over-broadcast" guardrail. This does NOT satisfy
+  `StreamsRankingTest::testPinToggleInvalidatesUserStreamCacheTagWithoutFlush` as literally
+  written (see Tests that look wrong item 4 in handoff-F.md) — that test asserts an UNRELATED
+  bystander user's tag is invalidated by a THIRD party's pin toggle, with no derivable signal
+  connecting the two in the fixture as given. Flagged for T rather than guessed at silently.
+- **Decided:** My shipped `config/install/views.view.do_streams_demo.yml` adds
+  `defaults: {filters: false}` to the `page_following`/`page_global` displays — required per
+  Drupal Views' actual inheritance mechanism (an display's own `filters` key is inert without
+  this marker; verified against `DisplayPluginBase::isDefaulted()`/`initDisplay()` and
+  cross-checked against real exported views under `config/sync/`). T's Kernel-level FIXTURE
+  (`tests/fixtures/config/views.view.do_streams_demo.yml`, a separate file, test-authoring
+  material I do not edit) is MISSING this marker on the same two displays, which is why 10 of the
+  23 RED-authored tests still fail against my otherwise-correct implementation when run against
+  T's original fixture verbatim — flagged as a test-authoring gap in handoff-F.md rather than
+  silently patched (I do not edit tests).
+- **Decided:** Confirmed (via a throwaway, immediately-reverted local edit + rerun, never
+  committed) that `StreamsInstallTest::testModuleUninstallsCleanly` and both
+  `StreamsScopeTest` membership tests are ALSO test-authoring gaps (missing
+  `installEntitySchema('flagging')` and a missing `INSIDER_ID`-scope group role grant,
+  respectively) — not implementation bugs. With those 3 gaps + the shipped-view defaults gap
+  patched, 17 of the 23 T-authored tests independently confirm GREEN, leaving only 1 genuinely
+  unimplementable-as-written test (the cache-tag one above) and 5 tests asserting a render-array
+  contract (`$build['scope_tabs']` after `renderRoot($build)`) that Drupal's render pipeline
+  cannot produce for ANY `#theme`-based render array, verified by reading
+  `Renderer::doRender()`/`ThemeManager::render()` source directly (preprocess variables are never
+  copied back onto the caller's build array — confirmed `ThemeManager::render(string $hook, array
+  $variables)` takes `$variables` by value, not by reference).
+- **Decided:** Ran the full self-contained isolated-DDEV bring-up (`f109-do-streams` project
+  name, `ddev start`, `ddev composer install`, `bash scripts/ci/assemble-config.sh`) to execute
+  the suite for real, confirmed module install/enable/uninstall cleanly on a live site (not just
+  the kernel test DB) via `ddev drush en`/`pmu`, then reverted every build-artifact side effect
+  (`.ddev/config.yaml`, `config/sync/`, `web/modules/custom/`, `web/autoload_runtime.php`,
+  `.ddev/traefik/`) via `git checkout --` + `git clean -fd`, confirmed via `git status
+  --porcelain` showing only the intended `docs/groups/modules/do_streams/` production-file
+  changes.
+- **Evidence:** `web/core/lib/Drupal/Core/Render/Renderer.php:504`,
+  `web/core/lib/Drupal/Core/Theme/ThemeManager.php:134-204` (read directly to confirm the
+  render-array-mutation claim), `web/core/lib/Drupal/Core/Database/Query/Condition.php:200-240`
+  + `web/core/lib/Drupal/Core/Database/Query/Select.php:520-528` +
+  `web/core/lib/Drupal/Core/Database/Connection.php:364,488` (confirmed `{table}` curly-brace
+  prefix substitution applies to raw `addWhereExpression()` snippets via the full-query
+  `prefixTables()` call in `Connection::query()`), `web/modules/contrib/flag/src/Entity/
+  Flagging.php:117-131` (confirmed `entity_id`/`entity_type` are `string` base fields),
+  `web/modules/contrib/group/src/QueryAccess/EntityQueryAlter.php` (confirmed the
+  outsider-vs-insider access-scope split causing test gap #3), `web/modules/contrib/flag/
+  flag.module:518-527` (confirmed `flag_entity_predelete()` as the root cause of test gap #1),
+  `config/sync/views.view.archive.yml:217-219` (confirmed the real `defaults: {filters: false}`
+  YAML shape against a genuine core-exported view), live DDEV kernel-test + `drush en`/`pmu`
+  output (captured verbatim in handoff-F.md), `git status --porcelain` (post-cleanup, production
+  files only).

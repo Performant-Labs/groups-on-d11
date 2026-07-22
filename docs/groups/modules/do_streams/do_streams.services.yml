@@ -1,0 +1,6 @@
+services:
+  do_streams.hooks:
+    class: Drupal\do_streams\Hook\DoStreamsHooks
+    autowire: false
+    tags:
+      - { name: 'hook_implementations' }
