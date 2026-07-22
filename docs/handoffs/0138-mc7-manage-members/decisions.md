@@ -1395,3 +1395,25 @@ confirmed. The scope insider→outsider correction judged a CLEAN, well-document
 unreconciled contradiction, not a hold. Advisories carried to the PR description (A-1..A-4).
 
 **Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-S.md`.
+
+## Phase 10 (PR) — opened, held for human merge
+
+**Decided:** S PASS → GO. Rebased onto `origin/main` @ 37e8582 (26 commits, no conflicts —
+`do_group_membership` is all-new). Verified the diff vs main is **source-only** (docs/groups module +
+config + 9 tests + e2e spec + the group_members view edit; ZERO config/sync or web/modules/custom
+build artifacts — matches repo convention: prior feature PRs #91/#84/#85/#89 all committed
+docs/groups only). Pushed to origin; opened **PR #149**
+(https://github.com/Performant-Labs/groups-on-d11/pull/149), base `main`, title
+`feat: #138 do_group_membership — Manage-members UI, group roles, Groups-Moderate`, assigned to
+aangelinsf, label `enhancement` (mirrors the issue). PR body documents advisories A-1..A-5 + AI
+disclosure. MERGEABLE; CI (Kernel / Functional / E2E) registered and pending.
+
+**NOT merged** — held for human maintainer per non-negotiable (bots never self-merge). Coordinator
+watches CI to green.
+
+**Advisories carried into the PR body:** A-1 (scope insider→outsider correction, shipped value
+authoritative), A-2 (two-source route collision + hook_install/router-rebuild/views-guard fix),
+A-3 (optional: promote count helper to public), A-4 (harmless unreachable trailing assertions in 2
+expectException tests), A-5 (o119-mysql moot — #119 completed).
+
+**Evidence:** PR #149; `gh pr checks 149`.
