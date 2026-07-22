@@ -6,7 +6,6 @@ namespace Drupal\do_showcase\Hook;
 
 use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\Url;
-use Drupal\do_chrome\HelpText;
 
 /**
  * Hook implementations for do_showcase (SC-F1, #119).
@@ -22,11 +21,12 @@ use Drupal\do_chrome\HelpText;
  * fixed-position element rendered before the page region, never inserted
  * into the nav block itself (keeps `tests/e2e/nav.spec.ts` green).
  *
- * Dismissal is CLIENT-SIDE (cookie/localStorage, `do_showcase/ribbon`
+ * Dismissal is CLIENT-SIDE (sessionStorage (per-session), `do_showcase/ribbon`
  * library) — Brief-gate B-2: a server session write would bust the
- * anonymous page cache. The ribbon markup always renders server-side; the
- * ribbon JS hides it on load if the client-side dismiss flag is set, and
- * removes it on a real button click.
+ * anonymous page cache. sessionStorage (not localStorage) matches the
+ * brief/issue's "dismissible per session" contract exactly. The ribbon
+ * markup always renders server-side; the ribbon JS hides it on load if the
+ * client-side dismiss flag is set, and removes it on a real button click.
  */
 class DoShowcaseHooks {
 
@@ -58,6 +58,13 @@ class DoShowcaseHooks {
    * `/showcase`; the dismiss control is a real
    * `<button aria-label="Dismiss demo banner">`, keyboard-operable,
    * independently reachable from the `/showcase` link.
+   *
+   * The ribbon does NOT carry a ⓘ tooltip trigger (wireframe.md Surface 3
+   * depicts only the POC text + "See what it compares →" link + dismiss ✕ —
+   * no ⓘ). The issue's "carries a do_chrome tooltip" requirement is on the
+   * SWITCHER (Surface 1), which already attaches `do_chrome/tooltips` via
+   * `VariantSwitcher::build()`; the ribbon needs neither the library attach
+   * nor a HelpText lookup.
    */
   #[Hook('page_top')]
   public function pageTop(array &$page_top): void {
@@ -70,13 +77,7 @@ class DoShowcaseHooks {
       ],
       '#attached' => [
         'library' => [
-          'do_chrome/tooltips',
           'do_showcase/ribbon',
-        ],
-        'drupalSettings' => [
-          'doShowcase' => [
-            'ribbonTooltip' => HelpText::get('showcase.ribbon'),
-          ],
         ],
       ],
       'text' => [

@@ -153,9 +153,12 @@ final class HelpText {
       // the wireframe's own example options (Compact list / Cards / Map).
       'showcase.switcher.directory.layout' => 'Compact list favors scanning many groups fast; Cards shows more per-group detail; Map plots groups geographically.',
 
-      // 'showcase.ribbon' is the ⓘ tooltip for the site-wide POC demo
-      // ribbon, explaining what the ribbon is for.
-      'showcase.ribbon' => 'This ribbon marks the site as a proof-of-concept demo. Dismissing it is remembered on this device only; it does not affect other visitors.',
+      // Note: the site-wide POC ribbon (Surface 3) does NOT carry a ⓘ
+      // tooltip trigger — wireframe.md depicts only the POC text + link +
+      // dismiss ✕, so no 'showcase.ribbon' key is appended here (diff-gate
+      // #119 B-1: a prior revision added this key with no consuming markup;
+      // removed as dead wiring rather than adding an unplanned ⓘ trigger the
+      // approved wireframe doesn't call for).
     ];
   }
 

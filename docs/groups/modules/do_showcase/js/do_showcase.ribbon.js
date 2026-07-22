@@ -5,11 +5,14 @@
  * The ribbon always renders server-side (identical markup for anonymous and
  * authenticated visitors — no session-dependent branching). This behavior:
  *  - hides it immediately on page load if the client-side dismiss flag is
- *    already set (localStorage), so a dismissed visitor does not see it
- *    flash before removal,
+ *    already set (sessionStorage (per-session)), so a dismissed visitor does
+ *    not see it flash before removal,
  *  - removes it on a real click of the dismiss `<button>`, and persists the
- *    dismissal (localStorage) — NO server session write (Brief-gate B-2:
- *    keeps the anonymous page cache warm).
+ *    dismissal (sessionStorage (per-session)) — NO server session write
+ *    (Brief-gate B-2: keeps the anonymous page cache warm). sessionStorage
+ *    (not localStorage) matches the brief/issue's "dismissible per session"
+ *    contract exactly — the dismissal is forgotten once the browser
+ *    tab/session ends, unlike localStorage which persists across restarts.
  */
 ((Drupal, once) => {
   'use strict';
@@ -21,10 +24,10 @@
       once('do-showcase-ribbon', '#do-showcase-ribbon[data-do-showcase-ribbon]', context).forEach((ribbon) => {
         let dismissed = false;
         try {
-          dismissed = window.localStorage.getItem(STORAGE_KEY) === '1';
+          dismissed = window.sessionStorage.getItem(STORAGE_KEY) === '1';
         }
         catch (e) {
-          // localStorage unavailable — the ribbon simply always shows.
+          // sessionStorage unavailable — the ribbon simply always shows.
         }
         if (dismissed) {
           ribbon.remove();
@@ -35,10 +38,10 @@
         if (dismissButton) {
           dismissButton.addEventListener('click', () => {
             try {
-              window.localStorage.setItem(STORAGE_KEY, '1');
+              window.sessionStorage.setItem(STORAGE_KEY, '1');
             }
             catch (e) {
-              // localStorage unavailable — dismissal only lasts this page
+              // sessionStorage unavailable — dismissal only lasts this page
               // view.
             }
             ribbon.remove();

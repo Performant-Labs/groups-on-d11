@@ -638,3 +638,52 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
 - **Evidence:** dual-review-diff.md (o4-mini round 1); do_chrome.tooltips.js source; DoShowcaseHooks.php
   lines 62-104; VariantSwitcher.php + twig lines 37-38 (switcher tooltip correct); ShowcaseCatalog.php
   status/route; showcase.spec.ts lines 407-417; sibling page_attachments hooks; T-green2 cases 11-14.
+
+## F — Phase F (round 4) — diff-gate B-1, B-2 fixes — 2026-07-22
+
+- **Decided:** B-2 — switched both `do_showcase.switcher.js` and `do_showcase.ribbon.js` from
+  `window.localStorage` to `window.sessionStorage` (identical `getItem`/`setItem` API, same keys,
+  same try/catch graceful-degradation shape) — matches the issue/brief's literal "per session"
+  wording exactly; sessionStorage clears at session/tab end, localStorage does not. Followed the
+  task brief's pre-specified fix (not a cookie, to avoid touching request headers / anon page
+  cache) rather than evaluating alternatives independently.
+- **Decided:** B-1 — read `wireframe.md` Surface 3 (lines 204-263) and `handoff-D.md` (lines 33-39)
+  first, per the task's explicit instruction. Neither depicts a ⓘ tooltip trigger anywhere on the
+  ribbon (only POC text + link + dismiss ✕); the wireframe's cross-surface AA table has no
+  tooltip-trigger row for the ribbon (contrast Surface 1, which explicitly lists one). The issue's
+  "carries a do_chrome tooltip" requirement names the switcher, which already correctly implements
+  it (unchanged this round, live-verified). Concluded the ribbon-tooltip wiring
+  (`drupalSettings.doShowcase.ribbonTooltip` + `do_chrome/tooltips` attach in
+  `DoShowcaseHooks::pageTop()`, plus the `showcase.ribbon` HelpText key) was dead code from an
+  earlier round, not an intentional-but-incomplete feature. **Chose REMOVE** over adding a new
+  trigger — the minimal, wireframe-faithful fix per the task's stated default.
+- **Decided:** Removed the `showcase.ribbon` key from `\Drupal\do_chrome\HelpText::all()` — the key
+  `do_showcase` itself appended in an earlier round of this same story (not another module's key),
+  explicitly authorized by the task brief. `showcase.switcher.directory.layout` (the switcher's
+  consumed key) and every other module's keys left untouched; confirmed via unmodified
+  `ShowcaseHelpTextTest.php` (never asserted `showcase.ribbon`) and unmodified `do_chrome`'s own
+  `HelpTextTest.php`, both still 100% green.
+- **Assumed:** None new.
+- **Hedged:** No live/Playwright browser run was performed in this round (the task scoped Tier 1 to
+  headless PHPUnit/phpcs/phpstan + a real `drush site:install`/`config:import` + curl smoke-check,
+  explicitly deferring live JS-persistence re-verification to T). Verified instead: careful
+  read/diff confirming identical `getItem`/`setItem` API shape across the substitution, a live curl
+  check of the server-rendered ribbon markup confirming no `ribbonTooltip` string remains in the
+  response body, and the switcher's own tooltip (`data-do-tooltip="..."`) still correctly renders
+  post-change — proving the ribbon-side removal did not disturb the switcher's correct tooltip
+  wiring. Flagged precisely what T must re-verify live (session-boundary behavior via a fresh
+  browser context, not just same-tab navigation) in `handoff-F4.md`.
+- **Evidence:** Real `composer install` (PHP 8.5.6 via `/opt/homebrew/opt/php@8.4/bin/php`) +
+  `scripts/ci/assemble-config.sh`. PHPUnit 42/42 GREEN (`Configuration:` path confirms the
+  worktree's own real composer-installed tree), no test broke from the `showcase.ribbon` key
+  removal. phpcs (Drupal+DrupalPractice): 0 new findings on all 4 changed files (confirmed via
+  `git stash` before/after diff — identical pre-existing finding sets, same line numbers, both with
+  and without this round's changes). phpstan level 1 on `DoShowcaseHooks.php` + `HelpText.php`:
+  `[OK] No errors`. Real `drush site:install standard` + `config:import` (after fixing the random
+  `config_sync_directory` + `system.site` UUID mismatch) → clean; `drush pm:list --status=enabled`
+  confirms both `do_showcase`/`do_chrome` `Enabled`. Live curl smoke-check: `/showcase` → 200,
+  ribbon renders with dismiss button, zero `ribbonTooltip` occurrences in body, switcher's
+  `data-do-tooltip` still correct; `/` → 200. Full teardown (Docker removed, `git checkout --`/
+  `git clean -fd` on `config/sync/`+`web/`, scaffold files removed); `git status --short` after
+  shows only the 4 intended production-file diffs. No mutating command run against the shared
+  `groups-on-d11` checkout. Full detail in `handoff-F4.md`.

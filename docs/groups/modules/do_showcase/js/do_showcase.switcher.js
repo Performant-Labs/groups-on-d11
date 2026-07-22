@@ -7,12 +7,16 @@
  * radiogroup's click/keyboard selection and persistence, never re-invents a
  * tooltip mechanism.
  *
- * Persistence is CLIENT-SIDE (localStorage, keyed per switcher instance id)
- * — Brief-gate B-2: a server session write (tempstore.private) would start a
- * session and bust the anonymous page cache. On load, this behavior reads
- * any stored choice for the instance and re-selects it (unless the page was
- * loaded with an explicit `?variant=` query param, which always wins, so the
- * no-JS fallback and a direct/shared link behave predictably).
+ * Persistence is CLIENT-SIDE (sessionStorage (per-session), keyed per
+ * switcher instance id) — Brief-gate B-2: a server session write
+ * (tempstore.private) would start a session and bust the anonymous page
+ * cache. sessionStorage (not localStorage) matches the brief/issue's
+ * "remembers choice per session" contract exactly — it clears when the
+ * browser tab/session ends, unlike localStorage which persists across
+ * restarts. On load, this behavior reads any stored choice for the instance
+ * and re-selects it (unless the page was loaded with an explicit `?variant=`
+ * query param, which always wins, so the no-JS fallback and a direct/shared
+ * link behave predictably).
  */
 ((Drupal, once) => {
   'use strict';
@@ -76,10 +80,10 @@
           }
           if (persist) {
             try {
-              window.localStorage.setItem(STORAGE_PREFIX + instanceId, id);
+              window.sessionStorage.setItem(STORAGE_PREFIX + instanceId, id);
             }
             catch (e) {
-              // localStorage unavailable (private mode, disabled) — the
+              // sessionStorage unavailable (private mode, disabled) — the
               // control still works for the current page load, it just
               // will not persist across navigation.
             }
@@ -135,14 +139,14 @@
         const params = new URLSearchParams(window.location.search);
         if (!params.has('variant')) {
           try {
-            const stored = window.localStorage.getItem(STORAGE_PREFIX + instanceId);
+            const stored = window.sessionStorage.getItem(STORAGE_PREFIX + instanceId);
             const match = stored && options.find((option) => option.getAttribute('data-do-showcase-id') === stored && option.getAttribute('aria-disabled') !== 'true');
             if (match) {
               select(stored, false);
             }
           }
           catch (e) {
-            // localStorage unavailable — fall back to the server-rendered
+            // sessionStorage unavailable — fall back to the server-rendered
             // default selection.
           }
         }
