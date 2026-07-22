@@ -1417,3 +1417,31 @@ A-3 (optional: promote count helper to public), A-4 (harmless unreachable traili
 expectException tests), A-5 (o119-mysql moot — #119 completed).
 
 **Evidence:** PR #149; `gh pr checks 149`.
+
+## Phase 10.5 — PR #149 E2E CI failure (real seeded demo site) → T fix (no F defect)
+
+**Decided:** PR #149 CI: Kernel + Functional PASS (41 tests solid), but **E2E (Playwright) FAILED**
+on this story's own `tests/e2e/manage-members.spec.ts` against the REAL seeded demo site — the
+isolated U pass wasn't representative of the seeded E2E job (real-environment gap, same class as #109).
+Two failures, both TEST-side:
+
+- **FAIL 1 (line 84):** `getByLabel(/User/i)` matches 4 elements (Username, toolbar "User" menu,
+  etc.) — Playwright strict-mode violation. Fix: tighten to the exact add-member autocomplete field
+  (`getByLabel('User', {exact:true})` or scope inside the add-member form).
+- **FAIL 2 (line 146-148):** `table td:last-child button` count = 0 on a bare group. **O determined
+  the root cause against the source — this is NOT an F defect:** `ManageMembersForm::buildActions()`
+  DOES render the sole-Organizer row's Role/Remove as real `#type => 'submit'` buttons with
+  `#disabled => $is_last_organizer` + `aria-describedby` guard note (lines 249-272), exactly per
+  wireframe Screen 6. The test fails because a bare `createGroup()` yields only the sole-Organizer
+  guarded row (disabled buttons — and disabled buttons are skipped by Tab, breaking the line-158
+  focus assertion). **F is correct; the TEST must add a 2nd non-Organizer member** so an actionable
+  row with ENABLED buttons exists, and assert AC-7 on that row — decoupling the "real buttons"
+  assertion from the guard's disabled-state.
+
+**Route:** T fixes `manage-members.spec.ts` (tight User locator + add a 2nd non-Organizer member for
+an actionable row; keep the pending-approval self-skip). **NO F change** — F's disabled-button
+rendering already matches the wireframe. Verify the CI way: full seeded demo site (assemble-config →
+site:install → config:import → demo seed → drush runserver → playwright), not an isolated fixture.
+
+**Evidence:** `ManageMembersForm.php` lines 249-272 (disabled submit buttons + aria-describedby);
+PR #149 E2E job log (2 failures at spec lines 84, 148).
