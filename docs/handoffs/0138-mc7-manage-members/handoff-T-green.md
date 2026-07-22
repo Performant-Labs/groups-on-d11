@@ -402,3 +402,158 @@ attempt. `docker ps -a` confirmed before creation: no `gm138-*` container existe
 had already been torn down). Removed only `gm138-mysql` on teardown (`docker rm -f gm138-mysql`).
 Confirmed `o119t2-mysql` (a sibling, unrelated container) present both before and after, untouched.
 No other container was created, stopped, or removed this round.
+
+---
+
+## Route-collision covering test (Phase 8 rework — U-REWORK response)
+
+**Date:** 2026-07-22
+**Trigger:** U's live walkthrough (`handoff-U.md`) found `do_group_membership.manage_members` and
+the pre-existing `views.view.group_members` `page_1` display both claiming
+`/group/{group}/members`; the router resolved the View for every GET, so the entire new
+Manage-members steady-state UI never rendered. Root cause of the miss: **no test asserted route
+RESOLUTION** — `ManageMembersRouteAccessTest` only proves 200-vs-403, and the shadowing View
+legitimately also returns 200 for a permitted user, so it could not have caught this defect class.
+
+### New test file
+
+`docs/groups/modules/do_group_membership/tests/src/Functional/ManageMembersRouteResolutionTest.php`
+(materialized copy confirmed identical at
+`web/modules/custom/do_group_membership/tests/src/Functional/ManageMembersRouteResolutionTest.php`
+via `scripts/ci/assemble-config.sh`).
+
+**Tier:** Functional (`BrowserTestBase`). Route resolution against a real router service AND
+rendered-DOM marker presence/absence can only be proven end to end through a real HTTP
+request/response cycle — a Kernel test can inspect the route collection but cannot prove which
+route a real request actually resolves to through the full router middleware stack, nor what a
+browser-facing response actually renders. Mirrors `ManageMembersPageRenderTest`'s/
+`ManageMembersRouteAccessTest`'s fixture setup (`createGroupType`/`createGroupRole` via
+`GroupTestTrait`) for consistency with the sibling Functional tests in this module.
+
+**Three test methods, each pinning a distinct facet of the defect class:**
+
+1. **`testRouterResolvesToModuleRoute`** — the most direct, framework-level assertion. Calls
+   `router.route_provider` to confirm the module route is even a candidate for the path (sanity
+   check), then calls `router.no_access_checks`'s `matchRequest()` on a real `Request` object for
+   `/group/{group}/members` and asserts the resolved `_route` is
+   `do_group_membership.manage_members`, not `view.group_members.page_1`. This mirrors U's own
+   diagnostic technique exactly (`handoff-U.md`'s "Reproducible" section), turned into an automated
+   assertion.
+2. **`testPageServesNewFormNotOldView`** — asserts the rendered HTML. POSITIVE: a real `<form>`
+   wrapping `table.do-group-membership__table` (the module's own CSS class — the View can never
+   emit it) and the "+ Add member" primary-action link. NEGATIVE: the OLD View's own markers are
+   ABSENT — no `views-view-table` string in the page content, no `.view-group-members` /
+   `.views-element-container` wrapper element, and no "View member" dropdown link text (the View's
+   `entity_link` field on each row). Both directions matter: a page could coincidentally contain
+   the new markup while the View ALSO still rendered underneath/alongside in some other collision
+   shape, so absence-of-old is checked independently of presence-of-new.
+3. **`testLocalTaskNavigatesToNewRoute`** — mirrors U's own navigated-path check (as opposed to a
+   direct GET), since that is how the defect actually manifested live: clicking the "Manage
+   members" tab from the group canonical page. Asserts the tab's href, then actually follows it
+   (`clickLink`) and re-asserts the new-form marker on the destination page.
+
+### RED confirmation — the test is REAL-EXECUTED and currently RED, for the right reason
+
+Ran for real against a fresh `gm138-mysql` Docker MySQL 8 container, a real `drush site:install`
++ `config:import` (using this project's own `config/sync/views.view.group_members.yml`, which
+already has `page_1` removed by F's concurrent, uncommitted config edit) + `php -S
+127.0.0.1:8080 web/.ht.router.php`:
+
+```
+export SIMPLETEST_DB='mysql://root:root@127.0.0.1:13306/drupal'
+export SIMPLETEST_BASE_URL='http://127.0.0.1:8080'
+php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox \
+  web/modules/custom/do_group_membership/tests/src/Functional/ManageMembersRouteResolutionTest.php
+```
+
+**Result: 3/3 FAIL, for the SAME root cause the test targets** — this is a valid RED, not a
+bootstrap/authorship error:
+
+```
+✘ Router resolves to module route
+  Failed asserting that two strings are identical.
+  -'do_group_membership.manage_members'
+  +'view.group_members.page_1'
+
+✘ Page serves new form not old view
+  ElementNotFoundException: Element matching css "form table.do-group-membership__table" not found.
+
+✘ Local task navigates to new route
+  Current response status code is 403, but 200 expected.
+```
+
+**Root-cause diagnosis (important, distinct from F's fix so far):** `BrowserTestBase`'s `setUp()`
+enables `group` + `views` (both required by this test's own `$modules`), which triggers Drupal's
+`ConfigInstaller` to install the `group` **contrib** module's own **optional config**
+(`web/modules/contrib/group/config/optional/views.view.group_members.yml`) fresh into the test
+database — confirmed directly:
+
+```
+$ grep -n page_1 web/modules/contrib/group/config/optional/views.view.group_members.yml
+708:  page_1:
+709:    id: page_1
+715:      path: group/%group/members
+```
+
+This file **still contains the `page_1` display** and is entirely independent of this project's
+own `docs/groups/config/views.view.group_members.yml` / `config/sync/views.view.group_members.yml`
+(which F has already edited in the working tree to remove `page_1` — confirmed via `git diff`,
+0 remaining `page_1:` matches in either file). F's fix addresses the *site's own shipped config*
+(what `config:import` installs on a real deploy) but does **not** address the *contrib module's
+own optional config* that `BrowserTestBase`/a fresh `drush en group` re-materializes — these are
+two independent sources of the identical collision. **This is a real, additional finding, not a
+test-authorship defect**: the RED is failing for exactly the reason the test asserts (the route
+still resolves to the View), just via a second collision source F has not yet closed. Flagging
+this explicitly for F/O — the fix likely needs either (a) this project's own module to
+programmatically prevent/override the contrib-shipped optional config on install (e.g. via
+`hook_install()` deleting the `page_1` display, or a `config/install`/`config/optional` override
+in `do_group_membership` itself), or (b) accept that the collision is closed for the real deployed
+site (config-imported) but remains open specifically in the isolated PHPUnit
+bootstrap-from-`$modules` path — which the pipeline itself should not accept silently, since it
+means the same collision at the same path in the same site would happen in ANY fresh Group 4.x
+site install (e.g. `groupsdrupalorg`'s own reference-checkout convention, or any new demo/CI
+build) that never runs this project's specific `config:import` before enabling `views`.
+
+**phpcs / phpstan / php -l:** all clean (0 findings) on the new test file, confirming it is
+well-formed — namespace `Drupal\Tests\do_group_membership\Functional`, extends `BrowserTestBase`,
+uses `GroupTestTrait`, `#[Group('do_group_membership')]`-equivalent `@group` annotations, correct
+method signatures — the RED is a genuine behavioral failure, not a class-not-found/bootstrap error.
+
+**Runnable locally:** YES — unlike the other 18 CI-pinned tests (blocked by the unrelated core
+`list_string` config-schema bug), this test hit NO environment blocker; it ran to completion and
+failed on its actual assertions. It is **not** added to the env-blocked list. It will re-run
+locally (not just in CI) once the root-cause fix above lands, and I will re-verify it for real,
+locally, before the next GREEN sign-off — no CI dependency needed for this one.
+
+### Updated env-blocked test count: still 18 (unchanged)
+
+The new `ManageMembersRouteResolutionTest` (3 test methods) is **not** env-blocked — it is a valid,
+real-executed RED against a real defect, distinct from the 18 CI-pinned tests blocked by the core
+`list_string`/`drupalLogin` sandbox limitations documented in the Round-1/Round-2 sections above.
+It does not become "the 19th CI-pinned test" as originally anticipated in the task framing — it is
+instead a genuine, locally-runnable RED that routes back to F with a MORE PRECISE root-cause
+finding than U's original report (the contrib-shipped optional config, not just this project's own
+config export).
+
+### Collateral check — no other existing test needed changing
+
+Grepped all three pre-existing Functional test files
+(`ManageMembersPageRenderTest.php`, `ManageMembersRouteAccessTest.php`,
+`ManageMembersPaginationTest.php`) for any dependency on the View's own markup, `clickLink()`, or
+local-task navigation (`views-view`, `view-group-members`, `linkExists`, `linkByHref`, `clickLink`):
+**zero matches in any of the three files.** All three only ever call `drupalGet()` directly on the
+route path and assert HTTP status codes / the module's own DOM markers — none of them render or
+assert anything about the View, so F's `page_1`-display removal (in either direction, present or
+absent) cannot regress any assertion in those three files. No collateral test changes were needed
+or made.
+
+### Docker hygiene (this round)
+
+Created only `gm138-mysql` (Docker MySQL 8, port 13306) for this round's real-execution attempt,
+twice (once for the initial RED confirmation, torn down, then re-verified the "clean before/after"
+state). `docker ps -a` confirmed before each creation: no `gm138-*` container existed. Removed only
+`gm138-mysql` on teardown both times (`docker rm -f gm138-mysql`). Confirmed all 40 pre-existing
+containers (24 `ddev-*` siblings plus 16 other unrelated project containers, including
+`ddev-pl-groups-on-d11-*`) present and unchanged before and after this round — none created,
+stopped, or removed. The local `php -S 127.0.0.1:8080` test webserver process was started and
+killed via its captured PID only.

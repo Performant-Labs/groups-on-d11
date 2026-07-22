@@ -452,3 +452,121 @@ changed. If T's Kernel/Functional suite asserts row COUNT on a fixture with >50 
 also asserting page-2 content, that assertion is still correct (a >50-member fixture should show
 exactly 50 rows on page 1) — flagging only as a heads-up, not a defect, since I could not execute
 Kernel/Functional tests in this DB-free verification pass.
+
+## Route-collision fix (Phase 8 REWORK, 2026-07-22)
+
+U caught a live, reproducible route-path collision: `do_group_membership.manage_members`
+(`/group/{group}/members`) and the pre-existing config View `views.view.group_members` display
+`page_1` (same path `group/%group/members`, a "Members" tab) both claimed the identical path.
+Drupal's router always resolved the View, permanently shadowing this story's entire steady-state
+Manage-members UI. Per the coordinator's settled decision, the fix is: the new Manage-members UI
+supersedes the stock members View — not a path change for the new route.
+
+### What was removed
+
+Deleted the `page_1` display block (id `page_1`, `display_plugin: page`, `path: group/%group/members`,
+`menu: {type: tab, title: Members, weight: 20}`) from
+`docs/groups/config/views.view.group_members.yml` (lines 728-757 in the pre-fix file). This is the
+project's own editable source config (per `RUNBOOK.md`/`assemble-config.sh`'s documented split
+between `docs/groups/config/` source and generated `config/sync/`). The view's `default` (Master)
+display — the field/filter/sort/relationship definitions the page display inherited — was left
+completely untouched; only the `page_1` page-display wrapper (path + menu-tab registration) was
+removed. The view now has exactly one display, `default`, which carries no page/path/menu of its
+own and is not currently embedded as a block anywhere (see reference check below) — it remains a
+valid, inert config entity that could be given a new page/block display later if ever needed, but
+today the view registers zero routes and zero menu links.
+
+I did **not** touch `config/sync/views.view.group_members.yml` directly — it is a generated build
+artifact; I edited only the `docs/groups/config/` source and regenerated `config/sync/` via
+`scripts/ci/assemble-config.sh` (see below).
+
+### References checked
+
+Ran `grep -rn "group_members" docs/groups/ config/sync/ web/themes` and inspected every hit:
+- **No block placements** of `views.view.group_members` (any display) anywhere in
+  `docs/groups/config/`, `config/sync/`, or `web/themes/custom/groups_chrome` — confirmed via a
+  full-repo grep with zero `block.block.*` or `*.block_list` hits referencing this view.
+- **No menu links, other config entities, or templates** reference the `page_1` display
+  specifically (searched for `group_members.page_1` / `group_members:page_1` literal strings —
+  zero hits anywhere in the repo).
+- The other `group_members` hits are either: (a) this story's own new module/tests/config, which
+  reference the view only by base id for field-storage `dependencies:` bookkeeping (unaffected by
+  removing one display), or (b) documentation prose (`RUNBOOK.md`, `TEST_PLAN.md`,
+  `FEATURE_TOUR.md`) describing the view's pre-existing path/machine-name for historical reference —
+  not live config/code links, so nothing to repoint there (flagging for O/docs follow-up only if the
+  RUNBOOK's "Group Members `/group/{gid}/members`" table row should eventually note the tab was
+  retired in favor of `do_group_membership`'s route — out of scope for this fix itself).
+- `groups_chrome.theme` only counts `group_membership`-type relationships for a member-count badge
+  (`$group->getRelationships('group_membership')`) — it does not link to or embed the View's page
+  display at all.
+
+Conclusion: nothing else needed repointing. The `page_1` deletion is a clean, isolated removal.
+
+### Tab-title decision
+
+Kept the local task title as **"Manage members"** (`do_group_membership.links.task.yml`,
+unchanged). I considered renaming it to "Members" now that this route is THE canonical members tab
+(no more competing View-provided "Members" tab to disambiguate against), but the approved
+wireframe's own local-tasks row (`wireframe.md` Screen 1: `[ View ] [ Edit ] [*Manage members*]
+[ Content ] [ ... ]`) literally specifies "Manage members" as the tab label — changing it now would
+be an unreviewed wireframe deviation for a cosmetic call that isn't part of this REWORK's mandate
+(fix the collision, don't re-open Phase-2-approved copy). The H1 on the page itself is unchanged too
+("Manage members — {group name}", per wireframe Screen 1). If a future story wants "Members" as the
+tab label, that's a separate, explicitly-approved copy change.
+
+### assemble-config.sh confirmation
+
+Ran `scripts/ci/assemble-config.sh` — completed cleanly (`copied 95 file(s), excluded 7 env-specific
+file(s)`, `copied 11 custom module(s)`, `core.extension` re-registration). Confirmed
+`config/sync/views.view.group_members.yml` no longer contains `page_1` — `grep -n "page_1"` returns
+no matches, and a YAML parse confirms `display:` now has exactly one key, `default`.
+
+### Live route-resolution verification (not just static config inspection)
+
+Stood up a throwaway install to prove the fix live, not just infer it from the YAML diff (own
+Docker container `gm138f-mysql`, created and removed only by me this run — confirmed via `docker ps
+-a` before/after that `gm138-mysql`, every `ddev-*` sibling, and all other pre-existing containers
+were untouched):
+- `router.route_provider->getRoutesByPattern('/group/1/members')` now returns **only**
+  `do_group_membership.manage_members` — `view.group_members.page_1` no longer exists as a
+  candidate at all (not merely losing a priority tie-break).
+- `router.no_access_checks->matchRequest()` against `/group/1/members` resolves to
+  `do_group_membership.manage_members` (confirmed dynamically, not just via the static route table).
+- `plugin.manager.menu.local_task->getLocalTasksForRoute('entity.group.canonical')` shows exactly
+  one members-related tab — `do_group_membership.manage_members => "Manage members"` — with no
+  leftover/duplicate "Members" tab from the removed View display.
+- Module installs and enables cleanly (`drush en do_group_membership` succeeded; `drush status
+  --field=bootstrap` = `Successful`).
+
+### Tier 1 self-check (this round)
+
+- Config-only change (`docs/groups/config/views.view.group_members.yml` +
+  regenerated `config/sync/views.view.group_members.yml`); zero PHP files touched, so phpcs/phpstan
+  have nothing new to check on this round (prior round's PHP self-check stands unchanged).
+- YAML validity: parsed successfully (Python `yaml.safe_load`), `display:` key now `{'default': ...}`
+  only.
+- `scripts/ci/assemble-config.sh`: clean run, confirmed `page_1` absent from the assembled
+  `config/sync/` copy.
+- Live route-resolution + local-task verification: see above — real, not inferred.
+- Module install: clean (`drush en` succeeded, bootstrap `Successful`).
+- Docker hygiene: created and removed only `gm138f-mysql`; `docker ps -a` before/after confirms
+  `gm138-mysql` (a concurrent sibling-phase container) and every `ddev-*`/other pre-existing
+  container untouched.
+
+### Known issues
+
+None. The fix is narrow and config-only, as scoped. Re-verification of the steady-state UI itself
+(badges, approve/deny, last-Organizer guard rendering inside the now-reachable `ManageMembersForm`)
+is T's/U's job for this REWORK round, not re-done here (that code was already proven correct at the
+service/form level in the original Phase 5/6 rounds — only its *reachability* was broken).
+
+### Files changed (this round)
+
+- `docs/groups/config/views.view.group_members.yml` — deleted the `page_1` page-display block
+  (source config).
+- `config/sync/views.view.group_members.yml` — regenerated build artifact (via
+  `scripts/ci/assemble-config.sh`), reflecting the same removal. Per this repo's established commit
+  hygiene (Phase 5 decision, matches precedent from #91/#84/#85/#89), this build artifact is
+  typically left unstaged/uncommitted by F — O stages it if/when needed; CI regenerates it anyway.
+- `docs/groups/modules/do_group_membership/do_group_membership.links.task.yml` — inspected, no net
+  change (title stays "Manage members" per the wireframe, see decision above).

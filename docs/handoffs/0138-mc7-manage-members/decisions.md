@@ -700,3 +700,119 @@ class that would have caught this).
 steady-state page is not yet meaningful — re-run U after the fix to axe the reachable table.
 
 **Evidence:** `docs/handoffs/0138-mc7-manage-members/handoff-U.md`, `evidence-U/`.
+
+## Phase 8 REWORK (route-collision fix) — Feature Implementor (F)
+
+**Decided:** Deleted the `page_1` page-display block from
+`docs/groups/config/views.view.group_members.yml` (path `group/%group/members`, "Members" tab,
+weight 20) — the project's own editable source config, per the coordinator's settled decision that
+the new `do_group_membership.manage_members` UI supersedes the stock members View rather than
+moving to a different path. Left the view's `default` (Master) display untouched; the view is now a
+single-display, page/menu-less config entity (still valid, just inert until a future display is
+added, if ever). Regenerated `config/sync/views.view.group_members.yml` via
+`scripts/ci/assemble-config.sh`; confirmed `page_1` absent from the assembled output.
+
+**Verified true (live, not just static config diff):** stood up a throwaway install (own
+`gm138f-mysql` Docker container, created and removed only by me) and confirmed dynamically —
+`router.route_provider->getRoutesByPattern()` now returns only
+`do_group_membership.manage_members` for `/group/{group}/members` (the View route no longer exists
+as a candidate at all); `router.no_access_checks->matchRequest()` resolves the path to the module's
+route; `plugin.manager.menu.local_task` shows exactly one members tab ("Manage members"), no
+leftover "Members" tab. Module installs/enables cleanly.
+
+**Assumed/checked:** grepped the whole repo (`docs/groups/`, `config/sync/`, `web/themes`) for any
+block placement, menu link, or config reference to the view or specifically its `page_1` display —
+none found; the only other `group_members` hits are this story's own config/tests (referencing the
+view by base id for `dependencies:` bookkeeping, unaffected) or documentation prose describing the
+pre-existing path historically, not live links. Nothing else needed repointing.
+
+**Decided (tab title):** kept "Manage members" (`do_group_membership.links.task.yml` unchanged) —
+matches the approved wireframe's local-tasks row verbatim (`[*Manage members*]`); renaming to
+"Members" now that it's the sole tab would be an unreviewed wireframe/copy deviation outside this
+REWORK's mandate (fix the collision only).
+
+**Docker hygiene:** created and removed only `gm138f-mysql`; `docker ps -a` before/after confirms
+`gm138-mysql` (a concurrent sibling-phase container, not mine) and every `ddev-*`/other pre-existing
+container untouched.
+
+**Handoff:** `docs/handoffs/0138-mc7-manage-members/handoff-F.md` ("Route-collision fix" section).
+
+**Not done here (T's/U's mandate next):** re-verifying the steady-state Manage-members UI (badges,
+approve/deny, last-Organizer guard) now actually renders at the unblocked route, and a fresh axe
+pass on the now-reachable table — the underlying Form/service code was already proven correct in
+Phase 5/6; only its reachability was broken and is now fixed.
+
+## Phase 8 rework (route-collision covering test) — Tester (T)
+
+**Decided:** Authored `ManageMembersRouteResolutionTest.php` (Functional, 3 test methods) per U's
+mandate — asserts (1) the router resolves `/group/{group}/members` to
+`do_group_membership.manage_members` not `view.group_members.page_1` via a real
+`router.no_access_checks`/`matchRequest()` call, (2) the rendered page carries the NEW form's
+unique marker (`table.do-group-membership__table` inside a real `<form>`) AND the OLD View's
+markers (`views-view-table` string, `.view-group-members`/`.views-element-container` elements,
+"View member" link text) are absent, (3) the "Manage members" local task tab actually navigates to
+the new surface, not just links to the right href.
+
+**New finding beyond U's original report (real-execution, not assumed):** ran the test for real
+against a fresh `gm138-mysql` container + `drush site:install` + `config:import` (using F's
+already-fixed `config/sync/views.view.group_members.yml`, `page_1` display already removed) — all
+3 tests FAIL for the exact defect the test targets (`matchRequest()` still resolves
+`view.group_members.page_1`). Root cause: `BrowserTestBase`'s `$modules = ['group', ...,
+'views']` triggers Drupal's `ConfigInstaller` to install `drupal/group`'s own **contrib** optional
+config (`web/modules/contrib/group/config/optional/views.view.group_members.yml`), which STILL
+contains the `page_1` display — independent of this project's own `docs/groups/config/`
+export F already fixed. This is a second, distinct collision source F has not yet closed;
+flagging for F/O rather than treating this RED as a test-authorship bug.
+
+**Not env-blocked:** unlike the 18 CI-pinned tests, this test hit no environment limitation — it
+ran to completion and failed on its actual assertions. It stays a real, locally-runnable RED, not
+added to the CI-pinned list. Env-blocked count remains 18 (unchanged).
+
+**Collateral check:** grepped the 3 pre-existing Functional tests
+(`ManageMembersPageRenderTest`/`ManageMembersRouteAccessTest`/`ManageMembersPaginationTest`) for
+any View-markup/local-task-navigation dependency — zero matches in all three. No collateral test
+changes needed; F's `page_1`-display removal cannot regress any of their assertions.
+
+**Docker hygiene:** created + removed only `gm138-mysql` (twice, across the RED-confirmation and
+verification passes); all 40 pre-existing containers (24 `ddev-*` + 16 others) confirmed untouched
+before/after.
+
+**Evidence:** `handoff-T-green.md` "Route-collision covering test" section;
+`docs/groups/modules/do_group_membership/tests/src/Functional/ManageMembersRouteResolutionTest.php`.
+
+**Verdict:** valid RED for a route-collision defect with a MORE PRECISE root cause than U's
+original report. Routes back to F (this project's fix so far is necessary but not sufficient — the
+contrib-shipped optional config also needs closing) then back to T for real re-verification
+(locally, no CI dependency) before U re-walks.
+
+## Phase 8 (route-collision rework) — F partial fix + T exposes it is INCOMPLETE
+
+**Decided:** F removed the `page_1` display from the SITE config
+(`docs/groups/config/views.view.group_members.yml` → assembled to `config/sync/`), fixing the
+deployed `drush cim` / config:import path (no menu/block refs; kept the "Manage members" tab). But
+**T's new `ManageMembersRouteResolutionTest` is a genuine, locally-runnable RED that PERSISTS after
+F's config deletion** — and correctly so:
+
+**Root cause (two-source collision, verified by O):** `drupal/group` CONTRIB ships
+`web/modules/contrib/group/config/optional/views.view.group_members.yml` which STILL contains the
+`page_1` display (confirmed: line 708, path `group/%group/members`). Any fresh `drush en group`
+(exactly what BrowserTestBase / CI Functional bootstraps) re-materializes that view via
+ConfigInstaller → the `/group/{group}/members` collision REAPPEARS → the route-resolution test fails.
+**This test is NOT env-blocked — it ran live as a real RED and WILL run in CI**, so a config-only fix
+would have shipped a red CI. Good catch by T; this is exactly the test-first pipeline working.
+
+**Route back to F (robust all-paths fix):**
+- Add `do_group_membership_install()` (+ `hook_modules_installed()` if needed) that programmatically
+  loads `views.view.group_members` and removes its `page_1` display if present — stripping the
+  collision regardless of whether the view came from site config OR contrib optional config, and
+  running after `group` is installed in the BrowserTestBase module set. KEEP the site-config deletion
+  too (belt + suspenders for the deployed path).
+- T then re-runs `ManageMembersRouteResolutionTest` live: all 3 methods RED→GREEN from a fresh
+  `drush en` bootstrap (the real trigger), not just config:import.
+
+**For the PR description:** document the two-source collision (site config + contrib optional config)
+and the hook_install fix.
+
+**Evidence:** `web/modules/contrib/group/config/optional/views.view.group_members.yml` line 708
+(page_1 present); `handoff-T-green.md` "Route-collision covering test"; `handoff-F.md`
+"Route-collision fix".
