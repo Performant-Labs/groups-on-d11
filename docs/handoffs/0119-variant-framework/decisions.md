@@ -102,3 +102,64 @@ guardrail #1: (a) durable artifacts mirrored to the session scratchpad
 Bash calls so the reaper can't strike mid-sequence, (c) commit early/often so work survives as git
 objects on the branch even if the working dir is reaped. NEVER run mutating git/composer against the
 shared `groups-on-d11` checkout (that churn is what reaps worktrees).
+
+## D — Phase 2 (Design / wireframe) — 2026-07-22
+
+- **Decided:** Generated (mode a) a low-fi ASCII wireframe covering all three UI surfaces named in
+  the brief — the labeled variant-switcher device, the `/showcase` tour page, and the site-wide POC
+  ribbon — plus their required states (switcher: default/focus/unavailable/no-JS; showcase page:
+  default-many/empty/error; ribbon: default/focus/dismissed). Reused `do_chrome`'s existing tooltip
+  dual-channel pattern (`data-do-tooltip` + `#description` fallback, one ⓘ per widget wrapper) and
+  `DoChromeHooks`'s single global `page_attachments` attach point as the ribbon's direct analog,
+  rather than inventing new chrome mechanics. Selection/status states are conveyed by glyph + text
+  + ARIA attribute, never color alone, per the brief's WCAG 2.2 AA constraint.
+- **Decided:** The `/showcase` page's seven required entries (six comparisons + persona switcher)
+  are listed in the brief's own acceptance-criteria enumeration order — an arbitrary but stable
+  choice; F may reorder for narrative flow as long as all seven remain present with truthful
+  `[ live ]`/`[ coming ]` status.
+- **Assumed:** Ribbon placement is fixed-top (matches the issue's "fixed banner" framing); the
+  brief allows "fixed top or corner" so this is flagged as an open question for the operator rather
+  than asserted as final — F may implement a corner placement instead without a wireframe redo, as
+  long as nav DOM/structure stays unchanged (nav.spec.ts non-regression constraint).
+- **Assumed:** No ribbon re-entry point after dismissal is needed (the brief's acceptance criteria
+  don't require one; `/showcase` stays reachable via normal nav). Flagged as an open question, not
+  built as a requirement, since adding one later is a small, non-breaking addition if the operator
+  wants it.
+- **Hedged:** The disabled-option ARIA pattern for the switcher's "unavailable" state
+  (`aria-disabled` + removed from tab order) is the wireframe's stated default, but explicitly
+  defers to whatever disabled-control pattern already exists elsewhere in the codebase, if any — F
+  to confirm during implementation rather than the wireframe inventing a new one unchecked.
+- **Evidence:** `docs/groups/modules/do_chrome/src/Hook/VisibilityTooltip.php`,
+  `docs/groups/modules/do_chrome/src/HelpText.php`,
+  `docs/groups/modules/do_notifications/src/Controller/NotificationSettingsController.php` (read
+  for house style/reuse patterns); brief.md + survey.md (acceptance criteria, forward-compat table,
+  Brief-gate B-1/B-2/B-4 resolutions). No mutating command run against the shared `groups-on-d11`
+  checkout — read-only reference only, per guardrail.
+
+## O — Phase 2 D-gate sign-off — 2026-07-22T09:05:00Z
+- **Decided:** Wireframes for all three surfaces (variant switcher, /showcase tour, POC ribbon)
+  APPROVED by the coordinator (acting for the operator) — explicit sign-off received, gate passes.
+  Approved specifics: roving-tabindex radiogroup, non-color selection/status cues, real
+  `<button aria-label>` dismiss, no-JS `?variant=` fallback, truthful [live]/[coming] framing with
+  no dead links, decision-per-entry framing on /showcase.
+- **Three open questions from handoff-D resolved (proceed on these):**
+  1. Ribbon re-entry after dismissal: NOT built — none required for POC. /showcase stays reachable
+     via normal nav.
+  2. Ribbon placement: fixed-top (F's call), MUST NOT cover primary nav or reflow nav DOM — keep
+     `nav.spec.ts` green.
+  3. Disabled-option ARIA: `aria-disabled` + `tabindex="-1"`, deferring to any existing
+     disabled-control precedent F finds in the codebase.
+- **Consistency note (not a change):** /showcase "Membership models — open/request/invite" entry
+  stays `[coming]` — request-to-join has no off-the-shelf module on group 4.0.x (grequest
+  incompatible, per #146); #121 builds it bespoke. The tour page must not imply it is live.
+- **Assumed:** none new.
+- **Hedged:** none.
+- **Evidence:** coordinator D-GATE APPROVED message; `handoff-D.md`, `wireframe.md`.
+
+## O — autonomy grant — 2026-07-22T09:05:00Z
+- **Decided:** Coordinator granted autonomous run through A → T(RED) → F → T(GREEN) → o4-mini diff
+  gate → A-dup → U → S with NO per-phase go-aheads. The ONE mandatory stop is the pre-PR hold:
+  after S returns PASS (or a reconciled ADVISORY-HOLD), STOP before `gh pr create` and report a
+  one-shot summary for the serialized PR go-ahead. Surface early only for a genuine unresolvable
+  blocker. Guardrails unchanged: isolated worktree only, Sonnet for A/T/F/U, Opus only for S,
+  o4-mini second-opinion (no fresh-Opus arm).
