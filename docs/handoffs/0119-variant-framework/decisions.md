@@ -455,3 +455,54 @@ shared `groups-on-d11` checkout (that churn is what reaps worktrees).
   Torn down after (`web/core`, `web/modules/custom`, `vendor` removed — `git status --short`
   confirms only the two intended production-file diffs remain). No mutating command run against
   the shared `groups-on-d11` checkout.
+
+## T — Phase T(GREEN round 2) — 2026-07-22
+
+- **Decided:** Ran a genuine `composer install` in the worktree this round (PHP 8.5.6 via
+  `/opt/homebrew/opt/php@8.4/bin/php`, which satisfies the repo's `^8.4` lock constraint even
+  though no real `php@8.4` keg is installed on this machine) rather than reusing the prior rounds'
+  `cp -R`-of-shared-checkout workaround, since a clean worktree had no scratch tree to reuse. This
+  produced a REAL, composer-resolved `web/core`/`vendor` — a stronger isolated-tree guarantee than
+  the copy-based approach (no risk the copy silently diverged from the committed `composer.lock`).
+- **Decided:** Stood up a real namespaced Docker/MySQL + `drush`-served Drupal site
+  (`o119t2-mysql`, port 33063; site served on port 38082) and ran the full Playwright suite against
+  it in a REAL browser, closing the gap T-red2/F2 both left as traced-not-executed. All 4 named
+  arrow-key/roving-tabindex Playwright cases EXECUTED-LIVE-PASS.
+- **Decided:** Playwright's own `npx playwright install chromium` failed for revision 1228
+  specifically (Azure/Microsoft distribution-gateway error `20012`, confirmed via direct `curl`
+  against both `cdn.playwright.dev` and the underlying `playwright.download.prss.microsoft.com`
+  host — an upstream infrastructure issue, not a local network/proxy problem, since older chromium
+  revisions e.g. 1187 downloaded fine and full TLS handshakes completed instantly). Used a
+  pre-existing, complete `chromium-1228` install already cached on this shared machine
+  (`~/Library/Caches/ms-playwright/chromium-1228/`, dated 2026-06-28 from an unrelated earlier
+  session) instead of vendoring/patching a substitute revision. A manual revision-1187 substitution
+  (patching `playwright-core/browsers.json`) was prototyped and then fully reverted once the
+  working 1228 cache was found — no version-pin patch shipped in the final run.
+- **Decided:** The one Playwright failure (`no-JS ?variant= fallback still works unmodified by the
+  arrow-key fix`) is a genuine, newly-surfaced, PRE-EXISTING production defect
+  (`ShowcaseController::page()` has no `#cache` context on the `variant` query argument, so
+  Drupal's Dynamic Page Cache serves a stale variant selection to any `/showcase?variant=` request
+  after a different variant has already been cached for that path) — not a test-authoring error and
+  not a regression caused by F2's roving-tabindex/arrow-key diff. Confirmed via direct `curl` +
+  `X-Drupal-Dynamic-Cache` header inspection reproducing the exact MISS→HIT sequence, and via
+  `git diff --stat 9918fd8 a19686d -- '*Controller*'` showing zero changes to the controller in
+  F2's round-2 commit. Did not edit the failing test (correct per contract) or write the
+  production fix (T writes no production code) — routed to F as a named blocker.
+- **Assumed:** `-d memory_limit=-1` is required for `drush config:import` in this environment (the
+  default 128M CLI limit fatals partway through importing the full assembled config set) — not
+  previously documented in round-1's recipe; added to this round's handoff for the next round's
+  benefit.
+- **Hedged:** phpstan level 1 against the real composer-installed tree resolves
+  `Drupal\do_chrome\HelpText` cleanly (0 findings on `VariantSwitcher.php`) — cleaner than F2's
+  single-file CLI invocation, which reported a `class.notFound` scan-scope artifact on the same
+  pre-existing, unchanged line. Confirms F2's own characterization (scan-scope artifact, not a real
+  issue) rather than contradicting it.
+- **Evidence:** PHPUnit 41/41 green (`Configuration:` path confirms worktree's own real
+  composer-installed tree). Mutation spot-check (reverted the roving-tabindex fix, reran, 3/4 new
+  methods correctly failed for the assertion reason, restored, reran, 41/41 green again). Playwright
+  24/25 passed live against a real served site + real Chromium browser — full per-case table and the
+  cache-header reproduction sequence (`X-Drupal-Dynamic-Cache: MISS` then `HIT` across consecutive
+  `/showcase` requests with different `?variant=` values) recorded in `handoff-T-green2.md`. Docker
+  container + server processes fully torn down; worktree filesystem restored to only the one
+  pre-existing untracked file present before this round began. No mutating command run against the
+  shared `groups-on-d11` checkout.
