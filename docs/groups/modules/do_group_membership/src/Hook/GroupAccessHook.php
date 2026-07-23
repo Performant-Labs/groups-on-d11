@@ -94,15 +94,15 @@ class GroupAccessHook {
       // Organizers/Moderators bypass every visibility gate — the existing
       // AddMemberForm path (AC-3's "organizer's AddMember still works") is
       // never blocked by this hook, on any visibility value.
-      return AccessResult::neutral()->addCacheableDependency($group);
+      return AccessResult::neutral()->addCacheableDependency($group)->cachePerPermissions()->cachePerUser();
     }
 
     $policy = $this->manager->joinPolicyFor($group);
 
     return match ($policy) {
-      'request' => AccessResult::allowed()->addCacheableDependency($group),
-      'invite' => AccessResult::forbidden('This group is invite-only; only an organizer can add members.')->addCacheableDependency($group),
-      default => AccessResult::neutral()->addCacheableDependency($group),
+      'request' => AccessResult::allowed()->addCacheableDependency($group)->cachePerPermissions()->cachePerUser(),
+      'invite' => AccessResult::forbidden('This group is invite-only; only an organizer can add members.')->addCacheableDependency($group)->cachePerPermissions()->cachePerUser(),
+      default => AccessResult::neutral()->addCacheableDependency($group)->cachePerPermissions()->cachePerUser(),
     };
   }
 

@@ -221,3 +221,70 @@ passes — an invite_only group fails both, so nothing renders, exactly as befor
 
 `decisions.md` appended: `## Phase 5 (rework) — Feature Implementor: AC-2 discoverability fix
 (2026-07-22)`.
+
+## Micro-fix (2026-07-22): B-1 cache metadata
+
+**Finding:** diff-gate dual-review Round 1 (o4-mini) — `dual-review-diff.md` [B-1]. Every
+`AccessResult` returned by `groupRelationshipCreateAccess()` chained only
+`->addCacheableDependency($group)`. Because the method's outcome varies **per user**
+(an `administer members` holder bypasses an `invite_only` forbidden that a plain member does not),
+the cached result carried no `user.permissions`/`user` cache context — Drupal could serve an
+organizer's cached neutral result to a plain member on a later request, wrongly allowing them to
+create a `group_membership` relationship on an `invite_only` group. Adjudicated ACCEPTED in
+`dual-review-diff-response.md` §"[B-1] ... ACCEPTED".
+
+**Fix:** chained `->cachePerPermissions()->cachePerUser()` onto every `AccessResult` return in
+`groupRelationshipCreateAccess()` where the group is known, alongside the existing
+`->addCacheableDependency($group)` — matching the exact idiom already established on every method
+of `ManageMembersController` (`access()`, `requestJoinAccess()`, `joinRouteAccess()`), confirmed
+by reading that file directly rather than guessed.
+
+**Before/after (4 lines, `docs/groups/modules/do_group_membership/src/Hook/GroupAccessHook.php`):**
+
+```diff
+     if ($group->hasPermission('administer members', $account)) {
+       // Organizers/Moderators bypass every visibility gate — the existing
+       // AddMemberForm path (AC-3's "organizer's AddMember still works") is
+       // never blocked by this hook, on any visibility value.
+-      return AccessResult::neutral()->addCacheableDependency($group);
++      return AccessResult::neutral()->addCacheableDependency($group)->cachePerPermissions()->cachePerUser();
+     }
+
+     $policy = $this->manager->joinPolicyFor($group);
+
+     return match ($policy) {
+-      'request' => AccessResult::allowed()->addCacheableDependency($group),
+-      'invite' => AccessResult::forbidden('This group is invite-only; only an organizer can add members.')->addCacheableDependency($group),
+-      default => AccessResult::neutral()->addCacheableDependency($group),
++      'request' => AccessResult::allowed()->addCacheableDependency($group)->cachePerPermissions()->cachePerUser(),
++      'invite' => AccessResult::forbidden('This group is invite-only; only an organizer can add members.')->addCacheableDependency($group)->cachePerPermissions()->cachePerUser(),
++      default => AccessResult::neutral()->addCacheableDependency($group)->cachePerPermissions()->cachePerUser(),
+     };
+```
+
+The two early-return `neutral()` results at the top of the method (unresolved `$group`; wrong
+relationship-type bundle) are correctly left untouched — neither has a known, user-varying
+decision at that point (the first has no group at all; the second's outcome depends only on the
+bundle's plugin id, identical for every user). This matches finding B-1's own line citations
+exactly (`GroupAccessHook.php:97,103-105`).
+
+`git diff --stat -- docs/groups/` confirms exactly one file changed, 4 insertions / 4 deletions —
+no test file, no theme file, no seed script touched. B-2 (theme picker `#cache`, DEFERRED to a
+follow-up story) and B-3 (seed vars, REJECTED as a false positive) were left untouched per the
+adjudication.
+
+**Verification (all run inside the `gm121-groups-on-d11` ddev container via `ddev exec`, after
+`bash scripts/ci/assemble-config.sh`):**
+
+- **Kernel** — `RequestJoinFlowTest.php`: **7/7 GREEN** (`Tests: 7, Assertions: 169`). Only
+  pre-existing core deprecation notices (`EntityBase::getOriginal()` / kernel-test
+  separate-process attribute) — zero new debt from this fix.
+- **Functional** — `JoinPolicyEnforcementTest.php`: **9/9 GREEN** (`Tests: 9, Assertions: 54`, 0
+  Errors/Failures) — exact same count as `handoff-F-r2.md`'s own prior report, confirming no
+  regression.
+- **phpcs** — `--standard=Drupal,DrupalPractice` on the touched file: **0 errors, 0 warnings**
+  (clean exit code 0) — zero new debt.
+
+## Phase 5 (micro-fix) — F: B-1 cache metadata (2026-07-22)
+
+See `decisions.md` for the corresponding append-only entry.

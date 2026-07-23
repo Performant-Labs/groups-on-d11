@@ -685,3 +685,21 @@ a sibling function F did not modify. Should be a follow-up story, not part of #1
 - `docs/groups/modules/do_group_membership/src/Hook/GroupAccessHook.php:97,103-105` (B-1 evidence).
 - `docs/groups/scripts/step_700_demo_data.php:136-137` (B-3 rebuttal — vars set).
 - `web/themes/custom/groups_chrome/groups_chrome.theme:329-378` (B-2 evidence — all 3 branches lack #cache, pre-existing).
+
+## Phase 5 (micro-fix) — F: B-1 cache metadata (2026-07-22)
+
+**Decided:** Chained `->cachePerPermissions()->cachePerUser()` onto all four `AccessResult`
+returns in `GroupAccessHook::groupRelationshipCreateAccess()` where the group is known (lines
+97, 103-105), alongside the pre-existing `->addCacheableDependency($group)` — matching
+`ManageMembersController`'s established idiom exactly. Fixes the real cache-correctness bug o4-mini
+found: the method's outcome varies per user (organizer bypass via `administer members`), so caching
+only on the group's own tags risked serving an organizer's cached neutral result to a plain member.
+No other file touched; B-2 (theme, deferred) and B-3 (seed, rejected) left alone per O's
+adjudication.
+
+**Evidence:**
+- `docs/planning/handoffs/121-req2join/dual-review-diff.md` [B-1] (finding).
+- `docs/planning/handoffs/121-req2join/dual-review-diff-response.md` §"[B-1] ... ACCEPTED" (adjudication + exact remediation text).
+- `docs/groups/modules/do_group_membership/src/Controller/ManageMembersController.php:80-84,131-135,176-180` (reference idiom).
+- `git diff -- docs/groups/` (exactly 1 file, 4 lines changed).
+- Kernel `RequestJoinFlowTest.php` 7/7 GREEN; Functional `JoinPolicyEnforcementTest.php` 9/9 GREEN; phpcs 0 errors/0 warnings on the touched file.
