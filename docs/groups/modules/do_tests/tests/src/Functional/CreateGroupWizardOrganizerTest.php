@@ -95,7 +95,7 @@ class CreateGroupWizardOrganizerTest extends GroupBrowserTestBase {
    * `PluginNotFoundException: Unable to determine class for field type
    * 'image'` this suite hit before `image` was added here.
    */
-  protected static $modules = ['group', 'gnode', 'options', 'node', 'image', 'taxonomy', 'do_group_membership'];
+  protected static $modules = ['group', 'gnode', 'options', 'node', 'image', 'taxonomy', 'link', 'do_group_membership'];
 
   /**
    * {@inheritdoc}
