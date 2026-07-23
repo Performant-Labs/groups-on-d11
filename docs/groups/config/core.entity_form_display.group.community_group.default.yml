@@ -37,9 +37,7 @@ content:
     type: link_default
     weight: 4
     region: content
-    settings:
-      placeholder_url: ''
-      placeholder_title: ''
+    settings: {  }
     third_party_settings: {  }
   field_group_visibility:
     type: options_buttons
