@@ -698,3 +698,23 @@ decision, not silently patched around.
   symptom is.
 
 ---
+
+## Phase 6 — T-quickcheck round 3 (post-F-r3 banner-fix): GREEN
+
+**Verdict**: no regression.
+- Kernel 141/141 across batched invocation (baseline grew from 107 as
+  sibling wave stories added tests; grouping unchanged).
+- Playwright 3/3 pass (rerun via `BASE_URL=https://gm139-multilang-rtl.ddev.site`).
+- `system.logging` config imports with zero drift.
+- Pre-existing container drift (`language.content_settings.node.*` "only
+  in DB") persists — same class F-r2 flagged; NOT caused by F-r3.
+
+**Env note (project convention advisory)**
+- `SIMPLETEST_DB` must be inline `mysql://db:db@db:3306/db` for kernel
+  runs in DDEV (T-quickcheck round 3 confirms T-green-2's earlier
+  advisory). Not a persistent container env var.
+
+**Actions (O)**
+- Advance to U-rerun (must prove clean-room state, not gm139 banner).
+
+---
