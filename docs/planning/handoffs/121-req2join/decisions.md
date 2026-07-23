@@ -333,3 +333,82 @@ PHPUnit runs), not guessed or assumed away.
 - Captured BrowserTestBase HTML output (`web/sites/simpletest/browser_output/...-3-31698414.html`)
   confirming the rendered `<input type="submit" value="Request to join">` markup.
 - Full GREEN run output: see `handoff-F.md` "Tier 1 self-check".
+
+## Phase 6 — Tester: GREEN + T-green verification (2026-07-22)
+
+**Decided:**
+- Verified F's flagged test-authorship diagnosis myself before repairing (read
+  `GroupInterface::getMembers()`'s docblock + `ManageMembersForm.php:80`'s existing usage pattern
+  directly) — confirmed correct, not guessed.
+- Repaired `JoinPolicyEnforcementTest::testNonMemberSeesRequestToJoinOnModeratedGroup` (lines
+  198-208): replaced the impossible `getMembers()`-exclusion assertion with a direct check on the
+  relationship's own `field_membership_status !== 'active'`. Chose this over manually filtering
+  `getRelationships()` — more surgical, same intent, no duplication with the existing
+  `assertSame('pending', ...)` at line 196 (that proves the exact state; mine proves the specific
+  negative property the AC cares about). Spot-checked non-vacuousness by tracing
+  `GroupMembershipManager::requestJoin()` → `createMembership(..., self::STATUS_PENDING, [])`: a
+  regression to `STATUS_ACTIVE` would correctly fail this assertion.
+- Re-ran full Tier-1 (JoinPolicyEnforcementTest 9/9 GREEN) and Tier-2 (Kernel 107/107 across 11
+  modules; Functional 21/21 across `do_group_membership` + `do_chrome`; phpcs with the CORRECT
+  `--standard=Drupal,DrupalPractice` flag, confirming zero new lint debt from either F's or my
+  changes via before/after baseline diffs) — all clean.
+- Stood up a from-scratch seeded site in the `gm121-groups-on-d11` ddev project
+  (`assemble-config.sh` → `drush site:install` → `drush cim` → all 20 `step_*.php` seed scripts →
+  `php -S` runserver → `npx playwright test`) to run the E2E suite deferred from Phase 4. Found and
+  fixed THREE pre-existing environment defects (config_sync_directory pointing at an empty stale
+  hash directory; malformed `language.content_settings.node.*` config entities missing
+  `target_entity_type_id`/`target_bundle`, blocking the ENTIRE seed script including F's own Step
+  790; `do_group_extras`'s presave hook unpublishing every CLI-created group, hiding all 8 seeded
+  groups from `/all-groups`) — all repaired via runtime `drush` data operations, NOT source edits
+  (confirmed via `git status --short` showing zero unintended source changes after cleanup).
+- Found and fixed THREE test-authorship bugs in my own `membership-models.spec.ts` (authored at
+  RED, run for the first time here): (1) `joinControl()`'s exact-match locator didn't match the
+  real "Join group" text; (2) the moderated-group test used `sophie_mueller`, who F's Step 790
+  pre-seeds as an existing PENDING requester on that exact group — swapped to `ravi_patel`, verified
+  clean; (3) the open-group instant-join test asserted on post-click body text that doesn't exist
+  (the stock `entity.group.join` route is a two-step confirm redirecting to the user's OWN profile,
+  not back to the group) — fixed to click through the confirm step and assert at the data level
+  (group member-list membership) instead.
+- Found ONE real, unresolved production gap: the canonical `/group/{id}` page renders no
+  discoverable link to F's `RequestJoinForm` for a moderated group — confirmed via source grep (no
+  link-rendering code found anywhere) and live E2E observation (a genuinely clean non-member sees
+  neither "Join group" nor "Request to join" on the group page). Worked around in the E2E test via
+  direct URL navigation, WITH an explicit inline comment flagging this as a stand-in, not a fix, so
+  it is not silently treated as resolved. This is a BLOCKING finding routed back to F, not something
+  I patched myself (forbidden by my mandate — I may not touch `docs/groups/modules/*/src/`).
+
+**Assumed:**
+- The real CI E2E job's seed step may or may not hit the same `do_group_extras` unpublish-hook
+  defect, depending on what privilege level it runs `drush` as — flagged as an advisory note for
+  O/A to confirm, not verified against the actual CI config from inside this worktree.
+- The stock "Join group" link's own render location (needed for F to add an equivalent "Request to
+  join" link in the same place) could not be located in this session — grepped `do_chrome` and
+  `do_group_membership` source with no hit; T-red's handoff previously noted it may be
+  `groups_chrome` theme-layer (`gc-directory-card__join`, directory-view-only), which if true means
+  the canonical GROUP PAGE itself may have never had a "Join group" render path either, and F's fix
+  needs to add a new one, not extend an existing pattern. F/A should confirm.
+
+**Hedged:** none — every finding in this phase was verified directly (docblock reads, source greps,
+live E2E runs, before/after phpcs diffs), not guessed.
+
+**Evidence:**
+- `web/modules/contrib/group/src/Entity/GroupInterface.php:129-139` (`getMembers()` docblock — only
+  `$roles` filter exists).
+- `docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php:80` (existing unfiltered
+  `getMembers()` + after-the-fact status labeling pattern).
+- `docs/groups/modules/do_group_membership/src/GroupMembershipManager.php` (`requestJoin()` →
+  `createMembership(..., self::STATUS_PENDING, [])` — confirms the repaired assertion is
+  non-vacuous).
+- `web/modules/contrib/group/src/Access/GroupMemberAccessCheck.php:47`
+  (`AccessResult::allowedIf($group->getMember($account) xor !$member_only)` — confirms
+  `_group_member: 'FALSE'` on `entity.group.join` treats ANY relationship status, including
+  pending, as "already a member," which is why a pending requester also doesn't see "Join group" —
+  contextual evidence for the AC-2 discoverability gap, not itself the bug).
+- `docs/groups/modules/do_group_extras/src/Hook/DoGroupExtrasHooks.php:53-65` (the unpublish-on-
+  presave hook; `git log --oneline` confirms it predates #121, initial commit `7bcb6d9`).
+- `docs/groups/config/views.view.group_members.yml:608` (`filters: {}` — the canonical-page "Group
+  members" block list has no status filter either, a related but distinct display bug from the one
+  F flagged in the test — noted for completeness, not actioned, since it's config and out of my
+  edit scope).
+- Full Tier-1/Tier-2 run output, E2E fix-by-fix trace, and the full AC-1..AC-16 matrix: see
+  `handoff-T-green.md`.

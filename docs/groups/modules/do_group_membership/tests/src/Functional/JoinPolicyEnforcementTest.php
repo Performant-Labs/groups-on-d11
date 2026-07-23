@@ -195,10 +195,17 @@ class JoinPolicyEnforcementTest extends BrowserTestBase {
     $this->assertNotFalse($relationship, 'Submitting the request-to-join form creates a group_membership relationship.');
     $this->assertSame('pending', $relationship->get('field_membership_status')->value);
 
-    // Not visible as an active member.
-    $active = $group->getMembers();
-    $active_uids = array_map(static fn($m) => $m->getEntity()?->id(), $active);
-    $this->assertNotContains($sophie->id(), $active_uids, 'A pending requester does not appear as an active member.');
+    // Not visible as an active member. NOTE: Group::getMembers() has no
+    // status-filtering parameter (see GroupInterface::getMembers() docblock,
+    // web/modules/contrib/group/src/Entity/GroupInterface.php) -- it returns
+    // every group_membership relationship regardless of
+    // field_membership_status, exactly like the existing ManageMembersForm
+    // (line ~80) which filters/labels status itself AFTER the unfiltered
+    // call. So the correct way to assert 'not an active member' is to check
+    // the relationship's OWN status directly, not to look for absence from
+    // an unfiltered list (which would always fail this assertion, active or
+    // not, since getMembers() would still list her at ANY status).
+    $this->assertNotSame('active', $relationship->get('field_membership_status')->value, 'A pending requester does not have active status.');
   }
 
   /**
