@@ -8,6 +8,7 @@
     "test:e2e:phase1": "playwright test tests/e2e/phase1.spec.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.0",
     "@playwright/test": "^1.49.1"
   }
 }
