@@ -1,0 +1,39 @@
+/**
+ * @file
+ * Minimal CSS for /my-feed (issue #110, ST-1 My Feed).
+ *
+ * Scope note (handoff-A.md Finding #7): the shared shell chrome classes
+ * (.shell, .shell-tabs, .shell-ranking, .gc-empty, .card) were designed and
+ * approved in #109's wireframe
+ * (docs/handoffs/109-do-streams-scaffold/wireframe.html) but #109 shipped no
+ * production CSS file for them — that gap belongs to #109, not this story
+ * (out of scope per this brief's own "Non-goals" section: this story does
+ * not redesign or re-style the shell). This file covers ONLY what #110
+ * itself introduces: the new `empty_cta` button-shaped link
+ * (`.gc-empty__cta-link`), styled per the approved wireframe's State 2
+ * (docs/planning/handoffs/110-stream-110/wireframe.html), so the headline
+ * demo CTA is not left completely unstyled. See handoff-F for the full
+ * flag of the inherited #109 CSS gap.
+ */
+
+.gc-empty__cta-link {
+  display: inline-block;
+  margin-top: 0.75rem;
+  padding: 8px 20px;
+  background: #0678be;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid #055a91;
+}
+
+.gc-empty__cta-link:hover {
+  background: #055a91;
+}
+
+.gc-empty__cta-link:focus-visible {
+  outline: 3px solid #044568;
+  outline-offset: 2px;
+}

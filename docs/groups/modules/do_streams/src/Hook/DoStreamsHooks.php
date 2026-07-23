@@ -407,6 +407,14 @@ class DoStreamsHooks {
 
   /**
    * Registers the shared stream shell theme hook ([B-3]).
+   *
+   * Issue #110 (ST-1) extension: adds `empty_cta` (default `[]`, an
+   * optional render array), forward-compat for #111-#115's own scope-specific
+   * empty-state CTAs (handoff-A.md Finding #5). A `#`-prefixed property on a
+   * `#theme => do_streams_shell` render array only reaches the template if
+   * its bare name is declared here in `variables` —
+   * {@see \Drupal\Core\Theme\ThemeManager::render()} copies ONLY declared
+   * keys off the element — so this declaration is required, not cosmetic.
    */
   #[Hook('theme')]
   public function theme(array $existing, string $type, string $theme, string $path): array {
@@ -420,6 +428,7 @@ class DoStreamsHooks {
           'ranking_control' => [],
           'empty' => TRUE,
           'empty_copy' => '',
+          'empty_cta' => [],
         ],
         'template' => 'do-streams-shell',
       ],
@@ -449,6 +458,12 @@ class DoStreamsHooks {
    * D-gate resolution 2 (handoff-D.md, binding): 4 DISTINCT, scope-truthful
    * empty-state copy strings — Global's must never contain a follow-oriented
    * CTA.
+   *
+   * Issue #110 note: `empty_cta` is NOT touched here — it passes through
+   * untouched from whatever the caller set on `#empty_cta` (default `[]`
+   * from the theme hook's own `variables` declaration when a caller sets
+   * nothing), per handoff-A.md Finding #5 ("built by controller, not
+   * preprocess" — this preprocess function never hardcodes a route).
    */
   #[Hook('preprocess_do_streams_shell')]
   public function preprocessDoStreamsShell(array &$variables): void {

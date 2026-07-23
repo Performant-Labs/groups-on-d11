@@ -107,5 +107,235 @@
   `web/modules/custom/do_streams` and `web/modules/custom/do_chrome` suites; E2E via
   `npx playwright test tests/e2e/my-feed.spec.ts` against the seeded DDEV site.
 
-## Ready for F
-T-red complete, RED is valid. F may implement against the authored tests.
+## F Phase 5 (implementation) — complete
+- **Decided:** Rebased `110-stream-110` onto `origin/main` (91 commits ahead, incl. #171 CI
+  migration to Uranus runners + hotfix #168) BEFORE writing any code, per the operator's
+  instruction. Rebase was 100% clean — zero conflicts on any file, including the two files the
+  operator flagged as likely-contentious (`HelpText.php`, `step_700_demo_data.php`) — because
+  this branch had touched neither yet (F's own commits are the first to touch `HelpText.php`).
+  Pre-rebase build-artifact drift (`config/sync/*`, `web/*` scaffold files — tracked in git
+  history but policy-designated regenerable outputs per this story's own instructions) was
+  `git stash push -u` before the rebase and never popped back — `assemble-config.sh` +
+  `composer install` regenerate all of it fresh from the post-rebase `docs/groups/` source.
+- **Decided:** `_role: authenticated` (the brief's literal routing.yml requirement wording) is
+  NOT a real Drupal 11 core route requirement key — confirmed by reading
+  `web/core/lib/Drupal/Core/Access/*.php` (no `RoleCheck` class exists) and
+  `\Drupal\user\Plugin\views\access\Role::alterRouteDefinition()` (the ONLY place `_role` is
+  ever SET, and only onto a VIEW's own page-display route via the Role access plugin — never a
+  generic, hand-authored routing.yml entry). The verified, correct core mechanism for a
+  hand-authored route is `_user_is_logged_in: 'TRUE'` (`\Drupal\user\Access\LoginStatusCheck`),
+  which denies anonymous with a plain 403 — matching every sibling Functional test's own baseline
+  expectation in this repo (`ManageMembersRouteAccessTest`'s 403 assertions) and satisfying AC-1's
+  "403 (or login redirect)" disjunctive wording via the 403 branch. Used in
+  `do_streams.routing.yml` with a full docblock explaining the substitution.
+- **Decided:** `views_embed_view()` is DEPRECATED in the ACTUALLY-INSTALLED Drupal core (11.4.4,
+  confirmed via `composer.lock` — this repo's `core_version_requirement: ^11.2` constraint
+  permits 11.4+) and emits `E_USER_DEPRECATED` on every call — a real risk of turning an
+  otherwise-correct Functional test RED under strict deprecation-to-failure conversion. Read
+  `ViewExecutable::preview()`'s own docblock, which states outright: "To render the view normally
+  with access checks, use '#type' => 'view' render elements instead." `MyFeedController::build()`
+  loads + executes the view directly (`Views::getView()` -> `setDisplay()` -> `execute()`) so the
+  empty-state check can inspect `$view->result` synchronously, then hands the SAME
+  already-executed `ViewExecutable` into a `#type => 'view'` render element via `#view` (per
+  `\Drupal\views\Element\View::preRenderViewElement()`'s own `isset($element['#view'])` branch) —
+  `ViewExecutable::execute()`'s own `if (!empty($this->executed)) return TRUE;` guard confirms
+  this does not double-run the query. Functionally identical output to `views_embed_view()`, same
+  access-check defense-in-depth (the render element still calls `$view->access()`), zero
+  deprecation notices.
+- **Decided:** `views.view.my_feed.yml` copies `activity_stream.yml`'s shape per the brief, with
+  every A-flagged diff applied: `use_ajax: false` (Finding #2), `access: {type: role, options:
+  {role: {authenticated: authenticated}}}` (Finding #3 — verified the exact storage shape by
+  reading `\Drupal\user\Plugin\views\access\Role::defineOptions()`/`buildOptionsForm()`, which
+  keys `options['role']` by role-id => role-id, matching a checkboxes form's own serialization),
+  the `do_streams_membership_scope` filter added to the SAME filter group (`1`, AND) as the
+  existing `status`/`type` filters, DEFAULT display only (no `page_1`), and `empty: {}` (no view-
+  level empty-text area — the shell's own `.gc-empty` block, driven by the controller's `empty`
+  boolean, owns the empty state entirely; the view's own inline empty HTML that
+  `activity_stream.yml`'s page display uses is intentionally not replicated here).
+- **Decided:** `empty_cta` added to `DoStreamsHooks::theme()`'s `variables` declaration (default
+  `[]`) — verified via reading `\Drupal\Core\Theme\ThemeManager::render()` (lines ~190-199) that a
+  `#`-prefixed property on a `#theme => X` render array ONLY reaches the template if its bare name
+  is a literal key in that theme hook's OWN `variables` array; a caller setting `#empty_cta`
+  without this declaration would have it SILENTLY DROPPED, never reaching Twig. Twig template
+  renders `{{ empty_cta }}` inside `.gc-empty`, after `.gc-empty__text`, only `{% if empty_cta %}`
+  — matches Finding #5 exactly (controller builds it, no hardcoded route in the shell/preprocess).
+- **Decided:** Per-user cache tag merged directly on the controller's outer render array
+  (`#cache => ['tags' => [DoStreamsHooks::userStreamCacheTag($uid)]]`), NOT by widening
+  `viewsPostRender()`'s `DEMO_VIEW_ID`-only allowlist — the narrower, controller-local change per
+  Finding #4a's own "OR merge tag in the controller" option, avoiding a broader edit to shared
+  #109 code that every OTHER `do_streams_demo` caller would also inherit. `#cache => ['contexts'
+  => ['user', 'user.roles:authenticated']]` added per Finding #4b, mirroring the exact idiom
+  `do_showcase`'s `personaBanner()` hook already established in this codebase
+  (`'#cache' => ['contexts' => ['user']]`).
+- **Decided:** `step_780_nav_menu.php` re-weighted with PLAIN INTEGERS (0/1/2/3/4 for
+  Groups/Activity/My Feed/My Groups/Create Group), NOT the wireframe's literal `1.5` — per
+  Finding #8, confirmed `menu_link_content.weight` is an integer field
+  (`MenuLinkContent::getWeight()` casts to `(int)`) so a float would silently coerce. The two
+  existing links after Activity (My Groups, Create Group) are surgically re-weighted (ONLY the
+  `weight` field; title/uri/description untouched) — and, going beyond the brief's own literal
+  "APPEND-ONLY" framing, the idempotency loop was extended so an ALREADY-SEEDED link whose stored
+  weight differs from its target weight gets its weight corrected on re-seed too (not just newly-
+  created links) — otherwise a real pre-#110 Coolify deploy that already ran this script once
+  would keep My Groups/Create Group at their OLD weights forever (the idempotency guard would
+  skip re-processing an existing key entirely), silently breaking the intended nav order on any
+  already-seeded real environment even though every authored TEST (which only ever exercises a
+  fresh, never-before-seeded site) would still pass without this fix. Verified via a full seed-
+  script run against a live, previously-seeded DDEV site (idempotent re-run: all 5 links "Exists",
+  no re-weight needed since already correct from a fresh install — did not get to independently
+  exercise the "correcting a genuinely stale weight" branch against fixture data, since no fixture
+  in this pipeline currently represents a pre-#110 seeded state, but the logic mirrors the
+  existing create-vs-skip branch exactly and was read-verified against `MenuLinkContent`'s public
+  API contract).
+- **Decided:** `stream.my_feed` appended to `HelpText::all()` as a NEW, DISTINCT key from the
+  pre-existing `page.my_feed` (added by #126, a DIFFERENT surface — the page-title ⓘ tooltip,
+  keyed off a route `view.my_feed.page_1` that anticipated a Views-generated PAGE DISPLAY, which
+  this story deliberately does NOT ship, per the brief's own "DEFAULT display only" instruction).
+  `PageHelp::getRouteMap()`'s pre-registered `'view.my_feed.page_1' => 'page.my_feed'` entry
+  simply never matches this story's actual route name (`do_streams.my_feed`) and stays inert
+  exactly as that class's own docblock says an unresolved pre-registered entry should — verified
+  this causes ZERO test breakage (`HelpTextPageKeysTest`/`PageHelpRouteMapTest` both still pass,
+  27/27 do_chrome suite) since neither test asserts any ROUTE is ever actually reachable, only
+  that the MAP's structural shape is intact. Not touched, not "fixed" — flagged here for O/A as a
+  pure latent observation, no action taken (out of scope; another story's file; POC lean-pipeline
+  policy against unsolicited follow-ups).
+- **Decided:** `css/my-feed.css` ships ONLY the new `empty_cta` button styling (per the approved
+  wireframe's State 2 tokens) — NOT a backfill of the full shell chrome CSS (`.shell`,
+  `.shell-tabs`, `.gc-empty`, `.card`, etc.), which handoff-A.md Finding #7 correctly flagged as
+  never having been shipped by #109 (confirmed: zero CSS files anywhere in this codebase define
+  those classes; they exist only as literal strings in wireframe HTML documents). Backfilling
+  #109's own CSS gap here would be exactly the kind of drive-by, out-of-scope fix this pipeline's
+  conventions warn against — flagged plainly in the CSS file's own docblock and in this handoff
+  for O/A to weigh, not silently absorbed.
+- **Decided:** `Url::fromUserInput('/all-groups')` used for the empty-state CTA (not
+  `Url::fromRoute()` against a guessed view-display route name) — `views.view.all_groups.yml` is
+  never referenced by machine route name anywhere else in this codebase's PHP (only by literal
+  `/all-groups` path strings, including in `step_780_nav_menu.php`'s own `internal:/all-groups`
+  convention), so hardcoding a guessed `view.all_groups.page_1`-style route name would be a novel,
+  untested assumption this codebase's own established pattern doesn't support.
+- **Found (test bug, flagged for T, NOT fixed by F):** `MyFeedNavLinkTest::testMyFeedNavLinkIsSeeded`
+  asserts `$links['st1-nav-my-feed']->getUrlObject()->toUriString() === 'internal:/my-feed'`. This
+  fails because `MyFeedNavLinkTest`'s `$modules` list never enables `do_streams`, so the
+  `/my-feed` route genuinely does not exist in that test's fresh site — and Drupal core's OWN
+  `Url::fromInternalUri()` (read directly, lines ~403-427) explicitly falls back to
+  `static::fromUri('base:' . $path)` whenever `pathValidator()->getUrlIfValidWithoutAccessCheck()`
+  finds no matching route, so `toUriString()` correctly returns `'base:my-feed'` in THIS test's
+  specific environment — a documented, intentional core behavior, not a bug in the seed script
+  (confirmed the raw stored `link.uri` field value IS the literal string `'internal:/my-feed'`,
+  unmutated, by reading `LinkItem`'s field-storage schema — the transformation happens only at
+  `getUrl()`/read-time resolution, which is inherently environment-dependent). Verified this is
+  NOT specific to my new link: the SAME normalization would apply to any of the four pre-existing
+  links' URIs too, if the test asserted on them (it doesn't). The test's OWN weight-ordering and
+  idempotency assertions (which don't depend on route resolution) both pass cleanly.
+- **Found (test setup gap, flagged for T, NOT fixed by F):**
+  `MyFeedRouteTest::testMembershipScopeResultsExcludeNonMemberGroupContent`,
+  `::testZeroGroupUserSeesEmptyStateWithCta` (partially — see next item), and
+  `::testResponseVariesByViewingUser` all fail because `views.view.my_feed.yml` is a SITE-LEVEL
+  config artifact (lives in `docs/groups/config/`, per the brief's own explicit file-placement
+  instruction — exactly parallel to `activity_stream.yml`/`all_groups.yml`/
+  `group_content_stream.yml`, NONE of which are module-shipped either) that is only ever installed
+  via an explicit `config:import` step — `BrowserTestBase`'s fresh, minimal per-test-run install
+  never performs one, so the view genuinely does not exist in that test's DB, and
+  `Views::getView('my_feed')` returns NULL (`MyFeedController` handles this gracefully, rendering
+  the empty shell — confirmed via a throwaway diagnostic test, deleted before this handoff, that
+  dumped `Views::getView()`'s return value inline). This is an established, DOCUMENTED convention
+  gap in this exact codebase, not a novel problem: `DirectoryFiltersTest.php`'s own class docblock
+  explains the identical situation for `all_groups.yml` verbatim ("NOT shipped in any module's
+  config/install... so it is installed here from a MODULE-LOCAL fixture copy") — i.e., the
+  established fix belongs in the TEST's `setUp()` (install the view from a
+  `tests/fixtures/config/` copy, mirroring `DirectoryFiltersTest`), not in production code.
+  Confirmed the PRODUCTION code and query are fully correct via TWO independent live checks
+  against the real (non-ephemeral) DDEV site: (1) a raw `Views::getView('my_feed')->execute()`
+  call returned exactly the right single row for a real member/non-member group scenario; (2) a
+  real, unauthenticated-cookie-free `curl` HTTP request through the ACTUAL route/controller (after
+  `drush uli` + following the login link) rendered the member's node title and correctly omitted
+  the non-member's, with the empty-state block absent — proving the full route -> controller ->
+  view -> filter -> shell -> Twig pipeline is correct end to end on a properly-configured site.
+- **Found (test bug, flagged for T, NOT fixed by F):**
+  `MyFeedRouteTest::testZeroGroupUserSeesEmptyStateWithCta`'s regex
+  (`/data-testid="do-streams-shell-empty-cta"[^>]*href="[^"]*\/all-groups[^"]*"/`) requires
+  `data-testid` to render BEFORE `href` in the same tag. Drupal core's `LinkGenerator::generate()`
+  (read directly, line ~154-155) explicitly does `$attributes = ['href' => ''] + $options
+  ['attributes'];` with the inline comment "Make sure the href comes first for testing purposes"
+  — i.e., core's OWN `#type => link` render element ALWAYS emits `href` as the first attribute,
+  by explicit design. The actual rendered markup (confirmed via a live HTTP fetch of `/my-feed` as
+  a real zero-group user) is exactly
+  `<a href="/all-groups" class="gc-empty__cta-link" data-testid="do-streams-shell-empty-cta">`
+  — correct href, correct class, correct data-testid, correct label — only the ORDER differs from
+  what the regex expects. Building the CTA any other way (e.g. hand-rolled `#markup` HTML) to force
+  a non-standard attribute order would be inconsistent with every other `#type => link` usage in
+  this codebase (`NotificationSettingsController`, `ShowcaseController`, `ChangeRoleForm`, etc.)
+  purely to satisfy a regex bug — not done.
+- **Assumed:** The `MyFeedNavLinkTest`/`MyFeedRouteTest` fixes named above are squarely T's Phase 6
+  responsibility (F does not edit tests) — this decisions.md entry + handoff-F.md's own "Tests
+  that look wrong" section are the two places these are recorded for T to act on.
+- **Evidence:** Full command transcripts, exact failure/pass tallies, and root-cause traces for
+  every one of the above are in `handoff-F.md`'s "Tier 1 self-check" and "Tests that look wrong"
+  sections. Two throwaway diagnostic scripts (a `drush php:eval`-style scratch PHP file and a
+  scratch `ZZDiagScratchTest.php` PHPUnit class) were used to root-cause the Functional-test
+  failures precisely; BOTH were deleted before this handoff — neither is part of the shipped diff.
+
+## Ready for T (Phase 6 — verify GREEN, fix the 2 flagged test bugs + 1 test setup gap)
+Implementation complete. 6/6 Unit+Functional tests target real acceptance criteria and 2 of them
+already pass cleanly (AC-1, AC-2/AC-3/AC-4); 2 Unit tests pass cleanly (AC-10); all 6 authored E2E
+tests pass cleanly end-to-end against the real seeded site (every AC this story owns, verified via
+real DOM). 4 PHPUnit assertions fail, each precisely root-caused above to a test-authoring bug or a
+documented test-setup gap (never a production defect) — F recommends T fix these per this
+decision journal + `handoff-F.md` before re-running for a final GREEN tally. Existing suites
+(do_streams Kernel 23/23, do_chrome Unit+Kernel 27/27, `nav.spec.ts` E2E 6/6) all remain green —
+zero regressions.
+
+## T Phase 6 (GREEN + Tier 2) — complete
+- **Decided:** Fixed all 3 flagged test-authoring issues, exactly as F's handoff and this journal's
+  own F-phase entries root-caused them — no production code touched.
+  1. `MyFeedNavLinkTest::testMyFeedNavLinkIsSeeded` — switched from asserting
+     `getUrlObject()->toUriString()` (environment-dependent, falls back to `base:my-feed` because
+     this suite deliberately never enables `do_streams`) to asserting the raw, unresolved `uri`
+     property of the link entity's own `link` field item
+     (`$link->get('link')->first()->get('uri')->getValue()`). Chose this over adding `do_streams`
+     to `$modules` — this suite tests the SEED SCRIPT's own link-creation output, not route
+     resolution, so widening its module dependency to make a route resolve would be testing the
+     wrong layer.
+  2. Created `docs/groups/modules/do_streams/tests/fixtures/config/views.view.my_feed.yml` (byte-copy
+     of the shipped `docs/groups/config/views.view.my_feed.yml`) and installed it in
+     `MyFeedRouteTest::setUp()` via `FileStorage` + `getStorage('view')->create()->save()`,
+     mirroring `DirectoryFiltersTest`'s and `StreamsScopeTest`'s own established pattern for this
+     exact "site-level config artifact never picked up by BrowserTestBase" situation.
+  3. `MyFeedRouteTest::testZeroGroupUserSeesEmptyStateWithCta`'s CTA-href assertion switched from an
+     order-dependent regex to `assertSession()->elementAttributeContains('css',
+     '[data-testid="do-streams-shell-empty-cta"]', 'href', '/all-groups')`, which asserts the
+     attribute's value directly and is immune to core `LinkGenerator`'s href-first attribute
+     ordering.
+- **Decided:** Verified each of the 3 fixes is load-bearing (not vacuously passing) by temporarily
+  reverting each one in turn, re-running the affected test, confirming it fails again for the
+  originally-reported reason, then restoring the fix — all 3 reverts reproduced F's exact original
+  failure signature (base:my-feed mismatch; empty-shell fallback; href value mismatch). No test
+  file was left in a reverted state (confirmed via `git diff --stat` matching the intended fix size
+  before finalizing this handoff).
+- **Decided:** GREEN confirmed on the full targeted suite: `MyFeedRouteTest` (5/5),
+  `MyFeedNavLinkTest` (3/3), `MyFeedHelpTextTest` (2/2) — 10/10 tests, 0 Failures (the `⚠` markers
+  are the same pre-existing deprecation noise F already documented: flag-module
+  annotation-to-attribute migration warnings and Twig-sandbox interface warnings, unrelated to any
+  file touched in Phase 6; 3 "Risky" flags are PHPUnit's generic "unexpected stdout" notice from
+  `require`ing `step_780_nav_menu.php`'s own `echo` statements — pre-existing in this test file,
+  not new).
+- **Decided:** Zero regressions confirmed — `do_streams` Kernel suite 23/23 (`Tests: 23, Assertions:
+  723`), `do_chrome` full suite 27/27 (`Tests: 27, Assertions: 321`), both 0 Failures, matching F's
+  reported baselines exactly. E2E: `my-feed.spec.ts` 6/6 and `nav.spec.ts` 6/6, run together
+  (12/12 passed, 13.9s) as a final combined confirmation.
+- **Decided:** phpcs advisories on both edited test files (docblock-short-description,
+  line-length warnings) are pre-existing-style-consistent and NOT CI-gated (confirmed
+  `grep phpcs .github/workflows/*.yml` returns nothing) — flagged as advisory only, not fixed, per
+  this project's POC lean-pipeline convention against unsolicited drive-by cleanup.
+- **Assumed:** AC-7 (pager) and AC-12 (axe-core) remain deliberately deferred, unchanged from
+  T-red's own O/A-acknowledged rationale — no new fixture or tooling dependency appeared during
+  Phase 6 that would change that call.
+- **Evidence:** Full command transcripts, pass tallies, and the 3 before/after revert transcripts
+  proving each fix's load-bearing behavior are in `handoff-T-green.md`. Commands run from the
+  assembled layout (`bash scripts/ci/assemble-config.sh` inside `ddev exec`) against the seeded
+  `gm110-groups-stream-110` DDEV instance, matching F's own reproduction recipe exactly.
+
+## Ready for U (UI Walkthrough)
+T-green complete, no blocking issues. This story touches a UI surface (`/my-feed` route + shell
+chrome + nav link + empty-state CTA) — ready for U to walk the live SPA-navigation path, noting the
+pre-existing shell-chrome CSS gap (handoff-A Finding #7 / F's Deviations #4) and AC-7's pager as a
+visual-only check (automated coverage deliberately deferred).

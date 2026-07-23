@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\do_streams\Functional;
 
+use Drupal\Core\Config\FileStorage;
 use Drupal\group\PermissionScopeInterface;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\Tests\group\Traits\GroupTestTrait;
@@ -29,6 +30,24 @@ use Drupal\user\RoleInterface;
  *  - Cache: the response varies by viewing user (a Vary/X-Drupal-Cache-Contexts
  *    check spot-checking the `user` cache context bubbles to the outer
  *    response, per handoff-A.md Finding #4).
+ *
+ * PHASE 6 REPAIR NOTE (T): `testMembershipScopeResultsExcludeNonMemberGroupContent()`,
+ * `testResponseVariesByViewingUser()`, and (its first, empty-state-visibility
+ * assertion) `testZeroGroupUserSeesEmptyStateWithCta()` originally failed
+ * because `views.view.my_feed.yml` is a genuinely SITE-LEVEL config artifact
+ * (lives in `docs/groups/config/`, parallel to `activity_stream.yml`/
+ * `all_groups.yml` — neither of which is module-shipped either), and
+ * `BrowserTestBase`'s fresh per-run install never performs a `config:import`.
+ * Without the view existing, `Views::getView('my_feed')` returns NULL and
+ * `MyFeedController` gracefully renders the empty shell for every request,
+ * masking the real membership-scope/cache assertions under test. This is the
+ * SAME documented convention gap `DirectoryFiltersTest`'s own class docblock
+ * describes for `all_groups.yml` — fixed the same way: `setUp()` below
+ * installs the view from a MODULE-LOCAL fixture copy
+ * (`tests/fixtures/config/views.view.my_feed.yml`, a byte-copy of the shipped
+ * `docs/groups/config/views.view.my_feed.yml`), mirroring
+ * `DirectoryFiltersTest`'s and `StreamsScopeTest`'s own established
+ * `FileStorage` + `getStorage('view')->create()->save()` pattern.
  *
  * NONE of `do_streams.routing.yml`, `MyFeedController`, or
  * `views.view.my_feed.yml` exist yet (this story's own survey.md / brief.md
@@ -120,6 +139,17 @@ class MyFeedRouteTest extends BrowserTestBase {
       'global_role' => RoleInterface::AUTHENTICATED_ID,
       'permissions' => $permissions,
     ]);
+
+    // views.view.my_feed.yml is a site-level config artifact (parallel to
+    // activity_stream.yml/all_groups.yml — never module-shipped), so
+    // BrowserTestBase's fresh per-run install never picks it up via
+    // config:import. Install it here from a module-local fixture copy,
+    // mirroring DirectoryFiltersTest's / StreamsScopeTest's own established
+    // pattern for this exact situation.
+    $fixtures = new FileStorage(__DIR__ . '/../../fixtures/config');
+    $viewData = $fixtures->read('views.view.my_feed');
+    $this->assertNotFalse($viewData, 'The views.view.my_feed fixture exists and is readable.');
+    \Drupal::entityTypeManager()->getStorage('view')->create($viewData)->save();
   }
 
   /**
@@ -260,10 +290,22 @@ class MyFeedRouteTest extends BrowserTestBase {
       $page,
       'AC-6: the empty-state block renders for a user in 0 groups.',
     );
-    $this->assertMatchesRegularExpression(
-      '/data-testid="do-streams-shell-empty-cta"[^>]*href="[^"]*\/all-groups[^"]*"/',
-      $page,
-      'AC-6: the empty_cta link is present with an href resolving to /all-groups.',
+
+    // PHASE 6 REPAIR NOTE (T): this assertion originally used a single
+    // ordered regex requiring data-testid to precede href
+    // (`/data-testid="..."[^>]*href="..."/`) . Drupal core's
+    // LinkGenerator::generate() (web/core/lib/Drupal/Core/Utility/LinkGenerator.php
+    // ~line 154-155) explicitly does `$attributes = ['href' => ''] +
+    // $options['attributes'];` with the inline comment "Make sure the href
+    // comes first for testing purposes" — core's own #type => link element
+    // ALWAYS emits href first, by design. Switched to Mink's
+    // elementAttributeContains(), which asserts the attribute's VALUE
+    // directly and does not care about source order.
+    $this->assertSession()->elementAttributeContains(
+      'css',
+      '[data-testid="do-streams-shell-empty-cta"]',
+      'href',
+      '/all-groups',
     );
   }
 

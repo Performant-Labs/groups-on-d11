@@ -56,6 +56,25 @@ use Drupal\Tests\BrowserTestBase;
  * also exactly 7 levels below the repo root), so the same constant resolves
  * correctly in both layouts.
  *
+ * PHASE 6 REPAIR NOTE (T): `testMyFeedNavLinkIsSeeded()` originally asserted
+ * `$link->getUrlObject()->toUriString() === 'internal:/my-feed'`. That failed
+ * because this test's `$modules` list (`menu_link_content`, `menu_ui`,
+ * `system`) deliberately never enables `do_streams` — this suite is testing
+ * the SEED SCRIPT's link-creation behavior in isolation, not route
+ * resolution. Without the `do_streams.my_feed` route existing, Drupal core's
+ * own `Url::fromInternalUri()` (`web/core/lib/Drupal/Core/Url.php`
+ * ~line 403-427) explicitly falls back to `static::fromUri('base:' . $path)`
+ * whenever `pathValidator()->getUrlIfValidWithoutAccessCheck()` finds no
+ * matching route — so `toUriString()` correctly returned `'base:my-feed'` in
+ * this test's own environment, a documented core behavior, not a defect in
+ * the seed script. Fixed by asserting on the RAW, unresolved `uri` property
+ * of the link entity's own `link` field item instead (`$link->get('link')
+ * ->first()->get('uri')->getValue()`), which is exactly the literal string
+ * the seed script wrote (`'internal:/my-feed'`) and is never environment-
+ * dependent — this is the correct level to pin "the seed script wrote the
+ * right URI," without dragging in `do_streams` as an unrelated test
+ * dependency just to make a route resolve.
+ *
  * RED reason: the script currently defines only 4 links (`ch83-nav-groups`,
  * `ch83-nav-activity`, `ch83-nav-my-groups`, `ch83-nav-create-group`) — no
  * `st1-nav-my-feed` entry exists yet, so every assertion below (existence,
@@ -139,10 +158,18 @@ class MyFeedNavLinkTest extends BrowserTestBase {
       $links,
       'A menu_link_content entity keyed st1-nav-my-feed exists after seeding.',
     );
+
+    // Assert on the RAW, unresolved `uri` property of the link field item —
+    // NOT the resolved Url object's toUriString(), which is environment-
+    // dependent on whether the /my-feed route happens to be registered in
+    // THIS test's site (it deliberately isn't; do_streams is not in
+    // $modules — see the class docblock's "PHASE 6 REPAIR NOTE"). The raw
+    // uri value is exactly what the seed script wrote, unmutated.
+    $rawUri = $links['st1-nav-my-feed']->get('link')->first()->get('uri')->getValue();
     $this->assertSame(
       'internal:/my-feed',
-      $links['st1-nav-my-feed']->getUrlObject()->toUriString(),
-      'The st1-nav-my-feed link points at internal:/my-feed.',
+      $rawUri,
+      'The st1-nav-my-feed link\'s raw stored uri is internal:/my-feed.',
     );
     $this->assertSame(
       'My Feed',
