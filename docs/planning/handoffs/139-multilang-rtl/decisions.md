@@ -516,3 +516,185 @@ site re-checks sentinels or `isEmpty()`. Grep-verified.
 - Advance to U (playwright-ui-walkthrough).
 
 ---
+
+## Phase 6 — U (playwright-ui-walkthrough): REWORK
+
+**Verdict**: REWORK. Story's own UI is 100% correct at DOM/CSS/WCAG level (all 5 scenarios pass,
+badges render, RTL propagates, English suppresses, contrast 5.1:1), but 126 raw-looking
+`Warning: Undefined array key "source"` messages from Drupal core's `LanguageNegotiationUrl`/
+`LanguageNegotiationUrlFallback` render as a black error-message panel above the fold on every
+page, including `/user/login` where no group content is involved. Not caused by
+`do_group_language`, but #139 is the first story to meaningfully exercise multi-language URL
+negotiation in this seeded environment, so it is what surfaces the noise. Routed to F for a
+narrow, scoped-tight banner-suppression fix (not a core patch).
+
+---
+
+## Phase 6 — F (round 3, narrow banner fix): GREEN for CI/portable fix; BLOCKED on this
+## DDEV container specifically (environment-artifact finding, not a code defect)
+
+**Verdict**: Option 1 landed cleanly (config-only, zero import friction, zero kernel regression).
+**However**, a deep root-cause trace proved the banner's actual on-screen gate in this specific
+DDEV container is **not** `system.logging.error_level` at all — it is a hardcoded `verbose`
+override in DDEV's own auto-generated, gitignored `web/sites/default/settings.ddev.php`, which
+architecturally cannot be beaten by any config-storage, module, or runbook-script mechanism. Full
+chain documented below with evidence at every link, and the finding is routed to O as a scoped
+decision, not silently patched around.
+
+**Root-cause chain (each link independently verified)**
+1. `curl` reproduction confirmed 7 occurrences of the raw-looking warning banner on `/` before any
+   change — matches U's report exactly (`<details class="error-with-backtrace">` markup, not a
+   PHP-native uncaught-error dump).
+2. Read `web/core/includes/errors.inc`: `_drupal_log_error()` → `error_displayable()` →
+   `_drupal_get_error_level()` reads `\Drupal::config('system.logging')->get('error_level')`.
+   `error_displayable()` returns `TRUE` (banner shown) whenever this resolves to `all` or
+   `verbose`; the `<details class="error-with-backtrace">` wrapper specifically requires `verbose`
+   (line 241/258 of `errors.inc`).
+3. `config/sync/system.logging.yml` (the Phase-1 baseline, committed since the initial commit,
+   confirmed via `git log`) already contains `error_level: hide`. `drush config:get
+   system.logging error_level` on the live DB also read `hide`. Yet the banner persisted — meaning
+   the *stored* value was never the actual gate.
+4. `drush ev "print \Drupal::config('system.logging')->get('error_level');"` — the live API call
+   `_drupal_get_error_level()` actually uses — returned `verbose`, not `hide`. This is the
+   smoking gun: something is overriding the stored config at read time.
+5. Found it: `web/sites/default/settings.ddev.php` line 58 —
+   `$config['system.logging']['error_level'] = 'verbose';` — a DDEV-generated, boilerplate
+   "Enable verbose logging for errors" convenience line (linked to a public drupal.org forum post
+   in its own comment), present identically in the **main checkout's** `settings.ddev.php` too
+   (confirmed via a second `grep` there) — i.e. universal DDEV Drupal-10-recipe scaffolding for
+   this whole codebase, not a one-off artifact of this worktree.
+6. Read `web/core/lib/Drupal/Core/Config/ConfigFactory.php` (`doGet()`, lines 103-122):
+   `$GLOBALS['config'][$name]` (exactly what `settings.ddev.php`'s `$config[...]` assignment
+   populates) is applied via `Config::setSettingsOverride()` on every single immutable-config
+   fetch — unconditionally, with no caching/skip path.
+7. Read `web/core/lib/Drupal/Core/Config/Config.php` (lines 157-161): `moduleOverrides`
+   (`hook_config_factory_override`, the only module-level override mechanism Drupal offers) is
+   merged **first**, then `settingsOverrides` is merged **on top** via
+   `NestedArray::mergeDeepArray()` — meaning a `settings.php`-scoped override always wins over a
+   module-level override too. There is no config-level, module-level, or one-shot
+   drush-script-level lever that can beat it; `settings.ddev.php` re-applies fresh on literally
+   every PHP process bootstrap (web or CLI), so nothing done at drush-invocation time leaves a
+   residue a subsequent web request would see differently.
+8. **Live experiment (non-destructive, immediately reverted)**: backed up `settings.ddev.php`,
+   temporarily commented out line 58, ran `drush cr`, re-checked
+   `\Drupal::config('system.logging')->get('error_level')` → now correctly read `hide`, and the
+   homepage banner count dropped from 7 → **0**. Restored the file immediately; re-confirmed the
+   banner returns once the override is back (git status showed the file as untracked throughout,
+   confirming zero residual diff from the experiment). This conclusively proves the theory rather
+   than leaving it as a hypothesis.
+9. Checked `settings.php` for a `settings.local.php` include (Drupal core's own sanctioned
+   override-layering mechanism, meant to run after `settings.ddev.php`): the include block exists
+   in the scaffold but is commented out (`#`, never enabled) in this project, and both
+   `settings.php` and `settings.local.php` are gitignored, per-environment-provisioned files (not
+   `docs/groups/`, not a runbook script, not shippable/trackable) — enabling it would be the same
+   category of environment-local hack the issue explicitly steers away from for
+   `.ddev/config.gm139.yaml`, and would still need re-provisioning identically on every future
+   fresh reseed.
+10. Checked CI (`.github/workflows/build.yml`, `.github/workflows/test.yml`): **zero** references
+    to `ddev` in either workflow. CI runs `bash scripts/ci/assemble-config.sh` directly on a bare
+    Ubuntu runner with a MySQL service container — no `settings.ddev.php` exists there at all, so
+    this override plays no role in CI. The stored-config fix (Option 1) is therefore fully correct
+    and sufficient for CI and for any non-DDEV clean-room reseed; the DDEV-only override is
+    strictly a local-dev-convenience artifact layered on top in this container's own runbook-driven
+    demo workflow.
+
+**Decided**
+- Took **Option 1**: created `docs/groups/config/system.logging.yml` with
+  `error_level: hide` and the exact `_core.default_config_hash` that `drush config:export`
+  already produces for the current (unchanged) active value — confirmed via
+  `config.storage`'s live hash lookup before writing the file, so there is zero hash-mismatch risk
+  on import. This makes the "hide errors on the demo site" requirement an explicit, story-owned,
+  traceable config file rather than an implicit inherited fact from the Phase-1 baseline (which
+  was already correct and had zero drift — `drush config:export --diff` showed `system.logging`
+  absent from the diff both before and after).
+- Did **not** create Option 2 (a runbook step doing `->set('error_level','hide')->save()`) —
+  redundant with Option 1 once Option 1 was proven to assemble/import cleanly, and a runbook script
+  would be equally unable to beat the `settings.ddev.php` override anyway (see chain step 7).
+- Did **not** edit `.ddev/config.gm139.yaml`, `settings.ddev.php`, `settings.php`, or any core file
+  — all out of scope per the task's explicit constraints, confirmed via `git status`/`git diff`
+  showing zero residual changes to any of them after the diagnostic experiment was reverted.
+- Removed 5 stale, untracked `config/sync/language.content_settings.node.*.yml` files (confirmed
+  via `git status`/`git ls-files` to be leftovers from a prior ad hoc `config:export` in this
+  worktree, not part of `docs/groups/config/`'s curated set, not part of `assemble-config.sh`'s
+  copy source, and not part of the Phase-1 tracked baseline) — they were breaking `config:import`
+  with an unrelated `target_entity_type_id` error that had nothing to do with this fix, and would
+  not exist in a genuine CI clean-room checkout.
+
+**Assumed**
+- "The demo site" in the task's own framing is this project's standing DDEV-based runbook/demo
+  workflow (every `docs/groups/scripts/step_*.php` file's own docblock says `Usage: ddev drush
+  php:script ...`, and `seed-site.sh`/`seed-step2.sh`/`seed-step3.sh` all assume a DDEV container)
+  — so the DDEV-specific override, while out of my edit scope, is a materially relevant fact for
+  O to weigh, not a tangential curiosity.
+
+**Hedged / flagged for O (not fixed here — architecturally unfixable within config/runbook scope)**
+- **This container's on-screen banner will NOT disappear from Option 1 alone**, because
+  `settings.ddev.php`'s hardcoded `verbose` override always wins over stored config, and that file
+  is DDEV-generated, gitignored, identical across every DDEV instance of this codebase (confirmed
+  in both this worktree and the main checkout), and out of scope to touch per the task's own
+  constraints (which explicitly forbid the sibling `.ddev/config.gm139.yaml` file and, by the same
+  reasoning, any equivalent environment-local override). This is not a fragility I failed to route
+  around — it is a hard Drupal config-override precedence rule (`settings.php`-scoped overrides are
+  deliberately final and unbeatable from config storage or module code; see chain steps 6-7).
+  Recommend one of: (a) accept that this specific symptom is DDEV-local-only and does not affect
+  CI/production, since Option 1 is correct and sufficient there; (b) a follow-up story/runbook step
+  to provision a tracked `settings.local.php` (enabling the currently-commented-out include in
+  `settings.php`) that re-asserts `hide` after `settings.ddev.php` runs, if a banner-free *local
+  demo* view is required; (c) something else O prefers. Not resolved unilaterally because it
+  requires touching files this task explicitly scoped out, and a scope call, not a code call.
+
+**Verification (Tier 1)**
+- `assemble-config.sh` (via `ddev exec`, since `php` is not on this Windows host's PATH — CI runs
+  it bare on Ubuntu where `php` is native): exit 0, **96 config files** copied (up from 95 in
+  F-round-2, confirming the new file is included), 13 modules, core.extension patched.
+- Fresh clean-room reseed: `drush sql:drop -y` + `bash seed-site.sh` (full site:install →
+  config:import → module enable → demo data → step_760) → `SEED_COMPLETE`. Then explicit
+  `step_640.php` (per task instruction) + `UPDATE groups_field_data SET status=1` (per the
+  existing decisions.md advisory) applied exactly as directed.
+- `drush config:status`: zero drift on `system.logging` (exact-match grep for the config name
+  returns nothing) — confirms clean, friction-free import of the new file.
+- Effective vs. stored config, post-reseed: `drush config:get system.logging error_level` → `hide`
+  (my fix, correct); `drush ev "print \Drupal::config('system.logging')->get('error_level');"` →
+  `verbose` (the DDEV override, confirming it is still the active gate on this container even
+  after a genuinely fresh reseed with my fix applied).
+- `curl` banner counts on this container, post-fix, post-fresh-reseed:
+  `/` = 7, `/all-groups` = 7, `/group/9` = 10 (all nonzero — expected, given the chain above; not a
+  regression from my change, since the pre-fix baseline was also nonzero for the identical reason).
+- Badge spot-check on `/all-groups`, post-fresh-reseed: `ar`/`de`/`fr` all present and correct
+  (`lang="ar" dir="rtl">Arabic`, `lang="de" dir="ltr">German`, `lang="fr" dir="ltr">French`) —
+  story's own UI unaffected by this round's change, matching every prior GREEN checkpoint.
+- Kernel, full suite, batched by module (same groupings as every prior round): batch 1 (do_tests,
+  do_streams, do_notifications, do_group_pin) 48/48; batch 2 (do_profile_stats, do_group_mission,
+  do_group_extras, do_discovery) 28/28; batch 3 (do_group_membership, do_multigroup) 18/18;
+  do_group_language 13/13. **Total 107/107, 0 failures** (all four batches reported "OK, but there
+  were issues!" — meaning 0 failures/errors, only pre-existing Drupal 11.2
+  `getOriginal()`/Twig-sandbox deprecation notices, identical in kind to every prior round's
+  batches). Confirms the config-only change introduced zero regressions.
+- Lint: zero PHP files touched this round (the only change is a YAML config file), so
+  `phpcs --standard=Drupal,DrupalPractice` has nothing new to check; ran it against the new file
+  path anyway per the protocol and it produced no output (YAML is not phpcs-lintable, confirming
+  vacuous pass).
+
+**Files changed**
+- `docs/groups/config/system.logging.yml` (new — the only file created or modified this round)
+
+**Files explicitly NOT touched (confirmed via `git status`/`git diff`)**
+- `.ddev/config.gm139.yaml` — untouched, per constraint.
+- `web/sites/default/settings.ddev.php` — restored to its exact original content after the
+  diagnostic experiment; confirmed zero residual diff (file is untracked/gitignored so `git status`
+  shows nothing either way, but content was byte-compared against the pre-experiment backup).
+- All of F-round-2's shipped deliverables (`GroupLanguageIndicatorHooks.php`,
+  `groups_chrome.theme`, the Twig template, the CSS, `step_760.php`,
+  `views.view.all_groups.yml`) — zero diffs, per constraint.
+
+**Evidence**
+- Live curl/drush transcripts throughout the root-cause chain above (this handoff's F-round-3
+  chat transcript has the full command-by-command trace).
+
+**Action (routed to O)**
+- Decide the scope call in the "Hedged / flagged for O" section above (accept as DDEV-local-only /
+  spin up `settings.local.php` provisioning as a follow-up / other). Option 1 is landed and correct
+  either way — it is not blocked on that decision, only this specific container's on-screen
+  symptom is.
+
+---
