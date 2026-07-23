@@ -431,3 +431,72 @@ handoff already established.
 
 **Ready for U:** T-green complete, no blocking issues. Ready for U (UI surface: privacy badge +
 tooltip + directory-visibility change).
+
+## Phase 7 — U (UI Walkthrough) — PASS
+
+**Decided:**
+- Live walkthrough executed (NOT environment-blocked). Brought up a namespaced DDEV
+  (`gm134-private`, renamed from the colliding `pl-groups-on-d11` in this worktree's
+  `.ddev/config.yaml`), ran `composer install` inside the container, `ddev exec bash
+  scripts/ci/assemble-config.sh`, `drush site:install`, fixed `config_sync_directory`
+  to `../config/sync` in `settings.php` (mirrors `.github/workflows/test.yml`'s own fix
+  for the same drush-default-vs-repo-config-dir mismatch), `drush config:import -y`,
+  then seeded Step 700 (incl. Step 795 "Security Team", gid=9) and Step 720 (group
+  types) as uid 1. Site served at `https://gm134-private.ddev.site`.
+- Drove the real site with a throwaway Playwright script (chromium, two isolated
+  browser contexts: anonymous + a fresh login as `elena_garcia`). Evidence
+  screenshots in `docs/handoffs/134-private/evidence/`: `anon-all-groups.png`,
+  `anon-group9-403.png`, `elena-all-groups.png`, `elena-canonical-security-team.png`,
+  `elena-tooltip-hover-directory.png`, `elena-tooltip-focus-directory.png`,
+  `elena-canonical-tooltip-hover.png`.
+- **T's concern 1 (AC-3 full-row omission):** CONFIRMED at the response-body level, not
+  just DOM. `page.content()` on anonymous `/all-groups` contains zero occurrences of
+  "Security Team" (`bodyContainsSecurityTeam: false`); `getByText('Security Team',
+  {exact:true}).count()` is 0. Anonymous `/group/9` returns 403 with page `<title>Access
+  denied | Drupal Groups</title>` and zero occurrences of "Security Team" anywhere in
+  the body — no title/breadcrumb leak.
+- **T's concern 2 (tooltip hover/focus firing):** CONFIRMED live. The badge carries
+  `data-once="do-chrome-tooltip"` (proof the do_chrome tooltip JS actually processed
+  the element), and on hover a real `[role="tooltip"]` node becomes visible in the DOM;
+  on the canonical-page badge, hovering added `aria-describedby="tippy-2"` (Tippy.js
+  wiring). Keyboard focus also lands on the badge (`focused: true` via
+  `document.activeElement` check) with `tabindex="0"`, `role="note"`, and a populated
+  `aria-label` identical to the tooltip text — both hover and focus paths fire.
+- **T's concern 3 (#120 persona-switcher live path):** CONFIRMED with a genuinely fresh
+  browser context (new cookie jar, real `/user/login` POST, not a client-side "persona
+  switch" click) — rules out stale client-side caching by construction. Anonymous
+  context: Security Team absent. Elena context (brand-new login): Security Team
+  materializes in the directory (badge + card, `securityTeamVisible: true`) and on the
+  canonical page (`<h1>Security Team</h1>`, `badgeCount: 1`). The live site also showed
+  the do_showcase persona banner ("You're browsing as Elena Garcia — Member — switch
+  back"), confirming the actual #120 persona-switcher UI is present and consistent with
+  this session.
+- **WCAG 2.2 AA spot-check (AC-7/D's contract):** badge has `tabindex="0"` (keyboard
+  reachable in normal tab order), `role="note"` (exposes as a non-interactive
+  informational region to AT, appropriate since it has no click action), and
+  `aria-label` carrying the full tooltip copy (screen-reader legible without relying on
+  the visual tooltip popping). This satisfies keyboard operability (focusable, and the
+  visual tooltip also appears on focus, not hover-only) and screen-reader legibility
+  (the accessible name IS the full explanatory copy, not just "Private"). Did not run a
+  full automated axe scan (that is S's scope per U's contract) — this is a targeted spot
+  check only.
+- **Wireframe conformance:** both surfaces match D's ASCII sketch closely. Directory
+  card badge row renders `[Working group] [Invite Only] [Private]` in that left-to-right
+  order (type -> visibility -> privacy), exactly as specified. Canonical header renders
+  `Working group | Invite only | Private | 3 members` as one row, matching the
+  wireframe's "same row, third badge, between visibility and member-count" placement.
+  Copy matches `privacy.private` verbatim (modulo the wireframe's own documented
+  wrap-join char-count drift, already noted by F in Phase 5 and non-substantive). No
+  drift found that would constitute a defect.
+- Cleanup: DDEV project `gm134-private` and its containers/volumes left running (not
+  torn down) so a follow-up agent (S) can reuse the same seeded environment without
+  re-provisioning; `.ddev/config.yaml`'s renamed `name: gm134-private` is a local,
+  gitignored change (not committed) needed only for local container isolation. Deleted
+  the throwaway `.u-walk.mjs` driver script per contract.
+
+**Verdict:** **PASS**. No behavioral defects found. Ready for S.
+
+**Evidence:** `docs/handoffs/134-private/evidence/anon-all-groups.png`,
+`anon-group9-403.png`, `elena-all-groups.png`, `elena-canonical-security-team.png`,
+`elena-tooltip-hover-directory.png`, `elena-tooltip-focus-directory.png`,
+`elena-canonical-tooltip-hover.png`.
