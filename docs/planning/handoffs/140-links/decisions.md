@@ -237,3 +237,18 @@ page).
 - No shared-surface / drive-by edits outside `do_group_extras`.
 
 **Handoff:** `docs/planning/handoffs/140-links/handoff-A-dup.md`. Proceed to U → S.
+
+## Phase 8 — U (UI walkthrough) — 2026-07-23
+
+**Verdict:** PASS.
+
+- Drove the live, already-seeded `gm140-groups-links` DDEV site (`http://gm140-groups-links.ddev.site`) directly with a throwaway Playwright script (Drupal server-rendered HTML — no HTMX/SPA swap path applies to this stack; confirmed rather than assumed by comparing directory-click nav vs hard `goto`, identical DOM).
+- Confirmed all 8 required walkthrough scenarios plus both optional authenticated scenarios (9 done via read-only inspection; 10 skipped as redundant/unnecessary seed mutation).
+- Exceeded T's 2-test automated E2E coverage: added real keyboard-only `Tab` traversal (22 tabs, landed on "Conference schedule", visible 2px solid focus outline), DOM-level `rel`/`target` inspection on both seeded links, and empty-state confirmation on TWO separate unlinked groups (Leadership Council, Camp Organizers EMEA), not just one kernel-isolated case.
+- Verified the organizer edit form (`/group/1/edit`, uid=1 via `drush uli`) renders the "Links & Resources" widget correctly: 2 populated delta rows, 1 empty extra row, "Add another item" button, "Link text" marked required (`*`).
+- Zero console errors/pageerrors across the entire walkthrough.
+- **Advisory (non-blocking) WCAG note for S:** the "Links & Resources" field label renders as `<div class="field__label">`, not a real `<h2>`/`<h3>` — this is Drupal core's default `label: above` markup, byte-identical to the sibling `Visibility` field label on the same page (pre-existing site-wide pattern, not new debt from #140). Flagged for S's WCAG verdict, not treated as a U blocker since it's consistent with existing convention and not a regression.
+
+**Evidence:** `docs/planning/handoffs/140-links/handoff-U.md`, screenshots in `docs/planning/handoffs/140-links/screens/` (`links-section.png`, `keyboard-focus-conference-schedule.png`, `focus-state.png`, `no-links-group.png`, `edit-form-links-widget.png`).
+
+**Handoff:** Proceed to S.
