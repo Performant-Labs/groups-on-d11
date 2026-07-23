@@ -385,3 +385,23 @@ renamed copy of the pre-Phase-6.5 file, then deleted it). A scratch `drush php:s
 after use) confirmed the sentinel-strip URL-generation technique produces byte-identical real
 URLs to the old hardcoded literal on this site's config; `curl` against the live DDEV front page
 confirmed the rendered `<form action>`/`onchange` markup is shape-identical to the pre-fix version.
+
+## U - Phase 8 (UI walkthrough)
+
+**Decided:** Ran the full 30-item checklist against the live DDEV site (gm120-groups-on-d11) via
+raw Playwright, plus a re-run of T's own committed tests/e2e/persona-switcher.spec.ts with the
+correct BASE_URL override. All 30 items PASS, including the previously-buggy Groups-Moderate
+banner-copy case (confirmed fixed by F's Phase-5/6.5 label-unification work) and the uid-1/
+HTTP-method access-check matrix (403/403/405/302 exactly per Amendment 4).
+
+**Found (environment, not code):** the long-running gm120-groups-on-d11 container had a stale
+compiled service container predating F's Phase-6.5 diff-gate fix, causing an ArgumentCountError
+500 on every page at the start of this walkthrough. Resolved with a drush cache-rebuild - no
+source file touched. Flagging for O/S in case another agent reuses this same container.
+
+**Evidence:** handoff-U.md - full checklist table, curl status codes for the access-check matrix,
+computed focus-outline styles (2px solid #4da3ff on select/Go-button/switch-back-link), zero
+console errors and zero 500s across a full multi-persona round trip, 4/4 PASS on T's own E2E
+spec re-run against the correct base URL.
+
+**Verdict: PASS. Ready for S.**
