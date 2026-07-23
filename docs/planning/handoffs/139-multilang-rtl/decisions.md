@@ -718,3 +718,45 @@ decision, not silently patched around.
 - Advance to U-rerun (must prove clean-room state, not gm139 banner).
 
 ---
+
+## Phase 8 — U (UI walkthrough, round 2 with DDEV neutralized): PASS
+
+**Verdict**: PASS on shipped state.
+
+**Method**: temporarily commented `web/sites/default/settings.ddev.php:58`
+(the DDEV-only `system.logging = verbose` override) to reproduce what
+CI + prod see; ran full 6-scenario walkthrough; restored file byte-identical
+after; final sanity-curl confirmed banner returns on gm139 local (proving
+restore worked and confirming the DDEV-only nature).
+
+**Sanity-curl `Undefined array key` counts on /**:
+- Before neutralization: 126 (DDEV baseline).
+- After neutralization: 0 (CI/prod state — banner absent).
+- After cleanup: 136 (restored DDEV baseline, minor variance).
+
+**All 5 UI scenarios pass** on the neutralized state: badges present with
+correct lang/dir on /all-groups (ar/fr/de) and full-view group pages;
+`<html dir="rtl">` on Arabic group; English groups get no badge
+(site-default suppression); no console errors, no 404s, no banner in any
+screenshot.
+
+**Positive round-1 note closed**: theme's top nav on RTL pages DOES
+mirror (round-1's informational "LTR-anchored nav" was inaccurate).
+
+**New informational (out of scope, brief v3)**: 360px + RTL viewport has
+horizontal overflow that visually clips left-edge labels ("bout"/"Ionymous"
+truncations). Theme-responsive characteristic, not `do_group_language`.
+Same class as prior nav note.
+
+**Cleanup verified**:
+- `settings.ddev.php:58` byte-identical to original (grep confirms line
+  reads `$config['system.logging']['error_level'] = 'verbose';` — no
+  comment prefix, no residue).
+- No throwaway scripts remain in worktree.
+- `git status` diff attributable to this session: none. Pre-existing
+  `config/sync/*` artifacts are `assemble-config.sh` history unrelated.
+
+**Actions (O)**
+- Advance to S (final spec audit).
+
+---
