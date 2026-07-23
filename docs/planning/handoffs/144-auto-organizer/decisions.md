@@ -598,3 +598,14 @@ since RED).
 **Evidence to be verified:** CI cycle 2 pass on the E2E job.
 
 **Files changed:** `tests/e2e/create-group.spec.ts` only.
+
+## O — CI cycle 2 diagnosis & PARK (2026-07-23)
+
+**CI result:** Kernel PASS, Functional PASS, **E2E FAIL** again (same test).
+Different failure mode: `getByRole('heading',{level:2})` strict-mode-collides with 6 h2 elements on the seeded page (toolbar/main-menu/status-message/breadcrumb/OUR "What's next?"/footer-menu). The cycle-1 fix worked — form submitted, group created, /group/{id}/created reached, h1 + Organizer paragraph found. Failure at line 154 (unscoped h2 locator).
+
+**Root cause:** test-authorship defect — unscoped locators that pass on the U walkthrough's minimal theme but strict-collide on CI's fully-seeded site. Same defect class as cycle 1. Production markup is correct (our `<h2>What's next?</h2>` IS in the resolved-elements list). Morning fix is one-line locator scoping (probably `.do-group-membership--next-steps` container class per handoff-F.md).
+
+**Decided:** PARK per overnight contract (same test twice = STOP). Wrote `OVERNIGHT-CI-FAIL.md`. No third cycle. No merge. No force-push. Worktree left in place. `gm144-*` DDEV left running.
+
+**Evidence to be verified in morning:** confirm `.do-group-membership--next-steps` class scope is what F shipped; audit sibling unscoped locators; run E2E locally against fully-seeded site before pushing again.
