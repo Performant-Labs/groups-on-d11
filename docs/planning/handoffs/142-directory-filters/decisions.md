@@ -2,24 +2,31 @@
 
 Run slug: `142-directory-filters` · Started 2026-07-22 · Overnight autonomous mode.
 
-## O — Phase 1 (survey + brief)
+## O — Phase 1 (initial survey + brief)
+Decided: skip D; location = free-text; language = `field_group_language`; new `field_group_location`.
+Assumed: no #139 blocker.
+Evidence: issue text, existing view yml, baseline field yml.
 
-**Decided**
-- Skip D. Story adds two exposed filters to an existing view; no new UI surface — reuses the existing exposed-filter chrome (search input). Lean POC pipeline judgment.
-- Location filter = phase-1 free-text "contains" per issue text ("phase-1 free-text 'contains' filter (per MVP location strategy)"). NOT geofield-based, despite geofield being in composer. Free-text matches the acceptance bar, is simpler, and defers the map/radius UX to a later phase.
-- New field: `field_group_location` (string, cardinality 1, on group entity, community_group bundle). Add storage + instance + form/view display entries.
-- Language filter uses existing `field_group_language` (baseline field, storage on origin/main). No dependency on #139 merge.
-- Both filters exposed on `/all-groups`, combinable with the existing `search` label filter.
+## A — Phase 3 (up-front plan review, r1) → BLOCK
+Blocking:
+1. `field_group_location` collides with #125 (geofield). Rename to `field_group_location_text`.
+2. Language-field authority unresolved vs #139 (`field_group_primary_language`).
+Warns:
+3. Pin views language filter `plugin_id: language`.
+4. Kernel test must run anonymous, not UID 1.
+5. Form/view-display collision — dissolves with rename.
 
-**Assumed**
-- Existing Group access-control (archive/unlisted/private exclusion) applies through the view's base_table + status filter + Group's access grants; no filter change alters that. Verified by A/T.
-- `field_group_language` is populated on the demo groups seeded by `do_tests` / `do_showcase` fixtures — if not, T seeds it.
+Handoff: `handoff-A-plan.md`.
 
-**Evidence**
-- Issue #142 body (Acceptance + Scope).
-- `docs/groups/config/views.view.all_groups.yml` (current shape, one exposed `search` filter on label).
-- `docs/groups/config/field.storage.group.field_group_language.yml` + `field.field.group.community_group.field_group_language.yml` present on origin/main (baseline).
-- #139 worktree at `~/Projects/_worktrees/groups-multilang-rtl` adds a view **field** display for language and other multilingual scaffolding — its wiring does not conflict with adding a view **filter** on the same field.
+## O — Phase 3.5 (amend, overnight-mode adjudication)
+Decided:
+- Rename to `field_group_location_text` (accept A #1).
+- Use baseline `field_group_language` (already on origin/main). #139 issue text itself says "verify vs `do_group_language`; reuse if it already provides this" — this decision is *consistent with* #139's own reuse preference, so overnight-mode picks forward progress.
+- Pin `plugin_id: language`. Kernel test runs anonymous.
 
-**Hedged**
-- If S/A reject free-text and demand geofield distance-radius, that is a scope expansion beyond POC phase-1 per issue — escalate.
+Assumed (Open — surface in Chain Summary):
+- #139 owner accepts reusing `field_group_language` rather than introducing a parallel `field_group_primary_language`.
+
+Evidence: A handoff `handoff-A-plan.md`; #139 issue body; #125 issue body confirms geofield ownership.
+
+Hedged: if S ultimately blocks on field-name choice, we would either rename baseline (invasive) or add an alias — for POC we ship and let #139 adapt.

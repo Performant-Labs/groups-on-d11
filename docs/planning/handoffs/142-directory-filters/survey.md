@@ -1,30 +1,31 @@
-# Survey — #142 Directory location + language filters
+# Survey — #142 Directory location + language filters (v2, post-A amend)
 
 ## Files touched
-- `docs/groups/config/views.view.all_groups.yml` — add two exposed filters (language, location) and add `field_group_location` field display column.
-- `docs/groups/config/field.storage.group.field_group_location.yml` — NEW. String storage.
-- `docs/groups/config/field.field.group.community_group.field_group_location.yml` — NEW. Instance.
-- `docs/groups/config/core.entity_form_display.group.community_group.default.yml` — add `field_group_location` widget (if this file already tracks it; else edit-in-place minimal).
-- `docs/groups/config/core.entity_view_display.group.community_group.default.yml` — add field display (optional; if not shown by default, skip and only expose in view).
+- `docs/groups/config/views.view.all_groups.yml` — add two exposed filters (language via `plugin_id: language`, location via string contains) and optional field display columns.
+- `docs/groups/config/field.storage.group.field_group_location_text.yml` — NEW. String storage. (Renamed to avoid #125 geofield collision.)
+- `docs/groups/config/field.field.group.community_group.field_group_location_text.yml` — NEW. Instance.
+- `docs/groups/config/core.entity_form_display.group.community_group.default.yml` — add `field_group_location_text` widget entry (if the file exists in docs/groups/config; else skip).
 - `tests/e2e/directory-filters.spec.ts` — NEW.
-- `docs/groups/modules/do_tests/tests/src/Kernel/…` — NEW kernel test asserting view has both exposed filters and access-safety preserved.
+- `docs/groups/modules/do_tests/tests/src/Kernel/DirectoryFiltersTest.php` — NEW kernel test.
 
 ## Reuse & Analogous-Feature map
-- **Analogous feature: existing `search` exposed filter on `label`** in the same view. **RECOMMEND EXTEND:** copy that structure to add `language` (select from active languages) and `location_op` (contains, on field_group_location).
-- **Analogous field: `field_group_description`** (existing string-ish field on group.community_group). **RECOMMEND EXTEND** pattern (storage + instance yml pair) for `field_group_location`.
-- **Analogous kernel test: any existing view kernel test under `do_tests/tests/src/Kernel/`** — mirror shape (load view, assert filters present, run and assert results).
-- **Analogous e2e: `tests/e2e/directory-cards.spec.ts`** (already exercises `/all-groups`) — same nav/setup, add filter interactions.
+- **Analogous feature: existing `search` exposed filter on `label`** in the view. EXTEND: add `language` (`plugin_id: language`) and `location` (string, operator `contains`, on `field_group_location_text`).
+- **Analogous field: `field_group_description`** (existing string field on group.community_group). EXTEND yml pair pattern.
+- **Analogous kernel test:** any view kernel test under `do_tests/tests/src/Kernel/`. Install modules + config, seed groups, switch to anonymous user, execute view, assert.
+- **Analogous e2e: `tests/e2e/directory-cards.spec.ts`** already navigates `/all-groups`.
 
 ## Downstream forward-compat
-- SC-5 #124 and SC-6 #125 also edit `views.view.all_groups.yml` per issue body. Merge-order note: this story adds filter blocks + field display; it does NOT alter existing style/format/row plugin. Additive within `filters:` and `fields:` sections. Non-conflicting if others land first (they add sorts / display variants).
+- **#125 SC-6 (map view)** owns `field_group_location` (geofield) — resolved by renaming to `field_group_location_text`.
+- **#139 MC-4 (multilingual baseline)** owns `field_group_primary_language`. Baseline already has `field_group_language`. #142 uses `field_group_language`; #139 must reconcile.
+- **#124 SC-5 (variant switcher)** also edits `views.view.all_groups.yml` — additive within `filters:`/`fields:`.
 
 ## Key findings
 - `field_group_language` storage + instance already on origin/main; no #139 blocker.
-- Location per issue = free-text; use string field, filter `operator: contains`, `expose: true`.
-- Group access grants handle archived/unlisted/private exclusion — filter additions don't touch access.
-- Existing view already has `status = 1` filter; keep it.
+- Location = free-text per issue phase-1; string field, `contains`.
+- Group access grants handle exclusion; kernel test must run as anonymous.
+- Views language filter plugin is `plugin_id: language`.
 
-## Non-goals for this story
-- Map/radius/distance UX (phase-2, out of MVP).
+## Non-goals
+- Map/radius/distance UX (#125).
 - Geocoding.
-- Language-negotiation changes (that's #139).
+- Language-negotiation changes (#139).
