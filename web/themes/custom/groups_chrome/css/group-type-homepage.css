@@ -1,0 +1,103 @@
+/**
+ * Groups Chrome — group-type homepage lead section (#122 / SC-3).
+ *
+ * Styles the OPTIONAL `.gc-group-lead` preview block rendered by
+ * group--full.html.twig between the group header and the tab bar, ONLY when
+ * groups_chrome_preprocess_group() resolves a non-empty gc_group.lead_items
+ * (events-first / discussion-first / docs-first). Every value is drawn from
+ * tokens.css — no hard-coded colours/spacing, matching every other component
+ * file in this theme. Loaded only when the lead section actually renders via
+ * the `groups_chrome/group_type_homepage` library, attached inside the same
+ * preprocess conditional that populates lead_items (so an unmapped/empty-type
+ * group's CSS payload stays byte-identical to before this story).
+ */
+
+.gc-group-lead {
+  margin: var(--gc-space-lg) 0 0;
+  padding: var(--gc-space-md) 0;
+  border-top: 1px solid var(--gc-color-border);
+  border-bottom: 1px solid var(--gc-color-border);
+}
+
+.gc-group-lead__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--gc-space-xs);
+  margin: 0 0 var(--gc-space-sm);
+  color: var(--gc-color-text);
+  font-size: var(--gc-font-size-xl);
+  font-weight: var(--gc-font-weight-semibold);
+  line-height: var(--gc-leading-tight);
+}
+
+/* Thin BEM override of the shared `.do-chrome-info` trigger: spacing only.
+ * A's up-front review (handoff-A.md Q2) confirmed the existing
+ * `.do-chrome-info` colour (#0067b8 on this section's #ffffff background,
+ * ≈5.36:1) already satisfies WCAG 2.2 AA — no colour/contrast override here. */
+.gc-group-lead__help {
+  margin-left: var(--gc-space-3xs);
+}
+
+.gc-group-lead__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gc-space-xs);
+  margin: 0 0 var(--gc-space-sm);
+  padding: 0;
+  list-style: none;
+}
+
+.gc-group-lead__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--gc-space-xs);
+}
+
+.gc-group-lead__link {
+  color: var(--gc-color-primary-700);
+  font-size: var(--gc-font-size-md);
+  font-weight: var(--gc-font-weight-medium);
+  text-decoration: none;
+}
+
+.gc-group-lead__link:hover {
+  text-decoration: underline;
+}
+
+.gc-group-lead__link:focus-visible {
+  outline: 2px solid var(--gc-color-primary);
+  outline-offset: 2px;
+}
+
+.gc-group-lead__meta {
+  color: var(--gc-color-text-muted);
+  font-size: var(--gc-font-size-xs);
+}
+
+.gc-group-lead__see-all {
+  display: inline-flex;
+  color: var(--gc-color-primary-700);
+  font-size: var(--gc-font-size-sm);
+  font-weight: var(--gc-font-weight-semibold);
+  text-decoration: none;
+}
+
+.gc-group-lead__see-all:hover {
+  text-decoration: underline;
+}
+
+.gc-group-lead__see-all:focus-visible {
+  outline: 2px solid var(--gc-color-primary);
+  outline-offset: 2px;
+}
+
+/* Small screens: stack meta under the title so long dates/relative-time
+ * strings never force a line to overflow (mirrors group-page.css's own
+ * 600px breakpoint). */
+@media (max-width: 600px) {
+  .gc-group-lead__item {
+    flex-direction: column;
+    gap: var(--gc-space-3xs);
+  }
+}

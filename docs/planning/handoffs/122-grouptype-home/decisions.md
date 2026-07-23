@@ -187,3 +187,88 @@ Append-only. One entry per phase. O writes the closing Chain Summary.
   create call anywhere — the Thunder Distribution coverage gap above).
 
 ---
+
+## F — Phase 5 (GREEN)
+
+**Decided:**
+- Extended `groups_chrome_preprocess_group()` in place: derives `gc_group.leading_section`
+  from `field_group_type`'s term label via one new private helper
+  (`_groups_chrome_leading_section_for_type()`, the single term→behavior mapping point),
+  queries top-3 nodes via `$group->getRelationships('group_node:{bundle}')` (mirroring the
+  neighboring last-activity block, per A's binding guidance), sorts events soonest-first by
+  `field_date_of_event` (the REAL field name — corrected A's own hedged
+  `field_event_date` guess after reading
+  `docs/groups/config/field.field.node.event.field_date_of_event.yml` directly) and
+  discussion/docs newest-first by `created`, and attaches the new
+  `groups_chrome/group_type_homepage` library + full cache metadata ONLY inside the
+  non-empty-`lead_items` branch.
+- Added the ONE new hook, `groups_chrome_theme_suggestions_group_alter()`, exactly as
+  pre-authorized by the brief/survey/A. No parallel preprocess, no parallel `gc_lead` twin.
+- Moved the tab `<nav>` out of `<header class="gc-group-header">` to be a true sibling of the
+  new `.gc-group-lead` section, per the wireframe's explicit "not nested inside the header"
+  requirement (§2) — verified CSS-safe (no parent-relative selectors) and DOM-verified
+  non-regressing on all 4 exemplar/fallback pages.
+- **Thunder-docs seed decision: took option (a)** per T's own stated preference — added 3
+  documentation nodes to Thunder Distribution via a new "Step 740d" block in
+  `docs/groups/scripts/step_700_demo_data.php`. This uncovered a genuine Group-4.0.x
+  contrib-library gap: `Group::addRelationship()` throws an uncaught `AssertionError` for the
+  `group_node:documentation` plugin on `community_group` specifically, because
+  `GroupRelationshipTypeStorage::getRelationshipTypeId()`'s naive id re-derivation
+  (`{group_type}-{plugin_id}` with `:`→`-`) produces a 40-char string exceeding
+  `EntityTypeInterface::BUNDLE_MAX_LENGTH` (32) — `forum` and `event` both happen to compute
+  to exactly 32 chars and so never hit this; `documentation` does. Worked around by resolving
+  the actual (silently-truncated) relationship-type entity via `getPluginId()` matching
+  instead of recomputing the id string, then creating the `group_relationship` entity
+  directly. Documented inline in the seed script; flagged for A's awareness as a reusable
+  gotcha for any future long-bundle-name `group_node` relationship on this group type.
+- Verified the theme-suggestion mechanism end-to-end (not just hook-string-correct) via a
+  temporary, then-removed HTML marker in one suggestion twig — confirmed it appears only on
+  the correct exemplar's page and nowhere else, then confirmed its removal left no trace.
+
+**Assumed (needs verification in T-green):**
+- None beyond what A already resolved — every open question from D/A was answered definitively
+  before F started.
+
+**Hedged:**
+- **One test now needs T's update, exactly as T's own Phase-4 handoff anticipated:** the
+  Thunder Distribution "empty-state" test (line ~168 of
+  `tests/e2e/group-type-homepage.spec.ts`) asserted `.gc-group-lead` count 0, which was TRUE
+  only because no documentation content existed. Having taken option (a) (real seed content),
+  this assertion is now FALSE — a real docs-first section renders (verified: 3 items, correct
+  heading/links/see-all). F did NOT edit this test (contract: F writes no tests); flagged in
+  `handoff-F.md` "Tests that look wrong (for T)" for T to replace with a positive assertion.
+- **Environment-state finding, not a code defect:** repeated full-E2E-suite runs against the
+  one shared, long-lived `gm122-groups-on-d11` DDEV instance accumulate throwaway
+  test-fixture groups from OTHER specs (`phase1-4`, `showcase`, `manage-members`), which by my
+  3rd full run pushed the 8 original seed groups past `/all-groups`' first pager page (25
+  items, `created DESC` sort). This broke `directory-cards.spec.ts`'s own first test (its own
+  docblock assumes exactly 8 groups, no pagination-awareness) AND
+  `group-type-homepage.spec.ts`'s `groupUrlByLabel()` helper (same page-1-only assumption).
+  Verified via DIRECT URL access (bypassing the directory entirely) that the underlying
+  feature, the `all_groups` view, and `field_group_type` data are all completely unaffected —
+  this is a shared-instance test-data-accumulation artifact that would not occur in real CI
+  (fresh install + fresh seed every run). Flagged for T/O/U with two suggested remediations
+  (use `?search=<label>` in `groupUrlByLabel()`, or start T-green from a fresh seed).
+
+**Evidence:**
+- PHP lint clean on all 3 modified/created PHP-family files.
+- PHPUnit Unit: 11/11 GREEN (`HelpTextTest`, incl. the new `group_type.homepage_adapts` key
+  assertion, flipped from RED).
+- PHPUnit Kernel: 100/100 GREEN across all custom modules (0 Failures, 0 Errors — matches the
+  pre-implementation baseline I captured before touching any production file).
+- phpcs: delta-vs-baseline analysis on all 3 modified files (see `handoff-F.md` Tier-1
+  section for the full table) — net new debt is either zero, negative, or an unavoidable
+  match of each file's own pre-existing house style; no CI job runs phpcs on the seed script.
+- Twig/render smoke test: all 4 exemplar/fallback pages HTTP 200, 0 error markers.
+- Theme-suggestion resolution: proven end-to-end via direct hook invocation (correct
+  suggestion string per exemplar) AND a temporary render-marker experiment (suggestion
+  target twig genuinely selected, not silently falling back).
+- E2E (`group-type-homepage.spec.ts` alone): 9/10 GREEN (the 1 failure is the known,
+  T-flagged stale-premise test).
+- E2E (full suite, first clean run before repeated-run data accumulation): 56/58 GREEN, 1
+  pre-existing skip (`manage-members.spec.ts`, unrelated to #122), 1 known-flagged failure.
+- Direct-URL feature verification (bypassing the later-polluted directory listing): all 4
+  exemplar/fallback pages render correctly with the expected item counts, headings, and tab
+  order.
+
+---

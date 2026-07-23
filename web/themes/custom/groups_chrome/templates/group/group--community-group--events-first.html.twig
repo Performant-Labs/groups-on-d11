@@ -1,0 +1,22 @@
+{#
+/**
+ * @file
+ * Suggestion-target passthrough for events-first group pages.  (#122 / SC-3)
+ *
+ * Resolved when groups_chrome_theme_suggestions_group_alter() appends
+ * `group__community_group__events_first` (field_group_type = "Event
+ * planning"). This template carries NO markup of its own — the three
+ * suggestion variants (events/discussion/docs-first) differ ONLY in
+ * preprocess-computed DATA (gc_group.lead_*), never in per-variant markup, so
+ * duplicating the ~80 lines of header/tabs/lead-section markup three times
+ * would triplicate a single source of truth for zero visual gain
+ * (wireframe.md §4, decision (b)). The suggestion mechanism itself is the
+ * thing this story's AC requires to exist — this file (and its two
+ * siblings) is what makes that mechanism resolve to an actual template
+ * instead of silently falling back to group--full.html.twig.
+ *
+ * @see groups_chrome_theme_suggestions_group_alter()
+ * @see groups_chrome_preprocess_group()
+ */
+#}
+{% include '@groups_chrome/group/group--full.html.twig' %}

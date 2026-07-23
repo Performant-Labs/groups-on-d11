@@ -1,0 +1,18 @@
+{#
+/**
+ * @file
+ * Suggestion-target passthrough for discussion-first group pages.  (#122 / SC-3)
+ *
+ * Resolved when groups_chrome_theme_suggestions_group_alter() appends
+ * `group__community_group__discussion_first` (field_group_type = "Working
+ * group"). This template carries NO markup of its own — see the sibling
+ * events-first template's file comment for the full rationale (wireframe.md
+ * §4, decision (b)): all three suggestion variants pass through to
+ * group--full.html.twig, which renders the lead section from
+ * gc_group.lead_* variables computed entirely in the preprocess.
+ *
+ * @see groups_chrome_theme_suggestions_group_alter()
+ * @see groups_chrome_preprocess_group()
+ */
+#}
+{% include '@groups_chrome/group/group--full.html.twig' %}

@@ -24,6 +24,19 @@
  * About tab bar wired to the group module's existing per-group view routes. All
  * derived in `group--full.html.twig`'s variables; NO routes or schema are added.
  *
+ * Story #122 (SC-3): extends groups_chrome_preprocess_group() to derive an
+ * optional "leading section" (events / discussion / docs) from field_group_type
+ * and populate `gc_group.lead_*` variables that `group--full.html.twig` renders
+ * as a `.gc-group-lead` block above the tab bar. Adds the ONE new theme-
+ * suggestion hook the story explicitly asks for
+ * (groups_chrome_theme_suggestions_group_alter()) so the suggestion mechanism
+ * exists even though the three suggestion-target templates are near-empty
+ * passthroughs to group--full.html.twig (wireframe.md §4 — no per-variant
+ * markup, only per-variant DATA, computed here). Still NO routes or schema
+ * are added; content is read via the same $group->getRelationships() mechanism
+ * the neighboring last-activity block already uses (mirrors, doesn't
+ * parallel-path).
+ *
  * Demo-only, NO schema changes: all data is READ from existing entities and the
  * comment statistics table — no fields or config are added.
  */
@@ -31,10 +44,23 @@
 declare(strict_types=1);
 
 use Drupal\Component\Utility\Unicode;
+use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Template\Attribute;
 use Drupal\Core\Url;
+use Drupal\do_chrome\HelpText;
 use Drupal\group\Entity\GroupInterface;
 use Drupal\node\NodeInterface;
+
+/**
+ * Max lead-section items rendered per group (#122, SC-3).
+ *
+ * Named constant per wireframe.md §2 so the number is tunable in ONE place.
+ * 3 matches the avatar-row/tab-teaser "preview, not full list" idiom already
+ * on this page and fits the existing 600px mobile breakpoint without wrapping.
+ */
+if (!defined('GROUPS_CHROME_LEAD_ITEM_LIMIT')) {
+  define('GROUPS_CHROME_LEAD_ITEM_LIMIT', 3);
+}
 
 /**
  * Implements hook_preprocess_HOOK() for node templates.
@@ -181,7 +207,84 @@ function groups_chrome_preprocess_region__footer_top(array &$variables): void {
 }
 
 /**
- * Implements hook_preprocess_HOOK() for group templates.  (#85 / CH-A3)
+ * Maps a `field_group_type` term label to a lead-section BEHAVIOR key.  (#122)
+ *
+ * The mapping lives in this ONE place so a future term rename in the
+ * group_type vocabulary doesn't break anything downstream — theme
+ * suggestions and CSS/template names are keyed on the behavior
+ * ('events' / 'discussion' / 'docs'), never on the term slug/label directly
+ * (survey.md's "Downstream (forward-compat check)" note).
+ *
+ * @param string|null $type_label
+ *   The group's field_group_type term label (or NULL if unset/unmapped).
+ *
+ * @return string|null
+ *   'events' | 'discussion' | 'docs', or NULL when the type has no mapped
+ *   leading behavior (Geographical, Archive, or unset — the fallback case).
+ */
+function _groups_chrome_leading_section_for_type(?string $type_label): ?string {
+  return match ($type_label) {
+    'Event planning' => 'events',
+    'Working group' => 'discussion',
+    'Distribution' => 'docs',
+    default => NULL,
+  };
+}
+
+/**
+ * Implements hook_theme_suggestions_HOOK_alter() for group templates.  (#122)
+ *
+ * Appends a behavior-based suggestion (`group__community_group__events_first`
+ * etc.) when the group's `field_group_type` maps to a leading section AND the
+ * view mode is `full` (the canonical /group/{id} page) — the mechanism the
+ * story's AC explicitly requires. The suggestion targets a near-empty
+ * passthrough template (wireframe.md §4); the actual lead-section markup is
+ * produced by `group--full.html.twig` regardless of which suggestion Drupal
+ * resolves, since groups_chrome_preprocess_group() computes ALL of the
+ * variant-specific data (this function only decides WHICH extra template
+ * name to try — it cannot itself run preprocessing, so the mapping is
+ * re-derived here directly from field_group_type rather than reading
+ * `gc_group`, which does not exist yet at suggestions time).
+ *
+ * Suggestion strings use underscores between segments
+ * (`events_first`); Drupal's suggestion-to-filename resolution converts
+ * `__`/`_` to `-`, landing at `group--community-group--events-first.html.twig`
+ * (handoff-A.md "Theme suggestion name shape — CONFIRMED").
+ */
+function groups_chrome_theme_suggestions_group_alter(array &$suggestions, array $variables): void {
+  if (($variables['elements']['#view_mode'] ?? '') !== 'full') {
+    return;
+  }
+
+  $group = $variables['elements']['#group'] ?? NULL;
+  if (!$group instanceof GroupInterface) {
+    return;
+  }
+
+  $type_label = NULL;
+  if ($group->hasField('field_group_type') && !$group->get('field_group_type')->isEmpty()) {
+    $term = $group->get('field_group_type')->entity;
+    if ($term) {
+      $type_label = $term->label();
+    }
+  }
+
+  $leading_section = _groups_chrome_leading_section_for_type($type_label);
+  if ($leading_section === NULL) {
+    return;
+  }
+
+  $behavior_suggestion = match ($leading_section) {
+    'events' => 'events_first',
+    'discussion' => 'discussion_first',
+    'docs' => 'docs_first',
+  };
+
+  $suggestions[] = 'group__' . $group->bundle() . '__' . $behavior_suggestion;
+}
+
+/**
+ * Implements hook_preprocess_HOOK() for group templates.  (#85 / CH-A3, #122)
  *
  * Enriches ONLY the full-page render of a group (the canonical /group/{id}
  * route uses the `full` view mode) with the community-page furniture consumed
@@ -200,6 +303,12 @@ function groups_chrome_preprocess_region__footer_top(array &$variables): void {
  *   - Stream / Events / Members / About tabs ← the group module's existing
  *     per-group view paths (group/{id}/stream|events|members) + the canonical
  *     page for About. No local-task/menu config is invented.
+ *   - Lead section (#122, SC-3)       ← field_group_type maps to a leading
+ *     behavior (events/discussion/docs); top-3 nodes are read via
+ *     $group->getRelationships('group_node:{bundle}'), mirroring the
+ *     last-activity block below. Empty when the group's type doesn't map, or
+ *     when it maps but zero qualifying/accessible nodes exist (silent
+ *     empty-state — wireframe.md §2/§7).
  */
 function groups_chrome_preprocess_group(array &$variables): void {
   // Only dress the full-page render; leave teasers and other view modes alone.
@@ -230,6 +339,14 @@ function groups_chrome_preprocess_group(array &$variables): void {
     'is_member' => FALSE,
     'action' => NULL,
     'tabs' => [],
+    // --- #122 (SC-3) lead-section defaults ---------------------------------
+    'leading_section' => NULL,
+    'lead_label' => NULL,
+    'lead_items' => [],
+    'lead_help_key' => NULL,
+    'lead_help_copy' => NULL,
+    'lead_see_all_url' => NULL,
+    'lead_see_all_text' => NULL,
   ];
 
   // --- Group-type badge (taxonomy term referenced by field_group_type) ------
@@ -350,6 +467,172 @@ function groups_chrome_preprocess_group(array &$variables): void {
   // About's active-by-default semantics above.
   $order = ['stream', 'events', 'members', 'about'];
   usort($gc['tabs'], static fn(array $a, array $b) => array_search($a['key'], $order, TRUE) <=> array_search($b['key'], $order, TRUE));
+
+  // --- Lead section (#122, SC-3): events / discussion / docs ---------------
+  // The events tab URL is already built above (in $gc['tabs']); reuse it
+  // verbatim for the events "See all" link rather than re-deriving it.
+  $gc['leading_section'] = _groups_chrome_leading_section_for_type($gc['type_label']);
+
+  if ($gc['leading_section'] !== NULL) {
+    $plugin_suffix = match ($gc['leading_section']) {
+      'events' => 'event',
+      'discussion' => 'forum',
+      'docs' => 'documentation',
+    };
+
+    // Read the group's nodes of the resolved bundle via the SAME
+    // getRelationships() mechanism the last-activity block below already
+    // uses (handoff-A.md "Node-query mechanism" — mirror, don't parallel-path
+    // with a fresh entityQuery or a rendered View).
+    $candidate_nodes = [];
+    try {
+      foreach ($group->getRelationships('group_node:' . $plugin_suffix) as $relationship) {
+        $node = $relationship->getEntity();
+        if (!$node instanceof NodeInterface || !$node->isPublished()) {
+          continue;
+        }
+        // Defensive per-node access check — a curated "top 3" must not leak an
+        // inaccessible node's title (handoff-A.md "Access").
+        if (!$node->access('view', $current_user)) {
+          continue;
+        }
+        $candidate_nodes[] = $node;
+      }
+    }
+    catch (\Exception $e) {
+      // Group relationship storage unavailable — leave candidate list empty;
+      // the section silently does not render (same as the empty-state path).
+      $candidate_nodes = [];
+    }
+
+    // --- Sort ---------------------------------------------------------------
+    // Events: prefer the real event date (field_date_of_event, a required
+    // `datetime` field on node.type.event — confirmed via
+    // docs/groups/config/field.field.node.event.field_date_of_event.yml, NOT
+    // the `field_event_date` name hedged in handoff-A.md's illustrative
+    // snippet), soonest-first. Nodes with no parseable date fall back to
+    // `created` DESC alongside discussion/docs, so a data gap degrades
+    // gracefully rather than fatal-ing the sort.
+    // Discussion/docs: newest `created` first (wireframe.md's stated order).
+    if ($gc['leading_section'] === 'events') {
+      usort($candidate_nodes, static function (NodeInterface $a, NodeInterface $b): int {
+        $date_a = $a->hasField('field_date_of_event') && !$a->get('field_date_of_event')->isEmpty()
+          ? strtotime((string) $a->get('field_date_of_event')->value)
+          : FALSE;
+        $date_b = $b->hasField('field_date_of_event') && !$b->get('field_date_of_event')->isEmpty()
+          ? strtotime((string) $b->get('field_date_of_event')->value)
+          : FALSE;
+        // Both present: soonest first (ascending timestamp).
+        if ($date_a !== FALSE && $date_b !== FALSE) {
+          return $date_a <=> $date_b;
+        }
+        // One missing: dated events sort ahead of undated ones.
+        if ($date_a !== FALSE) {
+          return -1;
+        }
+        if ($date_b !== FALSE) {
+          return 1;
+        }
+        // Neither dated: fall back to newest-created first.
+        return $b->getCreatedTime() <=> $a->getCreatedTime();
+      });
+    }
+    else {
+      usort($candidate_nodes, static fn(NodeInterface $a, NodeInterface $b): int
+        => $b->getCreatedTime() <=> $a->getCreatedTime());
+    }
+
+    $top_nodes = array_slice($candidate_nodes, 0, GROUPS_CHROME_LEAD_ITEM_LIMIT);
+
+    // --- Build lead_items + cache metadata -----------------------------------
+    // Only when at least one node survives the access/publish filter do we
+    // populate lead_items, attach the library, and set help/see-all copy —
+    // the empty-state contract (wireframe.md §2/§7) requires the WHOLE
+    // section to stay absent (not an empty box) when nothing qualifies.
+    if (!empty($top_nodes)) {
+      /** @var \Drupal\Core\Datetime\DateFormatterInterface $date_formatter */
+      $date_formatter = \Drupal::service('date.formatter');
+
+      $cache = new CacheableMetadata();
+      $cache->addCacheableDependency($group);
+      $cache->addCacheTags(['node_list:' . $plugin_suffix]);
+      $cache->addCacheContexts(['user.node_grants:view', 'user.group_permissions']);
+
+      foreach ($top_nodes as $node) {
+        $cache->addCacheableDependency($node);
+
+        $meta = NULL;
+        if ($gc['leading_section'] === 'events'
+          && $node->hasField('field_date_of_event')
+          && !$node->get('field_date_of_event')->isEmpty()
+        ) {
+          $timestamp = strtotime((string) $node->get('field_date_of_event')->value);
+          if ($timestamp !== FALSE) {
+            $meta = $date_formatter->format($timestamp, 'medium');
+          }
+        }
+        elseif ($gc['leading_section'] !== 'events') {
+          $meta = t('@time ago', [
+            '@time' => $date_formatter->formatTimeDiffSince($node->getCreatedTime()),
+          ]);
+        }
+
+        $node_url = NULL;
+        try {
+          $node_url = $node->toUrl()->toString();
+        }
+        catch (\Exception $e) {
+          // Leave URL NULL; skip this item rather than render a dead link.
+          continue;
+        }
+
+        $gc['lead_items'][] = [
+          'title' => $node->label(),
+          'url' => $node_url,
+          'meta' => $meta,
+        ];
+      }
+
+      if (!empty($gc['lead_items'])) {
+        // Attach the lead-section library ONLY here — inside the same
+        // conditional that populates a non-empty lead_items array — so an
+        // unmapped/empty page's CSS payload stays byte-identical to before
+        // this story (wireframe.md §5, the AC-critical fallback wiring).
+        $variables['#attached']['library'][] = 'groups_chrome/group_type_homepage';
+
+        $gc['lead_label'] = match ($gc['leading_section']) {
+          'events' => t('Upcoming events'),
+          'discussion' => t('Recent discussions'),
+          'docs' => t('Documentation'),
+        };
+        $gc['lead_help_key'] = 'group_type.homepage_adapts';
+        $gc['lead_help_copy'] = class_exists(HelpText::class)
+          ? HelpText::get('group_type.homepage_adapts')
+          : '';
+
+        // "See all" target — reuses existing per-group view paths only, no
+        // new routes (handoff-A.md Q1 resolution: group_nodes' exposed
+        // bundle filter, NOT the unfiltered stream).
+        [$gc['lead_see_all_url'], $gc['lead_see_all_text']] = match ($gc['leading_section']) {
+          'events' => [$canonical . '/events', t('See all events')],
+          'discussion' => [$canonical . '/nodes?type=forum', t('See all discussions')],
+          'docs' => [$canonical . '/nodes?type=documentation', t('See all documentation')],
+        };
+
+        // Merge the accumulated cache metadata into the render array's own
+        // #cache bucket (handoff-A.md "Cache metadata contract" — mandatory
+        // for this NEW render; the pre-existing last-activity block below is
+        // a latent gap this story does not fix drive-by).
+        $cache->applyTo($variables);
+      }
+      else {
+        // Every candidate lost its URL — treat as empty-state (no items to
+        // show); still merge cache metadata so the page still varies
+        // correctly with future group/node changes.
+        $cache->applyTo($variables);
+      }
+    }
+  }
 
   $variables['gc_group'] = $gc;
   $variables['gc_group_attributes'] = new Attribute();

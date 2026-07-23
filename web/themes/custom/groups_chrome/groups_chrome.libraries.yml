@@ -59,3 +59,17 @@ directory:
       css/directory.css: {}
   dependencies:
     - groups_chrome/global
+
+# Group-type homepage lead section (#122 / SC-3). Attached ONLY when
+# groups_chrome_preprocess_group() sets a non-empty gc_group.lead_items — an
+# unmapped/untyped group (or a mapped type with zero qualifying/accessible
+# content) attaches nothing new, so the fallback page's CSS payload stays
+# byte-identical to before this story (wireframe.md §5's AC-critical wiring).
+# Depends on `global` for the design tokens the component CSS consumes.
+group_type_homepage:
+  version: 1.x
+  css:
+    theme:
+      css/group-type-homepage.css: {}
+  dependencies:
+    - groups_chrome/global
