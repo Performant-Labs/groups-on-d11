@@ -4,68 +4,128 @@ Branch: `139-multilang-rtl` · Worktree: `~/Projects/_worktrees/groups-multilang
 Spec (re-read every phase): `gh issue view 139 --repo Performant-Labs/groups-on-d11`
 Review rigor: **none**
 
+Amendment history: v2 after A-BLOCK — resolved Finding #1 (`/all-groups`
+teaser gap), rolled in advisories #4 (null-language guard), #5 (step_760
+new-group creation pattern), #6 (Kernel test uses `type: language`).
+
 ## Objective
 
 Deliver the MVP multilingual baseline for the demo:
 1. Confirm the primary-language field is present on `community_group` and
-   surface it as a language indicator on Full + teaser view modes.
-2. Seed one RTL-primary group so RTL rendering demos end-to-end.
-3. Prove RTL correctness with automated tests (Kernel + Playwright).
+   surface it as a language indicator on the group's Full view mode via
+   `hook_entity_view`.
+2. Expose the language on the `/all-groups` directory listing via a Views
+   field on `all_groups` (the view uses `row: fields`, not entity teasers,
+   so an entity-level teaser hook cannot reach it).
+3. Seed one RTL-primary group so RTL rendering demos end-to-end.
+4. Prove RTL correctness with automated tests (Kernel + Playwright).
 
-## Non-negotiables from survey
+## Non-negotiables from survey + A review
 
 - **Reuse `field_group_language`**. Do NOT create
-  `field_group_primary_language`. See `survey.md` §"Field — REUSE".
+  `field_group_primary_language`. See `survey.md` §"Field — REUSE" and
+  A's PASS-on-reuse note (unjustified parallel path would BLOCK at A-dup).
 - **Never** commit `web/modules/custom/` or `config/sync/`. Source-only in
   `docs/groups/...`.
 - Do NOT touch the group-add form display — `field_group_language` is
   edit-form-only (guarded by `do_tests` functional test).
 - Use `\Drupal::languageManager()->getLanguage($langcode)->getDirection()`
-  — never hardcode `dir="rtl"`.
-- `step_760.php` edits must be append-only and idempotent (`loadByProperties`
-  guard + skip-if-exists pattern already established in that file).
-- Kernel test lives in `do_group_language/tests/src/Kernel/`; follows the
-  pattern of `GroupLanguageNegotiationTest.php`.
+  — never hardcode `dir="rtl"`. If `getLanguage($langcode)` returns NULL
+  (bogus/uninstalled langcode), suppress the indicator entirely — same
+  behavior as empty/`und`/`zxx`.
+- `step_760.php` edits must be idempotent. The Arabic-primary group is a
+  **new pattern for this file** — step_760 today only *sets language on
+  pre-existing groups*, it does NOT create them. Guard the new creation
+  with `loadByProperties(['label' => 'Drupal العربية'])` + skip-if-exists,
+  then set `field_group_language = 'ar'` + save, then seed 1–2 Arabic
+  forum topics following the fr/de topic pattern already in the file.
+- Kernel test lives in `do_group_language/tests/src/Kernel/`; declares
+  `field_group_language` as **`type: language`** (production shape), NOT
+  `type: string` (which is what `GroupLanguageNegotiationTest` uses for
+  narrower purposes). The render pipeline behaves differently for
+  `language`-typed fields.
 
 ## Deliverables (disjoint files)
 
 - **NEW** `docs/groups/modules/do_group_language/do_group_language.module`
   — `hook_entity_view($build, $entity, $display, $view_mode)` on `group`
-  entities, view modes `full` + `teaser`. Emit render array element
+  entities, view mode `full` only. Emit render array element
   `language_indicator` containing a `<span class="do-group-language"
   lang="{code}" dir="{direction}">{native_name}</span>`. Attach
-  `do_group_language/indicator` library. No output when the field is empty
-  or `und`/`zxx`.
+  `do_group_language/indicator` library. No output when:
+    - the field is empty
+    - the langcode is `und` / `zxx`
+    - `\Drupal::languageManager()->getLanguage($langcode)` returns NULL
+      (bogus/uninstalled langcode)
+
+  (The `teaser` view mode is intentionally NOT targeted: `all_groups`
+  renders via `row: fields`, so a teaser hook would not fire on the
+  directory. The directory gets the indicator via a Views field instead
+  — see next deliverable.)
+
 - **NEW** `docs/groups/modules/do_group_language/do_group_language.libraries.yml`
   — one library `indicator` pointing at the new CSS.
+
 - **NEW** `docs/groups/modules/do_group_language/css/group-language.css`
-  — `.do-group-language` base styles (small pill or badge, uppercase
-  langcode or native name). Include an `[dir="rtl"] .do-group-language`
-  rule for any margin/padding flips. Keep it minimal — the RTL correctness
-  comes from `dir` propagation, CSS just needs to not break under it.
-- **APPEND** `docs/groups/scripts/step_760.php` — add one Arabic-primary
-  community group (label: `Drupal العربية`, langcode `ar`) with 1–2 Arabic
-  forum posts. Follow the exact idempotency pattern the file already uses.
+  — `.do-group-language` base styles (small pill or badge, showing the
+  native language name). Include an `[dir="rtl"] .do-group-language`
+  rule for any margin/padding flips. Keep it minimal — the RTL
+  correctness comes from `dir` propagation; CSS just needs to not break
+  under it.
+
+- **APPEND** `docs/groups/config/views.view.all_groups.yml` — add
+  `field_group_language` to `display.default.display_options.fields`
+  (weight after `field_group_description`, before `created`). Use
+  `plugin_id: field`, `type: language`, `label: Language`, no rewrite.
+  This is the row that MC-3 will attach its filter to. Add
+  `group__field_group_language` to `dependencies.config`.
+
+- **APPEND** `docs/groups/scripts/step_760.php` — add an Arabic-primary
+  community group ("Drupal العربية", langcode `ar`) with 1–2 Arabic
+  forum topics. Idempotency contract for the new pattern:
+    - `loadByProperties(['label' => 'Drupal العربية'])`; if empty,
+      create via `$group_storage->create(['type' => 'community_group',
+      'label' => 'Drupal العربية', ...])` and `->save()`. If found,
+      reuse.
+    - Unconditionally `->set('field_group_language', 'ar')->save()`
+      (idempotent).
+    - For each Arabic topic: `loadByProperties(['title' => $title])`
+      skip-if-exists (matches fr/de pattern), create with `langcode
+      => 'ar'`, `addRelationship($node, 'group_node:forum')`.
+    - Extend the verification loop at the bottom to include `ar`.
   Do NOT alter existing fr/de blocks.
+
 - **NEW** `docs/groups/modules/do_group_language/tests/src/Kernel/GroupLanguageIndicatorTest.php`
-  — Kernel test: build the `group` entity via the module's view builder
-  for view_mode `full` and `teaser`; assert the rendered output contains
-  `class="do-group-language"`, `lang="ar"`, `dir="rtl"` for an ar-primary
-  group, and `lang="fr"`, `dir="ltr"` for a fr-primary group. Assert
-  NO indicator element when the field is empty.
+  — Kernel test. Declare `field_group_language` as **`type: language`**
+  (production shape). Build the `group` entity via
+  `entityTypeManager->getViewBuilder('group')->view($group, 'full')`
+  and render it; assert:
+    - for an `ar`-primary group: output contains `class="do-group-language"`,
+      `lang="ar"`, `dir="rtl"`
+    - for a `fr`-primary group: `lang="fr"`, `dir="ltr"`
+    - for a group with the field empty: NO `do-group-language` element in
+      the output
+    - for a group with a bogus/uninstalled langcode: NO
+      `do-group-language` element (null-language guard)
+
 - **NEW** `tests/e2e/group-language.spec.ts` — Playwright:
-  - anonymous visits the seeded Arabic group's canonical path; expect
-    `html[dir="rtl"]` (via `language-group` negotiation) AND
-    `.do-group-language[lang="ar"]` visible on the page.
-  - anonymous visits the seeded Drupal France group; expect
-    `html[dir="ltr"]` and `.do-group-language[lang="fr"]` visible.
-  - the directory (`/all-groups`) shows the Arabic group's teaser with the
-    `.do-group-language[lang="ar"]` indicator (teaser render assertion).
+    - anonymous visits the seeded Arabic group's canonical path; expect
+      `html[dir="rtl"]` (via `language-group` negotiation) AND
+      `.do-group-language[lang="ar"]` visible on the page.
+    - anonymous visits the seeded Drupal France group; expect
+      `html[dir="ltr"]` and `.do-group-language[lang="fr"]` visible.
+    - anonymous visits `/all-groups`; expect the Views-rendered
+      Language column to show `ar` (native `العربية` or the langcode
+      per Views language-field formatter default) for the Arabic
+      group's row, and `fr` for the France row. Assert against the
+      row containing the group label, not the whole page, to avoid
+      false positives.
 
 ## Acceptance (from issue)
 
 - [ ] Group entity carries primary language; group page shows a language
-      indicator; teaser exposes it (for MC-3's directory filter).
+      indicator; directory (`/all-groups`) exposes the language column
+      (for MC-3's directory filter).
 - [ ] A seeded RTL-primary group renders right-to-left correctly
       (`html[dir="rtl"]`).
 - [ ] WCAG 2.2 AA — `lang` attributes correct on the rendered indicator
@@ -99,9 +159,9 @@ npx playwright test tests/e2e/group-language.spec.ts
 
 O → A → T(red) → F → T(green) → A-dup → U → S → PR (hold for human)
 
-D skipped: no new UI surface beyond an inline text indicator — the visual
-design is a one-line span; no wireframe needed. Recorded here as Phase 2:
-N/A (no meaningful UI surface).
+D skipped: no new UI surface beyond an inline text indicator + a Views
+column — the visual design is a small pill; no wireframe needed.
+Recorded here as Phase 2: N/A (no meaningful UI surface).
 
 ## Model discipline
 

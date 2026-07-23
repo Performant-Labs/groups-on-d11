@@ -44,3 +44,48 @@ Append-only. One entry per phase.
 - `scripts/step_760.php`, `scripts/step_640.php`
 
 ---
+
+## Phase 3 — A (up-front plan review), round 1: BLOCK
+
+**Decided (by A)**
+- CONCUR with reuse of `field_group_language`. Creating
+  `field_group_primary_language` would be an unjustified parallel path
+  → A-dup BLOCK in Phase 7.
+- CONCUR with `hook_entity_view` for the `full` view mode and CSS
+  co-located in `do_group_language`.
+- CONCUR with `getDirection()` API + mixed-direction nesting via `dir`
+  on `<span>`.
+
+**Blocked**
+- Finding #1 (BLOCK): `views.view.all_groups.yml` line 128 is
+  `row: type: fields`. `hook_entity_view` on view_mode `teaser` will
+  never fire on `/all-groups`. The Playwright "teaser indicator on
+  /all-groups" assertion is architecturally impossible under the
+  proposed render approach. Resolution chosen: add `field_group_language`
+  as a Views field to `all_groups` (strongest MC-3 forward-compat) and
+  drop the `teaser` branch of `hook_entity_view`.
+
+**Advisories rolled in**
+- #4: null-language guard when `getLanguage($langcode)` returns NULL.
+- #5: step_760 currently only sets language on pre-existing groups; it
+  does NOT create groups. New pattern for that file needs explicit
+  idempotency contract in the brief.
+- #6: Kernel test must declare `field_group_language` as `type: language`
+  (production shape), not `type: string` (which is what
+  `GroupLanguageNegotiationTest` uses for narrower purposes).
+
+**Actions (O)**
+- Amended brief v2: full view mode only; new Views-field deliverable on
+  `all_groups`; step_760 idempotency contract spelled out; Kernel test
+  storage type pinned to `language`; null-language guard added to
+  non-negotiables.
+- Re-spawning A on the amended brief.
+
+**Evidence**
+- `views.view.all_groups.yml:128` (`row: type: fields`)
+- `step_760.php:17-25` (sets language on pre-existing fr/de groups; no
+  group creation in file today)
+- `GroupLanguageNegotiationTest.php:63-67` (`type: string` for narrower
+  test purposes)
+
+---
