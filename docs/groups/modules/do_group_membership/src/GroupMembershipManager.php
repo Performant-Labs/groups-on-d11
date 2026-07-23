@@ -32,6 +32,19 @@ use Drupal\user\UserInterface;
  * query — trivial by design (per the operator-approved OQ-2 resolution) —
  * enforced in both removeMember() and changeRole(), since the brief
  * explicitly requires refusing to "remove OR demote" the last Organizer.
+ *
+ * #121 SC-2 adds two self-service verbs on top of the same status model:
+ *   - <none> -> pending  (requestJoin() — a moderated group's outsider
+ *     self-request; distinct actor from addMember()'s organizer-adds-
+ *     someone-else path)
+ *   - joinPolicyFor()    (a pure classifier: `field_group_visibility` ->
+ *     'open' | 'request' | 'invite', reused by the route-level access
+ *     callback and the entity-create access hook so both stay in
+ *     lockstep with one source of truth)
+ * Per A-W1, addMember() and requestJoin() both delegate to a private
+ * createMembership() helper so the blocked/duplicate guards and the
+ * `Group::addMember()` call shape cannot drift apart between the two
+ * verbs.
  */
 class GroupMembershipManager {
 
@@ -64,7 +77,8 @@ class GroupMembershipManager {
    *
    * Per [B-6]: an organizer/moderator directly adding someone defaults the
    * new relationship to `active` status (not `pending` — that is the
-   * self-service join-request territory, out of scope for this story).
+   * self-service join-request territory, handled by requestJoin() as of
+   * #121).
    *
    * @param \Drupal\group\Entity\GroupInterface $group
    *   The group to add the member to.
@@ -82,36 +96,80 @@ class GroupMembershipManager {
    *   If the account's Drupal user account is blocked.
    */
   public function addMember(GroupInterface $group, UserInterface $account, array $roles): GroupRelationshipInterface {
-    if ($account->isBlocked()) {
-      throw new BlockedAccountException('This user\'s site account is blocked.');
+    return $this->createMembership($group, $account, self::STATUS_ACTIVE, $roles);
+  }
+
+  /**
+   * Creates a pending self-service join request (#121 SC-2, AC-2).
+   *
+   * Distinct actor from {@see self::addMember()}: an organizer/moderator
+   * adds someone else (active, immediately); an outsider requests to join
+   * themselves (pending, awaiting organizer approval via the existing
+   * `ManageMembersForm`'s approve/deny row actions). Only reachable in
+   * practice on a `moderated`-visibility group — the route-level
+   * `_custom_access` callback
+   * (`ManageMembersController::requestJoinAccess()`) and the entity-create
+   * access gate (`Drupal\do_group_membership\Hook\GroupAccessHook`) both
+   * enforce that in front of this method, so this method itself does not
+   * re-check visibility — it stays a pure state-transition, matching this
+   * manager's existing cadence (defense-in-depth is the callers'
+   * responsibility, not duplicated here).
+   *
+   * @param \Drupal\group\Entity\GroupInterface $group
+   *   The group being requested to join.
+   * @param \Drupal\user\UserInterface $account
+   *   The requesting user account.
+   *
+   * @return \Drupal\group\Entity\GroupRelationshipInterface
+   *   The saved, pending `group_membership` relationship, with no
+   *   `group_roles` (AC-2 — no role until an organizer approves).
+   *
+   * @throws \Drupal\do_group_membership\Exception\DuplicateMembershipException
+   *   If the account already has a membership (any status — active,
+   *   pending, or blocked — per A-R2-N1: re-requesting while already
+   *   pending must be blocked the same way a duplicate active membership
+   *   is).
+   * @throws \Drupal\do_group_membership\Exception\BlockedAccountException
+   *   If the account's Drupal user account is blocked.
+   */
+  public function requestJoin(GroupInterface $group, UserInterface $account): GroupRelationshipInterface {
+    return $this->createMembership($group, $account, self::STATUS_PENDING, []);
+  }
+
+  /**
+   * Classifies a group's join policy from its `field_group_visibility` value.
+   *
+   * Thin classifier reused by the route-level access callback
+   * ({@see \Drupal\do_group_membership\Controller\ManageMembersController::requestJoinAccess()})
+   * and the entity-create access hook
+   * ({@see \Drupal\do_group_membership\Hook\GroupAccessHook}), so both stay
+   * in lockstep with a single source of truth for the composite
+   * `field_group_visibility` -> join-policy mapping (per the brief's
+   * "keep the composite field" decision — no two-axis split in this
+   * story; that is #134 future work).
+   *
+   * @param \Drupal\group\Entity\GroupInterface $group
+   *   The group.
+   *
+   * @return string
+   *   One of `'open'` (instant join, #95), `'request'` (moderated —
+   *   request + organizer approval, #121), or `'invite'` (invite_only —
+   *   no self-service join path, #121). Defaults to `'open'` if the field
+   *   is absent/empty, so a group predating this field's introduction
+   *   keeps #95's instant-join behavior rather than silently losing its
+   *   join path.
+   */
+  public function joinPolicyFor(GroupInterface $group): string {
+    if (!$group->hasField('field_group_visibility') || $group->get('field_group_visibility')->isEmpty()) {
+      return 'open';
     }
-
-    $existing = $group->getRelationshipsByEntity($account, 'group_membership');
-    if (!empty($existing)) {
-      throw new DuplicateMembershipException('This user is already a member of this group.');
-    }
-
-    $result = $group->addMember($account, [
-      'group_roles' => array_values($roles),
-      'field_membership_status' => [['value' => self::STATUS_ACTIVE]],
-    ]);
-
-    // Group::addMember() returns void on the real Group entity (the
-    // relationship is looked up separately); a test double may return the
-    // created relationship directly (asserted via willReturn()) — honor
-    // whichever shape was given so both the real and mocked contracts are
-    // satisfied.
-    if ($result instanceof GroupRelationshipInterface) {
-      $relationship = $result;
-    }
-    else {
-      $found = $group->getRelationshipsByEntity($account, 'group_membership');
-      $relationship = reset($found);
-    }
-
-    $relationship->save();
-
-    return $relationship;
+    $map = [
+      'open' => 'open',
+      'moderated' => 'request',
+      'invite_only' => 'invite',
+    ];
+    $visibility = (string) $group->get('field_group_visibility')->value;
+    return $map[$visibility] ?? 'open';
   }
 
   /**
@@ -292,6 +350,71 @@ class GroupMembershipManager {
       return self::STATUS_ACTIVE;
     }
     return (string) $relationship->get('field_membership_status')->value;
+  }
+
+  /**
+   * Shared membership-creation path for both addMember() and requestJoin().
+   *
+   * Per A-W1: both public creation verbs delegate here so the
+   * blocked-account guard, the duplicate-membership guard (spanning EVERY
+   * status — active, pending, or blocked, per A-R2-N1), and the
+   * `Group::addMember()` call shape stay unified in one place rather than
+   * risking the two verbs drifting apart over time.
+   *
+   * @param \Drupal\group\Entity\GroupInterface $group
+   *   The group to create the membership in.
+   * @param \Drupal\user\UserInterface $account
+   *   The user account the membership is for.
+   * @param string $status
+   *   The initial `field_membership_status` value (`active` for
+   *   `addMember()`, `pending` for `requestJoin()`).
+   * @param string[] $roles
+   *   Group role ids to assign the new membership (always empty for a
+   *   pending request — AC-2 — no role until approval).
+   *
+   * @return \Drupal\group\Entity\GroupRelationshipInterface
+   *   The saved `group_membership` relationship.
+   *
+   * @throws \Drupal\do_group_membership\Exception\DuplicateMembershipException
+   *   If the account already has a membership (any status) in this group.
+   * @throws \Drupal\do_group_membership\Exception\BlockedAccountException
+   *   If the account's Drupal user account is blocked.
+   */
+  private function createMembership(GroupInterface $group, UserInterface $account, string $status, array $roles): GroupRelationshipInterface {
+    if ($account->isBlocked()) {
+      throw new BlockedAccountException('This user\'s site account is blocked.');
+    }
+
+    // Spans every status (active, pending, blocked) — A-R2-N1: a user with
+    // an existing pending row must not be able to re-request (and a
+    // duplicate active/blocked relationship is refused the same way
+    // addMember() already refused it before this refactor).
+    $existing = $group->getRelationshipsByEntity($account, 'group_membership');
+    if (!empty($existing)) {
+      throw new DuplicateMembershipException('This user is already a member of this group.');
+    }
+
+    $result = $group->addMember($account, [
+      'group_roles' => array_values($roles),
+      'field_membership_status' => [['value' => $status]],
+    ]);
+
+    // Group::addMember() returns void on the real Group entity (the
+    // relationship is looked up separately); a test double may return the
+    // created relationship directly (asserted via willReturn()) — honor
+    // whichever shape was given so both the real and mocked contracts are
+    // satisfied.
+    if ($result instanceof GroupRelationshipInterface) {
+      $relationship = $result;
+    }
+    else {
+      $found = $group->getRelationshipsByEntity($account, 'group_membership');
+      $relationship = reset($found);
+    }
+
+    $relationship->save();
+
+    return $relationship;
   }
 
 }

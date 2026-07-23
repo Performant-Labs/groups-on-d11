@@ -49,3 +49,15 @@ do_group_membership.remove_member:
         type: entity:group
       group_relationship:
         type: entity:group_relationship
+
+do_group_membership.request_join:
+  path: '/group/{group}/join-request'
+  defaults:
+    _form: '\Drupal\do_group_membership\Form\RequestJoinForm'
+    _title: 'Request to join'
+  requirements:
+    _custom_access: '\Drupal\do_group_membership\Controller\ManageMembersController::requestJoinAccess'
+  options:
+    parameters:
+      group:
+        type: entity:group

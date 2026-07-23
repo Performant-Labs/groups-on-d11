@@ -20,9 +20,14 @@
  * Story #85 (CH-A3): groups_chrome_preprocess_group() dresses the single-group
  * page (/group/{id}, the `full` view mode) with community furniture — a header
  * carrying the group name, group-type + visibility badges, member count and
- * avatars, a correctly-stated Join/Leave action, and a Stream/Events/Members/
- * About tab bar wired to the group module's existing per-group view routes. All
- * derived in `group--full.html.twig`'s variables; NO routes or schema are added.
+ * avatars, a correctly-stated Join/Request/Leave action, and a Stream/Events/
+ * Members/About tab bar wired to the group module's existing per-group view
+ * routes. All derived in `group--full.html.twig`'s variables; NO routes or
+ * schema are added.
+ *
+ * #121 SC-2 rework (2026-07-22): extended the Join/Leave action picker with a
+ * THIRD branch — "Request to join" on a `moderated`-visibility group — see
+ * that function's own docblock for the full rationale.
  *
  * Story #122 (SC-3): extends groups_chrome_preprocess_group() to derive an
  * optional "leading section" (events / discussion / docs) from field_group_type
@@ -297,9 +302,11 @@ function groups_chrome_theme_suggestions_group_alter(array &$suggestions, array 
  *     field_group_visibility (list_string: open|moderated|invite_only).
  *   - member count + avatars          ← Group::getMembers() (GroupMembership
  *     relationships; getEntity() is the member user).
- *   - Join / Leave action             ← entity.group.join / entity.group.leave
- *     module routes; the correct one is chosen from the current user's
- *     membership state, and access is still enforced by the routes themselves.
+ *   - Join / Request / Leave action   ← entity.group.join /
+ *     do_group_membership.request_join / entity.group.leave routes; the
+ *     correct one is chosen from the current user's membership state AND the
+ *     group's join policy, and access is still enforced by the routes
+ *     themselves (#121 SC-2 rework — see below).
  *   - Stream / Events / Members / About tabs ← the group module's existing
  *     per-group view paths (group/{id}/stream|events|members) + the canonical
  *     page for About. No local-task/menu config is invented.
@@ -309,6 +316,35 @@ function groups_chrome_theme_suggestions_group_alter(array &$suggestions, array 
  *     last-activity block below. Empty when the group's type doesn't map, or
  *     when it maps but zero qualifying/accessible nodes exist (silent
  *     empty-state — wireframe.md §2/§7).
+ *
+ * #121 SC-2 rework (2026-07-22, T-green blocking finding — see
+ * `docs/planning/handoffs/121-req2join/handoff-T-green.md` "One real,
+ * unresolved production gap found"): before this change, the action picker
+ * below considered only TWO routes — `entity.group.join` (non-member) and
+ * `entity.group.leave` (member) — with no branch at all for the
+ * `do_group_membership.request_join` route #121 added. That route's OWN
+ * access callback (`ManageMembersController::requestJoinAccess()`) already
+ * correctly gates it to `moderated`-visibility groups only, and #121's
+ * `RouteSubscriber` had ALREADY correctly narrowed `entity.group.join` to
+ * `open`-visibility groups only (moderated/invite_only both now fail that
+ * route's access check) — so after #121's Phase-5 implementation landed, a
+ * non-member on a `moderated` group saw the Join/Leave action render
+ * NOTHING at all (both `$join_url->access()` and the (absent) request
+ * branch were unreachable), even though the request-to-join FORM itself
+ * worked perfectly at its direct URL. The fix is a third `elseif` branch,
+ * mirroring the existing two exactly (build the Url, check ->access(), only
+ * render if TRUE) — access enforcement is unchanged and untouched; this is
+ * purely a "teach the existing picker about the third destination" fix, not
+ * a new access mechanism.
+ *
+ * The new branch has NO extra module-presence guard beyond the existing
+ * try/catch that already wraps this whole block: `Url::fromRoute()` throws
+ * `Symfony\Component\Routing\Exception\RouteNotFoundException` (a
+ * `\LogicException`, itself a `\Exception`) if `do_group_membership` is ever
+ * uninstalled, which the pre-existing `catch (\Exception $e)` already
+ * absorbs — exactly the same graceful-degradation contract the
+ * `entity.group.join` / `entity.group.leave` branches already rely on, so no
+ * new defensive pattern was introduced.
  */
 function groups_chrome_preprocess_group(array &$variables): void {
   // Only dress the full-page render; leave teasers and other view modes alone.
@@ -399,7 +435,7 @@ function groups_chrome_preprocess_group(array &$variables): void {
     }
     $gc['members_extra'] = max(0, $gc['member_count'] - count($gc['members']));
 
-    // Is the *current* user already a member? Drives Join vs Leave.
+    // Is the *current* user already a member? Drives Join/Request vs Leave.
     $gc['is_member'] = $current_user->isAuthenticated()
       && $group->getMember($current_user) !== FALSE;
   }
@@ -407,11 +443,21 @@ function groups_chrome_preprocess_group(array &$variables): void {
     // Membership storage unavailable — render header without avatars/action.
   }
 
-  // --- Join / Leave action --------------------------------------------------
-  // Pick the route that matches the current membership state. The routes carry
-  // their own access checks (join/leave permission + membership requirement),
-  // so we ONLY render a link when access is actually granted — an anonymous or
+  // --- Join / Request / Leave action ----------------------------------------
+  // Pick the route that matches the current membership state. Every route
+  // carries its OWN access check (join/leave/request-join permission +
+  // membership requirement + join-policy visibility, per #121), so we ONLY
+  // render a link when access is actually granted — an anonymous or
   // non-joinable visitor simply sees no button rather than a dead link.
+  //
+  // #121 SC-2 rework: the `do_group_membership.request_join` branch is tried
+  // ONLY when the member/leave branch above did not apply — its own
+  // `requestJoinAccess()` callback already restricts it to `moderated`
+  // groups (so trying it unconditionally for `open`/`invite_only` groups is
+  // harmless — `->access()` simply returns FALSE and this `elseif` is
+  // skipped, exactly like the pre-existing `entity.group.join` branch
+  // already does for `moderated`/`invite_only` since the Phase-5
+  // RouteSubscriber addition).
   try {
     if ($gc['is_member']) {
       $leave_url = Url::fromRoute('entity.group.leave', ['group' => $gid]);
@@ -431,6 +477,16 @@ function groups_chrome_preprocess_group(array &$variables): void {
           'url' => $join_url->toString(),
           'variant' => 'primary',
         ];
+      }
+      else {
+        $request_url = Url::fromRoute('do_group_membership.request_join', ['group' => $gid]);
+        if ($request_url->access($current_user)) {
+          $gc['action'] = [
+            'label' => t('Request to join'),
+            'url' => $request_url->toString(),
+            'variant' => 'primary',
+          ];
+        }
       }
     }
   }
@@ -654,6 +710,13 @@ function groups_chrome_preprocess_group(array &$variables): void {
  * All data is READ from existing entities + relationships; NO schema or field
  * changes (epic #78 constraint). Consumed by
  * templates/content/views-view-fields--all-groups.html.twig.
+ *
+ * Note (#121 SC-2 rework, out of THIS fix's scope): this directory-card
+ * affordance still only branches on `is_open` (line ~493 below) — it has no
+ * "Request to join" state for a `moderated` group either, a separate,
+ * pre-existing gap from the one this rework targets (the CANONICAL group
+ * page, per the brief's own AC-2 wording and T-green's blocking finding).
+ * Flagged for a follow-up story rather than folded into this targeted fix.
  */
 function groups_chrome_preprocess_views_view_fields__all_groups(array &$variables): void {
   // Attach the isolated directory-card component CSS to these rows only.

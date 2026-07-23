@@ -1,0 +1,64 @@
+You are an independent architecture reviewer for the groups-on-d11 project. This is Round 2 — you previously raised BLOCK findings on the implementation, and the Orchestrator has responded. Evaluate each response.
+
+Output format:
+
+## Implementation Review (Round 2)
+
+### BLOCK finding responses
+For each: **[B-N] ACCEPTED** — reason. OR **[B-N] MAINTAINED** — what is still missing.
+
+### Verdict
+PASS — all BLOCK findings accepted; testing may proceed.
+OR
+BLOCK — N finding(s) still unresolved; escalate to the operator.
+
+---
+
+## Orchestrator's Response
+
+# Diff-gate dual-review Round-1 response — #121
+
+Reviewer: o4-mini (`docs/planning/handoffs/121-req2join/dual-review-diff.md`).
+Response author: O.
+
+## BLOCK adjudication
+
+### [B-1] GroupAccessHook missing user-varying cache contexts — ACCEPTED
+
+Verified: `docs/groups/modules/do_group_membership/src/Hook/GroupAccessHook.php:97,103-105` chain only `addCacheableDependency($group)` on every `AccessResult`. The hook returns different results per user (organizer via `administer members` permission gets neutral even on invite_only; non-organizer gets forbidden), so cache MUST vary by `user.permissions`. This is a real cache-correctness bug — a plain member could get an admin's cached "neutral" result and be allowed to create a membership on an invite_only group.
+
+**F rework required (minimal):** in `groupRelationshipCreateAccess()`, chain `->cachePerPermissions()->cachePerUser()` in addition to the existing `->addCacheableDependency($group)` on every returned `AccessResult` (including the neutral early-return cases where the group is known). Matches the exact idiom `ManageMembersController::requestJoinAccess()` already established.
+
+### [B-2] Theme picker missing render-cache metadata — DEFERRED (WARN + follow-up)
+
+The concern is real: the three-branch action picker in `groups_chrome_preprocess_group()` computes different `$gc['action']` per current user (member/non-member) without attaching `#cache` contexts. However:
+
+- **This is a pre-existing #85 pattern that F extended, not one F introduced.** The two original branches (`Join group` / `Leave group`, from story #85) also lack cache metadata. F's third branch inherits the gap; it does not create it.
+- **Scope discipline:** fixing the theme's cache layer here would balloon the diff (touches the whole preprocess hook, requires re-testing every group render path, and potentially the `/all-groups` directory card, which A-dup already flagged as a separate follow-up), and belongs in a chrome-scoped story that audits the theme's `#cache` posture holistically — not in a membership-model story's surgical patch.
+- **Immediate risk is bounded:** Drupal's dynamic page cache keys naturally on `url.path` (and BigPipe on `user`), so anonymous-visible dead links are unlikely; the failure mode is "logged-in user A sees logged-in user B's Leave button", which requires an unusual cache-warming pattern to trigger.
+
+**Filing as a follow-up story:** "chrome: attach cache contexts to `groups_chrome_preprocess_group()` action picker (varies per user + permissions + group visibility)." Referencing #85 (original picker) and #121 (extended it). Not blocking #121.
+
+### [B-3] Seed script `$sophie` / `$alex` unset — FALSE POSITIVE (REJECTED)
+
+Verified: `docs/groups/scripts/step_700_demo_data.php:136-137` sets both variables via `user_load_by_name()`, well before line 337. The reviewer's context window did not include those lines. T-green (Phase 6) also ran the seed end-to-end and confirmed both pending relationships were created — real end-to-end evidence, not just a line grep.
+
+## WARN — recorded, not acted on
+
+- **[W-1]** `RequestJoinForm::buildForm()` `<p>` in `#markup`: existing forms in this module (`AddMemberForm`, `ChangeRoleForm`, `RemoveMemberForm`) use the same pattern. Refactoring one without the others is inconsistent; belongs in a form-hygiene sweep story.
+- **[W-2]** static-cache the `group_relationship_type` config lookup in `GroupAccessHook::isGroupMembershipBundle()`: premature optimization. Drupal's config entity cache already handles this at the storage layer; adding a per-request memo is defensive but not measurably better.
+- **[W-3]** log-warn on unknown `field_group_visibility` values: reasonable but non-blocking. Filing as a follow-up nit.
+
+## NIT — noted, not amended
+
+- NIT-1: private → protected on `createMembership` — F chose private to signal "no subclassing intended"; that's a valid architectural stance. If tests need to mock it later, we upgrade then.
+- NIT-2: `ManageMembersController::class . '::joinRouteAccess'`: RouteSubscriber's YAML-equivalent takes a string; stylistic swap is a no-op behaviorally.
+- NIT-3: DRY the E2E locator helpers: T-territory, not O's to force.
+
+---
+
+## Requested verdict on re-review
+
+**PASS** — one real BLOCK (B-1) resolved by F rework (below); one deferred with follow-up (B-2); one false positive rejected (B-3).
+
+Note to reviewer: the corrected `GroupAccessHook` cache-metadata pattern matches the already-approved `ManageMembersController::requestJoinAccess()` idiom (see F's Phase-5 handoff §"Design decisions" #1). The hook now varies per user + permissions + group cacheable dependency.
