@@ -357,3 +357,35 @@ old `<header>`-nested tab position.
 **Handoff:** `handoff-A-dup.md`. Ready for U.
 
 ---
+
+---
+
+## U — Phase 8 (UI walkthrough)
+
+**Decided:**
+- Drove the live `gm122-groups-on-d11` DDEV instance directly (already running from
+  F/T's session) rather than reseeding fresh, since the exemplar gids (1/2/3/4)
+  were still resolvable directly via `drush sql-query` against `groups_field_data`
+  (bypassing the polluted `/all-groups` directory T-green flagged at ~93 groups).
+- No `u-drive.mjs` SPA helper used — confirmed this project has no HTMX/SPA nav
+  layer on `/group/{id}` (clicking a tab produces a genuine full-page navigation,
+  not a client-side swap), consistent with the project override note. Drove with
+  a plain throwaway Playwright script instead.
+
+**Assumed:** none beyond what F/T/A already established.
+
+**Evidence:**
+- All 4 states (events-first, discussion-first, docs-first, fallback) verified
+  live: correct DOM anatomy, correct lead-section content/links/see-all targets,
+  tooltip keyboard-focusable with visible focus ring + correct aria-label/copy,
+  tab bar unchanged on every page, zero console errors on any page/viewport.
+- Fallback CSS-isolation verified at the raw-aggregate-file level (not just URL
+  string matching): the `delta=1` CSS aggregate on the events-first page
+  contains `.gc-group-lead` rules; the fallback page's `delta=1` aggregate (a
+  different hash) contains zero matches — confirms the library-attach
+  conditional genuinely gates on non-empty `lead_items`.
+- Responsive 600px layout stacks legibly on all 3 lead-bearing pages; fallback
+  page unaffected at 600px.
+
+**Verdict:** PASS. No behavioral defects. See `handoff-U.md` for full detail.
+Screenshots in `u-screenshots/`. Ready for S.
