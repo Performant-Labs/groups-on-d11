@@ -39,3 +39,46 @@ there). Groups-Moderate account creation + pending join-request seed is a **new 
 **Evidence:** `composer.lock` masquerade 2.2.0 D11 ok; `docs/groups/scripts/step_700_demo_data.php`
 already seeds Maria+Elena; `docs/groups/config/user.role.groups_moderate.yml` exists;
 `docs/groups/modules/do_chrome/src/HelpText.php` is append-only tooltip store.
+
+## D — Phase 2 (design)
+
+**Decided:** Widget = native `<select>` (auto-submitting `<form>`, progressive enhancement; real
+`<button type="submit">Go</button>` no-JS fallback — never `#type => submit`). Justified against
+every WCAG 2.2 AA bullet in the AC (keyboard, focus, SR announce, non-color state, no-JS, mobile)
+in a comparison table; rejected a custom `<details>`/listbox disclosure since it adds ARIA/keyboard
+engineering with no AC gap to justify it. Banner reuses the `hook_page_top` idiom already
+established by `DoShowcaseHooks::pageTop()` (POC ribbon) rather than inventing a new attach point.
+
+**Decided:** Per-persona banner copy is the issue's exact phrasing instantiated per name/role
+("You're browsing as Elena Garcia — Member — switch back", etc.); `role="status"`, non-color `▶`
+glyph + text, real `<a>` switch-back link, inline position (not fixed).
+
+**Assumed:** Switching is always logout+login (per O's Phase-1 decision, carried forward
+unchanged) — dropdown re-selection while a persona is already active is not a distinct UI state,
+just the same one-control interaction.
+
+**Hedged:** Native `<select>` cannot host a live do_chrome/tippy tooltip per `<option>` (browser-
+native popup, outside the DOM) — proposed one wrapper-level combined `ⓘ` tooltip + native `title=`
+per option as the closest achievable reading of "each option carries a tooltip." Flagged as Open
+Question #1 for explicit operator sign-off before Architecture/Feature build against it.
+
+**Evidence:** `VariantSwitcher.php` (one-tooltip-per-wrapper convention, non-color state glyph),
+`do_showcase.css` (focus-ring token, ribbon contrast pairing), `DoShowcaseHooks::pageTop()`
+(page_top idiom), `HelpText::all()` (append-only plain-text tooltip store, allowHTML disabled),
+`ShowcaseCatalog::personas()` (existing 4-persona id/name/description list — reused verbatim for
+tooltip copy grounding), issue #120 body (exact banner copy, "dropdown over chips" rationale).
+
+## O — D-gate (auto-approval)
+
+**Decided:** Wireframe APPROVED. All three open questions resolved:
+1. Per-option tooltip = wrapper `ⓘ` (do_chrome/tippy) + native `title=` per `<option>` — accepted
+   as the correct engineering interpretation of "each option carries a tooltip" given native
+   `<select>` constraints. AC satisfied via `title=`; tippy tooltip is on the wrapper for the whole
+   widget. (No user-facing surprise — POC scope, and Tester will assert the `title=` attributes on
+   each `<option>` to prove per-option help *does render*.)
+2. Banner position = **inline** (not fixed). Avoids stacking chrome under the POC ribbon on mobile.
+3. Post-switch destination that 403s → fallback to `<front>`. Cleaner UX than a hard 403 immediately
+   after a successful persona switch.
+
+**Evidence:** wireframe.md §7 open questions; issue #120 AC language ("Each option carries a
+do_chrome tooltip").
