@@ -45,6 +45,63 @@ final class VariantSwitcher {
   use StringTranslationTrait;
 
   /**
+   * The shared "directory.layout" three-option MACHINE spec: id + available.
+   *
+   * #124 SC-5 (A-advisory #7): both `ShowcaseController::page()`'s
+   * `/showcase` stub instance and `DoShowcaseHooks::viewsPreRender()`'s
+   * `/all-groups` instance render the EXACT same three options, in the same
+   * order, with `map` unavailable — hoisted here as one source of truth so
+   * #125 (SC-6) flips `map`'s `available` flag to `TRUE` in exactly one
+   * place instead of two call sites silently drifting apart.
+   *
+   * Deliberately carries NO label — {@see self::directoryLayoutOptions()} is
+   * the caller-facing method that pairs each id with its TRANSLATED label
+   * via a literal `$this->t()` call per id (a `match()`, not a variable
+   * passed through `t()`), so phpcs's "Only string literals should be
+   * passed to t()" rule stays satisfied at the one place translation
+   * happens, rather than every caller re-deriving (and mis-translating) its
+   * own literal-vs-variable `t()` call.
+   *
+   * @return array<int, array{id: string, available?: bool}>
+   *   The three-option machine spec, in display order.
+   */
+  private static function directoryLayoutOptionIds(): array {
+    return [
+      ['id' => 'compact'],
+      ['id' => 'cards'],
+      ['id' => 'map', 'available' => FALSE],
+    ];
+  }
+
+  /**
+   * The shared "directory.layout" three-option list, labels translated.
+   *
+   * The single call site every current/future caller (currently
+   * `ShowcaseController::page()` and `DoShowcaseHooks::viewsPreRender()`)
+   * should use to obtain this instance's option list ready to pass straight
+   * to {@see self::build()} — translation happens HERE, via a literal
+   * `$this->t()` call per known id, so no caller needs its own
+   * variable-through-`t()` call (which phpcs's DrupalPractice sniff flags,
+   * and which also defeats the string-extraction tooling `t()` literal
+   * scanning depends on).
+   *
+   * @return array<int, array{id: string, label: string, available?: bool}>
+   *   The three-option list, labels translated, ready for build().
+   */
+  public function directoryLayoutOptions(): array {
+    $options = [];
+    foreach (self::directoryLayoutOptionIds() as $spec) {
+      $spec['label'] = match ($spec['id']) {
+        'compact' => (string) $this->t('Compact list'),
+        'cards' => (string) $this->t('Cards'),
+        'map' => (string) $this->t('Map'),
+      };
+      $options[] = $spec;
+    }
+    return $options;
+  }
+
+  /**
    * Builds the switcher render array for one instance.
    *
    * @param string $instance_id
@@ -191,6 +248,33 @@ final class VariantSwitcher {
     // Defensive: every option unavailable — select the first one anyway so
     // the control never renders with literally nothing selected.
     return $options[0]['id'] ?? $current;
+  }
+
+  /**
+   * Publicly resolves which option id would be selected, without rendering.
+   *
+   * #124 SC-5 (wireframe.md "Fallback behavior"): `viewsPreRender()` needs
+   * the SAME first-available-fallback rule `build()` applies internally via
+   * the private `resolveSelection()`, but must decide the wrapper's
+   * `data-do-directory-variant` attribute BEFORE calling `build()` (the
+   * attribute lives on the view's own render array, not inside the
+   * switcher's child render array). Exposing this thin public wrapper avoids
+   * a second, hand-copied fallback rule that could silently drift from the
+   * one `build()` already implements — the single source of truth for
+   * "what does $current resolve to" stays in the private method above; this
+   * only makes that resolution independently callable.
+   *
+   * @param array<int, array{id: string, label: string, available?: bool}> $options
+   *   The same option list a caller would pass to build().
+   * @param string $current
+   *   The caller-requested current selection id.
+   *
+   * @return string
+   *   The id of the option that build() would mark selected for the same
+   *   inputs.
+   */
+  public function resolveCurrent(array $options, string $current): string {
+    return $this->resolveSelection($this->normalizeOptions($options), $current);
   }
 
 }

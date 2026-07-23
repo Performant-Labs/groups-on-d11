@@ -11,9 +11,12 @@ use Drupal\Core\Url;
 use Drupal\do_chrome\HelpText;
 use Drupal\do_showcase\Persona\PersonaSwitcher;
 use Drupal\do_showcase\ShowcaseCatalog;
+use Drupal\do_showcase\VariantSwitcher;
+use Drupal\views\ViewExecutable;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
- * Hook implementations for do_showcase (SC-F1, #119; #120 SC-1).
+ * Hook implementations for do_showcase (SC-F1, #119; #120 SC-1; #124 SC-5).
  *
  * Ships the site-wide "POC demo" ribbon via `hook_page_top` — the same
  * "single global attach point" shape as `DoChromeHooks::pageAttachments()`
@@ -69,12 +72,70 @@ use Drupal\do_showcase\ShowcaseCatalog;
  * matching how `$personaSwitcher` is already injected, and
  * `do_showcase.services.yml`'s `do_showcase.hooks` entry now passes
  * `@do_showcase.showcase_catalog` as a second argument.
+ *
+ * #124 SC-5: TWO cooperating hooks mount the SC-F1 `VariantSwitcher` over
+ * `/all-groups` (view `all_groups`, display `page_1`):
+ *  - `viewsPreRender()` sets the `data-do-directory-variant` wrapper
+ *    attribute, the `url.query_args:variant` cache context, and the
+ *    attached libraries — all of which survive Views' render pipeline
+ *    unchanged because `DisplayPluginBase::buildRenderable()` returns
+ *    `$view->element` directly (these keys pass straight through). The
+ *    attribute lands on `.views-element-container` — the wrapper
+ *    `\Drupal\views\Element\View::preRenderViewElement()` adds via
+ *    `#theme_wrappers => ['container']` around the themed `views_view`
+ *    output (confirmed by inspecting the live-rendered DOM: the OUTER
+ *    `<div data-do-directory-variant="…" class="views-element-container">`
+ *    wraps the INNER `<div class="view view-all-groups
+ *    view-id-all_groups …">`, which gets its OWN, SEPARATE `attributes`
+ *    Twig variable from `template_preprocess_views_view()` —
+ *    `$element['#attributes']` is consumed by the theme-wrapper container,
+ *    not copied onto the inner view div).
+ *  - `preprocessViewsView()` injects the switcher render array into
+ *    `$variables['header']`. This CANNOT be done in `viewsPreRender()`
+ *    (confirmed empirically: `hook_views_pre_render` fires once from
+ *    `View::preRenderViewElement()`'s `executeDisplay()` call, but
+ *    `DisplayPluginBase::elementPreRender()` — a `#pre_render` callback
+ *    queued on the render array `Page::execute()` builds — unconditionally
+ *    OVERWRITES `$element['#header']` with
+ *    `$view->display_handler->renderArea('header', $empty)` afterwards, and
+ *    that callback runs as part of Drupal's OWN render pipeline, strictly
+ *    BEFORE `hook_preprocess_views_view()` fires. Writing to
+ *    `$view->element['#header']` inside `viewsPreRender()` is therefore
+ *    silently discarded by the time Twig renders — `preprocessViewsView()`
+ *    is the first seam that runs AFTER that overwrite has already happened,
+ *    so it is the only reliable place to inject the switcher into the
+ *    final `header` region). Both hooks share the identical
+ *    view-id/display-id scoping guard (`isDirectoryView()`) and the same
+ *    `requestedVariant()` helper, so there is exactly one source of truth
+ *    for "which view/display this story targets" and "what variant the
+ *    current request asked for".
+ *
+ * Needs `$this->switcher` (the `do_showcase.variant_switcher` service — the
+ * SAME instance `ShowcaseController::page()` already uses for its own
+ * `/showcase` stub) and `$this->requestStack` (to read the CURRENT
+ * request's `?variant=` query arg — matches `ShowcaseController::create()`'s
+ * own `$container->get('request_stack')->getCurrentRequest()` pattern,
+ * except the request stack itself is injected here rather than the
+ * resolved Request, because these hooks can fire at any point during a
+ * request's lifecycle, not just controller construction time).
  */
 class DoShowcaseHooks {
+
+  /**
+   * The view id this story's directory-toggle switcher mounts on.
+   */
+  private const DIRECTORY_VIEW_ID = 'all_groups';
+
+  /**
+   * The display id this story's directory-toggle switcher mounts on.
+   */
+  private const DIRECTORY_DISPLAY_ID = 'page_1';
 
   public function __construct(
     private readonly PersonaSwitcher $personaSwitcher,
     private readonly ShowcaseCatalog $catalog,
+    private readonly VariantSwitcher $switcher,
+    private readonly RequestStack $requestStack,
   ) {}
 
   /**
@@ -350,6 +411,137 @@ class DoShowcaseHooks {
         'contexts' => ['user'],
       ],
     ];
+  }
+
+  /**
+   * Sets the directory-toggle wrapper attribute, cache context, libraries.
+   *
+   * #124 SC-5. Scoped ONLY to view id `all_groups`, display `page_1`
+   * (brief.md scope — this story touches no other view). Every other
+   * view/display returns immediately with NO side effects
+   * (`DirectoryTogglePreRenderTest::testHookDoesNotFireForADifferentViewId`
+   * pins this negative case).
+   *
+   * Three responsibilities, all on `$view->element` (the render array
+   * `DisplayPluginBase::buildRenderable()` returns directly, so these
+   * survive the render pipeline unchanged — see class docblock for why
+   * `#header` specifically does NOT survive here and needs
+   * `preprocessViewsView()` instead):
+   *  1. `#cache['contexts']` — `url.query_args:variant` set DIRECTLY on the
+   *     view's own render array (handoff-A-plan.md advisory #1: do not rely
+   *     solely on `VariantSwitcher::build()`'s own child `#cache` metadata
+   *     bubbling up, since the WRAPPER-ATTRIBUTE decision below is made
+   *     BEFORE `build()` even runs and must independently carry the varying
+   *     context).
+   *  2. `#attributes['data-do-directory-variant']` — the resolved variant
+   *     id (wireframe.md Surface 3's "Contract"), computed via
+   *     `VariantSwitcher::resolveCurrent()` using the EXACT SAME
+   *     first-available-fallback rule `build()` applies internally (no
+   *     query -> 'cards' page default; unavailable/unknown -> first
+   *     available, i.e. 'compact'; never a hand-duplicated fallback rule
+   *     that could silently drift from `build()`'s own). Lands on
+   *     `.views-element-container` on a live page (see class docblock).
+   *  3. `do_showcase/switcher` (the client-side click/keyboard toggle +
+   *     sessionStorage persistence, SC-F1) and `do_showcase/directory-compact`
+   *     (this story's new CSS-only library) are attached.
+   */
+  #[Hook('views_pre_render')]
+  public function viewsPreRender(ViewExecutable $view): void {
+    if (!$this->isDirectoryView($view)) {
+      return;
+    }
+
+    $requested_variant = $this->requestedVariant();
+    $option_specs = $this->switcher->directoryLayoutOptions();
+    $resolved_variant = $this->switcher->resolveCurrent($option_specs, $requested_variant);
+
+    $view->element['#cache']['contexts'][] = 'url.query_args:variant';
+    $view->element['#attributes']['data-do-directory-variant'] = $resolved_variant;
+    $view->element['#attached']['library'][] = 'do_showcase/switcher';
+    $view->element['#attached']['library'][] = 'do_showcase/directory-compact';
+  }
+
+  /**
+   * Injects the directory-toggle switcher into the view's header region.
+   *
+   * #124 SC-5. Scoped identically to `viewsPreRender()` above (same view
+   * id/display id guard). This is the seam that actually survives into the
+   * rendered `<header>` — see class docblock for the full explanation of
+   * why `viewsPreRender()` alone cannot do this (`elementPreRender()`'s
+   * unconditional `$element['#header'] = renderArea('header', …)` runs, as
+   * a queued `#pre_render` callback, strictly AFTER `hook_views_pre_render`
+   * but strictly BEFORE `hook_preprocess_views_view`).
+   *
+   * `$variables['header']` is Views' OWN keyed array of per-area render
+   * arrays (empty here, since `views.view.all_groups.yml` declares no
+   * `header:` area handlers) — this adds a `switcher` key alongside
+   * whatever (today, nothing) core's own area handlers already populated,
+   * rather than replacing the whole array, so a FUTURE header area added to
+   * the view's own config would not be silently clobbered by this story.
+   */
+  #[Hook('preprocess_views_view')]
+  public function preprocessViewsView(array &$variables): void {
+    $view = $variables['view'] ?? NULL;
+    if (!$view instanceof ViewExecutable || !$this->isDirectoryView($view)) {
+      return;
+    }
+
+    $requested_variant = $this->requestedVariant();
+    $option_specs = $this->switcher->directoryLayoutOptions();
+
+    $switcher = $this->switcher->build(
+      'directory.layout',
+      $option_specs,
+      $requested_variant,
+    );
+
+    // Wrapper-mirror wiring (O decision #1 / A-advisory #2): a generic,
+    // data-driven callback in do_showcase.switcher.js reads these two
+    // attributes off the radiogroup wrapper — set here, not hard-coded in
+    // the shared JS file, so the switcher stays agnostic to what its
+    // selection means to this particular caller. `.views-element-container`
+    // is the SAME element `viewsPreRender()`'s `#attributes` write lands on
+    // (see class docblock: `\Drupal\views\Element\View::
+    // preRenderViewElement()`'s `#theme_wrappers => ['container']` wrapper
+    // around the themed view output) — confirmed by inspecting the live-
+    // rendered DOM, not assumed from the class-name convention alone.
+    $switcher['#attributes']['data-do-showcase-mirror-attribute'] = 'data-do-directory-variant';
+    $switcher['#attributes']['data-do-showcase-mirror-selector'] = '.views-element-container';
+    $switcher['#wrapper_attributes']['data-do-showcase-mirror-attribute'] = 'data-do-directory-variant';
+    $switcher['#wrapper_attributes']['data-do-showcase-mirror-selector'] = '.views-element-container';
+
+    $variables['header']['switcher'] = $switcher;
+  }
+
+  /**
+   * Whether the given view/display is this story's directory-toggle target.
+   *
+   * @param \Drupal\views\ViewExecutable $view
+   *   The view to check.
+   *
+   * @return bool
+   *   TRUE for view id `all_groups`, display `page_1`; FALSE otherwise.
+   */
+  private function isDirectoryView(ViewExecutable $view): bool {
+    return $view->id() === self::DIRECTORY_VIEW_ID
+      && $view->current_display === self::DIRECTORY_DISPLAY_ID;
+  }
+
+  /**
+   * Reads the `?variant=` query argument off the current request.
+   *
+   * Defaults to `cards` (the page's default presentation) when absent —
+   * matching `ShowcaseController::page()`'s own
+   * `$request->query->get('variant') ?? 'cards'` read for the SAME
+   * `directory.layout` switcher instance on `/showcase`.
+   *
+   * @return string
+   *   The raw requested variant id (not yet resolved against the option
+   *   list's availability).
+   */
+  private function requestedVariant(): string {
+    $request = $this->requestStack->getCurrentRequest();
+    return (string) ($request?->query->get('variant') ?? 'cards');
   }
 
 }

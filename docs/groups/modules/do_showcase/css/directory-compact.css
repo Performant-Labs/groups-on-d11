@@ -1,0 +1,148 @@
+/**
+ * @file
+ * #124 SC-5: compact-list directory row presentation for /all-groups.
+ *
+ * Attached by `DoShowcaseHooks::viewsPreRender()` (via the new
+ * `do_showcase/directory-compact` library, do_showcase.libraries.yml)
+ * ONLY when the `all_groups.page_1` view renders — never site-wide.
+ *
+ * Byte-identical-cards contract (brief.md AC-3 / wireframe.md Surface 3):
+ * EVERY selector below is scoped under
+ * `.views-element-container[data-do-directory-variant="compact"]` — the
+ * `data-do-directory-variant` attribute lives on the `.views-element-container`
+ * wrapper `\Drupal\views\Element\View::preRenderViewElement()` adds around
+ * the themed view output (`#theme_wrappers => ['container']`), confirmed by
+ * inspecting the live-rendered DOM — NOT on `.view.view-id-all_groups`
+ * itself, which gets its own, separate `attributes` Twig variable from
+ * `template_preprocess_views_view()` that does not inherit the render
+ * element's own `#attributes`. When the attribute is absent OR `="cards"`,
+ * NOTHING in this stylesheet matches — the existing `groups_chrome/directory`
+ * card presentation (web/themes/custom/groups_chrome/css/directory.css)
+ * renders exactly as it did before this story, untouched.
+ *
+ * Row shape (wireframe.md Surface 2): the SAME DOM
+ * `views-view-fields--all-groups.html.twig` already emits for card mode
+ * (name/link, `.gc-directory-card__type` badge, `.gc-directory-card__stats`
+ * member count, `.gc-directory-card__visibility` badge) is reflowed into a
+ * single dense row — no new Views fields, no schema change, CSS-only
+ * restyle of the existing card markup (this story's "extend, don't
+ * duplicate" contract: groups_chrome's card template is reused verbatim,
+ * never forked). Dropped in compact mode: the description snippet
+ * (`.gc-directory-card__snippet`) and the last-activity stat — the
+ * "information density vs. visual scannability" trade the switcher's own
+ * tooltip copy names.
+ *
+ * Type scale: deliberately UNCHANGED from card mode (wireframe.md Surface
+ * 2: "compact rows use the SAME base font-size as card-mode body text ...
+ * density comes from removing the description text and card
+ * padding/borders, not from shrinking text" — shrinking text would regress
+ * AA text-scaling/reflow). Every `font-size` declaration below is
+ * `var(--gc-font-size-md)`, the same body-copy token card mode already
+ * uses for its title/snippet text — no new smaller token is introduced.
+ *
+ * Non-color status (wireframe.md A11y contract): the visibility/type badges
+ * are TEXT labels (`gc_directory.visibility_label` / `.type_label`,
+ * unchanged from card mode) — this stylesheet only restyles the badge's
+ * layout (inline, not wrapped/stacked); it never removes or replaces the
+ * text content, and any background tint (`.gc-badge--success/--warning/
+ * --info`, primitives.css) remains a decorative reinforcement on top of the
+ * load-bearing text, exactly as in card mode.
+ */
+
+/* ==========================================================================
+   Wrapper reflow — grid-of-cards becomes a single-column list of rows.
+   ========================================================================== */
+
+.views-element-container[data-do-directory-variant="compact"] .view-content {
+  display: block;
+}
+
+.views-element-container[data-do-directory-variant="compact"] .views-row {
+  display: block;
+  margin: 0;
+  border-bottom: 1px solid var(--gc-color-border, #d8dee4);
+}
+
+.views-element-container[data-do-directory-variant="compact"] .views-row:first-child {
+  border-top: 1px solid var(--gc-color-border, #d8dee4);
+}
+
+/* ==========================================================================
+   Card -> row — the SAME .gc-directory-card markup, dense single-line
+   layout instead of a bordered/padded/shadowed box.
+   ========================================================================== */
+
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--gc-space-sm, 0.75rem);
+  padding-block: var(--gc-space-xs, 0.5rem);
+  /* No card chrome in compact mode — density over a grid of boxes. */
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card__body {
+  display: contents;
+}
+
+/* Name + link — first, unchanged font-size (no separate compact scale). */
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card__title {
+  order: 1;
+  font-size: var(--gc-font-size-md, 1rem);
+  font-weight: var(--gc-font-weight-semibold, 600);
+  flex: 1 1 auto;
+  min-width: 12rem;
+}
+
+/* Type + visibility badges — inline after the name, same order as
+   wireframe.md Surface 2's horizontal row: name / type / members /
+   visibility. The visibility badge already renders after the type badge in
+   the shared .gc-directory-card__badges wrapper, so this reflow keeps that
+   relative order without needing separate selectors per badge. */
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card__badges {
+  order: 2;
+  flex: 0 0 auto;
+  gap: var(--gc-space-2xs, 0.25rem);
+}
+
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card__type,
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card__visibility {
+  font-size: var(--gc-font-size-md, 1rem);
+}
+
+/* Member count — plain "N members" text, no icon in the dense row (the SVG
+   icon is a card-mode affordance; the member-count TEXT itself, the
+   load-bearing value, is unaffected). */
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card__stats {
+  order: 3;
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding-top: 0;
+  font-size: var(--gc-font-size-md, 1rem);
+  color: var(--gc-color-text, #1b2733);
+}
+
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card__stat-icon {
+  display: none;
+}
+
+/* Dropped in compact mode: description snippet, last-activity stat, footer
+   Join affordance — density over a grid of boxes (wireframe.md Surface 2).
+   Truthfully hidden (display: none), never left as a dead/empty box. */
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card__snippet,
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card__stat--activity,
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card__footer {
+  display: none;
+}
+
+/* Focus/hover affordance on the row's own link — matches card mode's own
+   focus-visible treatment (AA visible-focus requirement carries over
+   unchanged; no new focus mechanism is introduced by this story). */
+.views-element-container[data-do-directory-variant="compact"] .gc-directory-card__title a:focus-visible {
+  outline: 2px solid var(--gc-color-primary, #0678be);
+  outline-offset: 2px;
+}
