@@ -29,3 +29,24 @@ Append-only. One entry per phase.
 - Vestigial-role reference grep: 15+ hits on `community_group-member` in production code; 3 hits on `community_group-admin` (group.type dep, HelpText comment, PermissionMatrixTest comment).
 
 **Review rigor dial:** `none` (POC / overnight autonomous mode explicitly waives brief-gate + diff-gate).
+
+## Phase 2 — D (wireframe + copy proposals) — auto-approved
+
+**Decided (auto-approved by O per overnight autonomous mode; design is sound):**
+- ONE net-new UI surface: a "Private" badge in two existing rows (`.gc-directory-card__badges`, `.gc-group-header__badges`). No new components.
+- Badge markup: `<span class="gc-badge gc-badge--warning gc-privacy-badge ..." tabindex="0" role="note" aria-label="{{copy}}" data-do-tooltip="{{copy}}">Private</span>` — reuses landed `gc-badge` + `data-do-tooltip` contract (precedent: `group--full.html.twig` L113-127, #122 lead ⓘ).
+- Renders ONLY on `field_group_privacy == 'private'`. Public/Unlisted silent (matches archive-badge convention).
+- `gc-badge--warning` variant (verified unused elsewhere; no new tokens).
+- Multi-class kept (`gc-badge` + `gc-privacy-badge` + BEM location class) — satisfies AC #9 selector and preserves badge styling.
+- Copy (F consumes verbatim from wireframe §3): 4 keys, all under 200 chars, `privacy.unlisted` honestly flags NOT-enforced (only `private` is enforced this story).
+
+**Assumed:**
+- Template paths (`group--full.html.twig`, `views-view-fields--all-groups.html.twig`) match D's sketch — F verifies at implementation and picks actual paths if they differ; design intent preserved.
+
+**Hedged:**
+- D open Q1 (variant color): resolved to `gc-badge--warning`; F may swap on real visual clash, documenting.
+- D open Q2 (multi-class): keep as sketched unless CSS collision surfaces at Tier 1.
+
+**Evidence:** `docs/planning/handoffs/134-private/wireframe.md` (D output, 240 lines).
+
+**Approval:** Auto-approved by O per overnight autonomous mode authorization (aangelinsf, 2026-07-22).
