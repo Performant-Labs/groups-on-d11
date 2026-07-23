@@ -1,0 +1,12 @@
+do_group_extras.restore:
+  path: '/group/{group}/restore'
+  defaults:
+    _form: '\Drupal\do_group_extras\Form\RestoreGroupForm'
+    _title: 'Restore group'
+  requirements:
+    _custom_access: '\Drupal\do_group_extras\Controller\RestoreGroupAccess::access'
+  methods: [GET, POST]
+  options:
+    parameters:
+      group:
+        type: entity:group

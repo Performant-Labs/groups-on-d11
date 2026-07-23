@@ -203,3 +203,64 @@ main checkout's `pl-groups-on-d11`) and no `vendor/`/`node_modules/`. Renamed th
 install`, `npm ci`, and `bash scripts/ci/assemble-config.sh` via `ddev exec` (no host PHP) before
 any test could execute. F will need the same running DDEV instance (`gm143-groups-on-d11`) to
 implement/verify locally.
+
+## F — Phase 5 (2026-07-22)
+
+**Decided.**
+- Implemented all 4 owned production files against T's RED test suite: `do_group_extras.routing.yml`, `do_group_extras.links.task.yml`, `RestoreGroupAccess.php`, `RestoreGroupForm.php`.
+- **Form-state/select key is `group_type`, not the task brief's `target_type_tid`.** T's authored Kernel test sets/asserts `group_type` as both the `FormState` value key and the literal render-array key (3 separate assertion points: `setValue('group_type', ...)` ×2, `assertArrayNotHasKey('group_type', $built, ...)`). Implemented to match T's actual tests (the contract), not the paraphrased brief I was given. This is a deviation from my task instructions, not a T-issue — T's tests are correct and internally consistent; neither `brief.md` nor `wireframe.md` names an internal key, so this doesn't contradict either of those upstream documents.
+- **`submitForm` re-derives the group independently of `$this->group`.** T's Kernel test invokes `buildForm()` and `submitForm()` on two separately-constructed `RestoreGroupForm` instances (via a `restoreForm()` helper that calls `::create()` fresh each time), bypassing Drupal's real `FormBuilder` (which normally guarantees same-instance execution). Fixed by stashing the group id in `$form_state->set('restore_group_id', ...)` during `buildForm()` and falling back to a fresh storage load in `submitForm()` if the instance property is NULL — correct under both the real HTTP path and this direct-call test pattern, and it strengthens the race-guard's reload-fresh posture as a side effect.
+- **Corrected a previously-recorded factual error: `#type => 'submit'` does NOT render `<button>` in this codebase.** A's Phase-3 decision (above, "`#type => 'submit'` renders `<button>`: CONFIRMED... No override needed") is wrong. Traced to source: `Submit extends Button`; `Button::getInfo()` sets `#theme_wrappers => ['input__submit']`; core's `input.html.twig` is `<input{{ attributes }} />` — a genuine `<input>`, confirmed by direct inspection of the actual template file (not by inference). No theme in this project's vendored core, including Olivero, overrides this to emit `<button>`. Also checked whether `do_group_membership`'s test suite (cited as "#138 GREEN evidence") actually verifies the tag name — it does not (zero matches for `button[type=` or `elementExists.*button` anywhere in that module's tests), so the "evidence" cited for the original claim never existed. Fixed in production code (not flagged as a T-issue, since T's tests correctly assert `button[type="submit"]` per AC-4/AC-6): `RestoreGroupForm` implements `TrustedCallbackInterface` and overrides the confirm submit's `#pre_render` to `[[Button::class, 'preRenderButton'], [self::class, 'preRenderAsButtonTag']]`, converting the fully-computed element into a hand-built `<button>` `#markup` string wrapped in `Markup::create()`. The `Markup::create()` wrap is itself load-bearing: without it, `Renderer::ensureMarkupIsSafe()` runs the string through `Xss::filter()` against `Xss::getAdminTagList()`, which does not include `button` and silently strips the entire tag — reproduced and confirmed via an isolated, throwaway debug Kernel test (not committed; lived only in the assembled `web/modules/custom` build layer, wiped by the next `assemble-config.sh` run) before landing the fix, rather than guessed at. Recommend a human/A correct the Phase-3 decision entry above for future stories that might otherwise rely on it.
+- No new services registered; DI mirrors `RemoveMemberForm`/`ManageMembersController` exactly (constructor promotion + static `create()`, no `services.yml` entry).
+- No `.install` hook needed — verified no `drupal/group` contrib optional-config path collision exists at `/group/{group}/restore` (only `views.view.group_members.yml` collides with the unrelated `/group/{group}/members` path `do_group_membership` already handles).
+
+**Assumed.**
+- `$term->label() === 'Archive'` is equivalent to `DoGroupExtrasHooks`'s `$term->getName() === 'Archive'` for `Term` entities (both resolve to the same underlying field value) — used `label()` per the pinned brief text rather than switching to `getName()` to match the hooks file verbatim, since both are already established idioms in this codebase and the brief explicitly specified `label()`.
+- `loadByProperties(['vid' => 'group_type'])` (full `Term` entities) is preferable to `loadTree()` (lightweight tree objects unless `$load_entities = TRUE`) for this one-shot, small-vocabulary lookup — simpler, no extra 4th-arg subtlety, matches the fixture shape T's tests construct with `Term::create()`.
+
+**Hedged.** None — every deviation above is backed by direct source inspection and a reproduced/confirmed root cause, not a guess.
+
+**Evidence.**
+- Kernel run: `ddev exec 'SIMPLETEST_DB="mysql://db:db@db/db" php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox web/modules/custom/do_group_extras/tests/src/Kernel/GroupRestoreTest.php'` — 4/4 pass (`Tests: 4, Assertions: 146, Deprecations: 2`, zero failures).
+- Functional run: same pattern with `SIMPLETEST_BASE_URL` set — 10/10 pass (`Tests: 10, Assertions: 59, Deprecations: 5, PHPUnit Deprecations: 11`, zero failures).
+- Existing suite (AC-7) unaffected: `GroupExtrasBehaviorTest.php` — 8/8 pass.
+- Combined final run, all three files: `Tests: 22, Assertions: 510, Deprecations: 6, PHPUnit Deprecations: 11` — zero failures.
+- phpcs (`--standard=Drupal,DrupalPractice`) against my two production files: zero errors, zero warnings.
+- `web/core/lib/Drupal/Core/Render/Element/Button.php`, `web/core/lib/Drupal/Core/Render/Element/Submit.php`, `web/core/modules/system/templates/input.html.twig` — the `<input>`-not-`<button>` root-cause trace.
+- `web/core/lib/Drupal/Core/Render/Renderer.php` lines 445–451, 878–889 — `#pre_render` invocation contract and `ensureMarkupIsSafe()`/`Xss::filter()` behavior.
+- `web/core/lib/Drupal/Core/Security/TrustedCallbackInterface.php` — the interface contract that fixed the `UntrustedCallbackException`.
+- Full detail: `docs/planning/handoffs/143-archive-restore/handoff-F.md`.
+
+**Return path.** T (Phase 6, GREEN self-check + e2e execution against a live seeded site) is next. No T-issues to route — all three of T's test files are correct as authored.
+
+## O — F adjudication (2026-07-22)
+
+**Decided.** F's work ACCEPTED. Two deviations to record.
+
+**Deviation 1 (form-state key `group_type` vs. paraphrase `target_type_tid`):** ACCEPT. F correctly implemented against T's authored tests (the contract), not my brief-paraphrase. `brief.md` §Design outline never named the internal form-state key — my paraphrase in the F prompt introduced `target_type_tid` gratuitously. Not a defect anywhere; my prompt drift.
+
+**Deviation 2 (`#pre_render` + `TrustedCallbackInterface` to force real `<button>`):** ACCEPT. **F's finding is verified.** I independently confirmed:
+- `web/core/modules/system/templates/input.html.twig` = literally `<input{{ attributes }} />`.
+- `web/core/modules/system/templates/button.html.twig` does NOT exist in this project's vendored core (`ls` returns "No such file or directory").
+- Therefore `Submit extends Button` + `Button::getInfo()`'s `#theme_wrappers => ['input__submit']` emits `<input type="submit">`, not `<button>`, in this codebase.
+- The A r1 NIT-7 record above ("`#type=>submit` renders `<button>`... theme-agnostic... #138 GREEN evidence supports") is **factually wrong** and inherited from my own O adjudication of the brief-gate. #138 tests never asserted the tag name (F verified with grep).
+
+**Superseding correction:** Any future story requiring a real `<button>` on `#type=>submit` MUST either (a) ship the same `#pre_render` override F used, (b) introduce a subtheme `button.html.twig` template overriding `input__submit` (site-wide fix, out of scope for #143), or (c) if `drupal/group`'s render pipeline has an override elsewhere I missed, verify with an actual `elementExists('button[type=submit]')` assertion before claiming default-behavior.
+
+**Latent WCAG debt flag:** `RemoveMemberForm` in #138 renders `<input type="submit">`, not `<button>` — meaning the "real button" AC-7/AC-15 in #138 was met only by claim, not by test. Recommend filing a follow-up story to either (i) generalize F's `#pre_render` into a shared `do_group_extras`/`do_chrome` trait or (ii) subtheme override, with regression tests. Flagged as a note in this handoff; does NOT block #143 (F's local fix satisfies #143's AC-4/AC-6 with covering tests).
+
+**F architecture check:** Kernel + Functional 22/22 GREEN, phpcs clean, DI mirrors MMC (constructor promotion + static `create`, no `services.yml`), Reuse map honored (extends `do_group_extras` with form + access controller analogous to `do_group_membership`, no parallel state field, no new module). `TrustedCallbackInterface` addition is narrow (one method, well-established core contract), scoped to `RestoreGroupForm`, not a new abstraction layer. Anti-duplication holds at this layer; A-dup will re-verify.
+
+**Assumed.** F's e2e-not-run deferral is per instructions; T(GREEN) or U will exercise the live route.
+
+**Hedged.** Whether A-dup should flag the `#pre_render` as candidate-for-extraction to a shared trait. My call: not now — one use, one form; premature abstraction. Revisit if a second story needs it.
+
+**Evidence.**
+- `web/core/modules/system/templates/input.html.twig` — direct read confirming `<input>` emission.
+- `ls web/core/modules/system/templates/button.html.twig` — file does not exist.
+- `docs/planning/handoffs/143-archive-restore/handoff-F.md` — F's full evidence trail + phpunit output.
+- `docs/groups/modules/do_group_extras/src/Form/RestoreGroupForm.php` — implementation directly reviewed.
+
+**A-r1-NIT-7 record correction (inline note for future readers):** The Phase-3 entry above claiming `#type=>submit` renders `<button>` in Drupal 10/11 is INCORRECT for this project. The `Submit` element uses `#theme_wrappers => ['input__submit']` which routes to `input.html.twig` (emits `<input>`). See this O-F-adjudication entry for the verified evidence and F's fix.
+
+**Return path.** Advancing to T(GREEN) for full verification pass + e2e execution against the live site.

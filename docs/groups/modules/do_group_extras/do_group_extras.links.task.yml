@@ -1,0 +1,5 @@
+do_group_extras.restore:
+  route_name: do_group_extras.restore
+  title: 'Restore group'
+  base_route: entity.group.canonical
+  weight: 30
