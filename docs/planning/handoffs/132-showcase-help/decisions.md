@@ -79,3 +79,18 @@
 - **Assumed**: Per the project override (Drupal/DDEV, not HTMX/SPA), the `u-drive.mjs` canonical
   helper does not apply — drove standard Playwright directly against the seeded DDEV site.
 - **Evidence**: `docs/planning/handoffs/132-showcase-help/handoff-U.md`.
+
+## Phase 9 (S) — spec audit (PASS)
+
+- **Decided**: PASS — all 8 issue acceptance criteria verified against F's diff (cce8d7f),
+  T's Unit real-execution (21/21 GREEN), and U's live 30/30 E2E + manual DOM/keyboard/hover
+  walk. Zero scope-guardrail violations; append-only contract honored; namespace fully disjoint.
+- **Decided**: The join-flow acceptance criterion is met via `showcase_help.membership-models`
+  copy on the tour page rather than a `do_group_membership` in-flow tooltip. Accepted as a
+  scope-honoring trade-off — the guardrail forbids `do_group_membership` edits, and the
+  teaching content is delivered + Playwright-covered on the tour surface. PR body carries an
+  audit note explaining this trade-off for the reviewer.
+- **Decided**: SC-F1 duplication check clears — `showcase.switcher.directory.layout` (per-
+  switcher tooltip) and `showcase_help.directory-presentation` (tour-page orientation) share
+  a topic but not wording, and serve distinct render sites. Documented inline in HelpText.php.
+- **Evidence**: `docs/planning/handoffs/132-showcase-help/handoff-S.md`.
