@@ -42,6 +42,17 @@
  * the neighboring last-activity block already uses (mirrors, doesn't
  * parallel-path).
  *
+ * Story #127 (SD-2): extends BOTH groups_chrome_preprocess_node() (the
+ * stream_card branch) and groups_chrome_preprocess_views_view_fields__all_groups()
+ * to populate a `tooltips` sub-array inside `gc_stream` / `gc_directory` with
+ * the ⓘ tooltip copy each card template renders as an inline trigger. This is
+ * pure data-passthrough (Twig has no HelpText access) — no new logic, no new
+ * fields; the copy itself lives in do_chrome's HelpText::get(), including the
+ * visibility badge's REUSE of the existing 'visibility.*' keys (keyed off the
+ * group's own field_group_visibility machine value, captured below as
+ * `visibility_value` so the reuse lookup and the existing label/variant
+ * resolution share the same read).
+ *
  * Demo-only, NO schema changes: all data is READ from existing entities and the
  * comment statistics table — no fields or config are added.
  */
@@ -195,6 +206,17 @@ function groups_chrome_preprocess_node(array &$variables): void {
   catch (\Exception $e) {
     $variables['gc_stream']['node_url'] = NULL;
   }
+
+  // --- ⓘ tooltip copy (#127, SD-2) -----------------------------------------
+  // Data-passthrough only: Twig cannot call HelpText::get() directly, so the
+  // resolved copy is handed to the template as `gc_stream.tooltips.*`. Grouped
+  // in its own sub-array (rather than three more flat gc_stream siblings) per
+  // A's Phase-3 naming guidance (decisions.md Finding #2).
+  $variables['gc_stream']['tooltips'] = [
+    'byline' => HelpText::get('card.stream.byline'),
+    'type' => HelpText::get('card.stream.type'),
+    'comments' => HelpText::get('card.stream.comments'),
+  ];
 
   // Convenience Attribute object for the card wrapper (unused classes are safe).
   $variables['gc_stream_attributes'] = new Attribute();
@@ -738,6 +760,7 @@ function groups_chrome_preprocess_views_view_fields__all_groups(array &$variable
     'type_label' => NULL,
     'visibility_label' => t('Open'),
     'visibility_variant' => 'success',
+    'visibility_value' => 'open',
     'member_count' => 0,
     'last_activity' => NULL,
     'last_activity_display' => NULL,
@@ -776,6 +799,7 @@ function groups_chrome_preprocess_views_view_fields__all_groups(array &$variable
   // --- Visibility badge ---------------------------------------------------
   if ($group->hasField('field_group_visibility') && !$group->get('field_group_visibility')->isEmpty()) {
     $value = (string) $group->get('field_group_visibility')->value;
+    $gc['visibility_value'] = $value;
     $gc['is_open'] = ($value === 'open');
     // Resolve the human label from the field's allowed values; fall back to the
     // machine value if the definition is unavailable.
@@ -850,6 +874,19 @@ function groups_chrome_preprocess_views_view_fields__all_groups(array &$variable
       }
     }
   }
+
+  // --- ⓘ tooltip copy (#127, SD-2) -----------------------------------------
+  // Data-passthrough only: Twig cannot call HelpText::get() directly, so the
+  // resolved copy is handed to the template as `gc_directory.tooltips.*`.
+  // Grouped in its own sub-array per A's Phase-3 naming guidance
+  // (decisions.md Finding #2). The visibility ⓘ REUSES the existing
+  // 'visibility.*' keys (single-sourced with the group-edit-form tooltip,
+  // per AC-4) keyed off `visibility_value` above — no new visibility copy.
+  $gc['tooltips'] = [
+    'type' => HelpText::get('card.directory.type'),
+    'visibility' => HelpText::get('visibility.' . $gc['visibility_value']),
+    'members' => HelpText::get('card.directory.members'),
+  ];
 
   $variables['gc_directory'] = $gc;
 }

@@ -214,6 +214,69 @@ final class HelpTextTest extends TestCase {
   }
 
   /**
+   * #127 (SD-2): the 5 new card.* keys (directory + stream card element
+   * tooltips) exist, are plain text, and are non-empty.
+   *
+   * `HelpText::all()` is a fixed literal array — a freshly-appended key is
+   * not auto-covered by any other test in this file, so this is a TARGETED
+   * assertion, mirroring the existing per-surface pattern (e.g.
+   * `testGroupTypeHomepageAdaptsCopyIsPresentAndNamesVariants`). RED reason:
+   * F has not yet appended these keys to `HelpText::all()`, so every
+   * `HelpText::get()` call below resolves to the unknown-key default `''`
+   * and every non-empty assertion fails.
+   *
+   * Card scope (brief.md): `card.directory.type`, `card.directory.members`
+   * are new; the visibility badge REUSES the existing `visibility.*` keys
+   * (covered by testVisibilityCopyIsPresentPlainTextAndHonest above) — no
+   * new key for visibility. `card.stream.byline`, `card.stream.type`,
+   * `card.stream.comments` are new for the stream card.
+   *
+   * @covers ::get
+   */
+  public function testCardTooltipCopyIsPresentAndPlainText(): void {
+    $keys = [
+      'card.directory.type',
+      'card.directory.members',
+      'card.stream.byline',
+      'card.stream.type',
+      'card.stream.comments',
+    ];
+    $all = HelpText::all();
+    foreach ($keys as $key) {
+      $this->assertArrayHasKey($key, $all, sprintf('"%s" must be a literal key in HelpText::all() (append-only contract).', $key));
+      $copy = HelpText::get($key);
+      $this->assertNotSame('', $copy, sprintf('Tooltip copy for "%s" must exist.', $key));
+      $this->assertStringNotContainsString('<', $copy, 'Copy must be plain text (allowHTML is disabled).');
+    }
+
+    // card.directory.type names the group-type taxonomy honestly, matching
+    // the reused group_type.field vocabulary (brief.md copy block).
+    $directory_type_copy = HelpText::get('card.directory.type');
+    foreach (['Geographical', 'Working group', 'Distribution', 'Event planning', 'Archive'] as $type) {
+      $this->assertStringContainsString($type, $directory_type_copy, "card.directory.type copy must name the '$type' type.");
+    }
+
+    // card.directory.members is about the member count, not something else.
+    $this->assertMatchesRegularExpression('/\bpeople\b|\bmember/i', HelpText::get('card.directory.members'), 'card.directory.members copy must describe membership count.');
+
+    // card.stream.byline names both the "who posted" and "which group"
+    // halves of the byline row (brief.md copy block).
+    $byline_copy = HelpText::get('card.stream.byline');
+    $this->assertMatchesRegularExpression('/\bposted\b/i', $byline_copy, 'card.stream.byline copy must describe who posted.');
+    $this->assertMatchesRegularExpression('/\bgroup\b/i', $byline_copy, 'card.stream.byline copy must describe which group.');
+
+    // card.stream.type names the content-type taxonomy honestly, matching
+    // the reused content_type.field vocabulary (brief.md copy block).
+    $stream_type_copy = HelpText::get('card.stream.type');
+    foreach (['Forum', 'Documentation', 'Event', 'Post', 'Page'] as $type) {
+      $this->assertStringContainsString($type, $stream_type_copy, "card.stream.type copy must name the '$type' type.");
+    }
+
+    // card.stream.comments is about replies/comments, not something else.
+    $this->assertMatchesRegularExpression('/\breplies\b|\bcomment/i', HelpText::get('card.stream.comments'), 'card.stream.comments copy must describe the comment/reply count.');
+  }
+
+  /**
    * @covers ::all
    */
   public function testAllReturnsStringMap(): void {

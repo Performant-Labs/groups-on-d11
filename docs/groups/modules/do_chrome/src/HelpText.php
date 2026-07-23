@@ -231,6 +231,38 @@ final class HelpText {
       'page.trending' => 'Posts drawing the most engagement across the site right now.',
       'page.my_feed_events' => 'Upcoming events from the groups you belong to.',
       'page.profile_stream' => 'This person\'s public activity across all their groups.',
+
+      // --- #127 (SD-2): card- and element-level ⓘ tooltips -----------------
+      // Appended per the append-only HelpText contract. Directory-card and
+      // stream-card element tooltips read these `card.*` keys via the two
+      // extended groups_chrome preprocess functions
+      // (groups_chrome_preprocess_views_view_fields__all_groups() and
+      // groups_chrome_preprocess_node()), which pass the copy into
+      // `$variables['gc_directory']['tooltips']` / `['gc_stream']['tooltips']`
+      // for the two card twig templates to render as inline ⓘ triggers
+      // (same DOM shape as #89/#122/#126: span + do-chrome-info class +
+      // tabindex="0" + role="note" + aria-label + data-do-tooltip).
+      //
+      // Only 5 new keys are needed — the visibility badge ⓘ REUSES the
+      // existing 'visibility.open' / 'visibility.moderated' /
+      // 'visibility.invite_only' keys above (keyed off the group's
+      // field_group_visibility machine value), so no new visibility copy is
+      // added here; single-sourcing that copy is itself part of the AC.
+      //
+      //  - card.directory.type    : names the group-type taxonomy (mirrors
+      //    the group_type.field vocabulary, but sized for a single-value
+      //    per-badge tooltip rather than an enumerate-every-option intro).
+      //  - card.directory.members : the member-count stat.
+      //  - card.stream.byline     : who posted + which group(s), and how to
+      //    reach each (click person / click group).
+      //  - card.stream.type       : names the content-type taxonomy (mirrors
+      //    content_type.field, sized per-badge).
+      //  - card.stream.comments   : the reply/comment-count footer link.
+      'card.directory.type' => 'What kind of group this is — Geographical (local user group), Working group (module or initiative), Distribution (Drupal distro), Event planning, or Archive (read-only).',
+      'card.directory.members' => 'How many people have joined this group.',
+      'card.stream.byline' => 'Who posted this and which group it appears in. Click the person to see their profile; click a group to visit it.',
+      'card.stream.type' => 'The kind of post — Forum (threaded discussion), Documentation (durable reference), Event (something at a set time), Post (quick update), or Page (standalone info).',
+      'card.stream.comments' => 'How many replies this post has. Click to open the post and read the discussion.',
     ];
   }
 
