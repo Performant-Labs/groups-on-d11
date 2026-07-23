@@ -67,3 +67,16 @@
 4. E2E must self-provision or work against seeded demo (WAVE §6.6).
 5. `#type => submit` renders `<input>` not `<button>`; dropdown widget will be `<select>` or a `hook_form_alter`-free custom render array — no submit-button pitfall.
 6. Banner needs cache context (per-user); block needs cache context (per-user).
+
+---
+
+## AMENDMENTS after A BLOCK (2026-07-22)
+
+- `PersonaRegistry` REMOVED. `ShowcaseCatalog::personas()` extended in place (adds `uname` + `tooltip_key` fields, plus helper `personaSpec(id)`).
+- `drupal/masquerade` DROPPED. Bespoke `PersonaSwitchController` + `PersonaAccessCheck` service (route-level access-check, tag `access_check`).
+- `group.role.community_group-groups_moderate.yml` added to files touched (the real enforcement site for `administer members` / `edit group` group-scoped perms). `admin: true` → `admin: false`, enumerated perms.
+- Banner rendered via a sibling `#[Hook('page_top')]` method `personaBanner()` on `DoShowcaseHooks` — pageTop() (ribbon) untouched.
+- Widget + banner cache contexts `['user']`.
+- `persona.*` HelpText values ≤ 140 chars (fits `<option title=…>`).
+- Seed uses `GroupMembershipManager::STATUS_PENDING` const.
+- Route id `do_showcase.persona_switch` at `/persona-switch/{persona}`; POST for switch, GET for switch-back.

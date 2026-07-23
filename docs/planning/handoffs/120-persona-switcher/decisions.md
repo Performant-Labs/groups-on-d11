@@ -82,3 +82,50 @@ tooltip copy grounding), issue #120 body (exact banner copy, "dropdown over chip
 
 **Evidence:** wireframe.md §7 open questions; issue #120 AC language ("Each option carries a
 do_chrome tooltip").
+
+## A — Phase 3 plan review
+
+**Decided:** BLOCK — plan requires 6 numbered amendments before T authors RED tests. See
+`handoff-A-plan.md` for the full list.
+
+**Decided:** The three architectural blockers: (1) Groups-Moderate enforcement site is the
+group-scoped `group.role.community_group-groups_moderate.yml`, not the user role — the plan
+targets only the user role; (2) `ShowcaseCatalog::personas()` already ships the 4-persona list,
+so the proposed `PersonaRegistry` is a parallel path and must fold into `ShowcaseCatalog`;
+(3) masquerade is enabled but the "always full logout+login" rule bypasses every masquerade
+mechanism — either use it or drop the dep. Recommend dropping.
+
+**Assumed:** The composer.lock declaration of masquerade 2.2 is enough for the plan review; the
+actual `web/modules/contrib/masquerade/` tree is absent from this worktree (composer install
+not yet run) so the `masquerade_users` vs `allowed_roles` question is deferred to Feature-time
+verification IF the module is kept.
+
+**Hedged:** Whether the group-role Groups-Moderate should keep `admin: true` (grants all group
+perms via bypass — over-broad but simplest) or flip to `admin: false` and enumerate the exact
+perms (`administer members`, `edit group`, plus archive perm). Recommended (b) with an explicit
+scope journal; O picks in the amendment cycle.
+
+**Evidence:** `ManageMembersController.php:39` and `RestoreGroupAccess.php:50` both check
+`$group->hasPermission(...)` (group perms, not user perms); `group.role.community_group-groups_moderate.yml`
+exists with `permissions: {}` + `admin: true`; `ShowcaseCatalog::personas()` lines 97-120 ships
+`anonymous / elena-garcia / maria-chen / moderator` verbatim.
+
+## O — Phase 3 amendments after A BLOCK
+
+**Decided (blocker 1):** Groups-Moderate scoped perms live on `group.role.community_group-groups_moderate.yml` (flip `admin: true` → `admin: false`; grant `administer members` + `edit group` + archive perm to be enumerated by F from `do_group_extras` archive-access check). User role `user.role.groups_moderate.yml` also gets minimal `access content`. Negative test asserts no site-admin reachable.
+
+**Decided (blocker 2):** DROP `PersonaRegistry`; extend `ShowcaseCatalog::personas()` with `uname` + `tooltip_key` fields; add `ShowcaseCatalog::personaSpec(id): ?array`. `PersonaSwitcher` consumes it via DI.
+
+**Decided (blocker 3):** DROP `drupal/masquerade` dependency entirely — its guarantees (uid-1 guard, unmasquerade, audit) are bypassed by the always-logout+login flow. Ship bespoke `PersonaSwitchController` + route-level `PersonaAccessCheck` service (tagged `access_check`, applies_to `_persona_access`). AC's "D11 masquerade compat verified" is replaced with "masquerade dep dropped; bespoke path — rationale recorded on issue + PR body." Simpler and honest.
+
+**Decided (warn 5):** Split banner into a second `#[Hook('page_top')]` method `personaBanner()` on `DoShowcaseHooks` — do not touch `pageTop()` (ribbon).
+
+**Decided (warn 7):** Both widget + banner render arrays declare `#cache['contexts'] => ['user']`. T asserts.
+
+**Decided (warn 11):** Trim the four `persona.*` HelpText values to ≤ 140 chars (draft in amended brief).
+
+**Decided (warn 8):** Seed writes `field_membership_status` via `GroupMembershipManager::STATUS_PENDING`.
+
+**Decided (warn 10):** ONE route `do_showcase.persona_switch` at `/persona-switch/{persona}`; POST for switch-to-persona (state change), GET allowed only when `persona=anonymous` (banner link).
+
+**Evidence:** A handoff-A-plan.md findings 1-11; ShowcaseCatalog.php lines 97-120 (existing personas list); group.role.community_group-groups_moderate.yml (admin: true, permissions: {}); group.role.community_group-organizer.yml (real perm names); ManageMembersController.php line 39 + RestoreGroupAccess.php line 50 (real permission enforcement sites).
