@@ -48,7 +48,7 @@ final class PageHelpRouteMapTest extends KernelTestBase {
     'view.group_events.page_1' => 'page.group.events',
     'do_group_membership.manage_members' => 'page.group.members',
     'view.my_feed.page_1' => 'page.my_feed',
-    'view.following.page_1' => 'page.following',
+    'view.following_feed.page_1' => 'page.following',
     'view.trending.page_1' => 'page.trending',
     'view.my_feed_events.page_1' => 'page.my_feed_events',
     'view.profile_stream.page_1' => 'page.profile_stream',
@@ -85,7 +85,7 @@ final class PageHelpRouteMapTest extends KernelTestBase {
     $page_help->preprocessPageTitle($variables);
 
     $this->assertNotSame([], $variables['title_suffix'], 'preprocessPageTitle() must add a render element to title_suffix for a mapped route.');
-    $rendered = (string) \Drupal::service('renderer')->renderInIsolation($variables['title_suffix']);
+    $rendered = html_entity_decode((string) \Drupal::service('renderer')->renderInIsolation($variables['title_suffix']), ENT_QUOTES);
 
     $expected_copy = HelpText::get('page.stream');
     $this->assertNotSame('', $expected_copy, 'page.stream copy must exist for this assertion to be meaningful.');

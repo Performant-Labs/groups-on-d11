@@ -75,7 +75,7 @@ class PageHelp {
       'do_group_membership.manage_members' => 'page.group.members',
       // --- W2 pre-registered (inert until the route exists) ------------
       'view.my_feed.page_1' => 'page.my_feed',
-      'view.following.page_1' => 'page.following',
+      'view.following_feed.page_1' => 'page.following',
       'view.trending.page_1' => 'page.trending',
       'view.my_feed_events.page_1' => 'page.my_feed_events',
       'view.profile_stream.page_1' => 'page.profile_stream',
