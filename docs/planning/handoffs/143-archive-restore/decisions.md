@@ -264,3 +264,116 @@ implement/verify locally.
 **A-r1-NIT-7 record correction (inline note for future readers):** The Phase-3 entry above claiming `#type=>submit` renders `<button>` in Drupal 10/11 is INCORRECT for this project. The `Submit` element uses `#theme_wrappers => ['input__submit']` which routes to `input.html.twig` (emits `<input>`). See this O-F-adjudication entry for the verified evidence and F's fix.
 
 **Return path.** Advancing to T(GREEN) for full verification pass + e2e execution against the live site.
+
+## T — Phase 6 (GREEN)
+
+**Decided.**
+- Kernel (4/4), Functional (10/10), and pre-existing AC-7 suite (8/8) all re-run independently and
+  GREEN — zero regressions, matches F's self-reported counts exactly (combined 22/22, `Assertions:
+  510`).
+- Fixed one test-authorship bug in my own e2e spec (I own this, no F/production code touched):
+  `findLegacyInfrastructureGid()` searched the public `/all-groups` View, which hard-filters
+  `status = 1`; Legacy Infrastructure is seeded unpublished (`step_700`'s archive-simulation
+  convention), so it never appears there regardless of admin privilege (the View's filter is a
+  hardcoded value, not an access gate). Fixed by switching the lookup to `/admin/group` (the Group
+  module's own unfiltered admin collection) — verified this lists all 8 seeded groups.
+- After that fix, the suite surfaces a second, genuine, pre-existing finding: AC-8's "node-create
+  denied" precondition assertion against `/group/{gid}/node/create` gets 200, not 403, for an
+  archived group. Traced to root cause (not guessed): that route's access check
+  (`GroupRelationshipCreateAnyEntityAccessCheck`) delegates entirely to
+  `group_relation_type` plugin `entityCreateAccess()` and never invokes `hook_node_access()`, so
+  `DoGroupExtrasHooks::nodeAccess()`'s Archive-branch denial (correct and Kernel-tested in
+  isolation) is unreachable from the real "Add new content" page. Confirmed empirically: archived
+  (gid=8) vs. non-archived (gid=1) groups render byte-identical "Add new content" chooser pages.
+  `git log` confirms `DoGroupExtrasHooks.php` predates #143 (initial-baseline commit only) — none
+  of F's 4 owned files touch this path.
+- **Verdict: BLOCKED**, not GREEN. All of #143's own owned-surface behavior (AC-1 through AC-7,
+  AC-9, AC-10) is independently verified PASS, including a live-render spot-check (via `drush uli`)
+  confirming F's real `<button type="submit">` fix and the archived-badge/Restore-tab chrome both
+  render correctly against the actually-served DDEV site, not just the test harness. Only AC-8's
+  node-create-denied sub-assertion blocks, and it blocks on a pre-existing gap outside #143's
+  owned-files boundary.
+
+**Assumed.**
+- The site had no installed DB at phase start; re-ran the exact `.github/workflows/test.yml` e2e
+  job's install→config:import→enable→seed sequence via `ddev exec` (site:install, config:set uuid,
+  config:import, seed step_700 + step_720 as uid 1) rather than a DDEV-specific shortcut, so the
+  local verification mirrors CI as closely as possible. Neither seed script was edited.
+- `assemble-config.sh` must be invoked via `ddev exec` on this Windows workstation (no host PHP) —
+  documented as an advisory note, not a script defect.
+
+**Hedged.**
+- Whether AC-8's node-create assertion should be descoped from #143 (my recommendation) or routed
+  back to F/A as in-scope — this is O's call per my role boundary (I report, I don't adjudicate
+  scope). Flagged clearly in the handoff with a specific recommendation and rationale.
+
+**Evidence.**
+- Kernel/Functional/AC-7 run outputs — see `handoff-T-green.md` "GREEN confirmation" section
+  (exact command + testdox output for each of the 3 files).
+- E2E failure trace: `test-results/group-restore-Group-archiv-085a5-Legacy-Infrastructure-group-chromium/{trace.zip,error-context.md}`.
+- Root-cause trace: `web/modules/contrib/group/src/Access/GroupRelationshipCreateAnyEntityAccessCheck.php`,
+  `docs/groups/modules/do_group_extras/src/Hook/DoGroupExtrasHooks.php:99-118`, `git log --oneline
+  -- .../DoGroupExtrasHooks.php` (baseline-only), live diff of `/group/8/node/create` vs.
+  `/group/1/node/create` rendered body (byte-identical).
+- Live render spot-check: `/group/8/restore` (real `<button aria-describedby=... type="submit">`),
+  `/group/8` canonical (Archived badge + Restore group tab both present).
+- phpcs re-verify: 0 errors/warnings on both F production files (matches F's self-report).
+- Full detail: `docs/planning/handoffs/143-archive-restore/handoff-T-green.md`.
+
+**Return path.** Reporting to O: `T-green found blocking issues.` The blocker is a pre-existing,
+out-of-#143-scope architecture gap (not F's code, not a test-routing mistake) surfaced for the
+first time by exercising AC-8's literal end-to-end sequence. O must adjudicate: descope AC-8's
+node-create sub-assertion with a follow-up issue (my recommendation), or route to F/A as in-scope.
+Not ready for U/S until this is resolved one way or the other.
+
+## T — Phase 6 (GREEN) round 2
+
+**Decided.**
+- Received O's relay of the operator's ruling on round 1's BLOCKED report: **ruling (c) — test
+  tweak**. AC-8's Step 1 precondition assertion (node-create-denied, `expect(status).toBe(403)`
+  against `/group/{gid}/node/create`) is swapped for archived-state observables that ARE actually
+  enforced end-to-end: badge visibility (`span.group__archived-badge`, confirmed against
+  `ArchivePinHooks::preprocessGroup()`) and "Restore group" local-task-tab visibility. No F code
+  touched; no follow-up issue filed (POC posture, per explicit instruction — this project does not
+  spin up tracking issues for out-of-scope findings surfaced at this tier).
+- Applied the swap in `tests/e2e/group-restore.spec.ts`: removed the node-create-403 `goto`+
+  `expect` pair from Step 1; added a `span.group__archived-badge` visibility assertion alongside
+  the existing text/tab assertions in Step 1, and the same badge-locator assertion to Step 5 (post
+  re-archive) for symmetry (Step 5 previously only asserted text + tab, no node-create check
+  existed there to remove). Round-trip semantics preserved: archived observable present pre-restore
+  -> both observables absent post-restore -> both return post-re-archive. Added an inline code
+  comment at the swap site citing this O adjudication and explaining the pre-existing
+  `_group_relationship_create_any_entity_access` / `hook_node_access` gap for future readers.
+- Re-ran the full stack post-swap: Kernel 4/4, Functional 10/10 (both unaffected by this TS-only
+  change, run again as a paranoia check per instructions — zero regressions, matches round 1
+  exactly), E2E 1/1 GREEN (`1 passed (9.4s)`).
+- Rewrote `handoff-T-green.md` in full for the final GREEN state, including a self-contained
+  "Out-of-scope observations" section in plain language, written so it can be lifted verbatim into
+  the PR body without needing this handoff's context.
+
+**Assumed.**
+- The DDEV instance (`gm143-groups-on-d11`) and its seeded database, left running from the prior
+  session, were still valid to re-use — verified directly via a `drush sql:query` check confirming
+  Legacy Infrastructure (gid=8, `status=0`) was still present before re-running e2e, rather than
+  assuming state carried over silently.
+
+**Hedged.** None — this round reached an unambiguous GREEN across every tier with no open
+questions.
+
+**Evidence.**
+- E2E re-run: `BASE_URL="https://gm143-groups-on-d11.ddev.site" npx playwright test
+  tests/e2e/group-restore.spec.ts --reporter=list` — `1 passed (9.4s)`.
+- Kernel re-run: 4/4 pass, `Tests: 4, Assertions: 146, Deprecations: 2`.
+- Functional re-run: 10/10 pass, `Tests: 10, Assertions: 59, Deprecations: 7, PHPUnit
+  Deprecations: 11`.
+- `docs/groups/modules/do_chrome/src/Hook/ArchivePinHooks.php:54-72` — confirms
+  `span.group__archived-badge` is the real badge element rendered by `preprocessGroup()`, and that
+  it (and the Restore tab, by the pre-existing local-task access callback) is present exactly when
+  `field_group_type` resolves to "Archive" — i.e., the swapped assertions pin real, enforced
+  behavior, not a vacuous check.
+- Full detail: `docs/planning/handoffs/143-archive-restore/handoff-T-green.md` (rewritten this
+  round).
+
+**Return path.** Reporting to O: `T-green complete, no blocking issues. Ready for U.` (UI surface
+exists — badge, Restore tab, and restore confirmation form are all interactive elements for U to
+walk live.)
