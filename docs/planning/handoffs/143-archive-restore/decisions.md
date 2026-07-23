@@ -434,3 +434,32 @@ walk live.)
   data change.
 
 **Verdict:** PASS. Ready for S.
+
+## S — Phase 9 (2026-07-22)
+
+**Decided.** Verdict: **PASS** — ready to PR. Full audit: `handoff-S.md`.
+
+- All 11 ACs have live covering assertions (Kernel 4/4 + Functional 10/10 + AC-7 8/8 + E2E 1/1 + U live-walk). No "PASS by claim" holes.
+- AC-8 precondition swap (operator ruling c): honest to round-trip semantics — badge (`ArchivePinHooks::preprocessGroup` conditional on Archive-typed) + Restore-tab (`RestoreGroupAccess::access` on same `isArchived`) both flip in lockstep with `field_group_type`. Strict quality improvement over the unenforced node-create-403 assertion.
+- F's `#pre_render` + `TrustedCallbackInterface` fix: scoped correctly (private to `RestoreGroupForm`, no premature extraction per A-dup); AC-4/AC-6 truly satisfied (Functional asserts `button[type=submit]`, U DOM confirmed `inputSubmitCount: 0` + `aria-describedby` wired programmatically).
+- Diff-gate WARNs (W-1/W-2/W-3) accepted-as-is: POC-posture rationale is defensible (defensive-only branch, codebase-wide idiom consistency, matches `RemoveMemberForm`'s implicit pattern).
+- U's badge-placement observation: pre-existing `do_chrome/ArchivePinHooks` chrome (`git diff --stat` confirms F touched zero files under `do_chrome/`); wireframe was schematic, not literal DOM spec. Recorded as ADVISORY for future do_chrome polish, NOT a #143 defect.
+- "Out-of-scope observations" section in `handoff-T-green.md`: verified self-contained, factually accurate (root cause matches `GroupRelationshipCreateAnyEntityAccessCheck` trace), plain-language, non-defensive. Ready for verbatim PR-body lift.
+- Additional WCAG 2.2 AA spot-check beyond U's coverage: 1.3.1 / 2.4.7 / 3.3.2 / 4.1.2 satisfied by construction; 2.5.8 (target size) assumed via core Olivero defaults (low-risk).
+
+**Advisory notes.** (1) Badge visual placement gap — pre-existing do_chrome chrome, future polish only. (2) Latent WCAG debt on #138 (`RemoveMemberForm` `<input>` submit) already flagged. (3) `assemble-config.sh` host-PHP assumption — T advisory carried forward. (4) Pre-existing "Add new content" not-blocked-in-archived gap — covered by out-of-scope section.
+
+**Recommended PR title:** `feat: #143 do_group_extras — Restore action for archived groups`. Body includes the "Out-of-scope observations" section verbatim.
+
+**Assumed.** aangelinsf makes the final merge call — this PASS is a recommendation, not a merge.
+
+**Hedged.** None — every AC, deviation, and advisory has a clear disposition.
+
+**Evidence.**
+- `docs/planning/handoffs/143-archive-restore/handoff-S.md` — full findings + PR title/body.
+- `git diff --stat origin/main..HEAD` — 22 files, all source under `docs/groups/modules/do_group_extras/` + `tests/e2e/` + planning docs; zero cross-module leakage.
+- `docs/groups/modules/do_chrome/src/Hook/ArchivePinHooks.php:54-72` — badge-placement source of truth (pre-existing).
+- `tests/e2e/group-restore.spec.ts:78-121` — round-trip badge+tab observability at each state.
+- `handoff-T-green.md` §Out-of-scope observations — PR-body-ready text.
+
+**Return path.** Reporting to O: `S PASS — ready for pre-PR hold.` Human (aangelinsf) merges.
