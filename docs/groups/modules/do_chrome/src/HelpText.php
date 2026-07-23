@@ -263,6 +263,28 @@ final class HelpText {
       'card.stream.byline' => 'Who posted this and which group it appears in. Click the person to see their profile; click a group to visit it.',
       'card.stream.type' => 'The kind of post — Forum (threaded discussion), Documentation (durable reference), Event (something at a set time), Post (quick update), or Page (standalone info).',
       'card.stream.comments' => 'How many replies this post has. Click to open the post and read the discussion.',
+
+      // --- #132 SD-5 (Showcase help): showcase_help.* keys. ----------------
+      // Appended per the append-only HelpText contract — do_showcase's
+      // meta-comparison orientation copy for the persona banner ⓘ, the six
+      // tour-page catalog-entry ⓘ triggers, and the map-view orientation ⓘ.
+      // Deliberately a DIFFERENT namespace from this file's own
+      // 'showcase.switcher.*' (SC-F1, above) — that key is the per-switcher-
+      // instance tooltip; 'showcase_help.*' is the meta-comparison
+      // orientation copy the tour page (`ShowcaseController::page()`) and the
+      // persona banner (`DoShowcaseHooks::personaBanner()`) render. Disjoint
+      // from 'persona.*' (#120), 'visibility.*' (#121), 'group_type.*'
+      // (#122), and 'page.*' (#126) — no existing key from any of those
+      // namespaces is edited or removed by this block.
+      'showcase_help.persona_banner' => 'This banner shows which persona you\'re browsing as — switch back at any time via the \'Browse as\' dropdown at the top of the page. Groups-Moderate actions really change demo state until the next reseed.',
+      'showcase_help.discovery-ranking' => 'Three orderings on the same underlying groups: Recent (newest first), Hot (most active), Promoted (editorial). Switch to see how ordering changes what a visitor meets first.',
+      'showcase_help.directory-presentation' => 'Compact list packs many groups per screen for fast scanning; Cards trade density for per-group detail. The switch is around information density, not content.',
+      'showcase_help.membership-models' => 'Two axes, kept distinct: visibility (who sees the group) and join policy (how you get in). Open joins instantly; Moderated needs organizer approval; Invite Only is add-by-organizer. Every group here is visible — Private (member-only visibility) is a separate axis.',
+      'showcase_help.group-type-homepages' => 'The group homepage adapts to the group\'s type — Events lead with the event calendar, Discussion leads with the stream, Documentation leads with the reference index. Same page contract, different lead section.',
+      'showcase_help.stream-model' => 'One combined activity stream vs. separate streams per content type. The decision is one feed to scan vs. filtered feeds a member picks.',
+      'showcase_help.private-group-reveal' => 'Switch personas and watch a private group appear: it is hidden from the anonymous directory and reveals itself only to a member of that group.',
+      'showcase_help.persona-switcher' => 'Four public personas — Anonymous, Elena (Member), Maria (Organizer), Groups-Moderate. Each meets a different slice of the demo.',
+      'showcase_help.map' => 'Map view plots groups with a geographic home. Only Geographical groups appear; pan and zoom to explore. Each marker\'s hover shows the group\'s name and type.',
     ];
   }
 
