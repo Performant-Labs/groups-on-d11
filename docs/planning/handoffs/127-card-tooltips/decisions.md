@@ -40,3 +40,56 @@ Plan is architecturally consistent with the established `do_chrome` tooltip patt
 - `web/themes/custom/groups_chrome/groups_chrome.theme:76` (`preprocess_node` — `gc_stream` shape)
 - `web/themes/custom/groups_chrome/groups_chrome.theme:721` (`preprocess_views_view_fields__all_groups` — `gc_directory` shape)
 - `~/Projects/_worktrees/groups-page-tooltips/docs/planning/handoffs/126-page-tooltips/brief.md` (sibling story — disjointness verified)
+
+## Phase 4 — T(RED)
+
+**Verdict:** RED confirmed valid. F may implement.
+
+### Tests authored
+1. **`tests/e2e/element-tooltips.spec.ts`** (NEW, 7 tests):
+   - Directory card (`/all-groups`, anonymous): type/visibility/members triggers carry `data-do-tooltip` + `tabindex="0"` + `role="note"` + non-empty `aria-label`, scoped adjacent to their badge/stat (not merged into it).
+   - Directory card: hovering a trigger shows a tippy tooltip (`.tippy-box, [data-tippy-root]`).
+   - Directory card: visibility ⓘ copy is single-sourced — equals the hardcoded `HelpText::get('visibility.open')` string (verbatim from HelpText.php) for a card whose visibility badge reads "Open" — proves the REUSE path, not a new key.
+   - Directory card: exactly 3 triggers per card (no double-tooltip / no stray duplicate).
+   - Stream card (`/stream`, anonymous): byline/type/comments triggers carry the same 3-attribute contract; comments trigger asserted to be a SIBLING of `.gc-stream-card__comments` (not nested inside it, since that anchor already carries its own `@count comments` aria-label — guards against accessible-name merging).
+   - Stream card: hovering a trigger shows a tippy tooltip.
+   - Stream card: exactly 3 triggers per card.
+2. **`docs/groups/modules/do_chrome/tests/src/Unit/HelpTextTest.php`** (EXTENDED, +1 method `testCardTooltipCopyIsPresentAndPlainText`): asserts the 5 new `card.*` keys (`card.directory.type`, `card.directory.members`, `card.stream.byline`, `card.stream.type`, `card.stream.comments`) are literal keys in `HelpText::all()`, non-empty, plain text, and each names the vocabulary the brief specifies (group types / content types / "posted" + "group" / "replies|comment"). Visibility reuse is already covered by the pre-existing `testVisibilityCopyIsPresentPlainTextAndHonest` — not duplicated.
+
+Tier: e2e for DOM/a11y/hover contract (cheapest sufficient tier that can observe rendered markup + tippy JS); unit for the copy-source contract (no Drupal bootstrap needed, matches the file's own existing per-surface pattern).
+
+### Environment stood up for RED
+No worktree DDEV project existed yet (fresh worktree). Built `gm127-card-tooltips` (untracked `.ddev/config.local.yaml` override — `pl-groups-on-d11` was already running against the primary checkout and would have collided). `ddev composer install`, assembled config via `ddev exec bash scripts/ci/assemble-config.sh`, installed **standard** profile (not minimal — matches `.github/workflows/test.yml`'s recipe), set matching site UUID, `config:import`, enabled the do_* modules, seeded via `docs/groups/scripts/step_700/720/780/790` (mirrors CI's seed step exactly), admin/admin. `web/sites/default/settings.php` got one local, gitignored line adding `$settings['config_sync_directory'] = '../config/sync'` before the `settings.ddev.php` include (DDEV's default sync dir is `sites/default/files/sync`, which is not where assemble-config.sh places config) — this file is gitignored, not committed, and not part of the test-authorship diff.
+
+### RED confirmation
+**Unit** — `ddev exec php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox web/modules/custom/do_chrome/tests/src/Unit/HelpTextTest.php`:
+```
+✔ Foundation demo copy is present
+✔ Unknown key returns empty string
+✔ Audience copy is present
+✔ Visibility copy is present plain text and honest
+✔ Archive pin control copy is present and plain text
+✔ Report flag control copy is omitted
+✔ Group type field copy names all types
+✔ Content type field copy names all types
+✔ Permission matrix panel copy is present
+✔ Group type homepage adapts copy is present and names variants
+✘ Card tooltip copy is present and plain text
+  "card.directory.type" must be a literal key in HelpText::all() (append-only contract).
+  Failed asserting that an array has the key 'card.directory.type'.
+  /var/www/html/web/modules/custom/do_chrome/tests/src/Unit/HelpTextTest.php:246
+✔ All returns string map
+Tests: 12, Assertions: 120, Failures: 1.
+```
+All 11 pre-existing tests unaffected (still green); only the new targeted test fails, on the first missing key — right reason (missing append), not a setup/typo error.
+
+**E2E** — `BASE_URL="https://gm127-card-tooltips.ddev.site" npx playwright test tests/e2e/element-tooltips.spec.ts`: **7 failed, 0 passed.** Every failure is a `toHaveCount`/`toBeVisible`/`toHaveAttribute` assertion resolving to **0 elements** (`[data-do-tooltip]` does not exist anywhere inside `.gc-directory-card` / `.gc-stream-card` yet) — never a navigation/import/selector-typo error. Confirmed against a live, fully-seeded site (drush site:install standard → cim → step_700/720/780/790 seed), not an isolated fixture.
+
+**Baseline sanity check** — `tests/e2e/directory-cards.spec.ts` (pre-existing, adjacent surface) run against the same seeded site: 3/3 pass (one transient `net::ERR_CONNECTION_CLOSED` on first attempt was a DDEV/Mutagen blip, not reproducible on retry — confirms the site itself is healthy and the RED is isolated to the new assertions).
+
+### Ready for F
+RED is valid on both tiers. F may implement against:
+- 5 new `HelpText::all()` keys (`card.directory.type`, `card.directory.members`, `card.stream.byline`, `card.stream.type`, `card.stream.comments`) — append only, after `persona.moderator`.
+- Extend `groups_chrome_preprocess_views_view_fields__all_groups()` + `groups_chrome_preprocess_node()` to pass tooltip copy into `gc_directory` / `gc_stream` (A's guidance: option (a), preprocess extension — confirmed acceptable).
+- 3 inline `<span class="do-chrome-info gc-card-info" tabindex="0" role="note" aria-label="{{ copy }}" data-do-tooltip="{{ copy }}">ⓘ</span>` triggers per template, each placed as a DOM **sibling** immediately after its target element (type badge / visibility badge / members stat on the directory card; byline / type badge / comments footer on the stream card) — NOT nested inside the comments `<a>` (that element already owns an `aria-label`; nesting would merge accessible names, which the spec explicitly guards against).
+- Visibility trigger's `data-do-tooltip` must resolve via `HelpText::get('visibility.' . $variables['gc_directory']['visibility'])` (reuse, not a new key) — the e2e spec pins the exact `visibility.open` string as a regression guard.
