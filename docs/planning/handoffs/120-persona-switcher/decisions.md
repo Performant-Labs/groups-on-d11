@@ -405,3 +405,7 @@ console errors and zero 500s across a full multi-persona round trip, 4/4 PASS on
 spec re-run against the correct base URL.
 
 **Verdict: PASS. Ready for S.**
+
+## S — Phase 9 (spec audit)
+
+**Verdict: PASS.** All 12 AC bullets satisfied with real evidence (not just handoff claims): 4 Kernel + 6 Functional + 1 Unit + 1 E2E spec (4 tests) GREEN against seeded stack, U walkthrough 30/30 items PASS, diff-gate BLOCK×3 resolved and re-verified. Spot-checks verified directly against the code diff (HelpText append-only 16/0; group role admin:false + enumerated perms; ShowcaseCatalog extended with uname/tooltip_key/label; `new ShowcaseCatalog()` count = 0; uid-1 guard by `(int)id()===1`; cache contexts ['user'] on both surfaces; Url::fromRoute for all persona-switch URLs; sentinel-strip prefix technique; same-origin Referer parsed by scheme/host/port with default-port normalization; STATUS_PENDING const in seed; step_790 wired into CI test.yml). Two follow-ups for O (non-blocking): (1) rebase branch onto origin/main (currently behind by ~14 commits after #121 merged); (2) paste masquerade-dep dispensation into PR body per Amendment 3 (rationale ready in decisions.md line 119). Ready for PR + CI + merge.
