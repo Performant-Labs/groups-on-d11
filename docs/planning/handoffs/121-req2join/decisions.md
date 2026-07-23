@@ -750,3 +750,80 @@ not story churn.
   carry-forward (`/all-groups` directory-card third branch); `do_group_extras` CLI-unpublish
   hook; malformed `language.content_settings.node.*` config; drush uli positional-arg
   gotcha (documentation note).
+
+## Phase 6 (round 3) — T post-rebase sanity re-verify (2026-07-22)
+
+**Decided:**
+- Verdict: **GREEN, no regressions.** Branch confirmed rebased onto `origin/main` (`e269c66`,
+  including #122 SC-3 group-type-driven homepages and #143 do_group_extras restore action);
+  `git merge-base --is-ancestor origin/main HEAD` confirms; no leftover conflict markers in
+  `groups_chrome.theme` or `HelpText.php` (`grep` for `<<<<<<<`/`=======`/`>>>>>>>` — zero hits).
+- Assembled via `bash scripts/ci/assemble-config.sh` run inside the ddev web container
+  (`ddev exec`) — host has no PHP on PATH, so the assemble script (which shells out to `php`)
+  must run in-container; this is an environment quirk of this Windows host, not a script defect.
+  Temporarily renamed this worktree's ddev project from the tracked `pl-groups-on-d11` (collided
+  with the main checkout's own running instance of the same name) to `gm121-groups-on-d11` via
+  `ddev config --project-name` for the duration of this session only — `.ddev/config.yaml` is
+  tracked but this is a sanity-check session with no commits, so the local rename is harmless and
+  matches the project-name convention prior T phases used.
+- **Kernel (full CI shape):** 111 tests, 3093 assertions, 0 Errors, 0 Failures ("OK, but there
+  were issues!" = deprecation-notice-only, same pattern as every prior GREEN run in this story).
+  111 > 107 (F's reported baseline) — the delta is expected new Kernel coverage from #122/#143
+  landing on `main`, not a regression. All `do_group_membership`/`do_chrome` story tests
+  (`RequestJoinFlowTest` 7/7, `GroupMembershipManagerKernelTest`, `ManageMembersAccessTest`) still
+  present and passing post-rebase.
+- **Functional `JoinPolicyEnforcementTest`:** 9/9 GREEN, 54 assertions — exact match to F-r2's
+  and T-green-r2's previously reported count (`Tests: 9, Assertions: 54`). Required setting
+  `SIMPLETEST_BASE_URL='http://localhost'` (unset in this fresh container — an environment setup
+  gap, not a code regression; confirmed `http://localhost` returns 200 inside the web container
+  via `curl`) and creating a writable `web/sites/simpletest/browser_output` directory.
+- **Unit `HelpTextTest`:** 11/11 GREEN, 107 assertions, 0 failures. Task expected 10 — actual is
+  11 (one net-new test, consistent with the "or higher" allowance and unrelated to this rebase;
+  no assertion failures on any `visibility.*` string, confirming the auto-merge of `HelpText.php`
+  did not reintroduce stale copy or collide with any key #143 may have appended). This was the
+  single most rebase-sensitive check per the task brief (auto-merged file) and it is clean.
+- **do_group_membership full Functional suite:** 20/20 GREEN, 179 assertions — exact match to
+  task's expected count.
+- **do_chrome Unit + Functional combined:** 16/16 GREEN, 159 assertions. Task expected "15/15 or
+  higher" — 16 is consistent with growth from #122/#143, all GREEN.
+- **phpcs spot-check** on both rebase-touched files (`docs/groups/modules/do_chrome/src/HelpText.php`,
+  `web/themes/custom/groups_chrome/groups_chrome.theme`) against `Drupal,DrupalPractice`: same
+  pre-existing debt counts F already reported and disclosed in Phase 5 rework (HelpText.php:
+  comment-indentation/line-length issues in an unrelated docblock region; theme file: 4
+  namespaced-class `use`-statement errors + 1 docblock-format warning) — no new debt introduced
+  by the rebase's auto-merge.
+- **E2E:** Skipped. The ddev container came up with a persisted/partial DB state (8 users present,
+  including the story's expected personas by email — `sophie.mueller@example.com`,
+  `alex.novak@example.com`, `ravi.patel@example.com` — but `select ... from group_field_data`
+  failed with `ERROR 1146: Table 'db.group_field_data' doesn't exist`, proving this is NOT a
+  correctly-provisioned #121 seed, just leftover/partial state from an unrelated prior session).
+  Per the task's explicit allowance ("if not, this is expensive to reprovision for a
+  rebase-sanity pass — you can skip and note that E2E-tier verification would run in CI on the
+  rebased branch anyway"), did not reprovision a full seeded site for this narrow sanity pass.
+
+**Assumed:**
+- The `SIMPLETEST_BASE_URL` requirement and `browser_output` writability are per-container setup
+  artifacts of this fresh ddev instantiation, not evidence of a story or CI defect — the real CI
+  job already sets these (T-green's Phase 6 runs against the same suite succeeded without this
+  note, implying CI's environment already supplies them).
+
+**Hedged:** none — every count was verified directly against a live re-run in this session, not
+carried over from prior handoffs.
+
+**Evidence:**
+- `git log --oneline -3 origin/main` / `git merge-base --is-ancestor origin/main HEAD` (rebase
+  confirmed, e269c66 tip).
+- `grep -rn "<<<<<<<\|=======\|>>>>>>>" web/themes/custom/groups_chrome/groups_chrome.theme
+  docs/groups/modules/do_chrome/src/HelpText.php` — zero hits (clean auto-merge/manual resolve).
+- Kernel run: `Tests: 111, Assertions: 3093, Deprecations: 28, PHPUnit Deprecations: 93.` (0
+  Errors, 0 Failures).
+- Functional `JoinPolicyEnforcementTest` run: `Tests: 9, Assertions: 54, Deprecations: 15,
+  PHPUnit Deprecations: 10.` (0 Errors, 0 Failures) — byte-identical count to
+  `handoff-T-green.md` §"Phase 6 (round 2)".
+- Unit `HelpTextTest` run: `Tests: 11, Assertions: 107, PHPUnit Deprecations: 12.` (0 Failures).
+- Functional `do_group_membership` full suite run: `Tests: 20, Assertions: 179, Deprecations: 16,
+  PHPUnit Deprecations: 25.` (0 Errors, 0 Failures).
+- `do_chrome` Unit+Functional combined run: `Tests: 16, Assertions: 159, Deprecations: 11,
+  PHPUnit Deprecations: 19.` (0 Errors, 0 Failures).
+- `ERROR 1146 (42S02): Table 'db.group_field_data' doesn't exist` (E2E-skip justification —
+  container DB state is not this story's seed).
