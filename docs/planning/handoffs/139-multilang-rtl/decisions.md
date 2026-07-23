@@ -442,3 +442,41 @@ type/visibility badges.
   duplication between the hook and the theme preprocess) → U → S → PR (hold for human).
 
 ---
+
+## Phase 6 — T (green round 2, post-F-fix): GREEN
+
+**Verdict**: GREEN (Tier 1 + Tier 2, ready for A-dup).
+
+**Kernel**: 107/107 (batched-by-module), 0 failures.
+**Config:import**: clean on fresh `drush site:install --existing-config` + explicit `config:import -y` (Bug 1 confirmed fixed).
+**Playwright**: **3/3 pass** (RTL + LTR + directory column — the round-1 failure now passes).
+**Live-site DOM**:
+- `drush ev "print \Drupal::languageManager()->getLanguage('ar')->getDirection();"` → `rtl` (Bug 3 fixed from clean-room seed).
+- `/all-groups` cards emit `<span class="do-group-language gc-badge" lang="ar" dir="rtl">Arabic` (plus fr/de); English-primary groups get no badge (site-default suppression working on the directory too).
+- `/group/{ar}` emits `<html lang="ar" dir="rtl">` and the entity-view indicator span.
+
+**Anti-duplication pre-check (advisory for A-dup)**
+- `GroupLanguageIndicatorHooks::resolveDisplayLanguage()` at lines 107-135
+  is the single point of decision for all four suppression branches.
+- `entityView()` calls only `self::resolveDisplayLanguage($entity)`.
+- `groups_chrome_preprocess_views_view_fields__all_groups()` calls only
+  `GroupLanguageIndicatorHooks::resolveDisplayLanguage($group)`.
+- Grep of theme file for `und`/`zxx`/`isEmpty()`/`getDefaultLanguage()`
+  against `field_group_language` — zero copy-pasted branches. Clean.
+
+**Advisories carried forward (out-of-story-scope, for follow-up)**
+- DDEV `SIMPLETEST_DB` must be `mysql://db:db@db:3306/db` (internal
+  hostname), not `127.0.0.1` — worth adding to project conventions
+  alongside the batched-kernel-invocation note.
+- `seed-site.sh` admin-wrap gap: freshly seeded groups land with
+  `status=0` because runbook scripts aren't wrapped in the seed-as-admin
+  pattern CI's workflow uses. Documented `UPDATE groups_field_data SET
+  status=1` workaround is the current mitigation. Follow-up issue
+  recommended so this stops recurring every verification cycle.
+- `seed-site.sh` does NOT call `step_640.php` — language install
+  requires manual invocation. Fresh seed leaves `ar` uninstalled
+  (correctly suppressed by hook, not a crash). Same follow-up.
+- U should visually verify pill placement + RTL margin/padding flips
+  in `group-language.css` — DOM tests don't cover visual correctness.
+
+---
