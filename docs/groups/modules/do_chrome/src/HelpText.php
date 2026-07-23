@@ -177,6 +177,16 @@ final class HelpText {
       // removed as dead wiring rather than adding an unplanned ⓘ trigger the
       // approved wireframe doesn't call for).
 
+      // ST-8 (#130): the switcher's own ⓘ tooltip for the NEW 'stream.model'
+      // instance mounted over /stream (do_streams' ModelToggleHooks). Copy
+      // is D's approved proposal (handoff-D.md / brief.md Amendment 1):
+      // names Activity view's row types explicitly (posts, comments, flags,
+      // pins, membership changes — matching activity_stream:page_1's actual
+      // stream_card rendering, #116), states the Content-only model is
+      // leaner, and qualifies Content view "(coming soon)" so the tooltip
+      // never contradicts the option label's own "(soon)" suffix.
+      'showcase.switcher.stream.model' => 'Activity view aggregates everything happening in this scope — posts, comments, flags, pins, and membership changes — as one chronological feed of message rows. Content view (coming soon) will show just the posts themselves: a leaner model with no aggregated activity noise.',
+
       // --- #122 (SC-3): group-type-driven homepages --------------------------
       // Appended per the append-only HelpText contract — groups_chrome (a
       // THEME, not a module) reads this key via
@@ -295,7 +305,14 @@ final class HelpText {
       'showcase_help.directory-presentation' => 'Compact list packs many groups per screen for fast scanning; Cards trade density for per-group detail. The switch is around information density, not content.',
       'showcase_help.membership-models' => 'Two axes, kept distinct: visibility (who sees the group) and join policy (how you get in). Open joins instantly; Moderated needs organizer approval; Invite Only is add-by-organizer. Every group here is visible — Private (member-only visibility) is a separate axis.',
       'showcase_help.group-type-homepages' => 'The group homepage adapts to the group\'s type — Events lead with the event calendar, Discussion leads with the stream, Documentation leads with the reference index. Same page contract, different lead section.',
-      'showcase_help.stream-model' => 'One combined activity stream vs. separate streams per content type. The decision is one feed to scan vs. filtered feeds a member picks.',
+      // ST-8 (#130) / brief.md Amendment 1: corrected in step with
+      // ShowcaseCatalog's stream-model decision_sentence — the OLD copy
+      // ("One combined activity stream vs. separate streams per content
+      // type") described a comparison this story does not build. Now names
+      // the ACTUAL comparison (node-content model vs. activity-log model),
+      // matching the corrected decision_sentence and this story's
+      // 'showcase.switcher.stream.model' tooltip above.
+      'showcase_help.stream-model' => 'Compares a node-content model vs. an activity-log model for /stream. The decision: a lean feed of raw posts vs. a richer feed that also surfaces comments, flags, pins, and membership events as their own rows.',
       'showcase_help.private-group-reveal' => 'Switch personas and watch a private group appear: it is hidden from the anonymous directory and reveals itself only to a member of that group.',
       'showcase_help.persona-switcher' => 'Four public personas — Anonymous, Elena (Member), Maria (Organizer), Groups-Moderate. Each meets a different slice of the demo.',
       'showcase_help.map' => 'Map view plots groups with a geographic home. Only Geographical groups appear; pan and zoom to explore. Each marker\'s hover shows the group\'s name and type.',
