@@ -82,3 +82,48 @@ F must repoint the `page.group.members` map entry in
 `view.group_members.page_1` to `do_group_membership.manage_members`, update the corresponding
 kernel/unit test assertions that reference the old route name, then re-run T (green), then U
 re-walks all 5 live pages (including a fresh Elena-persona pass) before handing to S.
+
+---
+
+## Re-walk (Phase 8b) — 2026-07-23
+
+**Container:** `gm126-page-tooltips` (`.ddev/config.yaml` name mismatch fixed — was still
+`pl-groups-on-d11`, colliding with the primary checkout's running container; renamed to
+`gm126-page-tooltips` and restarted). Direct port `https://127.0.0.1:53099` confirmed reachable
+(200 on `/user/login`). Seeded via `docs/groups/scripts/step_700_demo_data.php`,
+`step_720_group_types.php`, `step_780_nav_menu.php` (persisted DB volume already had 8 groups +
+all persona users, incl. `elena_garcia`, from an earlier build). `drush cr` run before testing.
+
+**Fix confirmed in code:** `PageHelp::getRouteMap()` now keys
+`'do_group_membership.manage_members' => 'page.group.members'` (was
+`'view.group_members.page_1'`).
+
+### Re-verified checks
+
+| Check | Result |
+|---|---|
+| `/group/1/members` (authenticated admin, then persona-switched Elena) HTTP | 200 |
+| H1 | "Manage members" — visible |
+| `.do-chrome-info.page-help-info` present | YES (count 1) |
+| `aria-label` | "Everyone who has joined this group. Organizers manage the roster; joining rules depend on the group's visibility (Open, Moderated, or Invite Only)." — matches `HelpText.php:225` verbatim |
+| `data-do-tooltip` | same copy, non-empty |
+| Hover → tippy tooltip | visible, contains matching copy |
+| Tab → focus reaches ⓘ | YES (within extended 80-tab budget — Manage-members page has a larger roster/table focus order than the simpler pages); `outline-width: 2px` on focus |
+| Enter opens tooltip | YES |
+| Elena persona on `/stream` | ⓘ present (count 1), `aria-label` = "The site-wide activity stream: recent posts, replies, and events from every public group. This is what a signed-out visitor sees to get a sense of the community." — correct, auth-state-independent as predicted |
+
+Console: 3 transient 400/405 responses observed only during `/persona-switch/*` and one-time-login
+navigations (not on `/stream` or `/group/1/members` themselves — confirmed by isolated re-check
+with a plain `/stream` load producing zero >=400 responses). Not related to the tooltip feature;
+no JS errors, no dead-component signals.
+
+### Evidence
+
+- Screenshots (1440x900): `screenshots/group-members-desktop-authed.png` (ⓘ visible next to
+  "Manage members" H1), `screenshots/stream-elena-desktop.png` (Elena persona, ⓘ visible on
+  `/stream`).
+
+### Verdict: **PASS**
+
+AC-1 now holds for all 5 live routes, including Members. The route-map fix in `80325ba` resolves
+the prior REWORK; no new defects found. Ready for S.
