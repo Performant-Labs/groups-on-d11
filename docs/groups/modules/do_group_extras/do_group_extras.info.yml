@@ -4,5 +4,6 @@ description: 'Archive enforcement, submission guidelines, and moderation default
 core_version_requirement: ^11.2
 package: 'Custom'
 dependencies:
-  - drupal:taxonomy
   - drupal:group
+  - drupal:link
+  - drupal:taxonomy

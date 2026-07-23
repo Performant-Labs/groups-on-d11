@@ -1,0 +1,23 @@
+uuid: f2d2376c-4c08-4b7a-97b0-0b0162a8d2c6
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.group.field_group_links
+    - group.type.community_group
+  module:
+    - link
+id: group.community_group.field_group_links
+field_name: field_group_links
+entity_type: group
+bundle: community_group
+label: 'Links & Resources'
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  link_type: 17
+  title: 2
+field_type: link

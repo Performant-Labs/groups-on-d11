@@ -76,12 +76,21 @@ class DoGroupExtrasHooks {
   }
 
   /**
-   * Adds "Archived" CSS class and library to archived groups.
+   * Adds "Archived" CSS class/library, and the Links & Resources library.
    */
   #[Hook('preprocess_group')]
   public function preprocessGroup(array &$variables): void {
     /** @var \Drupal\group\Entity\GroupInterface $group */
     $group = $variables['group'];
+
+    // #140 MC-1: attach the Links & Resources section styling for every
+    // community_group render (the field_group_links formatter only ever
+    // produces markup for its own field wrapper, so attaching unconditionally
+    // is harmless when the field is empty or hidden on a given view mode).
+    if ($group->bundle() === 'community_group') {
+      $variables['#attached']['library'][] = 'do_group_extras/group-links';
+    }
+
     if (!$group->hasField('field_group_type')) {
       return;
     }
