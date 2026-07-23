@@ -49,6 +49,22 @@ const SWITCHER_SELECT = 'select[name="persona"]';
 const BANNER_SELECTOR = 'aside[role="status"].do-showcase-persona-banner';
 
 test.describe('#132 SD-5 — Persona banner ⓘ help trigger', () => {
+  // The site-wide POC ribbon (do_showcase, #119) is a fixed-position
+  // overlay that intercepts pointer events on the persona-switcher "Go"
+  // <button> immediately after form submit redirects — Playwright's
+  // post-click stability re-check then re-targets the (new page's) Go
+  // button under the ribbon and times out (CI cycle 3 diagnostic on
+  // PR#157: TimeoutError, "<div id=do-showcase-ribbon> intercepts pointer
+  // events"). Dismissing the ribbon first eliminates the race. Matches
+  // the dismiss pattern already used by showcase.spec.ts:346.
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    const dismiss = page.getByRole('button', { name: 'Dismiss demo banner' });
+    if (await dismiss.isVisible().catch(() => false)) {
+      await dismiss.click();
+    }
+  });
+
   test('Elena Garcia: banner ⓘ is visible, keyboard-focusable, non-empty aria-label', async ({
     page,
   }) => {

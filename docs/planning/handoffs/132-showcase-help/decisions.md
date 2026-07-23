@@ -110,3 +110,11 @@
 - **Only remaining failure**: `CreateGroupWizardOrganizerTest::testWizardCreateGrantsOrganizerAndRedirectsToPreview` — `PluginNotFoundException: Unable to determine class for field type 'link' found in field.storage.group.field_group_links`. This is a `do_tests` module test, not #132; the `link` field-type module (`drupal/link`, Drupal core module) isn't enabled by the test class. Inherited from main; coordinator has opened hotfix PR#160.
 - **Status**: PARKED awaiting PR#160 merge to main. When it merges, this branch either rebases onto new main or is retriggered via empty commit, then auto-merges on green.
 - **Kernel + E2E**: still GREEN through both cycles.
+
+## Phase 12 (O) — CI cycle 3 fix (E2E)
+
+- **Failed**: 1 test — `showcase-help.spec.ts:52 Elena Garcia: banner ⓘ is visible, keyboard-focusable, non-empty aria-label`, 10.4s timeout on `goButton.click()`.
+- **Root cause**: The site-wide POC ribbon (`<div id="do-showcase-ribbon">`, fixed-position, from #119) intercepts pointer events on the persona-switcher "Go" button during Playwright's post-click stability re-check after the form-submit redirect. Click DID succeed (log shows navigation to `/?check_logged_in=1`); Playwright then re-targets the new page's Go button and finds it covered by the ribbon, retries for 10s, times out. Groups-Moderate test passes because of timing luck.
+- **Not a real defect**: banner ⓘ markup, aria-label, and library attach are all correct — Groups-Moderate test verifies the same aria structure and passes. Same test-code shape as `persona-switcher.spec.ts` (which passes; the race is authoring-fragile, not deterministic).
+- **Fix**: Add `test.beforeEach` to the persona-banner-ⓘ describe that dismisses the ribbon (matches `showcase.spec.ts:346` dismiss pattern). sessionStorage persists across the beforeEach's `page.goto('/')` and the test's own `page.goto('/')`, so the ribbon stays dismissed for the whole test.
+- **Contract note**: This is a #132-specific test's SECOND failure across cycles, but a DIFFERENT test from cycle 1 (cycle 1 = 4 ShowcaseControllerHelpTest 403s, all cleared; cycle 3 = 1 showcase-help.spec.ts race). Per overnight contract, "same test twice = park" — no test has failed twice, so one more fix cycle is within budget.
