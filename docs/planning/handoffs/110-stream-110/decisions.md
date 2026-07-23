@@ -30,3 +30,31 @@
   nav-strip states) and visually confirmed every glyph (pushpin `\1F4CC`, arrow `→`) renders
   intact, centered, and on-canvas; no hand-authored SVG paths used anywhere in the document;
   div/article tag counts balance (30/30, 5/5).
+
+## A Phase 3 (up-front plan review)
+- **Decided:** PASS with 8 soft advisories. The plan extends every object the survey named
+  (shell theme hook + `empty_cta`, MembershipScope as-is, activity_stream YAML copy,
+  step_780 append, HelpText append). The one new object — `MyFeedController` calling
+  `views_embed_view` + `#theme => do_streams_shell` — is correct placement since no
+  shell-wrapping utility exists to extend, and the shell theme hook's docblock already
+  declares controllers of this shape as the intended caller.
+- **Decided:** No BLOCK findings. Advisories cover: `use_ajax: false` on the new display,
+  explicit `#cache => ['contexts' => ['user','user.roles']]` on the shell wrap, per-user
+  stream cache tag (widen `viewsPostRender` allowlist to `my_feed` OR merge tag in the
+  controller), `empty_cta` render array built by controller (no hardcoded routes in shell),
+  integer nav weight with surgical re-weight of existing links (weight 1.5 will coerce),
+  T asserts anon nav-link DOM absence, T asserts AC-1 accepts 403 OR 302→login.
+- **Assumed:** `views_embed_view()` on the default display honors the view's own access
+  plugin, and Drupal's default menu-link tree access filter runs the target route's access
+  check on `menu_link_content` items rendered by `groups_chrome_main_menu` — if the custom
+  block bypasses it, F falls back to `hook_menu_links_discovered_alter` (documented in decisions).
+- **Assumed:** No `/my-feed` route collision — grep of `web/modules/contrib/group/config/`
+  found nothing; the #138-style stock-view collision does not apply.
+- **Hedged:** Shell chrome CSS may live only in the #109 wireframe HTML (not shipped as a
+  library) — F/D to confirm before spending on `css/my-feed.css`; if unshipped, either add
+  a shell library here (scope creep) or accept a visual U note.
+- **Evidence:** Read `DoStreamsHooks.php` (full), `do-streams-shell.html.twig`,
+  `MembershipScope.php`, `activity_stream.yml`, `step_780_nav_menu.php`, `assemble-config.sh`,
+  `do_streams.info.yml`, `do_streams.module`, brief + survey + handoff-D. Verified module
+  file layout under `docs/groups/modules/do_streams/` and the assemble script's copy-wholesale
+  behavior for new module files.
