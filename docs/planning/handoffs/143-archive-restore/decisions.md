@@ -395,3 +395,13 @@ walk live.)
 - `docs/planning/handoffs/143-archive-restore/diff-review-r1.md` — full o4-mini findings.
 - `docs/groups/modules/do_group_extras/src/Form/RestoreGroupForm.php` — class docblock text (contradicts NIT-1).
 - `docs/planning/handoffs/143-archive-restore/handoff-A-plan.md` WARN #2 — original cacheability analysis (contradicts NIT-2).
+
+## A-dup — Phase 7 (2026-07-22)
+
+**Decided.** Verdict **PASS** — no parallel path, no parallel state field, no cross-module leakage, no premature abstraction. F extended `do_group_extras` and faithfully mirrored `do_group_membership`'s form-per-action + shared access-controller pattern. Route uses `_form` + `_custom_access` (same mechanism as MMC's four routes); access controller returns `AccessResult` with the same cache-dependency shape; task-plugin uses `base_route: entity.group.canonical` + `weight`; Archive detection uses the same three-clause `field_group_type` check as the existing `DoGroupExtrasHooks`. `TrustedCallbackInterface` + `preRenderAsButtonTag` stay private to `RestoreGroupForm` (correct — premature to extract before the #138 shared WCAG fix lands). Advance to U.
+
+**Evidence.**
+- `docs/planning/handoffs/143-archive-restore/handoff-A-dup.md` — findings table + evidence.
+- `git diff --stat origin/main..HEAD` — all source changes under `docs/groups/modules/do_group_extras/`, zero edits to other modules.
+- `docs/groups/modules/do_group_extras/do_group_extras.routing.yml` vs. `docs/groups/modules/do_group_membership/do_group_membership.routing.yml` — same `_form` + `_custom_access` shape.
+- `docs/groups/modules/do_group_extras/src/Controller/RestoreGroupAccess.php` vs. `docs/groups/modules/do_group_membership/src/Controller/ManageMembersController.php` — same `access()` signature + `AccessResult` cacheability shape.
