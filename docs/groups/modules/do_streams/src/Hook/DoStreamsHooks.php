@@ -35,6 +35,17 @@ class DoStreamsHooks {
   public const DEMO_VIEW_ID = 'do_streams_demo';
 
   /**
+   * The id of ST-2's shipped `/following` view (#111).
+   *
+   * Used by self::preprocessViewsView() to scope the `do_streams/following`
+   * library attachment to exactly this view, per handoff-A.md finding §1's
+   * preferred mechanism (a single, view-id-guarded preprocess hook, matching
+   * this class's existing lightweight-preprocess convention rather than
+   * introducing a new hook type).
+   */
+  public const FOLLOWING_FEED_VIEW_ID = 'following_feed';
+
+  /**
    * Builds the per-viewing-user stream cache tag ([A-W2]).
    *
    * Membership/following scope is per-viewing-user (not per-group like
@@ -370,6 +381,28 @@ class DoStreamsHooks {
         ],
       ],
     ];
+  }
+
+  /**
+   * Attaches the `do_streams/following` library on the `/following` view only.
+   *
+   * Issue #111 ST-2. Per handoff-A.md finding §1 (preferred mechanism) and
+   * brief.md §Plan step 2: a single, view-id-guarded preprocess hook,
+   * matching this class's existing lightweight-preprocess convention (see
+   * self::preprocessDoStreamsShell(), self::viewsQueryAlter(),
+   * self::viewsPostRender() — all guard on a specific view/display id and
+   * return immediately otherwise) rather than introducing a new attachment
+   * mechanism. The CSS itself (`css/following.css`) only carries small
+   * `.following-feed` container/empty-state spacing tweaks — card visuals
+   * are inherited from the shared theme stylesheet.
+   */
+  #[Hook('preprocess_views_view')]
+  public function preprocessViewsView(array &$variables): void {
+    $view = $variables['view'] ?? NULL;
+    if (!$view instanceof ViewExecutable || $view->id() !== self::FOLLOWING_FEED_VIEW_ID) {
+      return;
+    }
+    $variables['#attached']['library'][] = 'do_streams/following';
   }
 
   /**

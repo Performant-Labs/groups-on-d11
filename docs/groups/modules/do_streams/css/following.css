@@ -1,0 +1,22 @@
+/**
+ * @file
+ * Scoped tweaks for /following (views.view.following_feed, #111 ST-2).
+ *
+ * Card visuals (stream-card-wrapper / stream_card view mode) are inherited
+ * from the shared theme stylesheet (groups_chrome/css/stream.css) — this
+ * file adds ONLY the small container/empty-state spacing tweaks specific to
+ * the following-scope page, per brief.md §Plan step 2 ("Do NOT modify shared
+ * stream styles"). `.gc-empty` itself is styled by the theme; the rule below
+ * is additive spacing only, scoped under `.following-feed` so it cannot leak
+ * onto the shared empty-state markup used by other views (e.g.
+ * activity_stream).
+ */
+
+.following-feed {
+  margin-top: 1rem;
+}
+
+.following-feed .gc-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+}

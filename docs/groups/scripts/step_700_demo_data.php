@@ -394,6 +394,145 @@ if ($follow_user && $ravi && $maria) {
   catch (\Exception $e) {}
 }
 
+// ===== Step 751: Following-feed seed additions (#111 ST-2) =====
+// Append-only (brief.md §Plan step 3 + decisions.md's O Phase-5 fold-in of
+// T's "Known seed-data gap" finding, handoff-T-red.md). Three NEW follows
+// (elena->maria via follow_user, elena->drupalcon via follow_term,
+// sophie->paragraphs-tutorial via follow_content) PLUS the field_group_tags
+// backfill FollowingScope's follow_term EXISTS branch actually reads
+// (node__field_group_tags — the `group_tags` vocabulary field created in
+// step_330.php), which no existing node populates: the Step 740a topics
+// above only ever set `field_tags` (the free-tagging `tags` vocabulary), a
+// DIFFERENT field/vocabulary FollowingScope never joins.
+//
+// Deviation from brief.md's literal seed-line wording (recorded in
+// handoff-F.md): the brief says to look up $drupalcon_term "the same way
+// $core_term is looked up" above -- i.e. from the `tags` vocabulary. That
+// CANNOT satisfy FollowingScope's follow_term EXISTS branch: it joins
+// `node__field_group_tags`, and field_group_tags.field.node.*.yml restricts
+// `handler_settings.target_bundles` to `group_tags` ONLY (verified in the
+// shipped field.field.node.forum.field_group_tags.yml AND the kernel test's
+// own fixture at do_streams/tests/fixtures/config/field.field.node.page.
+// field_group_tags.yml) -- a `tags`-vocabulary term id can never appear in
+// that column. Flagging one would look plausible in code review yet could
+// never make the follow_term e2e assertions pass, no matter how the view is
+// built. So $drupalcon_term (and the $core_group_tag_term backfill below)
+// are looked up/auto-created in the group_tags vocabulary instead --
+// mirroring $core_term's PATTERN (loadByProperties + reset(), then
+// auto-create if absent) but pointed at the vocabulary the filter's join
+// target actually requires.
+//
+// SECOND deviation, discovered by live-running the seeded suite (not
+// theoretical): for the SAME structural reason, the PRE-EXISTING follow_term
+// seed a few lines above (`$core_term` flagged from the `tags` vocabulary,
+// entity_id != any node__field_group_tags row) can NEVER satisfy
+// FollowingScope's follow_term branch either -- so without a corrective
+// append, elena_garcia's "existing follow_term, seeded" core-tag case (per
+// brief.md's acceptance criteria and the operator's Phase-5 fold-in
+// instruction, which explicitly names BOTH "the existing core-tag
+// Elena-sees-RFC case AND the new drupalcon seed" as required to work) would
+// never actually render "Drupal 11 Migration Path" for elena, confirmed by
+// live view execution: field_group_tags was correctly backfilled on that
+// node, yet the view still excluded it until this second flag was added.
+// The pre-existing follow_term/$core_term flag above (the wrong-vocabulary
+// one) is left completely untouched (append-only) -- it is harmless dead
+// seed data with respect to FollowingScope, not a bug this story rewrites.
+// This block instead APPENDS a second, corrective follow_term flag: elena
+// follows the `group_tags`-vocabulary "core" term (the one
+// field_group_tags actually references), which is what makes the
+// already-seeded core-tag acceptance criterion actually satisfiable.
+echo "\n=== Step 751: Following-feed seed additions (#111) ===\n";
+
+// New follow_user: elena follows maria_chen (Maria-authored content branch).
+if ($follow_user && $elena && $maria) {
+  try { $flag_service->flag($follow_user, $maria, $elena); echo "elena follows user: maria_chen\n"; }
+  catch (\Exception $e) {}
+}
+
+// New follow_content: sophie follows the "Getting Started with Paragraphs"
+// tutorial node (mirrors the existing "Patch Review Process RFC" lookup
+// pattern above).
+if ($follow_content) {
+  $paragraphs_nodes = $node_storage->loadByProperties(["title" => "Getting Started with Paragraphs"]);
+  $paragraphs_tutorial_node = reset($paragraphs_nodes);
+  if ($paragraphs_tutorial_node && $sophie) {
+    try { $flag_service->flag($follow_content, $paragraphs_tutorial_node, $sophie); echo "sophie follows: Getting Started with Paragraphs\n"; }
+    catch (\Exception $e) {}
+  }
+}
+
+// field_group_tags backfill: create-or-load the `group_tags`-vocabulary
+// terms FollowingScope's follow_term branch actually joins against (NOT the
+// `tags`-vocabulary terms looked up above), then set field_group_tags on
+// the specific nodes the follow_term e2e assertions target: "Patch Review
+// Process RFC" and "Drupal 11 Migration Path" (both need the `core`
+// group_tags term, mirroring their existing field_tags value) and "Venue
+// Logistics Thread" (needs the `drupalcon` group_tags term). auto_create is
+// enabled on field_group_tags's handler_settings, but the terms are created
+// explicitly here (not relying on widget auto-create, which only fires on a
+// form submission, not a programmatic ->set()) so the backfill is
+// idempotent and self-contained.
+function do_streams_get_or_create_group_tag($term_storage, string $name) {
+  $existing = $term_storage->loadByProperties(["vid" => "group_tags", "name" => $name]);
+  if ($existing) {
+    return reset($existing);
+  }
+  $term = $term_storage->create(["vid" => "group_tags", "name" => $name]);
+  $term->save();
+  echo "Created group_tags term: $name\n";
+  return $term;
+}
+
+$core_group_tag_term = do_streams_get_or_create_group_tag($term_storage, "core");
+$drupalcon_group_tag_term = do_streams_get_or_create_group_tag($term_storage, "drupalcon");
+
+$field_group_tags_backfill = [
+  "Patch Review Process RFC" => $core_group_tag_term,
+  "Drupal 11 Migration Path" => $core_group_tag_term,
+  "Venue Logistics Thread" => $drupalcon_group_tag_term,
+];
+foreach ($field_group_tags_backfill as $title => $group_tag_term) {
+  $nodes = $node_storage->loadByProperties(["title" => $title]);
+  $node = reset($nodes);
+  if (!$node || !$group_tag_term) { echo "SKIP: field_group_tags backfill — node or term missing for \"$title\"\n"; continue; }
+  if (!$node->hasField("field_group_tags")) { echo "SKIP: field_group_tags missing on \"$title\"\n"; continue; }
+  $already_tagged = FALSE;
+  foreach ($node->get("field_group_tags")->getValue() as $value) {
+    if ((int) ($value["target_id"] ?? 0) === (int) $group_tag_term->id()) {
+      $already_tagged = TRUE;
+      break;
+    }
+  }
+  if ($already_tagged) {
+    echo "\"$title\" already has field_group_tags -> " . $group_tag_term->label() . "\n";
+    continue;
+  }
+  $existing_values = $node->get("field_group_tags")->getValue();
+  $existing_values[] = ["target_id" => $group_tag_term->id()];
+  $node->set("field_group_tags", $existing_values);
+  $node->save();
+  echo "Set field_group_tags on \"$title\" -> " . $group_tag_term->label() . "\n";
+}
+
+// New follow_term: elena follows the `drupalcon` GROUP_TAGS term (see
+// deviation note above — NOT the `tags`-vocabulary term a literal reading
+// of the brief's "same way $core_term is looked up" would produce).
+if ($follow_term && $drupalcon_group_tag_term && $elena) {
+  try { $flag_service->flag($follow_term, $drupalcon_group_tag_term, $elena); echo "elena follows tag (group_tags): drupalcon\n"; }
+  catch (\Exception $e) {}
+}
+
+// Corrective follow_term: elena ALSO follows the `core` GROUP_TAGS term (see
+// "SECOND deviation" note above). Without this, elena's already-seeded
+// core-tag acceptance criterion has field_group_tags correctly populated but
+// no flag on the term FollowingScope's EXISTS branch actually reads, so
+// "Drupal 11 Migration Path" would never appear for her — confirmed by
+// running the view live before this line was added.
+if ($follow_term && $core_group_tag_term && $elena) {
+  try { $flag_service->flag($follow_term, $core_group_tag_term, $elena); echo "elena follows tag (group_tags): core\n"; }
+  catch (\Exception $e) {}
+}
+
 // (Removed in #128) The former "Archive Legacy Infrastructure" block set
 // status=0, conflating "archived" with "unpublished". The proper archive
 // semantic -- published + read-only + Archive badge -- is driven entirely by
