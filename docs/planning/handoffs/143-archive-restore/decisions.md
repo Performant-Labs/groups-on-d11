@@ -377,3 +377,21 @@ questions.
 **Return path.** Reporting to O: `T-green complete, no blocking issues. Ready for U.` (UI surface
 exists — badge, Restore tab, and restore confirmation form are all interactive elements for U to
 walk live.)
+
+## O — diff-gate round 1 (2026-07-22)
+
+**Decided.** o4-mini diff-gate verdict: **PASS** (0 BLOCKs, 3 WARNs, 6 NITs). Full review: `diff-review-r1.md`. Adjudication:
+
+- **W-1 (`submitForm` group-load-failure path lacks redirect):** REAL but ACCEPTED-AS-IS. Path is unreachable in normal operation — `buildForm` always sets `restore_group_id` from the upcast route param, and the route only fires on a valid `{group}`. The defensive fallback exists only for the two-instance test-harness pattern (T's Kernel test) where `$this->group` may be NULL on submit. Even there, the fallback loads by id and only fails on a subsequently deleted group — a genuinely exotic race. POC posture: not warranted to respawn F for a defensive-only branch. If a future story reports users stranded, revisit.
+- **W-2 (`$term->label() === 'Archive'` fragility):** REAL but ACCEPTED-AS-IS. Codebase-wide convention — `DoGroupExtrasHooks::preprocessGroup`, `nodeAccess`, and `ArchivePinHooks` all use the same label check. Refactoring to a machine-name or centralized id would be an out-of-scope cross-module change; changing only #143's usage would create inconsistency. POC posture.
+- **W-3 (static `\Drupal::logger` vs. injected):** REAL DI-purity concern but `RemoveMemberForm` uses the same static pattern implicitly (no logger injected), and this call site is inside the defensive try/catch that is unreachable in normal operation. ACCEPT AS-IS.
+- **NIT-1 (docblock accuracy):** REJECTED — the docblock is already accurate. F's class docblock explicitly states "`#type => 'submit'` element... renders via `#theme_wrappers => ['input__submit']`, and core's `input.html.twig` emits a genuine `<input type="submit">`, not a `<button>`" and references `preRenderAsButtonTag`. o4-mini misread the direction.
+- **NIT-2 (`url.path` cache context):** REJECTED — A r1 explicitly analyzed and dropped this context for the single-URL surface; `addCacheableDependency($group)` covers `field_group_type` invalidation via the group's cache tags on save.
+- **NITs #3, #4, #5, #6:** Test/YAML polish. ACCEPT AS-IS for POC (test assertions are sufficient for the ACs; YAML declarations follow the pattern the analogous module uses).
+
+**No round 2.** All findings triaged; 0 BLOCKs. Advancing to A-dup then U.
+
+**Evidence.**
+- `docs/planning/handoffs/143-archive-restore/diff-review-r1.md` — full o4-mini findings.
+- `docs/groups/modules/do_group_extras/src/Form/RestoreGroupForm.php` — class docblock text (contradicts NIT-1).
+- `docs/planning/handoffs/143-archive-restore/handoff-A-plan.md` WARN #2 — original cacheability analysis (contradicts NIT-2).
