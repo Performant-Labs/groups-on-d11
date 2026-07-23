@@ -636,3 +636,33 @@ genuinely exists, Functional re-run to completion).
 - Functional run output: `Tests: 9, Assertions: 54, Deprecations: 15, PHPUnit Deprecations: 10.`
   (0 Errors/Failures), exact match to `handoff-F-r2.md`'s own reported count.
 - Full report: `docs/planning/handoffs/121-req2join/handoff-T-green.md` §"Phase 6 (round 2)".
+
+## Phase 7 — Architecture Reviewer: anti-duplication gate (2026-07-22)
+
+**Decided:** PASS. No parallel paths in the diff; the two F-flagged deviations
+(`Routing/RouteSubscriber.php`, `groups_chrome_preprocess_group()` third branch) are both
+justified layered extensions, not duplications.
+
+**Assumed:** Symfony/Drupal `AccessManager` combines multiple `_custom_access` requirements on
+the same route with logical AND (F's claim). Verified by consulting the route definition
+mechanics — Drupal's route-access system evaluates every declared requirement, denying if any
+fails — consistent with F's stated behavior.
+
+**Hedged:** The `/all-groups` directory-card affordance (`groups_chrome_preprocess_views_view_fields__all_groups()`)
+still lacks a request-to-join branch. Ruled WARN, not BLOCK, because the AC-2 wording most
+directly targets the canonical group page (which is covered), and this is a pre-existing gap in
+a sibling function F did not modify. Should be a follow-up story, not part of #121's rework.
+
+**Evidence:**
+- `web/modules/contrib/group/group.routing.yml:12-19` — `entity.group.join`'s only requirements
+  are `_group_permission: 'join group'` + `_group_member: 'FALSE'`, neither visibility-aware.
+- `web/modules/contrib/group/src/Controller/GroupMembershipController.php:47-55` — the
+  controller reaches `ContentEntityForm::save()` without invoking `$entity->access('create')`,
+  confirming `GroupAccessHook` alone cannot gate this route.
+- `docs/groups/modules/do_group_membership/src/GroupMembershipManager.php:98-99,135-136,162-173,383+`
+  — `addMember` and `requestJoin` both single-line-delegate to `createMembership`; enum from
+  `joinPolicyFor` matches consumers in `GroupAccessHook` and `ManageMembersController`.
+- Files touched per commit (`git log --name-only origin/main..HEAD`) match brief-response-v2's
+  §"Files to touch" list plus the two F-flagged additions plus `do_group_membership.module`
+  (sibling-pattern docblock file) and services.yml wiring.
+- Full report: `docs/planning/handoffs/121-req2join/handoff-A-dup.md`.
