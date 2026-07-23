@@ -69,22 +69,31 @@ final class HelpText {
       // OMITTED: no report/abuse flag or moderation target exists on the demo
       // (verified — no such flag.flag.* config, no consumer), so shipping that
       // string would describe behavior that is not wired.
-      // #88 (CH-B1): per-option help on the `field_group_visibility` radios
-      // (options_buttons: Open / Moderated / Invite Only) on the group
-      // add/edit form. Copy is the #81 deck (section A), reconciled with the
-      // CH-F4 (#95) update comment on #81:
-      //  - Open is now ENFORCED — a logged-in non-member holds `join group`
+      // #88 (CH-B1) / #121 (SC-2): per-option help on the
+      // `field_group_visibility` radios (options_buttons: Open / Moderated /
+      // Invite Only) on the group add/edit form. Copy is the #81 deck
+      // (section A), corrected by #121 SC-2 once join-policy enforcement went
+      // live (request-to-join for Moderated; the create-access gate for
+      // Invite Only):
+      //  - Open is ENFORCED (#95) — a logged-in non-member holds `join group`
       //    (community_group-outsider_view), so they can join an Open group
       //    instantly. Present as live.
-      //  - Moderated / Invite Only remain UNENFORCED labels — no request/
-      //    approval flow, and Invite Only groups are still publicly viewable.
-      //    The copy says so plainly so the demo never over-claims.
-      // The field-level intro also stays honest: only *joining* (not *viewing*)
-      // is gated today; every group is still readable regardless of this value.
-      'visibility.field' => 'Sets who can find and join this group. On this demo, joining is what visibility controls; every group stays readable to anyone.',
+      //  - Moderated is NOW ENFORCED (#121) — a non-member sees "Request to
+      //    join"; submitting creates a pending `group_membership` relationship
+      //    that an organizer approves (-> active) or denies (-> deleted) from
+      //    the existing Manage-members page. The copy says so plainly.
+      //  - Invite Only is NOW ENFORCED (#121) — the group stays publicly
+      //    VIEWABLE (readable), but direct joining is closed to everyone
+      //    except an organizer adding someone via Add member. "Visible but
+      //    closed to joining", NOT hidden — hidden/unlisted is Private
+      //    (#134), a distinct, not-yet-built value.
+      // The field-level intro stays honest about the view/join distinction:
+      // every group is still readable regardless of this value; only
+      // *joining* is what this value controls.
+      'visibility.field' => 'Sets who can join this group and how. Every group stays readable (viewable) to anyone; this value controls whether joining is instant, request-based, or invite-only.',
       'visibility.open' => 'Open: anyone signed in can join instantly, no approval needed. This is live on the demo — logged-in visitors can join Open groups now.',
-      'visibility.moderated' => 'Moderated: the intent is that people request to join and an admin approves each request. Not yet enforced on this demo — shown to illustrate the model.',
-      'visibility.invite_only' => 'Invite Only: the intent is a hidden group people join only when an admin invites them. Not yet enforced on this demo — the group is still publicly viewable.',
+      'visibility.moderated' => 'Moderated: people request to join, and an organizer approves or denies each request. This is live on the demo — a request creates a pending membership until an organizer approves it.',
+      'visibility.invite_only' => 'Invite Only: the group stays visible to everyone, but only an organizer can add members — there is no direct join or request path. This is live on the demo.',
 
       'archive.badge' => 'This group is archived: read-only. Everything stays visible for reference, but no new content can be posted here.',
       'pin.badge' => 'Pinned: this post is kept at the top of the group stream so newcomers see it first, regardless of date.',

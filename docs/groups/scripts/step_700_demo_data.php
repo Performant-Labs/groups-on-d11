@@ -429,4 +429,55 @@ if (is_file($__nav_step)) {
   require $__nav_step;
 }
 
+// ===== Step 790: Join-policy visibility + seeded pending requests (#121 SC-2) =====
+// Append-only, idempotent (brief-response.md §5 / brief-response-v2.md §NIT):
+// sets Leadership Council to `moderated` and Core Committers to
+// `invite_only` (every other seeded group keeps the field's own `open`
+// default_value, already applied at group-creation time in Step 730 — see
+// docs/groups/config/field.field.group.community_group.field_group_visibility.yml).
+// Seeds TWO pending group_membership requests on Leadership Council
+// (sophie_mueller AND alex_novak, per the accepted NIT) so the organizer's
+// EXISTING /group/{group}/members page (ManageMembersForm, #138) demos more
+// than one pending row and row-action isolation (approve one, deny the
+// other) — no new organizer surface is created for this story (v2 §A-1).
+echo "\n=== Step 790: Join-policy visibility + pending requests (#121) ===\n";
+$visibility_by_label = [
+  "Leadership Council" => "moderated",
+  "Core Committers" => "invite_only",
+];
+foreach ($visibility_by_label as $group_label => $visibility) {
+  $groups = $group_storage->loadByProperties(["label" => $group_label]);
+  $group = reset($groups);
+  if (!$group) { echo "SKIP: Group not found: $group_label\n"; continue; }
+  if (!$group->hasField("field_group_visibility")) { echo "SKIP: field_group_visibility missing on $group_label\n"; continue; }
+  if ($group->get("field_group_visibility")->value !== $visibility) {
+    $group->set("field_group_visibility", $visibility);
+    $group->save();
+    echo "Set $group_label visibility -> $visibility\n";
+  }
+  else {
+    echo "$group_label already $visibility\n";
+  }
+}
+
+$leadership_council_groups = $group_storage->loadByProperties(["label" => "Leadership Council"]);
+$leadership_council = reset($leadership_council_groups);
+if ($leadership_council && $sophie && $alex) {
+  foreach ([["sophie_mueller", $sophie], ["alex_novak", $alex]] as [$username, $requester]) {
+    if (empty($leadership_council->getRelationshipsByEntity($requester, "group_membership"))) {
+      $leadership_council->addMember($requester, [
+        "group_roles" => [],
+        "field_membership_status" => [["value" => "pending"]],
+      ]);
+      echo "  $username requested to join Leadership Council (pending)\n";
+    }
+    else {
+      echo "  $username already has a Leadership Council membership/request\n";
+    }
+  }
+}
+else {
+  echo "SKIP: pending-request seed — Leadership Council group or sophie/alex user not found\n";
+}
+
 echo "\n=== Demo data complete ===\n";

@@ -3,3 +3,26 @@ services:
     class: Drupal\do_group_membership\GroupMembershipManager
     arguments:
       - '@entity_type.manager'
+
+  # Registered under its OWN FQCN (not a do_group_membership.* alias):
+  # Drupal\Core\Hook\HookCollectorPass::registerHookServices() auto-registers
+  # every #[Hook]-bearing class as an AUTOWIRED service keyed by its FQCN,
+  # but only `if (!$container->hasDefinition($class))` — i.e. only if no
+  # definition already exists under that exact class-name key. Registering
+  # this service under any other id (e.g. `do_group_membership.access_hook`)
+  # leaves the FQCN key undefined, so core's auto-registration ALSO fires
+  # for the FQCN and tries to autowire `$manager: GroupMembershipManager`
+  # (a plain class with no autowire-alias), which fails at container-compile
+  # time ("Cannot autowire service ... no such service exists"). Keying this
+  # entry by the FQCN itself makes core's `hasDefinition()` check see it as
+  # already defined and skip its own autowired duplicate.
+  Drupal\do_group_membership\Hook\GroupAccessHook:
+    autowire: false
+    arguments:
+      - '@entity_type.manager'
+      - '@do_group_membership.manager'
+
+  do_group_membership.route_subscriber:
+    class: Drupal\do_group_membership\Routing\RouteSubscriber
+    tags:
+      - { name: 'event_subscriber' }

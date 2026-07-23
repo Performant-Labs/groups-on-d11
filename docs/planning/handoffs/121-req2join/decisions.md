@@ -180,3 +180,156 @@ Orchestrator writes the closing Chain Summary at post-merge sweep.
 - `docs/groups/modules/do_group_membership/do_group_membership.routing.yml` (confirms
   `/group/{group}/join-request` does not yet exist — 404 is the correct RED reason).
 - Full report: `docs/planning/handoffs/121-req2join/handoff-T-red.md`.
+
+## Phase 5 — Feature Implementor: GREEN (2026-07-22)
+
+**Decided:**
+- Hook signature verified directly against core source (not guessed): `EntityAccessControlHandler::createAccess()`
+  (`web/core/lib/Drupal/Core/Entity/EntityAccessControlHandler.php:256-259`) invokes
+  `$this->moduleHandler()->invokeAll($this->entityTypeId . '_create_access', [$account, $context, $entity_bundle])`
+  — for `group_relationship`, this is `hook_group_relationship_create_access(AccountInterface $account,
+  array $context, $entity_bundle): AccessResultInterface`, with `$context['group']` carrying the
+  target `GroupInterface` (confirmed via `GroupRelationshipAccessControlHandler::checkCreateAccess()`,
+  which reads `$context['group']` the same way). Implemented via `#[Hook('group_relationship_create_access')]`
+  on `Drupal\do_group_membership\Hook\GroupAccessHook` — the A-W2 fallback
+  (`hook_entity_create_access` keyed on plugin_id) was NOT needed; the type-specific hook exists.
+- `AccessResult::orIf()` merge semantics confirmed (`processAccessHookResults()` +
+  `createAccess()`'s `if (!$return->isForbidden()) { $return = $return->orIf($this->checkCreateAccess(...)) }`):
+  a hook `forbidden()` result short-circuits the group_membership relation plugin's own default
+  `join group`-permission check; a `neutral()` result falls through to it. This is WHY the hook only
+  needs to actively deny on `invite_only` — `open`/`moderated` already pass the default permission
+  grant on their own, so `neutral()` there is correct and sufficient (traced through
+  `GroupMembershipAccessControl`/`AccessControlTrait::relationshipCreateAccess()` down to the
+  `outsider_view` role's `join group` grant).
+- Manager: added `requestJoin(GroupInterface, UserInterface): GroupRelationshipInterface` and
+  `joinPolicyFor(GroupInterface): string` (`'open'|'request'|'invite'`, defaulting to `'open'` if the
+  field is absent/empty — back-compat for pre-#121 groups). Factored private `createMembership(GroupInterface,
+  UserInterface, string $status, array $roles): GroupRelationshipInterface` per A-W1; `addMember()` now
+  delegates to it too (`self::STATUS_ACTIVE`, caller-supplied roles). The duplicate-membership guard
+  (`$group->getRelationshipsByEntity($account, 'group_membership')`, unfiltered by status) already spans
+  pending/blocked per A-R2-N1 — confirmed by inspection, no change needed to the guard shape itself,
+  only to where it lives (now inside the shared private helper).
+- Controller: added `requestJoinAccess(GroupInterface, AccountInterface): AccessResultInterface` peer
+  method on `ManageMembersController` (now `ContainerInjectionInterface`-based with a `create()`
+  factory, since `_custom_access` resolves an unregistered class via `ContainerInjectionInterface`
+  when present, or a bare `new $class()` otherwise — verified via
+  `Drupal\Core\Utility\CallableResolver::getCallableFromDefinition()` →
+  `ClassResolver::getInstanceFromDefinition()`, which checks `create()` BEFORE falling back to a
+  no-arg `new`). Uses `$group->getMember($account) !== FALSE` (NOT `getRelationshipsByEntity()`,
+  which requires an `EntityInterface` and threw a `TypeError` against the real `AccountProxy` the
+  route passes at runtime) to span pending/blocked per A-R2-N1. `addCacheableDependency($group)` kept
+  unconditional per A-R2-W1.
+- Form: `RequestJoinForm` (single `#type => submit` button, `value = 'Request to join'` — confirmed
+  in captured BrowserTestBase HTML output as
+  `<input type="submit" ... value="Request to join" ...>`, satisfying G9/AC-10's locator contract
+  and ALSO matching Playwright's `getByRole('button')` directly, since `input[type=submit]` carries
+  an implicit ARIA `button` role).
+- Routing: added ONE new route (`do_group_membership.request_join`) on the established
+  `_custom_access` idiom, exactly per v2 §A-2. No `_group_permission` anywhere in this story.
+- HelpText: corrected all three `visibility.*` strings per AC-6/AC-7/A-W3 — verified every regex/substring
+  assertion in `HelpTextTest::testVisibilityCopyIsPresentPlainTextAndHonest()` against the new copy
+  before running (traced each assertion by hand, then confirmed via the actual PHPUnit run — 10/10 GREEN,
+  no HelpText assertion failures). `visibility.open` left byte-for-byte unchanged (regression guard).
+- Seed data (`step_700_demo_data.php`): NOT yet touched this phase — see "Known issues" in
+  `handoff-F.md`; deferred, see below.
+
+**Two implementation-time defects found and fixed that were NOT anticipated by the plan or T's RED
+report (both are production-code bugs my own code introduced while implementing against the RED,
+not test-authorship bugs — fixed before reporting GREEN):**
+1. **Service-registration collision for `#[Hook]`-bearing classes.** Registering `GroupAccessHook`
+   under an arbitrary service id (e.g. `do_group_membership.access_hook`, mirroring `do_group_extras`'s
+   existing pattern) left the class's own FQCN un-defined in the container. Core's
+   `HookCollectorPass::registerHookServices()` (`web/core/lib/Drupal/Core/Hook/HookCollectorPass.php:376-382`)
+   AUTO-registers every `#[Hook]`-bearing class as an autowired service keyed by its OWN FQCN, but
+   only `if (!$container->hasDefinition($class))`. Because my custom id didn't satisfy that check,
+   core's autowired duplicate registration ALSO fired and failed to compile (`GroupMembershipManager`
+   has no autowire alias). Fix: key the service entry by the class's own FQCN
+   (`Drupal\do_group_membership\Hook\GroupAccessHook:`), not a custom alias — this is genuinely a
+   latent fragility in `do_group_extras`'s existing pattern too (it "works" only because ITS
+   constructor args — `@current_user`, `@queue`, `@current_route_match` — happen to be independently
+   autowireable, so its duplicate registration succeeds silently rather than failing loudly); out of
+   scope to fix `do_group_extras` itself (not this story's file), flagging for a future do_group_extras
+   touch if anyone hits it.
+2. **`entity.group.join` (the #95 instant-join route, shipped by `drupal/group` contrib) never
+   consults entity-create access at all.** Traced the full call chain
+   (`GroupMembershipController::join()` → `EntityFormBuilder::getForm()` → `FormBuilder::buildForm()` →
+   `GroupJoinForm`/`GroupRelationshipForm`/`ContentEntityForm::save()`) and confirmed NONE of it calls
+   `$entity->access('create')` or equivalent — the route's ONLY access gates are its own two stock
+   requirements, `_group_permission: 'join group'` + `_group_member: 'FALSE'`
+   (`web/modules/contrib/group/group.routing.yml:12-19`), evaluated by `GroupPermissionAccessCheck`/
+   `GroupMemberAccessCheck`, NEITHER of which considers `field_group_visibility` or consults my hook
+   in any way. This meant an `invite_only` group's `/group/{id}/join` stayed reachable (200) and
+   would have let ANY authenticated non-member instantly join an invite_only group — a genuine,
+   pre-existing gap the brief's Objective ("enforced consistently... via Group access... not by
+   hiding UI alone") explicitly required closed, that neither the survey, brief, nor A's plan review
+   surfaced (all assumed the entity-create hook alone was sufficient coverage). Fix, scoped as
+   narrowly as Drupal's own idioms allow (NOT touching `web/modules/contrib/group` source, NOT a
+   new route, NOT a new access-policy architecture layer): a `RouteSubscriber`
+   (`Drupal\do_group_membership\Routing\RouteSubscriber`) that adds a THIRD `_custom_access`
+   requirement (`ManageMembersController::joinRouteAccess()`) onto the EXISTING `entity.group.join`
+   route. Symfony's `AccessManager` combines every route requirement with logical AND, so this
+   NARROWS access without replacing or duplicating anything `drupal/group` does. `joinRouteAccess()`
+   allows only when `joinPolicyFor($group) === 'open'` OR the account holds `administer members`
+   (organizer bypass, consistent with the hook's own organizer bypass) — `moderated` is excluded here
+   too (not just `invite_only`): a moderated group's correct self-service entry point is
+   `/join-request`, never the instant-join route, so AC-2's "pending, not active" contract can't be
+   bypassed by hitting `/join` directly. **Flagging this explicitly for A's Phase-7 anti-duplication
+   review**: this is a NEW file/pattern (RouteSubscriber) not named in brief-response-v2's
+   "Files to touch" list — justified above by necessity (verified empirically, not guessed, via the
+   full call-chain trace), scoped as narrowly as the RouteSubscriber idiom allows, and it does not
+   create a parallel path to anything the brief named (it extends `drupal/group`'s OWN route, the
+   opposite of duplication — the alternative would have been touching vendor code, which is
+   forbidden).
+
+**One test-authorship bug found in T's RED tests (flagged for T, NOT edited by me):**
+- `JoinPolicyEnforcementTest::testNonMemberSeesRequestToJoinOnModeratedGroup` (line 199-201) asserts
+  `$group->getMembers()` excludes a pending requester (`assertNotContains($sophie->id(), $active_uids, ...)`).
+  `Group::getMembers(array $roles = [])` (`web/modules/contrib/group/src/Entity/GroupInterface.php:139`)
+  has NO status-filtering parameter at all — it returns EVERY `group_membership` relationship
+  regardless of `field_membership_status` (active, pending, OR blocked). Confirmed this is not a bug
+  in my code by cross-referencing `ManageMembersForm.php:80` (the pre-existing, working, in-this-module
+  pattern), which calls `$group->getMembers()` with the SAME no-filter shape and then filters/labels
+  each row's status itself AFTERWARD, rather than assuming the API pre-filters. The test's other
+  assertion on the SAME relationship (`field_membership_status === 'pending'`, line 196) PASSES —
+  confirming `RequestJoinForm`/`requestJoin()` genuinely creates a pending (not active) relationship;
+  only the impossible-via-this-API `getMembers()`-exclusion assertion fails. Did not edit the test
+  per my mandate; see `handoff-F.md` "Tests that look wrong (for T)".
+
+**Assumed:**
+- Seed-data changes (`step_700_demo_data.php` append) were explicitly in my "files to touch" list but
+  are NOT required to turn the RED Kernel/Functional/Unit suites GREEN (those suites self-provision
+  their own fixtures) — only the E2E spec (`membership-models.spec.ts`, run against a seeded site at
+  T-green/Phase 6 per the RED handoff's own stated deferral) depends on the seed. Given the coordinator's
+  explicit verify list for this phase names only Kernel/Functional/Unit as "MUST be GREEN" and defers
+  E2E, and given the scope-cap guidance to avoid growing a single F pass, I have NOT touched
+  `step_700_demo_data.php` in this pass — flagging this explicitly as a known gap (not silently
+  dropped) so O/T can decide whether to fold it into this same PR before E2E verification at
+  Phase 6, or split it. See `handoff-F.md` "Known issues".
+
+**Hedged:** none — both defects above were verified empirically (full call-chain traces, actual
+PHPUnit runs), not guessed or assumed away.
+
+**Evidence:**
+- `web/core/lib/Drupal/Core/Entity/EntityAccessControlHandler.php:234-297` (createAccess()/
+  checkCreateAccess()/processAccessHookResults() — hook signature + orIf() merge semantics).
+- `web/core/lib/Drupal/Core/Hook/HookCollectorPass.php:362-383` (registerHookServices() —
+  the FQCN-keyed auto-registration collision).
+- `web/modules/contrib/group/src/Entity/Access/GroupRelationshipAccessControlHandler.php:57-62`
+  (checkCreateAccess() delegates to the relation plugin's relationshipCreateAccess(), confirming
+  `$context['group']` shape).
+- `web/modules/contrib/group/src/Plugin/Group/RelationHandler/GroupMembershipAccessControl.php` +
+  `AccessControlTrait.php:95-102` (the default `join group`-permission fallback my hook's `neutral()`
+  branch relies on for `open`/`moderated`).
+- `web/modules/contrib/group/group.routing.yml:12-19` (`entity.group.join`'s two stock requirements —
+  confirms neither considers visibility).
+- `web/modules/contrib/group/src/Form/GroupJoinForm.php`,
+  `web/modules/contrib/group/src/Entity/Form/GroupRelationshipForm.php`,
+  `web/modules/contrib/group/src/Controller/GroupMembershipController.php:47-56` (full call-chain
+  trace confirming no entity-create-access check anywhere on the join-form path).
+- `web/modules/contrib/group/src/Entity/GroupInterface.php:134-139` (`getMembers(array $roles = [])`
+  signature — no status parameter, confirms the flagged test bug).
+- `docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php:80` (the existing,
+  correct, in-module pattern for handling `getMembers()`'s unfiltered-by-status return shape).
+- Captured BrowserTestBase HTML output (`web/sites/simpletest/browser_output/...-3-31698414.html`)
+  confirming the rendered `<input type="submit" value="Request to join">` markup.
+- Full GREEN run output: see `handoff-F.md` "Tier 1 self-check".

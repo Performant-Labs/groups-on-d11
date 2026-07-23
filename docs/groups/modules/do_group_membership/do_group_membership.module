@@ -1,0 +1,10 @@
+<?php
+
+/**
+ * @file
+ * Manage-members UI, group roles, and join-policy enforcement (#121 SC-2).
+ *
+ * All hook implementations are in GroupAccessHook via the #[Hook] attribute.
+ *
+ * @see \Drupal\do_group_membership\Hook\GroupAccessHook
+ */

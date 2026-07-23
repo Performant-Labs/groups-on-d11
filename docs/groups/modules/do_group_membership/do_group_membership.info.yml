@@ -1,6 +1,6 @@
 name: DO Group Membership
 type: module
-description: 'Organizer manage-members UI, group roles (Organizer/Moderator/Member), and the site-level Groups Moderate role.'
+description: 'Organizer manage-members UI, group roles (Organizer/Moderator/Member), the site-level Groups Moderate role, and request-to-join / invite-only join-policy enforcement.'
 core_version_requirement: ^11.2
 package: Custom
 dependencies:
