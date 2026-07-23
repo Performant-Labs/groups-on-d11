@@ -20,6 +20,7 @@
  * - gc_stream.snippet
  * - gc_stream.comment_count
  * - gc_stream.node_url
+ * - gc_stream.tooltips.byline / .type / .comments  (#127 SD-2 ⓘ copy)
  * - label: the node title (render array)
  */
 #}
@@ -50,9 +51,19 @@
             </span>
           {% endif %}
         </div>
+        {% if gc_stream.tooltips.byline %}
+          <span class="do-chrome-info gc-card-info" tabindex="0" role="note"
+                aria-label="{{ gc_stream.tooltips.byline }}"
+                data-do-tooltip="{{ gc_stream.tooltips.byline }}">ⓘ</span>
+        {% endif %}
 
         <div class="gc-stream-card__submeta">
           <span class="gc-badge gc-stream-card__type">{{ gc_stream.type_label }}</span>
+          {% if gc_stream.tooltips.type %}
+            <span class="do-chrome-info gc-card-info" tabindex="0" role="note"
+                  aria-label="{{ gc_stream.tooltips.type }}"
+                  data-do-tooltip="{{ gc_stream.tooltips.type }}">ⓘ</span>
+          {% endif %}
           <time class="gc-stream-card__time" datetime="{{ gc_stream.created|date('c') }}" title="{{ gc_stream.created_display }}">{{ gc_stream.created_ago }}</time>
         </div>
       </div>
@@ -81,6 +92,11 @@
         </svg>
         <span class="gc-stream-card__comments-count">{{ gc_stream.comment_count }}</span>
       {% if gc_stream.node_url %}</a>{% else %}</span>{% endif %}
+      {% if gc_stream.tooltips.comments %}
+        <span class="do-chrome-info gc-card-info" tabindex="0" role="note"
+              aria-label="{{ gc_stream.tooltips.comments }}"
+              data-do-tooltip="{{ gc_stream.tooltips.comments }}">ⓘ</span>
+      {% endif %}
     </footer>
 
   </div>

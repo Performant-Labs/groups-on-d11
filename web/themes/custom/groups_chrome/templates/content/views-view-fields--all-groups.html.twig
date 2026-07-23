@@ -25,6 +25,8 @@
  * - gc_directory.can_join             (logged-in non-member of an Open group)
  * - gc_directory.is_open              (visibility == open)
  * - gc_directory.join_url             (entity.group.join for this group)
+ * - gc_directory.tooltips.type / .visibility / .members  (#127 SD-2 ⓘ copy;
+ *   .visibility is single-sourced from the reused visibility.* HelpText key)
  *
  * `fields` (the raw Views field render arrays) remains available as a fallback
  * but is intentionally not printed — the card presents the derived metadata.
@@ -36,8 +38,18 @@
     <div class="gc-directory-card__badges">
       {% if gc_directory.type_label %}
         <span class="gc-badge gc-badge--primary gc-directory-card__type">{{ gc_directory.type_label }}</span>
+        {% if gc_directory.tooltips.type %}
+          <span class="do-chrome-info gc-card-info" tabindex="0" role="note"
+                aria-label="{{ gc_directory.tooltips.type }}"
+                data-do-tooltip="{{ gc_directory.tooltips.type }}">ⓘ</span>
+        {% endif %}
       {% endif %}
       <span class="gc-badge gc-badge--{{ gc_directory.visibility_variant }} gc-directory-card__visibility">{{ gc_directory.visibility_label }}</span>
+      {% if gc_directory.tooltips.visibility %}
+        <span class="do-chrome-info gc-card-info" tabindex="0" role="note"
+              aria-label="{{ gc_directory.tooltips.visibility }}"
+              data-do-tooltip="{{ gc_directory.tooltips.visibility }}">ⓘ</span>
+      {% endif %}
     </div>
 
     <h3 class="gc-card__title gc-directory-card__title">
@@ -60,6 +72,11 @@
         <span class="gc-directory-card__stat-value">{{ gc_directory.member_count }}</span>
         {{ 'member'|t }}{% if gc_directory.member_count != 1 %}{{ 's'|t }}{% endif %}
       </span>
+      {% if gc_directory.tooltips.members %}
+        <span class="do-chrome-info gc-card-info" tabindex="0" role="note"
+              aria-label="{{ gc_directory.tooltips.members }}"
+              data-do-tooltip="{{ gc_directory.tooltips.members }}">ⓘ</span>
+      {% endif %}
 
       {% if gc_directory.last_activity %}
         <span class="gc-directory-card__stat gc-directory-card__stat--activity">
