@@ -33,9 +33,24 @@ import { test, expect, Page } from '@playwright/test';
  *
  * Locator note (WAVE-EXECUTION-HANDOFF §6 gotcha 9 / G9): Drupal's
  * `#type => submit` renders `<input type="submit">`, not `<button>`. The
- * "Request to join" control is located with BOTH an accessible-role query
+ * "Request to join" control (the FORM's own submit button, at
+ * /group/{group}/join-request) is located with BOTH an accessible-role query
  * AND a raw attribute-selector fallback (belt-and-braces), matching the
  * brief's explicit AC-10 requirement.
+ *
+ * T-green round 2 (Phase 6, after F's rework): F fixed the AC-2
+ * discoverability blocker by extending groups_chrome_preprocess_group()'s
+ * existing Join/Leave action-picker (theme layer, story #85) with a third
+ * branch that renders a genuine `<a class="gc-button gc-button--primary">
+ * Request to join</a>` link in the group header for a moderated group's
+ * non-member. The direct `page.goto('/group/{id}/join-request')` workaround
+ * (explicitly flagged as a stand-in, not a fix, in the prior revision of
+ * this file) is REMOVED here -- the moderated-group test now clicks the
+ * real header link via requestToJoinLinkControl(), mirroring the open-group
+ * test's own two-hop click-through-confirm pattern. If this link ever fails
+ * to render or fails to click, the test now fails for the CORRECT reason
+ * (the discoverability regression), which is the entire point of reverting
+ * the workaround.
  */
 
 const SOPHIE_USER = process.env.SOPHIE_USER ?? 'sophie_mueller';
@@ -98,6 +113,19 @@ function joinControl(page: Page) {
     .or(page.locator('input[type="submit"][value*="Join"]'));
 }
 
+/**
+ * Locates the header-level "Request to join" DISCOVERABILITY link on the
+ * canonical /group/{id} page for a moderated group -- rendered by F's
+ * groups_chrome_preprocess_group() third elseif branch as a genuine <a>
+ * (`<a href="/group/{id}/join-request" class="gc-button gc-button--primary">
+ * Request to join</a>`, per F's live smoke output in handoff-F-r2.md), NOT
+ * the /join-request FORM's own submit button (that is
+ * requestToJoinControl(), used only after this link is clicked).
+ */
+function requestToJoinLinkControl(page: Page) {
+  return page.getByRole('link', { name: /^Request to join$/i });
+}
+
 test.describe('Membership models enforced (#121 SC-2)', () => {
   test('sophie_mueller joins Drupal France (open) instantly', async ({ page }) => {
     await login(page, SOPHIE_USER, SOPHIE_PASS);
@@ -136,20 +164,19 @@ test.describe('Membership models enforced (#121 SC-2)', () => {
     await login(page, REQUESTER_USER, REQUESTER_PASS);
     await goToGroupByName(page, MODERATED_GROUP_NAME);
 
-    // KNOWN GAP (flagged at T-green, NOT a test-authorship bug -- do not
-    // "fix" by deleting this assertion): the canonical group page renders
-    // NEITHER a "Join group" link (correct -- the group isn't open) NOR a
-    // "Request to join" link for a moderated group. F's RequestJoinForm
-    // only exists at /group/{group}/join-request, which nothing on the
-    // canonical page links to. AC-2's "non-member sees 'Request to join'"
-    // is therefore NOT satisfied by the current implementation -- see
-    // handoff-T-green.md. Navigating directly (via the group id already
-    // resolved by goToGroupByName's URL) is a stand-in so the
-    // request/approval MECHANICS can still be verified end-to-end; it does
-    // NOT substitute for the missing discoverable link, which is a
-    // blocking finding for F, not something T should silently route around.
-    const groupId = page.url().match(/\/group\/(\d+)/)?.[1];
-    await page.goto(`/group/${groupId}/join-request`);
+    // Discoverability (AC-2): the canonical group page header must render a
+    // real, clickable "Request to join" link for a non-member of a
+    // moderated group -- F's Phase-5-rework fix
+    // (groups_chrome_preprocess_group()'s third elseif branch). This
+    // replaces the direct page.goto('/group/{id}/join-request') workaround
+    // T-green used while this was a blocking gap: if the link regresses
+    // (removed, mis-gated, wrong route), this now fails HERE, at the
+    // discoverability step, instead of masking the regression by skipping
+    // straight to the form.
+    const discoverabilityLink = requestToJoinLinkControl(page);
+    await expect(discoverabilityLink).toBeVisible();
+    await discoverabilityLink.click();
+    await page.waitForURL(/\/join-request$/);
 
     const request = requestToJoinControl(page);
     await expect(request).toBeVisible();
@@ -170,6 +197,7 @@ test.describe('Membership models enforced (#121 SC-2)', () => {
     await goToGroupByName(page, INVITE_ONLY_GROUP_NAME);
 
     await expect(joinControl(page)).toHaveCount(0);
+    await expect(requestToJoinLinkControl(page)).toHaveCount(0);
     await expect(requestToJoinControl(page)).toHaveCount(0);
   });
 
@@ -178,6 +206,7 @@ test.describe('Membership models enforced (#121 SC-2)', () => {
     await goToGroupByName(page, INVITE_ONLY_GROUP_NAME);
 
     await expect(joinControl(page)).toHaveCount(0);
+    await expect(requestToJoinLinkControl(page)).toHaveCount(0);
     await expect(requestToJoinControl(page)).toHaveCount(0);
   });
 });

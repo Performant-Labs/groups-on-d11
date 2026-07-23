@@ -317,3 +317,157 @@ around at the runtime-data level without touching any source file.
 missing "Request to join" link on the canonical group page; U's walkthrough should NOT proceed on
 the moderated-group surface until that link exists (U would otherwise correctly fail the same way
 my E2E test initially did). All other ACs, Tier-1, and Tier-2 checks are clean.**
+
+## Phase 6 (round 2) — T re-verification after F rework (2026-07-22)
+
+**Handoff-F-r2 reviewed:** `docs/planning/handoffs/121-req2join/handoff-F-r2.md`
+
+F's rework extends `groups_chrome_preprocess_group()` (theme layer, story #85) with a third
+`elseif` branch that renders a genuine `<a class="gc-button gc-button--primary">Request to
+join</a>` link in the group header for a moderated group's non-member, delegating access to the
+already-A-approved `ManageMembersController::requestJoinAccess()`. This directly addresses the
+single blocking finding from my Phase-6 (round 1) pass.
+
+### 1. E2E workaround revert
+
+**Before** (`tests/e2e/membership-models.spec.ts`, prior revision, line ~152):
+```js
+// KNOWN GAP ... Navigating directly (via the group id already resolved by
+// goToGroupByName's URL) is a stand-in ...
+const groupId = page.url().match(/\/group\/(\d+)/)?.[1];
+await page.goto(`/group/${groupId}/join-request`);
+
+const request = requestToJoinControl(page);
+await expect(request).toBeVisible();
+```
+
+**After:**
+```js
+// Discoverability (AC-2): the canonical group page header must render a
+// real, clickable "Request to join" link for a non-member of a moderated
+// group -- F's Phase-5-rework fix (groups_chrome_preprocess_group()'s third
+// elseif branch). ... if the link regresses ... this now fails HERE, at the
+// discoverability step, instead of masking the regression by skipping
+// straight to the form.
+const discoverabilityLink = requestToJoinLinkControl(page);
+await expect(discoverabilityLink).toBeVisible();
+await discoverabilityLink.click();
+await page.waitForURL(/\/join-request$/);
+
+const request = requestToJoinControl(page);
+await expect(request).toBeVisible();
+```
+
+Added a new helper `requestToJoinLinkControl(page)` (`getByRole('link', { name: /^Request to
+join$/i })`) distinct from the pre-existing `requestToJoinControl()` (the `/join-request` FORM's
+own submit button) — the two locators target different DOM elements on different pages
+(header link on `/group/{id}` vs. form submit on `/group/{id}/join-request`), so they are not
+redundant. Also added the same `requestToJoinLinkControl()` assertion (`toHaveCount(0)`) to both
+invite-only negative tests, for parity with the existing `joinControl()`/`requestToJoinControl()`
+pair — this closes a small gap where the header-link locator itself was never asserted absent on
+`invite_only`, even though the form-button locator was.
+
+**Why:** the workaround was explicitly flagged (by me, at round 1) as a stand-in masking a real
+gap, not a fix. Now that F's link exists, keeping the direct-navigation shortcut would mean a
+future accidental removal of the header link regresses silently (E2E would stay green, having
+never exercised discoverability). Reverting restores the test's power to catch that regression,
+per F's own advisory note in `handoff-F-r2.md`.
+
+**Verification that this is a real, non-vacuous test of F's fix:** ran the suite and confirmed
+the moderated-group test clicks `requestToJoinLinkControl()`, successfully navigates via
+`waitForURL(/\/join-request$/)`, and completes the pending-request flow — this only works because
+F's rendered link exists and points at the correct route. (I did not need to actually remove F's
+branch to prove non-vacuousness — the click + waitForURL step would time out and fail loudly if
+the link were absent or mis-targeted, which is exactly the failure mode round 1 already
+demonstrated before F's fix existed.)
+
+### 2. Functional-test discoverability assertion — left E2E-tier only, with reasoning
+
+Checked `JoinPolicyEnforcementTest`'s `$defaultTheme`: it is `'stark'` (line 40), not
+`groups_chrome`. F's fix lives entirely in `groups_chrome_preprocess_group()`
+(`web/themes/custom/groups_chrome/groups_chrome.theme`), a preprocess hook that only fires when
+`groups_chrome` (or a theme extending it) is the active theme for the render. The test's own
+existing docblock (lines 152-160, `testNonMemberSeesJoinButtonOnOpenGroup`) already documents this
+exact boundary for the pre-existing Join/Leave picker: *"#95's clickable 'Join group' affordance is
+a THEME-layer concern ... not present in this module-level Functional fixture — stark theme, no
+custom theme/view wired — so this test proves the underlying route access ... directly, which is
+what AC-1 actually requires enforced."* The same reasoning applies identically to F's new
+`request_join` branch.
+
+Checked for precedent: `do_chrome`'s own `PermissionMatrixPanelTest.php` also uses `$defaultTheme
+= 'stark'` — there is no Functional test anywhere in this project that installs `groups_chrome` to
+assert on its rendered markup. Installing the theme in `JoinPolicyEnforcementTest::setUp()` only
+for this one assertion would add a heavyweight, project-wide-inconsistent dependency (theme
+install + rebuild) to a module-level fixture whose entire design intentionally stays theme-agnostic
+and tests route/access/data-layer behavior instead.
+
+**Decision: left the functional test as-is.** The discoverability guarantee (a link rendering in
+a specific theme's header markup) is a legitimate theme-layer concern and is correctly proven at
+E2E tier only, which runs against the real `groups_chrome`-themed site. This is not a coverage
+gap being silently accepted — it is the same architectural boundary this test file already
+draws explicitly for the pre-existing Join/Leave picture, and extending it to the new
+`request_join` branch is consistent, not a new risk. No functional test file was edited in this
+pass.
+
+### 3. Test counts
+
+- **E2E** (`npx playwright test tests/e2e/membership-models.spec.ts`, against
+  `http://gm121-groups-on-d11.ddev.site`): **4/4 GREEN.**
+  ```
+  Running 4 tests using 1 worker
+    ok 1 ... sophie_mueller joins Drupal France (open) instantly (5.8s)
+    ok 2 ... ravi_patel sees "Request to join" on Leadership Council (moderated) and requests it (3.3s)
+    ok 3 ... sophie_mueller sees NO Join or Request-to-join control on Core Committers (invite_only) (1.9s)
+    ok 4 ... alex_novak (second non-member persona) also sees no join path on Core Committers (1.7s)
+  4 passed (13.5s)
+  ```
+  Test 2 (the moderated-group flow) now clicks the real rendered header link
+  (`requestToJoinLinkControl()`) and `waitForURL(/\/join-request$/)` before interacting with the
+  form — no direct `page.goto('/join-request')` remains anywhere in the file.
+
+- **Functional** (`JoinPolicyEnforcementTest`, unchanged from round 1 — no edits this pass):
+  **9/9 GREEN**, exit "OK, but there were issues!" (deprecation noise only, 0 Errors/Failures):
+  ```
+  Tests: 9, Assertions: 54, Deprecations: 15, PHPUnit Deprecations: 10.
+  ```
+  Exact match to F-r2's own reported count.
+
+- Reused F's already-running seeded `gm121-groups-on-d11` ddev instance (both the internal
+  `php -S 127.0.0.1:8888` test router and the ddev-served site were already live) — no re-seed
+  needed this pass. Ran `bash scripts/ci/assemble-config.sh` (via `ddev exec`) before the PHPUnit
+  invocation, per the assembled-layout requirement. Note: this worktree's `playwright.config.ts`
+  default `BASE_URL` (`https://groups-on-d11-build.ddev.site:8493`) does not match the running
+  `gm121-groups-on-d11` project's actual URL — had to override with
+  `BASE_URL="http://gm121-groups-on-d11.ddev.site"` for the E2E run to reach the live site at all
+  (an environment/config mismatch, not a story defect — flagging as an advisory note below).
+
+### 4. Updated AC-2 status
+
+| AC | Description | Status | Backing test |
+|----|---|---|---|
+| AC-2 | Moderated group: non-member sees "Request to join" (discoverable, not just directly-reachable); creates pending relationship | **PASS (full — mechanics AND discoverability)** | `RequestJoinFlowTest::testRequestJoinCreatesPendingRelationship` (Kernel); `JoinPolicyEnforcementTest::testNonMemberSeesRequestToJoinOnModeratedGroup` (Functional, route/data-layer, theme-agnostic by design); E2E test 2 (GREEN, now clicking the REAL header link via `requestToJoinLinkControl()`, no workaround) |
+
+Round 1's blocking issue is resolved. AC-2 is now fully PASS at every tier appropriate to it:
+mechanics at Kernel/Functional, discoverability at E2E (the only tier where the theme layer that
+owns this affordance is actually active).
+
+### 5. New advisory notes
+
+- **`playwright.config.ts`'s default `BASE_URL` doesn't match this worktree's own ddev project.**
+  The config defaults to `https://groups-on-d11-build.ddev.site:8493`, but this story's project is
+  `gm121-groups-on-d11` (plain HTTP, no custom port) — every E2E invocation in this worktree needs
+  an explicit `BASE_URL=http://gm121-groups-on-d11.ddev.site` override, or it fails with
+  `ERR_CONNECTION_REFUSED` before any test logic runs. This is a pre-existing config/environment
+  mismatch (likely `playwright.config.ts`'s default was written for a different project's naming
+  convention), not a #121 defect — worth a follow-up so future E2E runs in per-story worktrees
+  don't have to rediscover this.
+- Confirmed the new `requestToJoinLinkControl()` locator and the pre-existing
+  `requestToJoinControl()` locator target genuinely distinct elements on distinct pages (header
+  `<a>` on `/group/{id}` vs. form `<input type=submit>` on `/group/{id}/join-request`) — no
+  overlap/collision risk between the two.
+- No production code was touched in this pass (only `tests/e2e/membership-models.spec.ts` edited).
+  `docs/groups/modules/*/src/` and `web/themes/*` were read-only.
+
+## Verdict (round 2)
+
+**T-green (round 2) complete. No blocking issues. AC-2 is now fully PASS (mechanics + discoverability). Ready for U** — the moderated-group canonical-page surface can now be walked live, since the discoverable link genuinely exists and E2E confirms it end-to-end.

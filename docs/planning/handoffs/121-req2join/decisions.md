@@ -583,3 +583,56 @@ mandated Kernel/Functional test suites re-run to completion).
   diff on both touched files showing zero new debt (HelpText.php: 19→18 errors, i.e. one FEWER;
   groups_chrome.theme: 4 errors + 7→6 warnings, i.e. one fewer, with `--extensions=theme` correctly
   applied both times).
+
+## Phase 6 (round 2) — Tester: re-verify (2026-07-22)
+
+**Decided:**
+- Reverted the E2E direct-URL workaround in `tests/e2e/membership-models.spec.ts`. The moderated-
+  group test now clicks a new `requestToJoinLinkControl()` locator (`getByRole('link', { name:
+  /^Request to join$/i })`) matching F's rendered `<a class="gc-button gc-button--primary">Request
+  to join</a>` header link, then `waitForURL(/\/join-request$/)`, mirroring the open-group test's
+  own two-hop click-through-confirm pattern. Also added the same locator's absence assertion
+  (`toHaveCount(0)`) to both invite-only negative tests, for parity with the pre-existing
+  `joinControl()`/`requestToJoinControl()` pair.
+- Left `JoinPolicyEnforcementTest` (Functional) unedited. Checked `$defaultTheme` (`'stark'`,
+  line 40) and confirmed via the test file's own existing docblock (lines 152-160) that this
+  fixture is intentionally theme-agnostic, testing route/access/data behavior directly rather than
+  theme-rendered markup — the exact same boundary that already applies to the pre-existing
+  Join/Leave picker (#95). Checked for precedent: `do_chrome`'s `PermissionMatrixPanelTest.php`
+  also uses `stark`; no Functional test in this project installs `groups_chrome`. Decided the
+  discoverability guarantee (a link rendering in a specific theme's markup) is correctly proven at
+  E2E tier only — this is a legitimate architectural boundary, not a coverage gap silently
+  accepted, and is consistent with the test file's own stated design intent.
+- Re-ran both suites against F's already-running seeded `gm121-groups-on-d11` ddev instance (no
+  re-seed needed): E2E 4/4 GREEN (`npx playwright test tests/e2e/membership-models.spec.ts`,
+  `BASE_URL=http://gm121-groups-on-d11.ddev.site` — this worktree's `playwright.config.ts` default
+  BASE_URL pointed at a different, non-running project, a pre-existing config mismatch, not a
+  story defect); Functional 9/9 GREEN (unchanged from F-r2's own reported count).
+- Ran phpcs against `JoinPolicyEnforcementTest.php` for completeness (unedited file, so purely a
+  reconfirmation of the pre-existing baseline documented at round 1) — no new debt possible since
+  no lines changed. No lint config (`.eslintrc`/`eslint.config.*`) exists for the `.ts` E2E file in
+  this repo, so no lint gate applies to it either.
+
+**Assumed:**
+- The real CI E2E job's `BASE_URL` is correctly configured for its own environment (this worktree's
+  local mismatch is a per-worktree/local-dev issue, not evidence of a CI-config problem) —
+  flagged as advisory, not verified against the actual GitHub Actions config from inside this
+  worktree.
+
+**Hedged:** none — every finding this round was verified directly (docblock read, precedent grep
+across `do_chrome`, live E2E run confirming the click-through succeeds only because F's link
+genuinely exists, Functional re-run to completion).
+
+**Evidence:**
+- `docs/groups/modules/do_group_membership/tests/src/Functional/JoinPolicyEnforcementTest.php:40`
+  (`$defaultTheme = 'stark'`) and `:152-160` (existing theme-layer-boundary docblock, same
+  reasoning extended to F's new branch).
+- `docs/groups/modules/do_chrome/tests/src/Functional/PermissionMatrixPanelTest.php:44`
+  (`$defaultTheme = 'stark'` — confirms no precedent for installing `groups_chrome` in Functional
+  tests anywhere in this project).
+- E2E run output: `4 passed (13.5s)`, test 2 completing via `requestToJoinLinkControl()` click +
+  `waitForURL(/\/join-request$/)`, no direct `page.goto()` to `/join-request` remaining in the
+  file.
+- Functional run output: `Tests: 9, Assertions: 54, Deprecations: 15, PHPUnit Deprecations: 10.`
+  (0 Errors/Failures), exact match to `handoff-F-r2.md`'s own reported count.
+- Full report: `docs/planning/handoffs/121-req2join/handoff-T-green.md` §"Phase 6 (round 2)".
