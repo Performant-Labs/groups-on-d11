@@ -389,3 +389,41 @@ old `<header>`-nested tab position.
 
 **Verdict:** PASS. No behavioral defects. See `handoff-U.md` for full detail.
 Screenshots in `u-screenshots/`. Ready for S.
+
+## S — Phase 9 (Spec audit)
+
+**Decided:** PASS. All 13 AC bullets satisfied with backing evidence; all hard
+constraints honored ("no new routes / no new fields" verified by empty diff on
+`*.routing.yml`, `field.field.*`, `field.storage.*`); HelpText change is
+strictly append-only (one key at tail of `all()`, zero existing-key mutations);
+"Owns (disjoint files)" respected — only the seed script sits outside strict
+Owns but within brief's silence-zone, functionally required for AC #7 to have
+real content, and accepted by T/A-dup with rationale.
+
+**Assumed:** none. Every AC is backed by named evidence (E2E test file+line,
+DOM inspection, U live walkthrough, or T-green Tier-2 output).
+
+**Hedged:** none. The `#84` `directory-cards.spec.ts` flake is confirmed
+pre-existing (last touched in commit `843a5b1`/PR#105; empty diff on that file
+in this branch) and reproducible without any #122 change — a genuine
+environment/fixture-accumulation issue, not a #122 regression.
+
+**Evidence:**
+- `git diff origin/main...HEAD --name-only`: 32 files, all inside declared
+  Owns or expected handoff/screenshot artifacts.
+- `git diff origin/main...HEAD -- '*.routing.yml' 'field.field.*'
+  'field.storage.*'`: empty (constraint verified).
+- `git diff HelpText.php`: single-key append with `#122 (SC-3)` comment
+  header, zero existing-key changes.
+- Test-quality audit: 10 E2E tests proportionate, non-vacuous (T-red
+  confirmed correct-reason RED), Thunder test correctly rewritten from weak
+  empty-state pin to positive assertion.
+- A-dup PASS (cache tags + contexts + extend-in-place all verified).
+- U live PASS (all 4 states + tooltip a11y + fallback CSS-aggregate isolation
+  at raw-file level).
+
+**Verdict:** PASS. Ready for O to open PR to `main`; human merges.
+
+**Advisories (non-blocking):** directory-cards `#84` flake needs a separate
+ticket; `.ddev/config.yaml` rename left uncommitted per task; no automated
+axe scan available repo-wide (out of #122 scope, would be #145's remit).
