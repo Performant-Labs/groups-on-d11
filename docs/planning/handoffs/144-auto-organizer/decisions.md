@@ -552,3 +552,49 @@ class/file created.
   production UI/behavior is correct.
 - Full details, screenshots, and per-AC checklist in handoff-U.md.
 - Ready for O to proceed with PR + CI.
+
+## O — PR opened, CI running
+
+- **PR #156** opened: https://github.com/Performant-Labs/groups-on-d11/pull/156
+- Assignee: aangelinsf, label: enhancement, base: main, head: 144-auto-organizer.
+- Body includes AI-authored disclosure, empirical findings, test plan checklist.
+- CI checks in progress: Kernel tests (do_tests), Functional tests (BrowserTestBase), E2E (Playwright) — workflow "Test suite (kernel + functional + Playwright)".
+- Parking per overnight-mode contract; awaiting meta-coordinator wake on CI green (or failure).
+
+## O — CI cycle 1 diagnosis & fix (2026-07-23)
+
+**CI result:** Kernel PASS, Functional PASS, **E2E FAIL** (`create-group.spec.ts:100`).
+Error: `completeWizard(): exceeded maxSteps without leaving /group/add/`.
+
+**Root cause diagnosed** (not flakiness; not seed drift; not CI-only):
+The RED E2E treated `field_group_description` as a plain textarea and used
+`page.locator('textarea[name="field_group_description[0][value]"]').fill()`
+guarded by an optional `isVisible({timeout: 500})` probe. On the assembled
+`community_group` type, the description field is a **CKEditor 5** field —
+the hidden textarea `.fill()` does NOT propagate to CKEditor's model, so
+the form submits with an empty required field and re-renders on the same
+`/group/add/community_group/` URL with a validation error. `completeWizard()`
+then clicks the same submit button 6 times without leaving `/group/add/`.
+
+Also: `field_group_visibility` is a REQUIRED radio group that the RED did
+not set at all — the same silent-revalidation trap.
+
+**Evidence (in-repo, not guesswork):** `tests/e2e/phase1.spec.ts:84` (which
+PASSED in the same CI run) creates a community_group with the correct
+pattern: click `.ck-editor__editable`, `pressSequentially()` for the
+description, and `input[name="field_group_visibility"][value="open"]`.check()
+for the visibility. That test's helper comment explicitly documents this
+CKEditor-model-sync gotcha.
+
+**Decided:** Align the E2E's form-fill with the working phase1 pattern
+(source-only test change — no production code touched). No production
+defect. Not a "flaky in CI only" excuse — the local run happened to
+succeed via `advanceThroughWizard()` in the Functional (Mink) test, which
+bypasses CKEditor entirely (Mink writes the raw hidden-textarea value).
+
+**Assumed:** admin persona still has create-group permission (unchanged
+since RED).
+
+**Evidence to be verified:** CI cycle 2 pass on the E2E job.
+
+**Files changed:** `tests/e2e/create-group.spec.ts` only.

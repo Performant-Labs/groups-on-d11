@@ -12,21 +12,25 @@ import { test, expect, Page } from '@playwright/test';
  * guided-preview content renders -> click "Manage members" CTA -> assert the
  * creator is listed with Organizer role on the manage-members page.
  *
- * WIZARD STEP UNCERTAINTY (flagged, not guessed): the exact wizard step
- * count/labels were not empirically verified at RED-author time (no running
- * DDEV site available to T). `completeWizard()` below defensively submits
- * whatever primary action button each step presents (in priority order),
- * matching the same defensive-walk approach as the sibling functional test
- * `CreateGroupWizardOrganizerTest::advanceThroughWizard()`. This is expected
- * to need one round of empirical correction once run against a real
- * assembled+seeded site (F/T-green's job, per the brief).
- *
  * Locator conventions (per this project's established gotchas, matching
- * manage-members.spec.ts): `#type => submit` renders `<input type=submit>`
- * NOT `<button>` — `getByRole('button', {name})` still matches it via ARIA
- * role mapping, which is used throughout. `getByLabel(/.../)`  can
- * strict-mode-collide on a seeded page — locators are scoped to the
- * relevant form/section where collision risk exists.
+ * manage-members.spec.ts + the working phase1.spec.ts create-group probe):
+ * `#type => submit` renders `<input type=submit>` NOT `<button>` —
+ * `getByRole('button', {name})` still matches it via ARIA role mapping,
+ * which is used throughout. `getByLabel(/.../)`  can strict-mode-collide on
+ * a seeded page — locators are scoped to the relevant form/section where
+ * collision risk exists.
+ *
+ * CI-cycle-1 diagnosis (2026-07-23): the original RED assumed
+ * `field_group_description` was a plain textarea and the visibility field
+ * was optional; both wrong on the assembled community_group type.
+ * `field_group_description` is a **CKEditor 5** field (hidden textarea
+ * proxied by a contenteditable `.ck-editor__editable`; `.fill()` on the
+ * hidden textarea does NOT propagate to CKEditor's model, so the form
+ * submits with an empty value and re-renders on the same URL with a
+ * validation error — which caused completeWizard() to loop forever). And
+ * `field_group_visibility` is a REQUIRED radio group. The working create-
+ * group probe in `phase1.spec.ts:84` (which PASSED in the same CI run) shows
+ * the correct fill pattern — mirrored below.
  */
 
 const ADMIN_USER = process.env.ADMIN_USER ?? 'admin';
@@ -53,7 +57,10 @@ async function login(page: Page, user = ADMIN_USER, pass = ADMIN_PASS): Promise<
  * Mirrors `CreateGroupWizardOrganizerTest::advanceThroughWizard()`'s
  * priority-ordered button-label search so the two suites converge on the
  * same empirical correction if the real wizard step sequence differs from
- * what's anticipated here.
+ * what's anticipated here. On the assembled community_group type, F's
+ * empirical finding (handoff-F.md "Empirical decisions") confirmed the
+ * wizard resolves as effectively single-step: this loop exits after 1
+ * iteration.
  */
 async function completeWizard(page: Page, maxSteps = 6): Promise<void> {
   const primaryPatterns: RegExp[] = [
@@ -107,17 +114,25 @@ test.describe('Create-group flow (#144 MC-6)', () => {
     await page.goto('/group/add/community_group');
     await page.getByLabel('Title', { exact: false }).fill(groupName);
 
-    // field_group_description is a REQUIRED plain-text field on the real
-    // assembled community_group type (empirically confirmed by
-    // CreateGroupWizardOrganizerTest.php line 385 — the wizard's HTML5
-    // validation blocks submit until it's filled). Fill defensively via the
-    // raw form-field selector (getByLabel would need to know the exact label
-    // string and would strict-mode-collide on a text-format-select field
-    // pattern; the textarea's `name` attribute is stable).
-    const descriptionTextarea = page.locator('textarea[name="field_group_description[0][value]"]');
-    if (await descriptionTextarea.isVisible({ timeout: 500 }).catch(() => false)) {
-      await descriptionTextarea.fill('An E2E-created group for #144 verification.');
-    }
+    // field_group_description is a REQUIRED **CKEditor 5** field on the real
+    // assembled community_group type — NOT a plain textarea. The `.fill()`
+    // on the hidden textarea does NOT propagate to CKEditor's model, so we
+    // click the contenteditable and type real keystrokes so CKEditor syncs
+    // to the hidden textarea on submit. Pattern mirrors the working
+    // phase1.spec.ts:84 "authenticated user can create group" probe (see
+    // this file's header for CI-cycle-1 diagnosis).
+    const descEditor = page.locator('.ck-editor__editable').first();
+    await descEditor.waitFor({ state: 'visible' });
+    await descEditor.click();
+    await descEditor.pressSequentially('An E2E-created group for #144 verification.');
+
+    // field_group_visibility is a REQUIRED radio group on the real assembled
+    // community_group type — mirror the phase1 probe: check the 'open' radio
+    // by name+value (never by label — the label may collide on a seeded
+    // page).
+    await page
+      .locator('input[name="field_group_visibility"][value="open"]')
+      .check();
 
     await completeWizard(page);
 
