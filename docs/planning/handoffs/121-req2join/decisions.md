@@ -27,3 +27,22 @@ Orchestrator writes the closing Chain Summary at post-merge sweep.
 - `docs/groups/modules/do_group_membership/src/GroupMembershipManager.php` (manager already carries approvePending/denyPending — reuse).
 - `docs/groups/scripts/step_700_demo_data.php` lines 99 + 101 (Elena is member of both closed groups — cannot exercise flows).
 - `docs/groups/config/group.role.community_group-outsider_view.yml` (holds `join group` grant — the surface to gate).
+
+## Phase 1b — Orchestrator: brief-gate dual-review (2026-07-22)
+
+**Decided:**
+- Coordinator direction executed: composite `field_group_visibility` retained; axis-independence AC deferred to #134 (documented in PR body).
+- Ran `dual-review.sh --mode brief` (o4-mini). Round 1 = BLOCK (5 findings).
+- Amended brief via `brief-response.md` addendum §§1–6: hook mechanism named (`hook_group_relationship_create_access`), organizer defined (`community_group-organizer` + `administer members`), added AC-15/AC-16 (approve/deny access guards), AC-4 extended (approval assigns no roles), seed idempotency spelled out with existence guards.
+- Round 2 = **PASS** — all 5 BLOCKs ACCEPTED by reviewer.
+
+**Assumed (to verify with A):**
+- `hook_group_relationship_create_access()` is the correct extension point on Group 4.0.x for gating create. A should validate against the module's actual hook list.
+
+**Hedged:** none — addendum is authoritative and A operates on brief + brief-response together.
+
+**Evidence:**
+- `docs/planning/handoffs/121-req2join/dual-review-brief.md` (Round 1 — 5 BLOCK).
+- `docs/planning/handoffs/121-req2join/brief-response.md` (adjudication + addendum).
+- `docs/planning/handoffs/121-req2join/dual-review-brief-r2.md` (Round 2 — PASS).
+- `docs/groups/config/group.role.community_group-organizer.yml` L16 (`administer members` grant confirms B-2 resolution).
