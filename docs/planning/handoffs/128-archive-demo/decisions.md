@@ -310,3 +310,36 @@
 - **Evidence:** 7 screenshots (desktop + 360px) under
   docs/planning/handoffs/128-archive-demo/screenshots/; full per-AC
   action/expected/observed table in handoff-U.md.
+
+## Phase 9 (S): spec audit — PASS
+
+- **Decided:** PASS. All 6 acceptance criteria met with concrete evidence; scope
+  discipline is exact (merge-base diff is 1 seed file + 3 test files + handoff
+  docs/screenshots); test quality is high; T-green's in-band fix of the inherited
+  #143 `group-restore.spec.ts` free-text-locator bug is genuine remediation, not
+  scope creep. Diff-gate round-2 PASS is consistent with this audit. O may open
+  the PR.
+- **AC-1a downgrade defensibility.** The card lacks `data-do-tooltip`. This is
+  a legitimate scope boundary, not a spec defect warranting ADVISORY-HOLD:
+  (a) the brief's non-goals explicitly forbid theme/template/CSS changes;
+  (b) the gap is architectural — `hook_preprocess_group` cannot fire in a
+  Views-fields row render in Drupal 11 (framework fact, not per-build);
+  (c) the visible "Archive" type-badge on the card preserves the
+  discovery signal; (d) U hover-captured the full tooltip working on the
+  group page (AC-1b) at both viewports. Updating the spec would not help —
+  the fix requires a template change the story's non-goals correctly forbid
+  given #128's seed-only mission.
+- **Advisories (non-blocking follow-ups):**
+  1. RUNBOOK.md doc drift (`:2638`, `:2800`) — belongs to #133.
+  2. `.gc-directory-card` tooltip gap — worth a small follow-up ticket for
+     the card component.
+  3. E2E fixture hygiene (leaks across runs on a persistent DB) — worth a
+     lightweight `afterEach`/global-teardown story.
+- **Evidence read:** issue #128, brief.md, survey.md, handoff-A.md,
+  handoff-T-red.md, diff-review-r1.md, diff-review-r1-response.md,
+  diff-review-r2.md, handoff-F.md, handoff-T-green.md, handoff-U.md,
+  `git diff 7dd8368..HEAD -- docs/ tests/`, `grep -n 'set("status", 0)'
+  step_700_demo_data.php` (no match — AC-3 re-verified in this audit).
+- **Parked-after-S for O.** Overnight-autonomous authorized per brief;
+  merge on green CI: `gh pr merge <N> --repo Performant-Labs/groups-on-d11
+  --merge --delete-branch`.
