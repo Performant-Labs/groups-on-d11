@@ -144,3 +144,21 @@ screenshots under `docs/planning/handoffs/142-directory-filters/screenshots/`).
 Verdict: **PASS. Ready for S** (Spec Auditor) - the new filter-form surface behaves exactly
 per brief and T's GREEN suite, is axe-clean on its own new controls, and has no visual
 regressions on the existing directory chrome.
+
+## S — Phase 9 (spec audit)
+Decided:
+- Verdict **PASS**. All issue #142 acceptance criteria and all 8 brief v2 criteria are satisfied and backed by GREEN tests (kernel 4/4, e2e 5/5, full 141-test cross-module sweep 0 regressions).
+- The two F additions not in the brief's literal text (`language.entity.fr.yml`, `DoGroupLanguageHooks::fieldViewsDataAlter()`) are necessary production prerequisites for brief criterion #1 to hold at runtime, not scope creep — each independently evidenced by F and re-derived by T. Extended `do_group_language` (existing owning module) rather than creating a new one — right layering choice.
+- Test-quality rubric (`testing/test-quality.md` §7) PASS: no delete/merge findings; the two seemingly-overlapping kernel tests (`testViewDeclaresBothExposedFilters` vs. `testExposedFormIsNonEmpty`) deliberately probe declared vs. runtime-resolved handler layers — exactly the case where separate tests are proportionate, given F's decisions #2–#3 show the two layers can diverge silently.
+- Diff is source-only (`docs/…` + `tests/e2e/…`); no committed build artifacts.
+- POC posture respected: no over-engineering, no gh follow-up issues filed.
+
+Open Assumption (carry to Chain Summary at merge time):
+- #139 owner accepts reusing baseline `field_group_language` rather than introducing a parallel `field_group_primary_language`. Consistent with #139's own reuse-preference text; A r2 PASSED this hedge for POC/overnight mode; hedged fallback documented above.
+
+Advisory (do NOT block):
+- Pre-existing `.gc-badge--success` color-contrast (serious, axe) originates from `groups_chrome/css/primitives.css:39`, story #84/#121/#122. Not touched by #142; form-scoped axe re-scan on the new controls returned 0 violations. Surface in PR description for visibility only; per project instructions, no GH follow-up filed.
+
+Evidence: `handoff-S.md` (per-criterion table, scope-discipline analysis, quality audit).
+
+Verdict: **PASS. Ready for O to open PR + drive to merge.**
