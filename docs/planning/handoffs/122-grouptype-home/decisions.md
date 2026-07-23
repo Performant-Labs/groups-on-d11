@@ -320,3 +320,40 @@ Append-only. One entry per phase. O writes the closing Chain Summary.
   tab bar order, tooltip attributes) — see `handoff-T-green.md`.
 
 ---
+
+## A — Phase 7 (A-dup)
+
+**Verdict:** PASS. Cache-tag contract check: ✓. Extend-not-parallel check: ✓.
+
+**Verified:**
+- Extend-in-place: all new logic inside `groups_chrome_preprocess_group()`; ONE new hook
+  (`groups_chrome_theme_suggestions_group_alter()`) matches the single justified addition
+  authorized by the survey + handoff-A.md.
+- Node-query mechanism matches Phase-3 guidance verbatim (`$group->getRelationships('group_node:{bundle}')`,
+  mirroring the neighboring last-activity block — no `entityQuery` parallel path, no rendered View).
+- Three suggestion twigs are true `{% include %}` passthroughs (option b) — no markup triplication.
+- See-all URLs = `/group/{gid}/nodes?type=forum|documentation` (A's Q1 resolution).
+- Cache metadata contract complete: `$group->getCacheTags()`, `node_list:{bundle}`, per-node
+  tags, contexts `user.node_grants:view` + `user.group_permissions`. T-green's `drush php:script`
+  dump confirms end-to-end.
+- `.gc-group-lead__help` margin-only — no color override; pre-verified 5.36:1 AA contrast intact.
+- Node-access check (`$node->access('view', $current_user)`) applied.
+- Term→behavior mapping in a single helper used from both hooks.
+- Library `groups_chrome/group_type_homepage` attached inside the same conditional that populates
+  `lead_items` — unmapped/empty-state pages emit zero new payload.
+- No Wave-1 primitive (do_streams / do_showcase / do_group_membership / do_group_pin) provides
+  a "lead section" F should have reused instead.
+- CSS: BEM-scoped, entirely token-driven, single file (`gc-group-lead*` selectors appear nowhere
+  else).
+- Group-4.0.x contrib bug workaround (32-char bundle-id cap on `group_node:documentation`) is
+  contained to the seed script, correctly resolves the actual relationship-type entity by
+  `getPluginId()`, and is thoroughly documented inline.
+
+**Findings:** None blocking. Two info-only observations (defensive `class_exists()` guard on the
+theme→module HelpText call; tab `<nav>` reparenting) are consistent with the file's existing
+patterns and required by wireframe §2 respectively; grep confirms no selector coupling to the
+old `<header>`-nested tab position.
+
+**Handoff:** `handoff-A-dup.md`. Ready for U.
+
+---
