@@ -97,3 +97,25 @@ Orchestrator writes the closing Chain Summary at post-merge sweep.
 - `docs/planning/handoffs/121-req2join/handoff-A-plan.md` (A's full report).
 - `docs/groups/modules/do_group_membership/src/Form/ManageMembersForm.php:70,80,214-234,296-329` (existing pending-row surface — the parallel path A-1 avoids).
 - `docs/groups/modules/do_group_membership/do_group_membership.routing.yml:1-51` (established `_custom_access` idiom).
+
+## Phase 3 (Round 2) — Architecture Reviewer re-review (2026-07-22)
+
+**Decided:**
+- Verdict: **PASS**. All 3 Round-1 BLOCKs (A-1, A-2, A-3) surgically resolved by `brief-response-v2.md`. No re-amendment needed. Proceed to Phase 4 (T).
+- A-1 resolved: parallel pending-queue surface deleted in full (route + local task + `pendingQueue()` controller method + `PendingRequestActionForm.php`); AC-4/AC-15/AC-16 restated against existing `/group/{group}/members` + `ManageMembersForm`.
+- A-2 resolved: `do_group_membership.request_join` route uses `_custom_access` via new `ManageMembersController::requestJoinAccess()` peer method that inherits the existing cache-metadata contract; no `_group_permission` YAML.
+- A-3 resolved: manager surface trimmed to exactly `requestJoin` + `joinPolicyFor`.
+- Two implementation-time notes recorded (non-blocking, not plan-level):
+  - A-R2-W1 (warn): `requestJoinAccess()` cache metadata — keep `addCacheableDependency($group)` unconditional; group's cache tag covers `field_group_visibility` mutations.
+  - A-R2-N1 (nit): "already a member" short-circuit and `requestJoin` guard should treat pending/blocked as already-member (symmetry with `DuplicateMembershipException` guard shape).
+
+**Assumed:**
+- F will honor A-R2-W1/N1 at implementation without a plan amendment. If missed, will re-surface at Phase 7 dup gate.
+- `createMembership()` private helper shape (A-W1) intentionally left to F. Amendment does not prescribe signature — correct.
+
+**Hedged:** none.
+
+**Evidence:**
+- `docs/planning/handoffs/121-req2join/handoff-A-plan-r2.md` (this round's full report).
+- `docs/planning/handoffs/121-req2join/brief-response-v2.md` (amendment reviewed).
+- `docs/groups/modules/do_group_membership/src/Controller/ManageMembersController.php:38-45` (peer method shape confirmed as faithful mirror).
