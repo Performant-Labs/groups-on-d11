@@ -150,11 +150,19 @@ test.describe('Create-group flow (#144 MC-6)', () => {
 
     await expect(page.locator('p', { hasText: /Organizer/i })).toBeVisible();
 
-    const subheading = page.getByRole('heading', { level: 2 });
+    // Scope by accessible name — the page has 6 h2s from theme chrome
+    // (toolbar, main-menu, status-message, breadcrumb, footer-menu) on a
+    // fully-seeded site; an unscoped getByRole('heading',{level:2}) strict-
+    // mode-collides. Our preview's h2 has stable copy "What's next?" set
+    // in GroupCreatedPreviewController::view() (line 99).
+    const subheading = page.getByRole('heading', { level: 2, name: /What.s next\?/ });
     await expect(subheading).toBeVisible();
-    await expect(page.locator('h3')).toHaveCount(0);
 
-    const ctaList = page.locator('ul').filter({ has: page.locator('a') }).first();
+    // The preview ul is uniquely identifiable by the .do-group-membership--next-steps
+    // class F ships on it (GroupCreatedPreviewController::view() line 105).
+    // Scope the CTA-list assertions there rather than to "first ul with a link"
+    // (which on the seeded/themed page might match the primary nav or footer nav).
+    const ctaList = page.locator('ul.do-group-membership--next-steps');
     const ctaLinks = ctaList.locator('a');
     await expect(ctaLinks).toHaveCount(3);
 

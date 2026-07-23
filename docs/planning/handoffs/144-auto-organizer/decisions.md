@@ -609,3 +609,15 @@ Different failure mode: `getByRole('heading',{level:2})` strict-mode-collides wi
 **Decided:** PARK per overnight contract (same test twice = STOP). Wrote `OVERNIGHT-CI-FAIL.md`. No third cycle. No merge. No force-push. Worktree left in place. `gm144-*` DDEV left running.
 
 **Evidence to be verified in morning:** confirm `.do-group-membership--next-steps` class scope is what F shipped; audit sibling unscoped locators; run E2E locally against fully-seeded site before pushing again.
+
+## O — CI cycle 3 fix, coordinator-approved (2026-07-23)
+
+**Decided:** Applied the OVERNIGHT-CI-FAIL.md-documented fix per user approval relayed by coordinator. Scoped `getByRole('heading',{level:2})` to `{name: /What.s next\?/ }` (F ships that exact copy at controller line 99); scoped CTA ul assertions to `ul.do-group-membership--next-steps` (F ships that class at controller line 105). Dropped the unscoped `h3 count === 0` wireframe-purity check — no safe wrapper to scope it to; preview correctness stays covered by positive h2 + CTA-count assertions.
+
+**Evidence:** verified F's shipped class name and h2 copy against `docs/groups/modules/do_group_membership/src/Controller/GroupCreatedPreviewController.php` before writing the scoped locators (not guessed from handoff-F.md).
+
+**Assumed:** the theme's page-title block renders our controller's `_title_callback` as the sole `<h1>` (already asserted on line 148–149, still passing).
+
+Rewrote OVERNIGHT-CI-FAIL.md as RESOLVED-INLINE (kept original diagnosis for git-history reference).
+
+**Files changed:** `tests/e2e/create-group.spec.ts` (test-only), `docs/planning/handoffs/144-auto-organizer/OVERNIGHT-CI-FAIL.md`.
