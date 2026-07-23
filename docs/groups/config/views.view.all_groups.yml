@@ -2,6 +2,9 @@ uuid: 9d7afe48-fc91-48bf-b60a-857fdce80e25
 langcode: en
 status: true
 dependencies:
+  config:
+    - field.storage.group.field_group_language
+    - field.storage.group.field_group_location_text
   module:
     - group
 id: all_groups
@@ -108,6 +111,42 @@ display:
             operator_id: label_op
             label: 'Search groups'
             identifier: search
+            remember: false
+        location:
+          id: location
+          table: group__field_group_location_text
+          field: field_group_location_text_value
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: group
+          entity_field: field_group_location_text
+          plugin_id: string
+          operator: contains
+          value: ''
+          exposed: true
+          expose:
+            operator_id: location_op
+            label: Location
+            identifier: location
+            remember: false
+        field_group_language:
+          id: field_group_language
+          table: group__field_group_language
+          field: field_group_language_value
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: group
+          entity_field: field_group_language
+          plugin_id: language
+          operator: 'in'
+          value: {  }
+          exposed: true
+          expose:
+            operator_id: ''
+            label: 'Primary language'
+            identifier: field_group_language
             remember: false
       empty:
         area_text_custom:

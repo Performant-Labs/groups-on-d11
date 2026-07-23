@@ -550,4 +550,45 @@ foreach ($group_about_by_label as $group_label => $about_html) {
   echo "Set $group_label About body\n";
 }
 
+// ===== Step 737: Directory location + language filter seed groups (#142) =====
+// Append-only, idempotent (skip-if-exists by label, matching every other
+// block in this file). These three groups are the EXACT canonical seed set
+// pinned by tests/e2e/directory-filters.spec.ts and
+// docs/planning/handoffs/142-directory-filters/handoff-T-red.md's "Seed
+// dependency" table. The 2x2-minus-one arrangement (Berlin/en, Paris/fr,
+// Berlin/fr) lets that suite prove the location filter, the language filter,
+// and their intersection against one fixed data set. Published/public (status
+// = 1, default visibility) so they are visible to an anonymous visitor,
+// matching every other seeded group and the brief's access-preservation
+// requirement. Seeded here (not via the live /group/add form) because
+// field_group_language is deliberately absent from that form
+// (GroupAddFormFieldsTest) and the new field_group_location_text field is not
+// added to it either — see handoff-T-red.md.
+echo "\n=== Step 737: Directory filter seed groups (#142) ===\n";
+$directory_filter_groups = [
+  ["Filter Test Berlin English", "Berlin", "en"],
+  ["Filter Test Paris French", "Paris", "fr"],
+  ["Filter Test Berlin French", "Berlin", "fr"],
+];
+foreach ($directory_filter_groups as [$label, $location, $langcode]) {
+  $existing = $group_storage->loadByProperties(["label" => $label]);
+  if ($existing) { echo "Exists: $label\n"; continue; }
+  $group = \Drupal\group\Entity\Group::create([
+    "type" => "community_group",
+    "uid" => 1,
+    "status" => 1,
+    "label" => $label,
+    "field_group_description" => [
+      "value" => "Seed group for the #142 directory location + language filter suite.",
+      "format" => "basic_html",
+    ],
+    "field_group_location_text" => $location,
+    "field_group_language" => $langcode,
+  ]);
+  $group->save();
+  $admin_user = \Drupal\user\Entity\User::load(1);
+  $group->addMember($admin_user, ['group_roles' => ['community_group-admin']]);
+  echo "Created gid=" . $group->id() . " $label (location=$location, language=$langcode)\n";
+}
+
 echo "\n=== Demo data complete ===\n";
