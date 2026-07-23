@@ -240,7 +240,7 @@ class PrivacyAccessTest extends GroupsKernelTestBase {
    */
   public function testNonMemberForbiddenFromViewingNodeInPrivateGroup(): void {
     $group = $this->createGroupWithPrivacy('private', 'Security Team Node');
-    $node = $this->addNode($group, 'forum', ['title' => 'Coordinated disclosure process']);
+    $node = $this->addNode($group, 'post', ['title' => 'Coordinated disclosure process']);
     $outsider = $this->createUser();
 
     $access = $node->access('view', $outsider, TRUE);
@@ -254,7 +254,7 @@ class PrivacyAccessTest extends GroupsKernelTestBase {
    */
   public function testMemberNotForbiddenFromViewingNodeInPrivateGroup(): void {
     $group = $this->createGroupWithPrivacy('private', 'Security Team Node Member');
-    $node = $this->addNode($group, 'forum', ['title' => 'Q3 advisory review']);
+    $node = $this->addNode($group, 'post', ['title' => 'Q3 advisory review']);
     $member = $this->createUser();
     $group->addMember($member, ['group_roles' => ['community_group-member']]);
 
@@ -268,7 +268,7 @@ class PrivacyAccessTest extends GroupsKernelTestBase {
    */
   public function testNonMemberNotForbiddenFromViewingNodeInPublicGroup(): void {
     $group = $this->createGroupWithPrivacy('public', 'Public Node Group');
-    $node = $this->addNode($group, 'forum', ['title' => 'Public discussion']);
+    $node = $this->addNode($group, 'post', ['title' => 'Public discussion']);
     $outsider = $this->createUser();
 
     $access = $node->access('view', $outsider, TRUE);

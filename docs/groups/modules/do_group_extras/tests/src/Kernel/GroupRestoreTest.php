@@ -100,6 +100,7 @@ class GroupRestoreTest extends GroupsKernelTestBase {
       $this->container->get('current_user'),
       $this->container->get('queue'),
       $route_match,
+      $this->container->get('entity_type.manager'),
     );
   }
 
@@ -160,6 +161,7 @@ class GroupRestoreTest extends GroupsKernelTestBase {
       $this->container->get('current_user'),
       $this->container->get('queue'),
       $route_match,
+      $this->container->get('entity_type.manager'),
     );
     $result = $routedHooks->nodeAccess($node, 'create', $this->getCurrentUser());
     $this->assertTrue($result->isForbidden(), 'node create is forbidden in the archived group before restore.');
@@ -193,6 +195,7 @@ class GroupRestoreTest extends GroupsKernelTestBase {
       $this->container->get('current_user'),
       $this->container->get('queue'),
       $route_match,
+      $this->container->get('entity_type.manager'),
     );
     $result = $routedHooks->nodeAccess($node, 'create', $this->getCurrentUser());
     $this->assertFalse($result->isForbidden(), 'node create is no longer forbidden after restore.');

@@ -534,3 +534,25 @@ tooltip + directory-visibility change).
 - Direct reads: `HelpText.php:212-227` (all 4 privacy keys verbatim, teaching copy correct), `tests/e2e/private-group.spec.ts` (selectors align with F's markup).
 - Visual: `evidence/elena-tooltip-focus-directory.png` — badge + tooltip + persona banner all render as spec'd.
 - `git diff origin/main` on `field_group_visibility` (both YMLs, both trees): empty.
+
+## Phase 10 — CI Cycle 1 diagnosis + fix (O)
+
+**CI cycle 1 (run 30002555710):** Kernel FAIL, Functional FAIL, E2E PASS.
+
+**Root causes (3 real, 1 inherited from broken main):**
+
+1. **Bug #1 (F fault, MUST FIX):** F added `entity_type.manager` as 4th DI arg to `DoGroupExtrasHooks::__construct()` (needed for the new `groupAccess`/`nodeAccess-view` hook to load group relationships) but did NOT update the two pre-existing kernel test helpers that manually instantiate the hook class with only 3 args. Result: `ArgumentCountError` at `GroupExtrasBehaviorTest.php:121` and `GroupRestoreTest.php:99`. Reuse-map violation caught in prod; A-dup would have flagged (skipped per POC posture — noted).
+2. **Bug #2/#3 (T authorship, MUST FIX):** `PrivacyAccessTest::setUp()` grants `view group_node:post entity` on `community_group-member`/`-outsider_view`/`-anon_view`, but the tests at lines 243/257/271 create `'forum'` nodes. My hook correctly returns `neutral` for a public group + non-member; core Group access handler then denies because no `view group_node:forum entity` grant exists on those roles. Test authorship/permission-type mismatch; fix by swapping `'forum'` -> `'post'` in the 3 test methods (mirrors the granted permissions verbatim; keeps test intent identical).
+3. **Bug #4 (test env, MUST FIX):** `PrivacyDirectoryTest::$modules` omits `'link'`. Full site install imports #140's `field.storage.group.field_group_links.yml` (`type: link`), which needs `link.module` in the module list. Result: `PluginNotFoundException("link")` in setUp cascades and fails all 6 test methods. Scoped fix: add `'link'` to `$modules` array with an explanatory comment tying it to #140.
+
+**Inherited failure (NOT MY SCOPE):** `JoinPolicyEnforcementTest` (#121's file) fails on my branch for the same `link` plugin reason. Main is ALREADY RED (`gh run list --branch main` shows run 29999314914 for #156 auto-organizer merge is `failure`). Fixing #121's test file would be scope-creep into an unrelated inherited breakage; recorded here for the operator's follow-up backlog, NOT touched by this PR.
+
+**Fix applied (single commit, tests-only):**
+- `GroupExtrasBehaviorTest.php:121` — passes `$this->container->get('entity_type.manager')` as 4th ctor arg.
+- `GroupRestoreTest.php:99` — same fix.
+- `PrivacyAccessTest.php:243,257,271` — `addNode(..., 'forum', ...)` -> `addNode(..., 'post', ...)` (matches the roles' granted content-type permission).
+- `PrivacyDirectoryTest.php:$modules` — appends `'link'` with a comment naming the #140 cause.
+
+Assembly re-run: succeeds through file copy (100 configs, 13 modules), halts on pre-existing composer-autoload guard as before — non-regressive.
+
+Pushing to trigger cycle 2. No F production code changed; the runtime hook path is unchanged (E2E already GREEN in cycle 1 = the assembled DDEV site runs the hooks correctly).

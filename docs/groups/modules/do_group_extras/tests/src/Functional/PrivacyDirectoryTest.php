@@ -50,6 +50,13 @@ class PrivacyDirectoryTest extends BrowserTestBase {
     'do_group_extras',
     'do_group_membership',
     'views',
+    // #140 landed field.storage.group.field_group_links.yml (type: link) into
+    // docs/groups/config/, which the assembled config import step of any
+    // functional test pulls in during site install. Without link.module in
+    // this test module list, the storage config fails to install with
+    // PluginNotFoundException("link"), and every test method setUp fails.
+    // Depends indirectly on #140 config; scoped to this test.
+    'link',
   ];
 
   /**
