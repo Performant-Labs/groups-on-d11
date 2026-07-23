@@ -187,3 +187,60 @@ Correct call. Language chip / pinned badge / event-date chip have no backing dat
 
 ### Verdict
 **PASS** — ready for O to open PR. No REWORK items.
+
+## Phase 6b — T CI-fix
+
+**Verdict:** GREEN, no blocking issues. Ready for re-verification in CI.
+
+### Root cause
+CI's `/all-groups` first-sorted directory card had no `field_group_type` term populated. The
+type badge in `views-view-fields--all-groups.html.twig` is conditionally rendered
+(`{% if gc_directory.type_label %}`), and `groups_chrome_preprocess_views_view_fields__all_groups()`
+(`web/themes/custom/groups_chrome/groups_chrome.theme`) does not fall back to a bundle label when
+`field_group_type` is empty — it leaves `type_label` (and therefore the tooltip trigger) unset for
+that card. Locally confirmed via `ddev drush php:eval` against the seeded site: 8 of 12 groups
+have `field_group_type` populated (DrupalCon Portland, Drupal France, Core Committers, Thunder
+Distribution, Leadership Council, Camp Organizers EMEA, Drupal Deutschland, Legacy Infrastructure);
+4 do not (RoleChangeG, ApprovalG, KeyboardG, BadgeG — fixture groups seeded by other stories'
+scripts, e.g. #138 do_group_membership). CI's DB row order / view sort put one of the type-less
+groups first, so `cards.first()` in the spec resolved to a card lacking the type badge → 0
+elements for `typeTrigger` (failure 1) and only 2 (not 3) total `[data-do-tooltip]` triggers on
+that card (failure 2). This is **correct F/production behavior** — the twig's conditionality is
+intentional (no type = no type badge = no type tooltip) — not a defect to fix in
+`groups_chrome.theme` or the twig. The defect was in the test's assumption that `.first()` always
+lands on a card with all 3 badges.
+
+### Fix (test-only)
+`tests/e2e/element-tooltips.spec.ts`:
+- Added a `fullDirectoryCard(page)` helper that filters `.gc-directory-card` to one that has all 3
+  target elements (`.gc-directory-card__type`, `.gc-directory-card__visibility`,
+  `.gc-directory-card__stat--members`) before taking `.first()`.
+- Test "type, visibility, and member-count triggers carry the full tooltip contract" (was line 56):
+  now uses `fullDirectoryCard(page)` instead of `cards.first()`.
+- Test "no double-tooltip: card triggers are scoped inside .gc-card, not duplicated" (was line 121):
+  now uses `fullDirectoryCard(page)` instead of `cards.first()`, with a comment clarifying the
+  `.toBe(3)` assertion is honest only for a card that carries all 3 elements — a card missing the
+  (conditionally-rendered) type badge would have only 2 triggers by design, which is not a
+  double-tooltip regression.
+- Test "hovering a directory-card trigger shows a tippy tooltip" (line 93) and "visibility ⓘ copy
+  is single-sourced" (line 101) were left unchanged — both already passed on CI (the former only
+  needs *any* trigger via `.first()` + `[data-do-tooltip]`; the latter already filters by
+  `hasText: /^Open$/i` on the visibility badge, independent of the type-badge issue).
+
+### Evidence / verification
+- `ddev start` (project `gm127-card-tooltips`, already provisioned from Phase 4/6), `ddev exec
+  bash scripts/ci/assemble-config.sh` (clean re-assembly), `ddev drush cim -y` (config already in
+  sync from prior phases, re-imported cleanly).
+- `ddev drush php:eval` confirmed the field_group_type gap on 4 of 12 seeded groups (listed above)
+  — this is the mechanism CI's failure requires, reproduced locally.
+- `BASE_URL="https://gm127-card-tooltips.ddev.site" npx playwright test element-tooltips.spec.ts`:
+  **7/7 GREEN** (6.2s).
+- Regression: `directory-cards.spec.ts` **3/3 GREEN** (no change to that spec).
+- Full-suite sanity run: 72 passed, 1 skipped, 4 failed — all 4 failures are in
+  `create-group.spec.ts`, `group-links.spec.ts` (x2), `group-restore.spec.ts`, pre-existing and
+  unrelated to #127 (different stories' seed/data dependencies), confirming no regression
+  introduced by this fix.
+
+### Commit
+`test(127): T CI-fix — pin directory-card locators to a card carrying all 3 elements` — staged
+`tests/e2e/element-tooltips.spec.ts` only (explicit path, not `git add .`).
