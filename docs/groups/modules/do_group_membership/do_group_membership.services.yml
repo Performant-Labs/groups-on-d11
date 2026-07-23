@@ -22,6 +22,13 @@ services:
       - '@entity_type.manager'
       - '@do_group_membership.manager'
 
+  # #144 MC-6: same FQCN-keyed convention as GroupAccessHook above, for the
+  # same reason — GroupMembershipManager is not autowire-aliased.
+  Drupal\do_group_membership\Hook\CreateGroupOrganizerHook:
+    autowire: false
+    arguments:
+      - '@do_group_membership.manager'
+
   do_group_membership.route_subscriber:
     class: Drupal\do_group_membership\Routing\RouteSubscriber
     tags:

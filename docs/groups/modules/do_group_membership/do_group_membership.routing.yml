@@ -61,3 +61,15 @@ do_group_membership.request_join:
     parameters:
       group:
         type: entity:group
+
+do_group_membership.group_created_preview:
+  path: '/group/{group}/created'
+  defaults:
+    _controller: '\Drupal\do_group_membership\Controller\GroupCreatedPreviewController::view'
+    _title_callback: '\Drupal\do_group_membership\Controller\GroupCreatedPreviewController::title'
+  requirements:
+    _custom_access: '\Drupal\do_group_membership\Controller\GroupCreatedPreviewController::access'
+  options:
+    parameters:
+      group:
+        type: entity:group

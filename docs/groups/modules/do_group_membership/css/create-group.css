@@ -1,0 +1,27 @@
+/**
+ * @file
+ * Guided-preview page styling (do_group_membership, #144 MC-6).
+ *
+ * Module-owned CSS, attached only on the `/group/{group}/created` route
+ * (#attached library), per every existing UI-bearing do_* module (matches
+ * this module's own `manage-members.css` precedent).
+ *
+ * Per the approved wireframe (`docs/planning/handoffs/144-auto-organizer/
+ * wireframe.md`): NO new hex colors — spacing/list-reset only. Contrast is
+ * inherited entirely from the active subtheme's existing color/link/focus
+ * tokens.
+ */
+
+.do-group-membership--next-steps {
+  list-style: none;
+  margin: 1em 0;
+  padding: 0;
+}
+
+.do-group-membership--next-steps li {
+  margin-bottom: 0.75em;
+}
+
+.do-group-membership--next-steps li:last-child {
+  margin-bottom: 0;
+}
