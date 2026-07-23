@@ -160,3 +160,30 @@ Drove the live DDEV site (gm127-card-tooltips.ddev.site) with a throwaway Playwr
 Independently assessed diff-gate W-3 (role=note passivity concern): judged as not a UI-behavior blocker from the live-browser angle -- the element is keyboard-reachable, carries a full accessible name, and behaves honestly (a passive annotation, not a misrepresented control). The semantic-correctness question of role=note versus an alternative ARIA pattern is forwarded to S formal WCAG audit rather than adjudicated here.
 
 No behavioral defects found. Ready for S.
+
+## Phase 9 — S
+
+**Verdict:** PASS — ready for PR.
+
+### Per-AC (against issue #127)
+- AC-1 (hover shows sensible tooltip; no double-tooltip): PASS — U rows 2–4, 9–11 (correct copy hover-verified); row 6 (badge itself no `title`, no tippy).
+- AC-2 (reused copy single-sourced): PASS — visibility resolves via `HelpText::get('visibility.'.$value)`; T-red pins exact `visibility.open` string; U row 3 byte-identical.
+- AC-3 (existing suite green + Playwright spec): PASS — 12/12 unit, 7/7 target e2e, 3/3+20/20+6/6+4/4 regression.
+- AC-4 (WCAG 2.2 AA): PASS — `tabindex="0"` + `aria-label` + `.focus()` verified + 2px solid rgb(0,103,184) outline + 5.78:1 contrast + glyph+text non-color signal.
+- AC-5 (disjoint files): PASS — story diff computed vs merge-base = exactly the brief's owned-file set. HelpText append-only verified (insertion at line 210, after `persona.moderator`, zero pre-existing lines touched). Disjoint from #126.
+- AC-6 (no behavior changes): PASS — preprocess is pure data-passthrough; no route/entity/field/schema changes.
+
+### W-3 formal ruling (`role="note"` semantics)
+PASS this story. All measurable WCAG 2.2 AA success criteria met (Name-Role-Value, Keyboard, Focus Visible, Contrast, Non-text Contrast, Use of Color, Info & Relationships). `role="note"` is honest for a passive annotation; WAI-ARIA APG `role="button" aria-describedby` is *recommended*, not required. Pattern inherited from #89/#122/#126; changing here alone would diverge from four established sites for no functional gain. **Advisory forwarded to #145** (WCAG backstop) as pattern-wide question.
+
+### Honest-omissions ruling
+Correct call. Language chip / pinned badge / event-date chip have no backing data in `gc_directory` / `gc_stream` preprocess arrays. Wiring them would violate the "no new fields" scope guardrail or render invisible triggers with empty tooltips (failing AC-1's "sensible tooltip" bar). Brief + A both endorsed the omission; namespace decision is forward-compatible for a later data-model story.
+
+### Diff-gate W-1..W-4
+- W-1 false positive (`use` statement present at top of theme file, per #122 convention).
+- W-2 no action (view_mode branch exists; overhead trivial).
+- W-3 ruled above.
+- W-4 out of scope (matches project convention).
+
+### Verdict
+**PASS** — ready for O to open PR. No REWORK items.
