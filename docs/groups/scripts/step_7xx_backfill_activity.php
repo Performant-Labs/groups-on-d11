@@ -37,19 +37,26 @@
  * matching step_700_demo_data.php's convention) — it is `require`d from
  * within an already-bootstrapped Drupal request (a live drush invocation, or
  * — as BackfillIdempotencyTest does — directly inside a running kernel test).
+ * drush scr (and PHP's own compiler) resolves the `use` import below lexically
+ * from this file's own top-level scope, independent of the namespace of
+ * whatever code `require`s it, so DoActivityHooks::PIN_FLAG_ID below resolves
+ * correctly under a live drush invocation AND under BackfillIdempotencyTest's
+ * `require` from inside its own namespaced method body.
  *
  * MULTI-REQUIRE SAFETY: BackfillIdempotencyTest deliberately `require`s this
  * script TWICE in the same PHP process (to prove the idempotency key holds
- * across repeat runs), so every top-level function/const declaration below is
- * guarded with function_exists()/defined() — PHP fatals on redeclaring a
- * function or const, even though re-`require`ing the same PATH is otherwise
- * legal (this file intentionally uses plain `require`, matching
- * step_700_demo_data.php's own convention, not `require_once`).
+ * across repeat runs), so every top-level function declaration below is
+ * guarded with function_exists() — PHP fatals on redeclaring a function, even
+ * though re-`require`ing the same PATH is otherwise legal (this file
+ * intentionally uses plain `require`, matching step_700_demo_data.php's own
+ * convention, not `require_once`). The `use` import below and
+ * DoActivityHooks::PIN_FLAG_ID reference below need no such guard — a `use`
+ * import is a compile-time alias, not a runtime declaration, so PHP does not
+ * fatal on seeing the same `use` line twice in as many `require`s of this
+ * file.
  */
 
-if (!defined('DO_ACTIVITY_PIN_FLAG_ID')) {
-  define('DO_ACTIVITY_PIN_FLAG_ID', 'pin_in_group');
-}
+use Drupal\do_activity\Hook\DoActivityHooks;
 
 if (!function_exists('do_activity_backfill_exists')) {
 
@@ -269,7 +276,7 @@ foreach ($flagging_storage->loadMultiple() as $flagging) {
   $flaggable_type = $flagging->getFlaggableType();
   $flaggable_id = (int) $flagging->getFlaggableId();
   $created = (int) $flagging->getCreatedTime();
-  $template = $flagging->getFlagId() === DO_ACTIVITY_PIN_FLAG_ID
+  $template = $flagging->getFlagId() === DoActivityHooks::PIN_FLAG_ID
     ? 'activity_pin_toggled'
     : 'activity_flagging_created';
 

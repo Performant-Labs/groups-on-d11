@@ -53,7 +53,15 @@ use Drupal\node\NodeInterface;
  * DELETION HYGIENE: node_delete, comment_delete, group_relationship_delete,
  * flagging_delete, group_delete each hard-delete the Message row(s) keyed by
  * (field_referenced_entity_type, field_referenced_entity_id) — see
- * {@see self::deleteMessagesReferencing()}.
+ * {@see self::deleteMessagesReferencing()}. Several of these hooks scope the
+ * delete to a SPECIFIC template as well (via that method's optional
+ * `$template` parameter), not just the referenced-entity pair, because more
+ * than one template can share the same referenced entity type + id (e.g. a
+ * node that is both `activity_post_created`'s ref AND — via a flagging on
+ * that same node — `activity_flagging_created`'s or
+ * `activity_pin_toggled`'s ref). Deleting by entity-pair alone in those cases
+ * would purge unrelated Messages; see groupRelationshipDelete() and
+ * flaggingDelete() below.
  *
  * TYPE NOTE: every entity id / timestamp base-field accessor in Drupal core
  * (getCreatedTime(), id(), etc.) returns the field item's raw storage value,
@@ -73,9 +81,12 @@ class DoActivityHooks {
    * Mirrors DoGroupPinHooks::PIN_FLAG_ID (docs/groups/modules/do_group_pin) —
    * not imported directly, since do_activity does not depend on do_group_pin
    * (per the brief: do_activity reacts to the raw flagging lifecycle, not a
-   * do_group_pin-specific API).
+   * do_group_pin-specific API). Public (not private) so
+   * docs/groups/scripts/step_7xx_backfill_activity.php can reference this
+   * SAME constant rather than redeclaring its own copy — see the backfill
+   * script's `use` import of this class.
    */
-  private const PIN_FLAG_ID = 'pin_in_group';
+  public const PIN_FLAG_ID = 'pin_in_group';
 
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -216,22 +227,43 @@ class DoActivityHooks {
    *
    * Covers BOTH the log-point-6 unpin case (deletes the matching
    * activity_pin_toggled Message) and general deletion hygiene for
-   * activity_flagging_created Messages (log point 4), keyed by the flagging's
-   * own id (not the flagged entity's id) — the referenced entity for these
-   * two templates IS the flagging's flaggable, not the flagging itself, but a
-   * flaggable entity (e.g. a node) can be flagged AND unrelated to any other
-   * activity Message about it, so we key the delete on the SAME
-   * (referenced_entity_type, referenced_entity_id) pair the insert used.
+   * activity_flagging_created Messages (log point 4). Branches on flag id the
+   * SAME way flaggingInsert() does, so the delete is scoped to the exact
+   * template the matching insert used — not merely to the flaggable's
+   * (entity_type, entity_id) pair. Without the template filter, unpinning a
+   * node would ALSO delete that same node's unrelated
+   * activity_post_created Message (post-created-in-group shares the node's
+   * `(node, nid)` key), and unflagging one flag on an entity would delete
+   * Messages left by a DIFFERENT flag on that same entity. Keyed by the
+   * flaggable's id (not the flagging's own id) because the referenced entity
+   * for these two templates IS the flagging's flaggable, not the flagging
+   * itself — the insert never recorded the flagging's own id anywhere.
    */
   #[Hook('flagging_delete')]
   public function flaggingDelete(FlaggingInterface $flagging): void {
-    $this->deleteMessagesReferencing($flagging->getFlaggableType(), (int) $flagging->getFlaggableId());
+    $template = $flagging->getFlagId() === self::PIN_FLAG_ID
+      ? 'activity_pin_toggled'
+      : 'activity_flagging_created';
+
+    $this->deleteMessagesReferencing(
+      $flagging->getFlaggableType(),
+      (int) $flagging->getFlaggableId(),
+      $template,
+    );
   }
 
   /**
    * Deletion hygiene — a node is deleted.
    *
-   * Removes any activity_post_created Message referencing this node.
+   * Removes any activity_post_created Message referencing this node. No
+   * template filter needed: a node is `activity_post_created`'s ONLY
+   * referenced-entity role in this module's event model (a node's OTHER
+   * activity, e.g. a flagging or pin on it, is keyed by the flagging/pin
+   * templates and cleaned up separately by flaggingDelete() when that
+   * flagging itself is deleted) — deleting the node also naturally deletes
+   * its flaggings (Flag module's own referential cleanup), which in turn
+   * fires flagging_delete for each and cleans those Messages up via that
+   * hook, not this one.
    */
   #[Hook('node_delete')]
   public function nodeDelete(NodeInterface $node): void {
@@ -242,6 +274,9 @@ class DoActivityHooks {
    * Deletion hygiene — a comment is deleted.
    *
    * Removes any activity_comment_created Message referencing this comment.
+   * No template filter needed: a comment is only ever
+   * `activity_comment_created`'s referenced entity in this module's event
+   * model.
    */
   #[Hook('comment_delete')]
   public function commentDelete(CommentInterface $comment): void {
@@ -251,29 +286,59 @@ class DoActivityHooks {
   /**
    * Deletion hygiene — a group_relationship is deleted.
    *
-   * Covers removing a member (deletes the activity_membership_created
-   * Message keyed on the member's user id) — the group_node:* case has no
-   * deletion-hygiene requirement of its own in the brief (a node's own
-   * node_delete hook already covers the node-referenced Message; removing
-   * only the RELATIONSHIP while keeping the node is not a listed hygiene
-   * case), so this only acts on group_membership relationships.
+   * Discriminates on the relationship's plugin id, mirroring
+   * groupRelationshipInsert()'s own branch-on-plugin-id structure, and scopes
+   * each delete to the SAME template its matching insert used:
+   *   - `group_membership` — removes the activity_membership_created
+   *     Message keyed on the member's user id. Template-scoped so removing a
+   *     member does not ALSO purge that same user's unrelated
+   *     activity_flagging_created Messages (e.g. a `follow_user` flagging
+   *     where the flagged user happens to be this same departing member) —
+   *     both share the `(user, uid)` referenced-entity key, so the template
+   *     filter is the only thing that disambiguates them.
+   *   - `group_node:*` — removes the activity_post_created Message keyed on
+   *     the node's id, for when the RELATIONSHIP (not the node itself) is
+   *     removed, e.g. a post taken out of a group while the node persists
+   *     elsewhere. Template-scoped for the same reason: a node is also the
+   *     referenced entity for the node's OWN activity_post_created row, and
+   *     nothing else shares that key today, but scoping consistently with
+   *     the membership branch keeps this method's behavior uniform and
+   *     future-proof against a template later reusing the `(node, nid)` key.
+   *   - anything else — ignored.
    */
   #[Hook('group_relationship_delete')]
   public function groupRelationshipDelete(GroupRelationshipInterface $relationship): void {
-    if ($relationship->getPluginId() !== 'group_membership') {
+    $plugin_id = $relationship->getPluginId();
+
+    if ($plugin_id === 'group_membership') {
+      $member = $relationship->getEntity();
+      if ($member === NULL) {
+        return;
+      }
+      $this->deleteMessagesReferencing('user', (int) $member->id(), 'activity_membership_created');
       return;
     }
-    $member = $relationship->getEntity();
-    if ($member === NULL) {
+
+    if (str_starts_with($plugin_id, 'group_node:')) {
+      $node = $relationship->getEntity();
+      if (!$node instanceof NodeInterface) {
+        return;
+      }
+      $this->deleteMessagesReferencing('node', (int) $node->id(), 'activity_post_created');
       return;
     }
-    $this->deleteMessagesReferencing('user', (int) $member->id());
   }
 
   /**
    * Deletion hygiene — a group is deleted.
    *
-   * Removes any activity_group_created Message referencing this group.
+   * Removes any activity_group_created Message referencing this group. No
+   * template filter needed: a group is only ever
+   * `activity_group_created`'s referenced entity — every OTHER template's
+   * group context lives on `field_group_id`, a distinct field this delete
+   * does not touch, so cascading group-scoped activity on group deletion is
+   * out of scope for this hook (per the brief's deletion-hygiene bullet,
+   * which lists this hook only for the group-as-referenced-entity case).
    */
   #[Hook('group_delete')]
   public function groupDelete(GroupInterface $group): void {
@@ -367,20 +432,36 @@ class DoActivityHooks {
    *
    * Keyed by (field_referenced_entity_type, field_referenced_entity_id) per
    * the brief's deletion-hygiene contract — never a soft-delete or a
-   * cascading delete of unrelated Messages.
+   * cascading delete of unrelated Messages. Callers whose referenced-entity
+   * pair is ambiguous across more than one template (e.g. a node that is
+   * BOTH `activity_post_created`'s ref and, via a flagging on it,
+   * `activity_flagging_created`'s or `activity_pin_toggled`'s ref) MUST pass
+   * `$template` so the delete does not purge Messages an unrelated template
+   * created under the same entity pair. Callers whose referenced entity is
+   * unambiguous (e.g. a node is only ever a `activity_post_created` ref, a
+   * group is only ever a `activity_group_created` ref) may omit it and match
+   * on the entity pair alone, exactly as before.
    *
    * @param string $entity_type
    *   The referenced entity type to match.
    * @param int $entity_id
    *   The referenced entity id to match.
+   * @param string|null $template
+   *   (optional) When given, additionally restricts the delete to Messages
+   *   on this specific message_template bundle. NULL (the default) matches
+   *   any template, preserving this method's original entity-pair-only
+   *   behavior for callers where the referenced entity is unambiguous.
    */
-  private function deleteMessagesReferencing(string $entity_type, int $entity_id): void {
+  private function deleteMessagesReferencing(string $entity_type, int $entity_id, ?string $template = NULL): void {
     $storage = $this->entityTypeManager->getStorage('message');
-    $ids = $storage->getQuery()
+    $query = $storage->getQuery()
       ->accessCheck(FALSE)
       ->condition('field_referenced_entity_type', $entity_type)
-      ->condition('field_referenced_entity_id', $entity_id)
-      ->execute();
+      ->condition('field_referenced_entity_id', $entity_id);
+    if ($template !== NULL) {
+      $query->condition('template', $template);
+    }
+    $ids = $query->execute();
     if (!$ids) {
       return;
     }
