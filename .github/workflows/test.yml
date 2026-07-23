@@ -37,7 +37,10 @@ jobs:
   # ---------------------------------------------------------------------------
   kernel:
     name: Kernel tests (do_tests)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    container:
+      image: harbor.performantlabs.com/performantlabs/pl-runner:1.64.0
+      options: --user root
 
     services:
       mysql:
@@ -54,7 +57,7 @@ jobs:
           --health-retries=10
 
     env:
-      SIMPLETEST_DB: 'mysql://root:root@127.0.0.1:3306/drupal'
+      SIMPLETEST_DB: 'mysql://root:root@mysql:3306/drupal'
       SIMPLETEST_BASE_URL: 'http://127.0.0.1:8080'
       # Silence deprecation-triggered failures from contrib/dev dependencies so
       # the suite result reflects our own assertions.
@@ -109,7 +112,7 @@ jobs:
       - name: Wait for MySQL
         run: |
           for i in $(seq 1 30); do
-            if mysqladmin ping -h 127.0.0.1 -P 3306 -uroot -proot --silent; then
+            if mysqladmin ping -h mysql -P 3306 -uroot -proot --silent; then
               echo "MySQL is up"; exit 0
             fi
             echo "waiting for mysql ($i)..."; sleep 2
@@ -159,7 +162,10 @@ jobs:
   # ---------------------------------------------------------------------------
   functional:
     name: Functional tests (BrowserTestBase)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    container:
+      image: harbor.performantlabs.com/performantlabs/pl-runner:1.64.0
+      options: --user root
 
     services:
       mysql:
@@ -176,7 +182,7 @@ jobs:
           --health-retries=10
 
     env:
-      SIMPLETEST_DB: 'mysql://root:root@127.0.0.1:3306/drupal'
+      SIMPLETEST_DB: 'mysql://root:root@mysql:3306/drupal'
       SIMPLETEST_BASE_URL: 'http://127.0.0.1:8080'
       # BrowserTestBase writes its per-test browser output here; a stable dir
       # keeps the failure-diagnostics upload predictable.
@@ -235,7 +241,7 @@ jobs:
       - name: Wait for MySQL
         run: |
           for i in $(seq 1 30); do
-            if mysqladmin ping -h 127.0.0.1 -P 3306 -uroot -proot --silent; then
+            if mysqladmin ping -h mysql -P 3306 -uroot -proot --silent; then
               echo "MySQL is up"; exit 0
             fi
             echo "waiting for mysql ($i)..."; sleep 2
@@ -364,7 +370,10 @@ jobs:
   # ---------------------------------------------------------------------------
   e2e:
     name: E2E (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    container:
+      image: harbor.performantlabs.com/performantlabs/pl-runner:1.64.0
+      options: --user root
 
     services:
       mysql:
@@ -381,7 +390,7 @@ jobs:
           --health-retries=10
 
     env:
-      DRUPAL_DB_URL: 'mysql://root:root@127.0.0.1:3306/drupal'
+      DRUPAL_DB_URL: 'mysql://root:root@mysql:3306/drupal'
       BASE_URL: 'http://127.0.0.1:8080'
 
     steps:
@@ -422,7 +431,7 @@ jobs:
       - name: Wait for MySQL
         run: |
           for i in $(seq 1 30); do
-            if mysqladmin ping -h 127.0.0.1 -P 3306 -uroot -proot --silent; then
+            if mysqladmin ping -h mysql -P 3306 -uroot -proot --silent; then
               echo "MySQL is up"; exit 0
             fi
             echo "waiting for mysql ($i)..."; sleep 2
