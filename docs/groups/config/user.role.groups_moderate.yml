@@ -6,4 +6,5 @@ id: groups_moderate
 label: 'Groups Moderate'
 weight: 3
 is_admin: false
-permissions: {  }
+permissions:
+  - 'access content'

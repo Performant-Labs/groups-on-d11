@@ -1,5 +1,8 @@
 name: 'DO Showcase'
 type: module
-description: 'Reusable variant-switcher device, the /showcase tour page, and the site-wide POC demo ribbon (SC-F1, #119). Foundation module that SC-4/SC-5/SC-6/ST-8 plug into.'
+description: 'Reusable variant-switcher device, the /showcase tour page, the site-wide POC demo ribbon (SC-F1, #119), and the persona switcher (#120 SC-1). Foundation module that SC-4/SC-5/SC-6/ST-8 plug into.'
 core_version_requirement: ^10 || ^11
 package: 'Custom'
+dependencies:
+  - drupal:block
+  - do_chrome:do_chrome

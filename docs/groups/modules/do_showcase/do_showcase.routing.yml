@@ -5,3 +5,22 @@ do_showcase.showcase:
     _title: 'POC Showcase — What this demo compares'
   requirements:
     _permission: 'access content'
+
+# #120 SC-1 Persona Switcher (brief-amendments.md Amendment 4/10). ONE route
+# for both switch-to-persona (POST) and switch-back (persona=anonymous, GET
+# — the banner's real <a> link issues a GET). `methods: [GET, POST]` lets
+# both cases match at the Symfony routing layer; PersonaSwitchController's
+# own method guard 405s a GET on any non-anonymous persona (defense in
+# depth — Amendment 4: "a crafted GET must never log a visitor into an
+# account"). Access (uid-1 guard + allowlist) is enforced by the
+# `_persona_access` route requirement, tagged to
+# `\Drupal\do_showcase\Access\PersonaAccessCheck` (do_showcase.services.yml)
+# — this runs BEFORE the controller, so a bad persona id never reaches
+# user_login_finalize().
+do_showcase.persona_switch:
+  path: '/persona-switch/{persona}'
+  defaults:
+    _controller: '\Drupal\do_showcase\Controller\PersonaSwitchController::switch'
+  requirements:
+    _persona_access: 'TRUE'
+  methods: [GET, POST]

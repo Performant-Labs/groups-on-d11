@@ -91,7 +91,41 @@ final class ShowcaseCatalog {
   /**
    * The four public personas named on the persona-switcher catalog entry.
    *
-   * @return array<int, array{id: string, name: string, description: \Drupal\Core\StringTranslation\TranslatableMarkup}>
+   * Extended in #120 (SC-1) with two fields per persona: `uname` (NULL for
+   * anonymous; the seeded account name for the other three) and
+   * `tooltip_key` (the `\Drupal\do_chrome\HelpText` key this option's native
+   * `title=` attribute and the switcher's wrapper-level ⓘ tooltip both read
+   * from). Brief-amendments.md Amendment 2 (A blocker #2, resolved): a
+   * separate `PersonaRegistry` class was rejected as a parallel path — this
+   * method is the single source of truth for the persona list, consumed by
+   * `\Drupal\do_showcase\Persona\PersonaSwitcher`,
+   * `\Drupal\do_showcase\Access\PersonaAccessCheck`, and
+   * `\Drupal\do_showcase\Controller\PersonaSwitchController` via
+   * `personaSpec()`.
+   *
+   * Phase 5-fix (#120 production defect): added a fifth field, `label` — the
+   * exact user-visible DISPLAY STRING for this persona ("Anonymous",
+   * "Elena Garcia — Member", "Maria Chen — Organizer", "Groups-Moderate").
+   * This is deliberately a SEPARATE field from `name` (the persona's plain
+   * name/title, e.g. "Moderator", still used as-is by
+   * `ShowcaseController::build()`'s `/showcase` tour listing, which reads
+   * `@name — @description` and must keep showing "Moderator", not
+   * "Groups-Moderate"). Before this fix, `\Drupal\do_showcase\Persona\
+   * PersonaSwitcher::optionLabel()` independently `match`-hardcoded this same
+   * display string for the `<select>` options, while
+   * `DoShowcaseHooks::personaBanner()` read `$persona['name']` directly for
+   * the banner copy — two divergent sources for what is supposed to be ONE
+   * visible label, which is exactly how the Moderator persona's banner
+   * regressed to "You're browsing as Moderator — switch back" instead of the
+   * wireframe/AC-locked "You're browsing as Groups-Moderate — switch back"
+   * (caught by `tests/e2e/persona-switcher.spec.ts`). `label` is now the
+   * SINGLE source of truth both `PersonaSwitcher::optionLabel()` and
+   * `DoShowcaseHooks::personaBanner()` read from — data-driven, matching this
+   * method's existing `name`/`description` per-field pattern, rather than
+   * adding a second method that duplicates the same `match` a second place
+   * could silently diverge from again.
+   *
+   * @return array<int, array{id: string, name: string, label: string, description: \Drupal\Core\StringTranslation\TranslatableMarkup, uname: string|null, tooltip_key: string}>
    *   The persona list, in display order.
    */
   public function personas(): array {
@@ -99,24 +133,62 @@ final class ShowcaseCatalog {
       [
         'id' => 'anonymous',
         'name' => 'Anonymous',
+        'label' => (string) $this->t('Anonymous'),
         'description' => $this->t("The logged-out visitor's view (default)."),
+        'uname' => NULL,
+        'tooltip_key' => 'persona.anonymous',
       ],
       [
         'id' => 'elena-garcia',
         'name' => 'Elena Garcia',
+        'label' => (string) $this->t('Elena Garcia — Member'),
         'description' => $this->t('An active member across several groups.'),
+        'uname' => 'elena_garcia',
+        'tooltip_key' => 'persona.elena',
       ],
       [
         'id' => 'maria-chen',
         'name' => 'Maria Chen',
+        'label' => (string) $this->t('Maria Chen — Organizer'),
         'description' => $this->t('A group admin/organizer.'),
+        'uname' => 'maria_chen',
+        'tooltip_key' => 'persona.maria',
       ],
       [
         'id' => 'moderator',
         'name' => 'Moderator',
+        'label' => (string) $this->t('Groups-Moderate'),
         'description' => $this->t('A site-wide moderation role.'),
+        'uname' => 'groups_moderate_demo',
+        'tooltip_key' => 'persona.moderator',
       ],
     ];
+  }
+
+  /**
+   * Returns a single persona entry by id, or NULL if unrecognized.
+   *
+   * Single-lookup helper (Amendment 2) so `PersonaSwitcher`,
+   * `PersonaAccessCheck`, and `PersonaSwitchController` share one lookup
+   * site rather than each re-implementing an `array_column()`/
+   * `array_filter()` scan. Returns NULL (never throws, never a partial
+   * array) for an unrecognized id — every caller branches on NULL to
+   * deny/404.
+   *
+   * @param string $id
+   *   The persona id (e.g. 'maria-chen').
+   *
+   * @return array{id: string, name: string, label: string, description: \Drupal\Core\StringTranslation\TranslatableMarkup, uname: string|null, tooltip_key: string}|null
+   *   The matching persona entry, or NULL if $id is not one of the 4
+   *   personas().
+   */
+  public function personaSpec(string $id): ?array {
+    foreach ($this->personas() as $persona) {
+      if ($persona['id'] === $id) {
+        return $persona;
+      }
+    }
+    return NULL;
   }
 
 }

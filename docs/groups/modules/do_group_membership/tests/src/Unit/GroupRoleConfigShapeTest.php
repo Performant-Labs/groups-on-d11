@@ -149,7 +149,7 @@ final class GroupRoleConfigShapeTest extends UnitTestCase {
    * user.role.groups_moderate.yml carries no group-specific permissions of
    * its own (it is a bare site-level role used only as the synchronization
    * key). group.role.community_group-groups_moderate.yml is
-   * scope: outsider, admin: true, global_role: groups_moderate.
+   * scope: outsider, global_role: groups_moderate (admin flag corrected below).
    *
    * CORRECTED at T-green (Phase 6) from the brief's originally locked
    * `scope: insider` — T independently re-derived and empirically verified
@@ -168,6 +168,22 @@ final class GroupRoleConfigShapeTest extends UnitTestCase {
    * `scope: outsider` passes. This is a test-authorship correction (the
    * brief's locked value was empirically wrong), not a weakened assertion —
    * flagged to O to correct the brief's AC-13/[B-5] text.
+   *
+   * SECOND CORRECTION at #120 T-green (Phase 6): #120's brief-amendments.md
+   * Amendment 1 (approved by A at Phase 3, handoff-A-plan-2.md) explicitly
+   * flips this SAME config file from the blanket `admin: true` bypass this
+   * test originally asserted to `admin: false` + an enumerated permission
+   * set (`administer members`, `edit group`) -- see Amendment 1's own
+   * rationale ("currently admin: true, permissions: {} -- bypass mode;
+   * hides scope-limit test"). #120's own
+   * do_showcase/tests/src/Unit/GroupsModerateRoleConfigShapeTest.php pins
+   * the NEW shape and is the authoritative test for this file going
+   * forward. This method's `admin: true` assertion was a stale invariant
+   * from #138 that #120 deliberately, approved-ly supersedes -- updated
+   * here to `admin: false` + the enumerated-permissions check so this
+   * suite does not regress against a config shape #120 was explicitly
+   * asked to change. Not a weakened assertion: still asserts an exact,
+   * specific shape, just the post-Amendment-1 one.
    */
   public function testGroupsModerateRoleConfigShape(): void {
     $site_role_file = $this->locate('docs/groups/config/user.role.groups_moderate.yml');
@@ -179,7 +195,14 @@ final class GroupRoleConfigShapeTest extends UnitTestCase {
     $this->assertSame('community_group-groups_moderate', $data['id'] ?? NULL);
     $this->assertSame('community_group', $data['group_type'] ?? NULL);
     $this->assertSame('outsider', $data['scope'] ?? NULL, 'Groups-Moderate is a synchronized OUTSIDER-scope role (never a group member) — see the corrected doc comment above.');
-    $this->assertTrue($data['admin'] ?? NULL, 'Groups-Moderate carries admin:true for the full per-group bypass.');
+    $this->assertFalse($data['admin'] ?? NULL, '#120 Amendment 1: Groups-Moderate no longer carries admin:true (blanket bypass); scoped to an enumerated permission set instead.');
+
+    $permissions = $data['permissions'] ?? [];
+    $this->assertContains('administer members', $permissions, '#120 Amendment 1: administer members (pending queue / approve / remove via ManageMembersController).');
+    $this->assertContains('edit group', $permissions, '#120 Amendment 1: edit group (covers restore via RestoreGroupAccess::access).');
+    foreach ($permissions as $permission) {
+      $this->assertStringNotContainsString('view group_node:', (string) $permission, '#120 Amendment 1: Moderator must NOT get any view group_node:* permission -- not a content viewer.');
+    }
     $this->assertSame('groups_moderate', $data['global_role'] ?? NULL, 'Synchronized via the groups_moderate site-level role.');
   }
 
