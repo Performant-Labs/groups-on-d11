@@ -92,3 +92,74 @@
   `demonstrator-seeds.spec.ts` + `group-restore.spec.ts` +
   `directory-cards.spec.ts` pass. `directory-cards.spec.ts`'s 3 tests are
   unaffected either way (doc-comment-only edit, assertion unchanged).
+
+## Phase 5 (F): implement (GREEN) — sole seed edit applied, all 8 tests pass
+
+- **Decided:** Applied the sanctioned single deletion at
+  `step_700_demo_data.php:397–400` exactly as scoped — removed the
+  `$groups = ...; $g = reset($groups); if ($g) { $g->set("status", 0); ... }`
+  block and replaced it with a 5-line comment explaining the semantic
+  correction and pointing at brief.md. No other production file touched. `git
+  diff --stat` confirms 1 file changed, 5 insertions(+), 4 deletions(-).
+  `grep -n 'set("status", 0)' step_700_demo_data.php` returns no match
+  (AC-3 satisfied by the diff itself).
+- **Decided:** Did not edit any test file. `demonstrator-seeds.spec.ts`,
+  `group-restore.spec.ts`, `directory-cards.spec.ts` are exactly as T-RED
+  left them — no test looked wrong; none needed flagging back to T.
+- **Assumed → confirmed:** T-RED's claim that "no other seed/config change is
+  needed" (handoff-T-red.md "Surprises for F" #4) held exactly — re-applying
+  the seed's effect (flipping gid=8 to published, keeping `field_group_type` =
+  Archive, which `step_720` already sets and which the idempotency guard at
+  step_700:78–79 leaves untouched on re-run) was sufficient alone for all 4
+  new anonymous-persona tests and both edited specs to go GREEN.
+- **Decided (environment, not code):** the DDEV worktree's `web/modules/custom/`
+  and `web/autoload_runtime.php` had been cleaned (correctly, per T's own
+  "revert build artifacts before commit" hygiene) since T's last verification
+  pass, leaving the running `gm128-archive-demo.ddev.site` container serving a
+  PHP fatal error (`autoload_runtime.php` missing) on every request. Re-ran
+  `bash scripts/ci/assemble-config.sh` (via `ddev exec`, regenerating
+  `web/modules/custom/` from `docs/groups/modules/` — 13 modules, matches T's
+  count) and `ddev composer install` (regenerating the Symfony-runtime
+  `web/autoload_runtime.php` scaffold file) to restore the site to a servable
+  state. Both are gitignored-equivalent build artifacts per the project
+  override — regenerated, never edited, never staged.
+- **Decided (flake diagnosis, not a code or test bug):** the FIRST full-suite
+  Playwright run showed 7/8 green and 1 failure
+  (`group-restore.spec.ts`, `page.goto('/group/8/edit')` →
+  `net::ERR_ABORTED` at the 30s test-level timeout). Diagnosed via the
+  Playwright trace (`0-trace.trace` `before`/`after` `startTime`/`endTime`
+  pairs) rather than accepting "env-blocked": the failing test's OWN first
+  navigation (`goto('/all-groups')`, `waitUntil: 'load'` — the Playwright
+  default, used because the helper doesn't override it) took 14,590ms by
+  itself, consuming half the test's 30s budget before Step 1 even asserted
+  anything; by the time Step 4's `goto('/group/8/edit')` fired, only ~600ms
+  of budget remained, so the outer test-level timeout force-aborted an
+  in-flight (not hung, not erroring) navigation. Root-caused to Drupal's
+  well-known cold-cache first-hit-after-`cache:rebuild` penalty (Twig/render-
+  cache/asset-aggregate recompilation): `curl` timing showed the identical
+  `/all-groups` route go from 9.3s (first hit right after my `cache:rebuild`)
+  to 54–62ms on the next two hits. Re-ran the full 8-test suite a second time
+  with the cache now warm (no code or test change in between) — **8/8 passed,
+  26.4s total**, `group-restore.spec.ts`'s previously-timing-out test alone
+  passing in 7.9s (vs. the ~35s+ that triggered the abort cold). This is
+  purely a local-environment artifact of MY OWN verification sequence
+  (assemble → composer install → cache:rebuild → immediately hit Playwright)
+  colliding with `playwright.config.ts`'s fixed 30s global test timeout and
+  the `waitUntil: 'load'` default on one navigation; #128's 4-line diff has
+  zero code path that touches caching, rendering, or font/asset delivery, so
+  there is no plausible mechanism by which this story's change caused or
+  could cause this. Not flagged as a test-authorship issue for T; not
+  reproduced on a warm cache; no code or test edit made in response to it.
+- **Evidence:** `git diff -- docs/groups/scripts/step_700_demo_data.php`
+  (5 insertions, 4 deletions, no other file); two full Playwright runs against
+  `gm128-archive-demo.ddev.site` — first (cold cache) 7/8 pass with the one
+  timeout diagnosed above, second (warm cache) 8/8 pass in 26.4s; extracted
+  trace zip `test-results/group-restore-.../trace.zip` →
+  `0-trace.trace`/`0-trace.network` call-timing analysis; `curl` timing
+  before/after `cache:rebuild` on `/all-groups` (9.3s cold → 0.05s warm);
+  server logs (`ddev logs`) showing no PHP fatal/error at the failure
+  timestamp (only an earlier, since-fixed `autoload_runtime.php` fatal from
+  before the environment repair, and a client-side "prematurely closed
+  connection" INFO line matching the client-aborted `ERR_ABORTED`, not a
+  server error); `drush php:eval` confirming gid=8's final state
+  (`field_group_type` = Archive, `published` = yes) after the full suite.
