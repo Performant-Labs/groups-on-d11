@@ -42,6 +42,17 @@ import { test, expect } from '@playwright/test';
  *
  * Runs against a fully seeded site (assemble -> site:install -> cim -> seed
  * step_700_demo_data.php -> runserver), per WAVE-EXECUTION-HANDOFF.md §6-6.
+ *
+ * PHASE 6 REPAIR NOTE (T): the reset-control locator below originally used
+ * `page.getByRole('link', { name: 'Reset' })`. Verified against the real
+ * rendered page (`curl /all-groups?location=Berlin`) that core's
+ * `ExposedFormPluginBase::exposedFormAlter()` builds the reset control as
+ * `'#type' => 'submit'`, which renders as
+ * `<input type="submit" id="edit-reset" name="op" value="Reset" ...>` — ARIA
+ * role "button" (accessible name "Reset" from the `value` attribute), not
+ * "link". No theme override in `groups_chrome` changes this. Matches
+ * PROJECT_CONTEXT's documented gotcha (`#type => submit` renders `<input>`,
+ * not `<button>`/`<a>`). Corrected to `getByRole('button', { name: 'Reset' })`.
  */
 
 const SEED_GROUPS = {
@@ -153,7 +164,10 @@ test.describe('Directory location + language filters (#142 MC-3)', () => {
     await page.getByRole('button', { name: 'Filter' }).click();
     await page.waitForURL(/[?&]location=Berlin/i);
 
-    await page.getByRole('link', { name: 'Reset' }).click();
+    // Core's exposed-form reset control renders as `<input type="submit">`
+    // (ARIA role "button"), not a link — see the file-header "PHASE 6 REPAIR
+    // NOTE" for the verified rendered markup.
+    await page.getByRole('button', { name: 'Reset' }).click();
     await page.waitForURL((url) => !url.search.includes('location'));
 
     await expect(locationInput).toHaveValue('');

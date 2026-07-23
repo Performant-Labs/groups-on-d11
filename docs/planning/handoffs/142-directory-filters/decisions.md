@@ -68,3 +68,47 @@ Evidence:
 
 Hedged:
 - Flagged (did not edit) two likely T test-authorship issues for Phase 6: (1) `testViewDeclaresBothExposedFilters`'s bare-name `field:` assertions need the `_value` suffix to match a working config; (2) `directory-filters.spec.ts`'s reset-button locator uses `role: 'link'` but core renders `<input type="submit">` (role "button") — see handoff-F.md "Tests that look wrong" for full evidence on both.
+
+## T — Phase 6 (verify GREEN + Tier 2)
+Decided:
+- Verified both of F's flagged test-authorship issues against the real assembled + config-imported
+  DDEV site (not trusting either party's claim blindly): (1) bare `field:` names (`field_group_language`,
+  `field_group_location_text`) have NO `filter` sub-key in real Views-data at all — only the
+  `_value`-suffixed keys do — confirmed via `\Drupal::service('views.views_data')->get(...)` and
+  `$view->initHandlers()` handler-class inspection (bare name -> `Broken`, suffixed name ->
+  `StringFilter`/`LanguageFilter`). F is correct; repaired the assertions and re-synced the fixture.
+  (2) The reset control renders as `<input type="submit" value="Reset">` (role "button"), confirmed
+  via `curl` against the real rendered page. F is correct; repaired the e2e locator.
+- Found a THIRD issue during GREEN verification, not flagged by F: `testExposedFormIsNonEmpty` still
+  failed after fixing (1) — root-caused (via a throwaway debug clone) to `field_group_language`'s
+  own field storage/instance never being installed in the kernel test's `setUp()`, and
+  `do_group_language` (owner of the required `hook_field_views_data_alter()`) not being in the
+  test's `$modules`, so the language filter resolved to `Broken` inside the isolated test DB even
+  though F's production Views-data-alter hook was correct. Fixed by installing the field directly
+  (mirroring `GroupLanguageNegotiationTest`'s own convention for this same field) and enabling
+  `do_group_language` + a `ConfigurableLanguage::createFromLangcode('fr')` in `setUp()`.
+- Re-synced `tests/fixtures/config/views.view.all_groups.yml` to F's real, GREEN-state shipped
+  `docs/groups/config/views.view.all_groups.yml` (byte-identical minus the two pre-documented
+  render-only field-formatter keys), mirroring `do_group_pin`'s established fixture-advancement
+  pattern from RED-state to GREEN-state at this phase.
+
+Evidence:
+- Kernel: `DirectoryFiltersTest` 4/4 GREEN (116 assertions). Full cross-module sweep: 141 tests,
+  0 failures, 3490 assertions — 0 regressions vs. F's own reported 141-test/2-failure baseline (the
+  2 prior failures were exactly these 2 T-owned tests, now fixed). do_tests-isolated run: 17/17
+  GREEN, 422 assertions, consistent with F's reported isolated count.
+- Playwright: `directory-filters.spec.ts` 5/5 GREEN (7.5s), run against the same real namespaced
+  DDEV site (`gm142-directory-filters.ddev.site`) F used for its own manual curl verification.
+- phpcs: 0 errors/warnings on the repaired `DirectoryFiltersTest.php` and on F's two production PHP
+  files (re-checked independently).
+- WCAG (Tier 2, headless): both controls confirmed labeled (`<label for>`) + keyboard-focusable via
+  the passing Playwright test; confirmed no theme CSS suppresses focus outlines
+  (`grep -rn "outline:\s*none\|outline:\s*0"` — zero matches across `groups_chrome`'s CSS).
+
+Hedged:
+- Full interactive focus-ring visual confirmation (screenshot-level) is left to U — this Tier 2
+  pass confirms the structural precondition only, per the pipeline's T/U split.
+
+Verdict: **GREEN. No blocking issues. Ready for U** (this story adds a real UI surface — two
+exposed filter controls + reset on `/all-groups` — that headless Tier 1/2 checks cannot fully
+substitute for a live walkthrough).
