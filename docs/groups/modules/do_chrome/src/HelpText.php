@@ -147,8 +147,16 @@ final class HelpText {
       //
       // The panel intro + footnote are served from here; per-cell labels live in
       // the render hook / template (they are structural, not prose copy).
+      //
+      // #121 SC-2 correction: the footnote previously read "...are planned but
+      // not yet enabled on the demo," which became stale the moment #121
+      // shipped request-to-join (Moderated) + the invite-only create-access
+      // gate — both are now live and enforced, exactly like every other claim
+      // in this file. Updated to name the mechanism (organizer approval /
+      // denial from the existing Manage-members page) instead of describing
+      // it as a future promise.
       'permissions.panel.intro' => 'What each kind of person can do in this group, based on the roles actually enforced on this demo.',
-      'permissions.panel.footnote' => 'A group admin holds every management capability. Members can read, join, post, and remove their own posts; managing members stays admin-only. Finer-grained roles (moderation, request-to-join) are planned but not yet enabled on the demo.',
+      'permissions.panel.footnote' => 'A group admin holds every management capability. Members can read, join, post, and remove their own posts; managing members stays admin-only. Moderated groups add a request-to-join step, reviewed (approved or denied) by an organizer from the Manage-members page — this is live on the demo, not a future plan.',
 
       // --- do_showcase (SC-F1, #119): variant-switcher framework, the ------
       // /showcase tour page, and the site-wide POC ribbon. Appended here per

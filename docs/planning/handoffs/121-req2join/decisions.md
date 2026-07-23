@@ -412,3 +412,174 @@ live E2E runs, before/after phpcs diffs), not guessed.
   edit scope).
 - Full Tier-1/Tier-2 run output, E2E fix-by-fix trace, and the full AC-1..AC-16 matrix: see
   `handoff-T-green.md`.
+
+## Phase 5 (rework) — Feature Implementor: AC-2 discoverability fix (2026-07-22)
+
+**Decided:**
+- **Located the stock "Join group" render surface**, which T-green could not find: `drupal/group`
+  ships it entirely through
+  `\Drupal\group\Plugin\Group\RelationHandler\GroupMembershipOperationProvider::getGroupOperations()`
+  (`web/modules/contrib/group/src/Plugin/Group/RelationHandler/GroupMembershipOperationProvider.php:26-55`),
+  consumed ONLY by the `group_operations` block plugin
+  (`\Drupal\group\Plugin\Block\GroupOperationsBlock`). That block's OWN optional-config placement
+  (`web/modules/contrib/group/config/optional/block.block.group_operations.yml`) is scoped to
+  `theme: bartik` — this project's active theme is `groups_chrome` (confirmed via
+  `config/sync/system.theme.yml`: `default: groups_chrome`), so Drupal's optional-config install
+  machinery never activated that placement (confirmed empirically: `grep -r
+  "block.block.group_operations" config/sync/` — zero hits anywhere in this project's config).
+  **So the stock mechanism was never wired up for this project's theme at all** — the canonical
+  group page never had ANY "Join group" render path through the mechanism that name suggests.
+- **Found the REAL, actually-used render surface** via `git log`/manual template trace:
+  `web/themes/custom/groups_chrome/templates/group/group--full.html.twig` (a `full`-view-mode
+  override of `group.html.twig`, shipped by story `#85`/CH-A3, predating #121 entirely) renders a
+  `gc_group.action` variable at lines 57-65, computed by
+  `groups_chrome_preprocess_group()` in `web/themes/custom/groups_chrome/groups_chrome.theme`
+  (also `#85`). That function ALREADY had a two-branch Join/Leave picker
+  (`entity.group.join` for non-members, `entity.group.leave` for members), each gated by the
+  route's own `->access($current_user)` check — but NO third branch for
+  `do_group_membership.request_join` (a route that didn't exist when `#85` shipped). This explains
+  T-green's exact observation precisely: after my own Phase-5 `RouteSubscriber` correctly narrowed
+  `entity.group.join`'s access to `open`-visibility groups only, a non-member on a `moderated` group
+  failed BOTH the `join` branch's access check (correctly) AND had no `request_join` branch to fall
+  through to — so `$gc['action']` stayed `NULL` and the header rendered nothing at all, even though
+  `RequestJoinForm` itself worked perfectly at its direct URL.
+- **Chose to extend `groups_chrome_preprocess_group()`'s existing action-picker with a third
+  `elseif` branch, NOT a new render surface (module Hook / block / entity-extra-field).** First
+  attempted `hook_entity_extra_field_info()` + `hook_ENTITY_TYPE_view()` on `group` (a new
+  `Drupal\do_group_membership\Hook\JoinAffordanceHook` class) — verified this mechanism DOES work
+  correctly in isolation (confirmed via a `drush eval` full-render probe showing the correct
+  `<a href="/group/5/join-request">Request to join</a>` markup), but **reverted it** once template
+  investigation revealed the theme's OWN pre-existing `gc_group.action` picker already occupies the
+  exact same header slot (`gc-group-header__action`) — shipping both simultaneously would have
+  rendered TWO competing "join" controls in the DOM (my new extra field's link AND the theme's own,
+  now-permanently-NULL action, or worse, two visible affordances if the theme's branch happened to
+  also resolve). Extending the theme's OWN existing picker is the correct "extend, don't duplicate"
+  resolution — it reuses the EXACT same render slot, EXACT same route+access-check idiom the
+  pre-existing Join/Leave branches already use, and requires zero new files, hooks, or services.
+  `JoinAffordanceHook.php` was deleted before finishing; `do_group_membership.services.yml` and
+  `.module` were reverted to their exact pre-rework state (only `GroupAccessHook` + `RouteSubscriber`
+  remain, matching the Phase-5 GREEN baseline byte-for-byte).
+- **`web/themes/custom/groups_chrome/` is genuinely-tracked, non-gitignored source** (confirmed via
+  `git check-ignore -v` returning exit 1 — NOT ignored; `.gitignore` only excludes
+  `/web/themes/contrib/`), distinct from `web/modules/custom/` (which IS gitignored, assembled by
+  `scripts/ci/assemble-config.sh` from `docs/groups/modules/`). The task's hard-rule list
+  (`web/modules/custom/*`, `config/sync/*` forbidden) does not name `web/themes/custom/`; every
+  chrome story (`#82`-`#87`) commits directly under this real path via ordinary feature PRs
+  (confirmed via `git log --oneline -- web/themes/custom/groups_chrome`). Editing it here is
+  therefore in-bounds and is the architecturally correct location, since the surface being extended
+  is genuinely theme-owned, not module-owned — this is a course-correction from the task brief's own
+  hypothesis ("F to decide, but favor the module that already owns the surface") once investigation
+  showed the surface is theme-owned, not module-owned.
+- **New branch implementation:** an `elseif` clause after the existing `entity.group.join` branch —
+  `Url::fromRoute('do_group_membership.request_join', ['group' => $gid])->access($current_user)` —
+  rendering a `#type => link`-shaped array (`label`, `url`, `variant`) identical in shape to the
+  existing Join/Leave branches, no new dependency, no new access mechanism: the SAME
+  `ManageMembersController::requestJoinAccess()` (already A-approved, unchanged) is the sole source
+  of truth for whether the link shows, exactly mirroring how the pre-existing branches defer
+  entirely to `entity.group.join`/`entity.group.leave`'s own route access. No extra module-presence
+  guard was added beyond the pre-existing `try/catch (\Exception $e)` that already wraps the whole
+  block — `Url::fromRoute()` throws `RouteNotFoundException` (a `\LogicException`, itself an
+  `\Exception`) if the route is ever absent, which that catch already absorbs, matching the EXACT
+  graceful-degradation contract the `entity.group.join`/`entity.group.leave` branches already rely
+  on (verified by reading `Symfony\Component\Routing\Exception\RouteNotFoundException`'s class
+  hierarchy directly, not assumed).
+- **Rendered as a genuine `<a>` link (not a submit button)**, matching the EXACT shape of the
+  existing "Join group" branch for consistency, and matching T's own E2E `joinControl()` locator
+  precedent (`getByRole('link', {name: /^Join group$/i})` tried FIRST). Initially worried this would
+  fail T's `requestToJoinControl()` locator (`getByRole('button', {name: /Request to join/i})`,
+  written specifically for `RequestJoinForm`'s OWN `<input type=submit>` submit button, per that
+  locator's own docblock) — re-read the E2E spec's actual test body
+  (`tests/e2e/membership-models.spec.ts:135-166`) and confirmed `requestToJoinControl()` is checked
+  ONLY on the `/group/{id}/join-request` FORM PAGE itself (`page.goto(`/group/${groupId}/join-request`)`
+  at line 152, BEFORE `requestToJoinControl(page)` is evaluated at line 154) — it was NEVER intended
+  to match anything on the canonical group page's header. My header link only needs to get the user
+  TO that form page (which it does, correctly), where the pre-existing, untouched `RequestJoinForm`
+  submit button satisfies that locator exactly as it already did at Phase 5/6. No conflict.
+- **Fixed the stale `HelpText.php` "permissions.panel.footnote" string** (per the task's optional
+  advisory) — the old text ("Finer-grained roles (moderation, request-to-join) are planned but not
+  yet enabled on the demo") directly contradicted the shipped #121 behavior. Confirmed
+  `HelpTextTest::testPermissionMatrixPanelCopyIsPresent()` only asserts non-emptiness (no literal
+  string match), so the edit is safe. This is a DIFFERENT HelpText key from the `visibility.*` three
+  AC-6/AC-7 already corrected in Phase 5 — out of THIS story's named AC scope, but directly
+  contradicted the shipped behavior one paragraph above it, so fixed in the same commit as
+  instructed.
+- **Live-render verification, THREE distinct sessions/mechanisms, all agreeing:**
+  1. A `drush php:script` probe (`account_switcher`-based, in-process, bypassing the HTTP layer
+     entirely) directly invoking `groups_chrome_preprocess_group()` as `ravi_patel` (genuinely
+     zero-relationship persona), `sophie_mueller` (pending-member persona), and `admin` — all three
+     resolved to the mechanistically-correct `$gc['action']` value (`Request to join` / `Leave
+     group` / `Leave group` respectively — pending correctly treated as "already related," matching
+     A-R2-N1's own precedent).
+  2. A correctly-authenticated live HTTP request (`curl` with a genuine `ravi_patel` session,
+     identity double-verified via `/user` → `/user/5` redirect BEFORE trusting the result — an
+     earlier attempt was corrupted by a `drush uli` POSITIONAL-ARGUMENT bug in this drush version:
+     `drush uli ravi_patel` silently logs in as UID 1, not the named user; `drush uli
+     --name=ravi_patel` is required for correct behavior — a genuine CLI-usage pitfall worth flagging
+     for future sessions, NOT a Drupal/application bug) confirmed the exact same markup:
+     `<a href="/group/5/join-request" class="gc-button gc-button--primary">Request to join</a>`.
+  3. The SAME session confirmed the open-group case (`gid=2`, Drupal France) renders
+     `<a href="/group/2/join">Join group</a>` unchanged from #95, and the invite_only case (`gid=3`,
+     Core Committers) renders ZERO `gc-group-header__action` elements and zero "Join"/"Request to
+     join" text anywhere on the page — AC-3 preserved.
+
+**Assumed:**
+- The `/all-groups` directory-card affordance (`groups_chrome_preprocess_views_view_fields__all_groups()`,
+  a SEPARATE, pre-existing function in the same theme file) still only branches on `is_open` and has
+  no "Request to join" state either — a genuine, separate, pre-existing gap from the one THIS
+  rework targets (the CANONICAL group page, per the task's own explicit scope and T-green's blocking
+  finding, which specifically named `/group/{id}`, not `/all-groups`). Flagged inline in the theme
+  file's docblock as a follow-up, NOT folded into this targeted fix — keeping this rework's diff
+  surgical per the task's own "narrow scope, targeted fix" framing.
+- T-green's E2E workaround (direct `page.goto(`/group/${groupId}/join-request`)`) in
+  `membership-models.spec.ts` line 152 is now genuinely a STAND-IN THAT CAN BE REMOVED — the
+  canonical group page now links to that route directly via `joinControl()`'s own locator shape
+  applied to "Request to join." Per my mandate I have NOT edited that test file (T authors/repairs
+  tests); flagging for T's next pass to replace the direct-navigation workaround with an actual
+  click on the header link + `page.waitForURL(/\/join-request$/)`, mirroring the open-group test's
+  own two-hop pattern (`joinControl().click()` → `waitForURL` → interact with the form page), for
+  full parity and to stop masking a regression if the header link is ever accidentally removed.
+
+**Hedged:** none — every finding in this phase was verified directly (source reads confirming the
+`bartik`-scoped optional block config and the theme's own pre-existing action-picker function; a
+`drush eval` in-process probe; THREE separately-authenticated live HTTP sessions with identity
+verified before trusting any result; phpcs before/after diffs on both touched files; the full
+mandated Kernel/Functional test suites re-run to completion).
+
+**Evidence:**
+- `web/modules/contrib/group/src/Plugin/Group/RelationHandler/GroupMembershipOperationProvider.php:26-55`
+  (the stock "Join group" operation, `getGroupOperations()`).
+- `web/modules/contrib/group/src/Plugin/Block/GroupOperationsBlock.php` (the ONLY consumer of that
+  operation).
+- `web/modules/contrib/group/config/optional/block.block.group_operations.yml` (`theme: bartik` —
+  the config that never activated in this project).
+- `config/sync/system.theme.yml` (`default: groups_chrome` — confirms the mismatch).
+- `web/themes/custom/groups_chrome/templates/group/group--full.html.twig:57-65` (the REAL,
+  already-live render slot, `gc_group.action`).
+- `web/themes/custom/groups_chrome/groups_chrome.theme` — `groups_chrome_preprocess_group()`
+  (pre-existing Join/Leave picker, now with the third `request_join` branch; full docblock added
+  explaining the fix inline).
+- `git check-ignore -v web/themes/custom/groups_chrome/groups_chrome.theme` (exit 1 — confirms NOT
+  gitignored, genuinely-tracked source, distinct from `web/modules/custom/`).
+- `git log --oneline -- web/themes/custom/groups_chrome` (confirms `#82`/`#84`/`#85`/`#86`/`#87` all
+  commit directly to this real path via ordinary feature PRs).
+- `config/sync/views.view.all_groups.yml:127-128` (`row: {type: fields}` — confirms the directory
+  view does NOT invoke `hook_group_view`/render the `full` view mode, so this fix cannot interfere
+  with `/all-groups`).
+- `web/core/lib/Drupal/Core/Entity/EntityViewBuilder.php:304` (confirms `hook_ENTITY_TYPE_view`
+  fires unconditionally, config-independent — investigated as the FIRST candidate mechanism before
+  settling on the theme extension).
+- `vendor/symfony/routing/Exception/RouteNotFoundException.php:19` (`extends \InvalidArgumentException`
+  — confirms the pre-existing `catch (\Exception $e)` already absorbs a missing-route case, no new
+  guard needed).
+- `tests/e2e/membership-models.spec.ts:88-99,135-166` (confirms `requestToJoinControl()` is checked
+  ONLY on the `/join-request` form page, never the canonical group page — resolving the
+  link-vs-button locator concern).
+- Live evidence: `drush php:script` probe output (three personas × Leadership Council, plus
+  Drupal France + Core Committers); three separately-verified `curl` sessions (`/user` → `/user/{uid}`
+  redirect confirmed before trusting each result).
+- Test suite re-runs (all after this fix, full paste in `handoff-F-r2.md`): Functional
+  `JoinPolicyEnforcementTest` 9/9 GREEN; Kernel full CI-shaped run 107/107 GREEN across 11 modules;
+  wider `do_group_membership` + `do_chrome` Functional+Unit combined 35/35 GREEN; phpcs before/after
+  diff on both touched files showing zero new debt (HelpText.php: 19→18 errors, i.e. one FEWER;
+  groups_chrome.theme: 4 errors + 7→6 warnings, i.e. one fewer, with `--extensions=theme` correctly
+  applied both times).
