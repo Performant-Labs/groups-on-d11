@@ -76,24 +76,40 @@ class DoGroupExtrasHooks {
   }
 
   /**
-   * Adds "Archived" CSS class/library, and the Links & Resources library.
+   * Adds the "Archived" class/library and the section libraries.
+   *
+   * Attaches the Links & Resources library (#140) and the About library
+   * (#141) on the Full display when their respective fields are non-empty.
    */
   #[Hook('preprocess_group')]
   public function preprocessGroup(array &$variables): void {
     /** @var \Drupal\group\Entity\GroupInterface $group */
     $group = $variables['group'];
 
-    // #140 W-2: attach the Links & Resources section styling only on the
-    // Full (default) view mode, and only when field_group_links actually
-    // has values — avoids attaching the library on empty-state pages or
-    // on other view modes (e.g. Teaser) where the field isn't rendered.
+    // #140 W-2 / #141 A warn #6: attach the Links & Resources and About
+    // section styling only on the Full (default) view mode, and only when
+    // each field actually has values — avoids attaching either library on
+    // empty-state pages or on other view modes (e.g. Teaser) where the
+    // fields aren't rendered. One outer bundle/view-mode guard, two sibling
+    // inner field-existence guards (do NOT split into separate outer
+    // conditionals — see handoff-A-plan.md #141 warn #6).
     if (
       $group->bundle() === 'community_group'
       && ($variables['view_mode'] ?? '') === 'default'
-      && $group->hasField('field_group_links')
-      && !$group->get('field_group_links')->isEmpty()
     ) {
-      $variables['#attached']['library'][] = 'do_group_extras/group-links';
+      if (
+        $group->hasField('field_group_links')
+        && !$group->get('field_group_links')->isEmpty()
+      ) {
+        $variables['#attached']['library'][] = 'do_group_extras/group-links';
+      }
+
+      if (
+        $group->hasField('field_group_about')
+        && !$group->get('field_group_about')->isEmpty()
+      ) {
+        $variables['#attached']['library'][] = 'do_group_extras/group-about';
+      }
     }
 
     if (!$group->hasField('field_group_type')) {

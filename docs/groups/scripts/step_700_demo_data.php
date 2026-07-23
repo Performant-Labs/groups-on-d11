@@ -517,4 +517,36 @@ foreach ($group_links_by_label as $group_label => $links) {
   echo "Set $group_label links -> " . implode(", ", array_column($links, "title")) . "\n";
 }
 
+// ===== Step 736: Group About section (#141 MC-2) =====
+// Append-only, idempotent (skip a group whose field_group_about is already
+// non-empty so a re-run never overwrites hand-edited or previously-seeded
+// prose — the guard checks `isEmpty()`, not existence, matching Step 735's
+// field_group_links idiom). Prose is set on 3 of the 8 seeded groups
+// (DrupalCon Portland 2026, Core Committers, Thunder Distribution) using
+// `basic_html`, matching field_group_description's seeded format. The other
+// 5 seeded groups (Drupal France, Leadership Council, Camp Organizers EMEA,
+// Drupal Deutschland, Legacy Infrastructure) are DELIBERATELY left without
+// field_group_about so tests/e2e/group-about.spec.ts's negative case (a
+// seeded group with no About heading) has real candidates — see brief
+// AC-6/AC-7 and handoff-T-red.md.
+echo "\n=== Step 736: Group About (#141) ===\n";
+$group_about_by_label = [
+  "DrupalCon Portland 2026" => "<p>DrupalCon Portland 2026 is the flagship North American gathering for the Drupal community, bringing together developers, site builders, and project leads for a week of sessions, sprints, and networking. <strong>This group coordinates the planning committee's work</strong> — from session tracks to venue logistics to sponsorship outreach. Whether you are a first-time contributor or a seasoned core committer, there is a sprint table with your name on it.</p>",
+  "Core Committers" => "<p>Core Committers is the working group for maintainers with commit access to Drupal core and its most widely used contributed modules. Membership here is about coordination, not gatekeeping: <strong>weekly standups, patch review triage, and architectural RFCs</strong> all happen in this space. Expect deep technical discussion and a strong bias toward shipping stable, well-tested releases.</p>",
+  "Thunder Distribution" => "<p>Thunder is a publishing-focused Drupal distribution built for newsrooms and content-heavy sites that need a fast, opinionated editorial workflow out of the box. This group tracks the <strong>distribution's roadmap, module contributions, and migration guidance</strong> for teams upgrading between major versions. Documentation authors, module maintainers, and site builders running Thunder in production are all welcome to pitch in.</p>",
+];
+foreach ($group_about_by_label as $group_label => $about_html) {
+  $groups = $group_storage->loadByProperties(["label" => $group_label]);
+  $group = reset($groups);
+  if (!$group) { echo "SKIP: Group not found: $group_label\n"; continue; }
+  if (!$group->hasField("field_group_about")) { echo "SKIP: field_group_about missing on $group_label\n"; continue; }
+  if (!$group->get("field_group_about")->isEmpty()) {
+    echo "$group_label already has an About body; skipping\n";
+    continue;
+  }
+  $group->set("field_group_about", ["value" => $about_html, "format" => "basic_html"]);
+  $group->save();
+  echo "Set $group_label About body\n";
+}
+
 echo "\n=== Demo data complete ===\n";

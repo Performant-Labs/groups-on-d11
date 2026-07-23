@@ -112,3 +112,75 @@ site format is broader, but the test only needs to prove sanitization does NOT s
   `Tests: 7, Assertions: 166, Deprecations: 2`, zero failures — confirms the ⚠-only pattern is
   expected/benign, not evidence of an invalid RED.
 - E2E: `npx playwright test --list tests/e2e/group-about.spec.ts` → `Total: 2 tests in 1 file`.
+
+---
+
+## F — Phase 5 (implement to GREEN)
+
+**Date:** 2026-07-23  **Verdict:** 8/8 kernel tests GREEN (0 failures); 27/27 do_group_extras kernel
+suite GREEN (no regression on `GroupLinksFieldTest`/`GroupRestoreTest`/`GroupExtrasBehaviorTest`).
+
+**Decided:**
+- Storage/instance YAML mirror `field_group_description`'s shape byte-for-byte on every key except
+  `field_name`/`id`/`label`/`uuid` (per brief). `allowed_formats: {}` on the instance, matching
+  description exactly (not `field_group_links`'s `link_type`/`title` settings shape).
+- View-display edit: replaced the `# (weight 10 reserved for #141 About)` placeholder with a
+  `# --- Section: About (weight 10) ---` marker (mirroring the Links section's own comment-block
+  convention verbatim: rationale sentence about `label: above` being the H2 source + suppression-
+  on-empty). Inserted `field.field.group.community_group.field_group_about` as the FIRST entry in
+  `dependencies.config` (confirmed it sorts alphabetically above `field_group_description`, per A
+  finding #10). `text` was already present in `dependencies.module` — no addition needed.
+- Form-display weight: brief's fallback guidance ("if description is 0, use 3 or 4") didn't match
+  reality — description's form weight is `1`, not `0`, and `2`/`3`/`4` are all already occupied by
+  visibility/image/links respectively, and the brief forbids touching those siblings. Chose weight
+  `10` (mirrors the view-display's semantic "weight 10 = About" convention) so About tabs last on
+  the edit form without renumbering or tying with any sibling weight.
+- Preprocess hook (A warn #6): restructured to ONE outer `bundle === 'community_group' && view_mode
+  === 'default'` conditional, with the pre-existing links guard and a new sibling About guard as
+  TWO independent inner `if` blocks — not merged into a single combined condition and not two
+  separate outer conditionals. Confirmed via diff: this is a pure refactor-in-place of the existing
+  block (no behavior change to the Links attach), plus a genuinely new sibling block for About.
+- Seed data (Step 736): set About prose on the SAME 3 groups Step 735 already seeded Links for
+  (DrupalCon Portland 2026, Core Committers, Thunder Distribution) — reusing well-known "flagship"
+  groups keeps the prose thematically coherent and the E2E's positive case unambiguous. The other 5
+  groups are left without About so the E2E negative case has real candidates. Idempotency guard
+  checks `isEmpty()` (not existence), mirroring Step 735's exact idiom, so a re-run never duplicates
+  or overwrites prose.
+- Library attach test (`testLibraryAttachedOnlyWhenAboutNonEmpty`) is the ONE test that was RED at
+  T's handoff and is now GREEN — confirms the `preprocessGroup` extension is the correct/complete
+  fix for the RED signal T identified.
+
+**Assumed:**
+- None beyond what A/T already assumed — this pass had no open judgment calls left unresolved by
+  the brief, A's plan review, or T's fixture; every YAML key value was read directly off T's
+  `setUp()` fixture (the contract) rather than guessed.
+
+**Hedged:**
+- Form-display weight choice (10, not a value literally "between 1 and 3") is a deliberate deviation
+  from the brief's literal fallback text, justified above — flagged here for O/A visibility even
+  though it satisfies AC-4 (widget presence) without touching any AC that pins a specific form
+  weight (no AC pins form weight; only the view-display's weight=10 is asserted, AC-3).
+
+**Encountered but NOT fixed (out of scope, pre-existing):**
+- `docs/groups/scripts/step_700_demo_data.php` has never been phpcs-clean (230 pre-existing errors
+  at baseline vs. 240 after my +32-line append — the file-wide single-line-brace idiom this script
+  has always used, not a style regression I introduced; proportionally my addition is at LOWER
+  error density than the file's existing average, 0.31 err/line vs. 0.44 err/line baseline).
+  Confirmed via isolated phpcs run against the pre-edit `git show HEAD:` copy in a scratchpad temp
+  file (not committed). Not in this story's scope to clean up a pre-existing file-wide style debt.
+- `DoGroupExtrasHooks.php` carries 4 pre-existing phpcs WARNINGS (2x `t()`-in-class at lines 42/45,
+  2x `\Drupal::`-static-call-in-class at lines 162/164) — confirmed present at HEAD before my edit
+  via `git show HEAD:...| grep`. I introduced and then fixed 1 NEW error (multi-line docblock short
+  description) during this pass; 0 errors remain, only the 4 pre-existing warnings.
+
+**Evidence:**
+- `docs/planning/handoffs/141-about/handoff-F.md` — full command + output + diff summary.
+- Kernel (target): `Tests: 8, Assertions: 192, Deprecations: 2` — 0 failures (was `Failures: 1` at
+  T's RED handoff).
+- Kernel (regression, full do_group_extras suite): `Tests: 27, Assertions: 809, Deprecations: 4` —
+  0 failures, stable across both the pre- and post-docblock-fix runs.
+- phpcs: `DoGroupExtrasHooks.php` → 0 errors / 4 pre-existing warnings (exit 1, warnings-only).
+  `do_group_extras.libraries.yml` → 0 errors / 0 warnings (exit 0). Seed script → pre-existing
+  file-wide style debt, not introduced by this change (proportional-density comparison above).
+
+---

@@ -1,0 +1,19 @@
+uuid: dac61866-b546-4f95-bef3-ef5c0b503be2
+langcode: en
+status: true
+dependencies:
+  module:
+    - group
+    - text
+id: group.field_group_about
+field_name: field_group_about
+entity_type: group
+type: text_long
+settings: {  }
+module: text
+locked: false
+cardinality: 1
+translatable: true
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false
