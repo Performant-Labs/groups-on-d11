@@ -37,6 +37,22 @@ import { test, expect } from '@playwright/test';
 const SWITCHER_SELECT = 'select[name="persona"]';
 const BANNER_SELECTOR = 'aside[role="status"].do-showcase-persona-banner';
 
+// The site-wide POC ribbon (do_showcase, #119) is a fixed-position overlay
+// that intercepts pointer events on the persona-switcher "Go" <button>
+// immediately after form submit redirects — Playwright's post-click
+// stability re-check then re-targets the (new page's) Go button under the
+// ribbon and times out (<div id=do-showcase-ribbon> intercepts pointer
+// events). Dismissing the ribbon first eliminates the race. Ports the
+// pattern from commit 9ec5998 on branch 132-showcase-help (applied there
+// to showcase-help.spec.ts). Follow-up issue tracks the underlying CSS fix.
+test.beforeEach(async ({ page }) => {
+  await page.goto('/');
+  const dismiss = page.getByRole('button', { name: 'Dismiss demo banner' });
+  if (await dismiss.isVisible().catch(() => false)) {
+    await dismiss.click();
+  }
+});
+
 test.describe('#120 SC-1 — Persona switcher: full switch -> verify -> switch-back', () => {
   test('Groups-Moderate: switch, verify pending-queue access, switch back', async ({
     page,
