@@ -158,3 +158,48 @@ Targeted verify only (delta-review, plan already PASSED substantively r1):
 **Evidence.**
 - `docs/planning/handoffs/143-archive-restore/brief.md` §Design outline / Access (revised).
 - `docs/groups/config/group.role.community_group-organizer.yml` (perm grant verified).
+
+## T — Phase 4 (RED)
+
+**Decided.**
+- Authored 3 test files against the amended, A-r2-PASSed design: Kernel
+  (`GroupRestoreTest.php`, 4 tests), Functional (`GroupRestoreAccessTest.php`, 10 tests), E2E
+  (`group-restore.spec.ts`, 1 round-trip test covering AC-8's explicit 5-step sequence).
+- Kernel tier used for field-reassignment + hook-visible-effect behavior (cheapest sufficient
+  tier — no HTTP needed to observe `field_group_type`/`group--archived`/`node_access`).
+  Functional tier used for the persona access matrix + route wiring (needs a real HTTP
+  request/response to prove the route is actually gated, not just the calculated permission).
+  E2E reserved for the single full-stack round-trip a headless kernel/functional test cannot
+  observe (badge/tab chrome, real page navigation, re-archive via a second existing form).
+- RED confirmed valid at every tier: Kernel — `RestoreGroupForm` class-not-found on the 3 tests
+  that construct it (the 4th, precondition-only, correctly passes pre-F); Functional — uniform
+  404 across all 10 tests (route not registered); E2E — `--list` parses and lists the 1 test
+  case (deferred execution to T-green, per instructions, since no route exists yet to hit).
+
+**Assumed.**
+- DDEV's own DB service credentials (`mysql://db:db@db/db`) are an acceptable `SIMPLETEST_DB`
+  substitute for this worktree's ad hoc phpunit runs (this worktree has no CI-shaped DB service
+  container of its own); F/CI's actual gate uses `.github/workflows/test.yml`'s
+  `mysql://root:root@127.0.0.1:3306/drupal`, unaffected by this local substitution.
+- The Functional suite's uniform-404 signal (rather than distinct 403 vs. 200 per persona) is
+  itself the correct/expected RED shape for a not-yet-routed endpoint — matches the task's
+  explicitly stated expected-RED description, not an authoring mistake.
+
+**Hedged.**
+- None — all three tiers reached a demonstrably valid RED with no environment/setup-only
+  failures.
+
+**Evidence.**
+- Kernel run: `ddev exec 'SIMPLETEST_DB="mysql://db:db@db/db" php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox web/modules/custom/do_group_extras/tests/src/Kernel/GroupRestoreTest.php'` — 1 pass / 3 class-not-found errors.
+- Functional run: same pattern with `SIMPLETEST_BASE_URL` set — 10/10 fail, all traceable to the
+  route 404.
+- E2E: `npx playwright test tests/e2e/group-restore.spec.ts --list` — 1 test listed, no parse
+  errors.
+- Full detail: `docs/planning/handoffs/143-archive-restore/handoff-T-red.md`.
+
+**Environment note for O/F.** This worktree had no running DDEV project (name collided with the
+main checkout's `pl-groups-on-d11`) and no `vendor/`/`node_modules/`. Renamed this worktree's
+`.ddev/config.yaml` project name to `gm143-groups-on-d11`, ran `ddev start`, `ddev composer
+install`, `npm ci`, and `bash scripts/ci/assemble-config.sh` via `ddev exec` (no host PHP) before
+any test could execute. F will need the same running DDEV instance (`gm143-groups-on-d11`) to
+implement/verify locally.
