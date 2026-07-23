@@ -4,10 +4,12 @@ dependencies:
   config:
     - field.field.group.community_group.field_group_description
     - field.field.group.community_group.field_group_image
+    - field.field.group.community_group.field_group_links
     - field.field.group.community_group.field_group_visibility
     - group.type.community_group
   module:
     - image
+    - link
     - options
     - text
 id: group.community_group.default
@@ -30,6 +32,12 @@ content:
     settings:
       progress_indicator: throbber
       preview_image_style: thumbnail
+    third_party_settings: {  }
+  field_group_links:
+    type: link_default
+    weight: 4
+    region: content
+    settings: {  }
     third_party_settings: {  }
   field_group_visibility:
     type: options_buttons

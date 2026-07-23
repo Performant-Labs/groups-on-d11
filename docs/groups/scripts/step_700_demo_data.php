@@ -480,4 +480,41 @@ else {
   echo "SKIP: pending-request seed — Leadership Council group or sophie/alex user not found\n";
 }
 
+// ===== Step 735: Group Links & Resources (#140 MC-1) =====
+// Append-only, idempotent (skip a group already carrying field_group_links
+// values so a re-run never duplicates deltas). Titles/URLs are the EXACT
+// canonical set recorded in
+// docs/planning/handoffs/140-links/handoff-T-red.md "Seed link titles" —
+// tests/e2e/group-links.spec.ts asserts against the "DrupalCon Portland 2026"
+// row verbatim, and the brief's "≥3 seeded groups show ≥2 links each"
+// acceptance criterion is satisfied by all three rows below.
+echo "\n=== Step 735: Group Links & Resources (#140) ===\n";
+$group_links_by_label = [
+  "DrupalCon Portland 2026" => [
+    ["title" => "Conference schedule", "uri" => "https://events.drupal.org/portland2026/schedule"],
+    ["title" => "Sponsorship info", "uri" => "https://events.drupal.org/portland2026/sponsors"],
+  ],
+  "Core Committers" => [
+    ["title" => "Core Gitlab", "uri" => "https://git.drupalcode.org/project/drupal"],
+    ["title" => "Core issue queue", "uri" => "https://drupal.org/project/issues/drupal"],
+  ],
+  "Thunder Distribution" => [
+    ["title" => "Thunder homepage", "uri" => "https://thunder.org"],
+    ["title" => "Thunder repo", "uri" => "https://github.com/thunder/thunder-distribution"],
+  ],
+];
+foreach ($group_links_by_label as $group_label => $links) {
+  $groups = $group_storage->loadByProperties(["label" => $group_label]);
+  $group = reset($groups);
+  if (!$group) { echo "SKIP: Group not found: $group_label\n"; continue; }
+  if (!$group->hasField("field_group_links")) { echo "SKIP: field_group_links missing on $group_label\n"; continue; }
+  if (!$group->get("field_group_links")->isEmpty()) {
+    echo "$group_label already has links; skipping\n";
+    continue;
+  }
+  $group->set("field_group_links", $links);
+  $group->save();
+  echo "Set $group_label links -> " . implode(", ", array_column($links, "title")) . "\n";
+}
+
 echo "\n=== Demo data complete ===\n";

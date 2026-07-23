@@ -1,0 +1,40 @@
+/**
+ * @file
+ * Styles for the group "Links & Resources" section (#140 MC-1).
+ *
+ * Minimal list layout + spacing for the field_group_links formatter output on
+ * the group Full display. The section heading is the field's own label
+ * (`label: above` in core.entity_view_display.group.community_group.default.yml)
+ * — no separate wrapper markup exists to style, so this only touches the
+ * field wrapper Drupal already emits.
+ */
+
+.field--name-field-group-links {
+  margin-top: 1.5rem;
+}
+
+.field--name-field-group-links .field__label {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.field--name-field-group-links .field__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.field--name-field-group-links .field__item {
+  padding: 0.25rem 0;
+}
+
+.field--name-field-group-links a {
+  text-decoration: underline;
+}
+
+/* Keep a visible focus outline for keyboard users (WCAG 2.2 AA — 2.4.11). */
+.field--name-field-group-links a:focus-visible {
+  outline: 2px solid #005fcc;
+  outline-offset: 2px;
+}
