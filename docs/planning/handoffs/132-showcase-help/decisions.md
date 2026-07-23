@@ -94,3 +94,12 @@
   switcher tooltip) and `showcase_help.directory-presentation` (tour-page orientation) share
   a topic but not wording, and serve distinct render sites. Documented inline in HelpText.php.
 - **Evidence**: `docs/planning/handoffs/132-showcase-help/handoff-S.md`.
+
+## Phase 10 (O) — CI cycle 1 fix
+
+- **Failed**: 4 tests in `ShowcaseControllerHelpTest`, all hitting `/showcase` and receiving **403 not 200**.
+- **Root cause**: This is the first-ever Functional test to load the `/showcase` route. The route requires `_permission: 'access content'`, which is provided by `node_permission()`. Test class declared `$modules = ['do_showcase']` only — no `node`, so the anonymous role held no permissions on the minimal BrowserTestBase install, and every `drupalGet('/showcase')` 403'd.
+- **Not env-flaky / not a core bug / not seed-dependent**: strictly a test-authoring omission. `/showcase` works everywhere else (kernel-parity DDEV install, local Playwright U walkthrough, CI E2E) because those pipelines run the full config sync which enables `node`.
+- **Fix**: Add `'node'` to `$modules` in `ShowcaseControllerHelpTest`; leave `PersonaBannerTest` unchanged (it hits `<front>`, which anonymous can reach even without `node`). Tester-authoring correction, made by O per role note ("you may edit the test if it's obviously wrong per the brief").
+- **Evidence**: `gh run 30002392033 --log-failed`; full log at `~/.claude/projects/.../full-log.txt` lines 1092–1120 (four `✘` markers, three `Current response status code is 403, but 200 expected`, one dependent selector-not-found on the 403 body).
+- **Non-blocking noise in same log**: 1 pre-existing error in `CreateGroupWizardOrganizerTest` (`link` field-type plugin missing — belongs to another module, out of #132 scope); 15 Drupal 11.2 deprecation warnings (all `⚠`, not failures).

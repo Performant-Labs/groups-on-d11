@@ -47,8 +47,19 @@ final class ShowcaseControllerHelpTest extends BrowserTestBase {
 
   /**
    * {@inheritdoc}
+   *
+   * `node` is required because the do_showcase.showcase route requires
+   * "access content" permission, which is provided by node_permission().
+   * On a minimal BrowserTestBase install with only "do_showcase" enabled,
+   * the anonymous role holds no permissions and /showcase returns 403 —
+   * CI Functional-tier failure diagnosed 2026-07-23 on PR#157.
+   * The full CI install pipeline (`bash scripts/ci/assemble-config.sh`
+   * + `drush cim`) enables node as part of the standard config sync, so
+   * this only matters for the isolated BrowserTestBase install path.
+   * "system" and "user" are auto-enabled by BrowserTestBase; "block"
+   * and "do_chrome" pull in via do_showcase.info.yml dependencies.
    */
-  protected static $modules = ['do_showcase'];
+  protected static $modules = ['do_showcase', 'node'];
 
   /**
    * {@inheritdoc}
