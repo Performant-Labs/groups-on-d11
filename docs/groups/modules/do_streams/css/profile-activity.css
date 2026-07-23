@@ -1,0 +1,34 @@
+/**
+ * @file
+ * Scoped tweaks for the "Recent posts" profile-activity block (#114 ST-5).
+ *
+ * Card visuals (title link, `stream_card` row rendering) are inherited from
+ * the shared theme stylesheet (groups_chrome/css/stream.css) — this file
+ * follows the SAME convention `css/following.css` established for #111
+ * ST-2 (see its own docblock): add ONLY the small container/spacing tweaks
+ * specific to THIS surface, scoped under a single wrapper class so nothing
+ * here can leak onto the shared stream-card markup used by other views
+ * (e.g. activity_stream, group_content_stream, following_feed).
+ *
+ * Wireframe / A-gate note (decisions.md, D + O-D-gate entries): the
+ * secondary "Type · relative date" text is the one new visual element this
+ * story introduces. It reuses the theme's existing muted/secondary text
+ * token (`--gc-color-text-muted` — the SAME custom property
+ * `.gc-stream-card__byline` / `.gc-stream-card__submeta` /
+ * `.gc-stream-card__time` already use in groups_chrome/css/stream.css) so
+ * contrast is inherited from an already-audited value rather than a new,
+ * lighter shade being introduced. No rule is added here for that text
+ * itself — it needs no override, only the inherited token — so this file
+ * only carries the container rhythm below.
+ */
+
+.do-streams-profile-activity .view-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gc-space-md);
+  max-width: 720px;
+}
+
+.do-streams-profile-activity .stream-card-wrapper {
+  margin: 0;
+}

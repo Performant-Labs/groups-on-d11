@@ -337,6 +337,26 @@ final class HelpText {
       'stream.activity_row.aggregated' => 'Several actions by the same person, collapsed into one row so the feed stays readable instead of repeating their name over and over.',
       'stream.activity_row.comment' => 'A reply to a post, not the post itself — click through to see it in context alongside the original post and any other replies.',
       'stream.model_toggle' => 'Two views of the same activity: Content treats streams as queries over posts (what was written); Activity is a log of everything that happens — joins, follows, comments, and posts. Both exist by design — different questions, not a duplicate feature.',
+      // --- #114 ST-5 (Profile activity stream): profile_activity.* keys. ---
+      // Appended per the append-only HelpText contract — no existing key
+      // from any prior namespace ('page.*', 'card.*', 'showcase_help.*',
+      // etc.) is edited or removed by this entry.
+      //
+      // A distinct namespace from 'page.profile_stream' (#126, above): that
+      // W2 pre-registered key is reserved for a FUTURE, not-yet-built
+      // dedicated profile-stream PAGE route (`view.profile_stream.page_1`)
+      // and is left untouched here. This story ships a BLOCK
+      // ("Recent posts", views.view.user_activity.yml block_1 display)
+      // placed directly on the existing `/user/{uid}` canonical route, not
+      // a new page — a different surface, hence a different key.
+      //
+      // Documents the "Recent posts" block's scope for anyone reading the
+      // copy source directly: an access-scoped, per-author, published-only
+      // stream (view's own `node_access` + `status = 1` filters), so an
+      // outsider viewer only ever sees what THEY can already access, never
+      // an indicator of hidden/inaccessible content existing (matches the
+      // wireframe's access-safe "No posts yet." empty-state framing).
+      'profile_activity.section' => 'This person\'s recent published posts, newest first — scoped to what you can already see. Content in groups you cannot access never appears here.',
     ];
   }
 
