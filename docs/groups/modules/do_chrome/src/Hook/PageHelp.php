@@ -72,7 +72,7 @@ class PageHelp {
       'view.all_groups.page_1' => 'page.all_groups',
       'view.group_content_stream.page_1' => 'page.group.stream',
       'view.group_events.page_1' => 'page.group.events',
-      'view.group_members.page_1' => 'page.group.members',
+      'do_group_membership.manage_members' => 'page.group.members',
       // --- W2 pre-registered (inert until the route exists) ------------
       'view.my_feed.page_1' => 'page.my_feed',
       'view.following.page_1' => 'page.following',
