@@ -93,3 +93,60 @@ RED is valid on both tiers. F may implement against:
 - Extend `groups_chrome_preprocess_views_view_fields__all_groups()` + `groups_chrome_preprocess_node()` to pass tooltip copy into `gc_directory` / `gc_stream` (A's guidance: option (a), preprocess extension — confirmed acceptable).
 - 3 inline `<span class="do-chrome-info gc-card-info" tabindex="0" role="note" aria-label="{{ copy }}" data-do-tooltip="{{ copy }}">ⓘ</span>` triggers per template, each placed as a DOM **sibling** immediately after its target element (type badge / visibility badge / members stat on the directory card; byline / type badge / comments footer on the stream card) — NOT nested inside the comments `<a>` (that element already owns an `aria-label`; nesting would merge accessible names, which the spec explicitly guards against).
 - Visibility trigger's `data-do-tooltip` must resolve via `HelpText::get('visibility.' . $variables['gc_directory']['visibility'])` (reuse, not a new key) — the e2e spec pins the exact `visibility.open` string as a regression guard.
+
+## Phase 5 — F (implementation)
+
+**Verdict:** GREEN. 12/12 unit, 7/7 target e2e, 3/3 regression e2e. Commit `d42f716`.
+
+### Decided
+- Adopted A's soft warning #1 (`tooltips` sub-array, not flat `tooltip_*` siblings) in both preprocess functions — `gc_directory.tooltips.{type,visibility,members}` and `gc_stream.tooltips.{byline,type,comments}`.
+- Adopted A's soft warning #2 (visibility reuse via machine-value lookup) — added one new `$gc['visibility_value']` field (default `'open'`, set alongside the pre-existing `visibility_label`/`visibility_variant` resolution in the same `if` block) purely to carry the raw machine value forward for `HelpText::get('visibility.' . $gc['visibility_value'])`. This is the one new field added to either preprocess function beyond the `tooltips` sub-array itself; every other value read is already computed by the existing function body.
+- Called `HelpText::` bare (not fully-qualified), matching the file's own established convention at the pre-existing `group_type.homepage_adapts` (#122) call site, since `use Drupal\do_chrome\HelpText;` is already imported at the top of `groups_chrome.theme`.
+- Placed all 6 ⓘ triggers as immediate DOM siblings (verified against rendered HTML, not just twig source) of their target elements, each independently `{% if %}`-guarded on its own tooltip-copy value.
+
+### Assumed
+- That running `bash scripts/ci/assemble-config.sh` from the host would work as the issue prompt states; the host shell in this environment has no `php` on PATH (only the DDEV container does), so every assemble/phpunit/phpcs invocation in this phase used `ddev exec` as a wrapper. This matches how T's own RED confirmation ran (`ddev exec php vendor/bin/phpunit ...`), so no deviation from the established local-verification pattern for this worktree — just naming it as an assumption since the raw host command as literally written in the prompt does not, on its own, succeed here.
+
+### Evidence
+- `diff` of the pre-edit committed `HelpText.php` against my edited version: confirmed 100% additive (32 new lines, zero lines before the insertion point touched).
+- Direct HTML inspection (curl) of `/all-groups` and `/stream` on the seeded site: confirmed all 6 tooltip types render with correct, distinct copy per card (Event planning / Geographical / Working group / Distribution directory cards each got the correct `card.directory.type` copy; an Open-visibility card's `data-do-tooltip` matched `visibility.open` verbatim; an Invite-Only card correctly got `visibility.invite_only`).
+- Ran `phpcs --standard=Drupal,DrupalPractice` against BOTH the edited file and a renamed copy of the untouched pre-edit committed file — identical violation set on identical line numbers (all strictly before line 210, my insertion point) confirms the 18 errors / 8 warnings reported are 100% pre-existing lint debt, not introduced by this story. Not fixed (out of scope — a spec'd extend-only change should not drive-by-refactor 24 lines of unrelated pre-existing formatting).
+- One transient e2e failure diagnosed and resolved during self-check: running `phase1.spec.ts` / `phase2.spec.ts` for regression-adjacency verification incidentally created fixture groups with no `field_group_type`, which (being newest under the view's `created DESC` sort) sorted to "first" and broke `element-tooltips.spec.ts`'s `.first()`-based directory-card locator (0 elements for the type-trigger; 2-not-3 total triggers). Confirmed via `drush php:eval` that the specific groups (IDs 9-12) had `field_group_type` empty; deleted them; re-ran and got 7/7 clean. This was self-inflicted test-run pollution from my own verification activity, not a defect in T's spec or my implementation — documented in handoff-F.md "Tests that look wrong (for T)" as an FYI about the locator's inherent coupling to view sort order, not a blocking finding.
+
+## Phase 6 — T(green)
+
+**Verdict:** GREEN, no blocking issues. Ready for U (UI surface).
+
+### Commands run + results
+- `ddev exec bash scripts/ci/assemble-config.sh` — clean re-assembly, no drift (95 config files, 13 custom modules, identical to F's report).
+- `ddev exec php vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/do_chrome/tests/src/Unit/HelpTextTest.php --testdox` — **12/12 GREEN** (163 assertions), matches F's reported count exactly.
+- `BASE_URL=https://gm127-card-tooltips.ddev.site npx playwright test tests/e2e/element-tooltips.spec.ts` — **7/7 GREEN** (3.8s), matches F's reported count exactly.
+- Full do_chrome Unit sweep (no Kernel dir exists for do_chrome — confirmed via `find`, so Unit-only is the correct full set): `ddev exec php vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/do_chrome/tests/src/Unit/ --testdox` — **16/16 GREEN** (HelpText 12 + PermissionMatrix 4), no regressions.
+- Adjacent e2e regression sweep: `directory-cards.spec.ts` (3/3), `showcase.spec.ts` (20/20) — both fully GREEN, run together as 23/23.
+- Cross-cutting sample: `nav.spec.ts` (6/6), `persona-switcher.spec.ts` (4/4), `manage-members.spec.ts` (3/4 + 1 pre-existing conditional `test.skip()` inside the test body, unrelated to this story — confirmed by reading the skip condition, not caused by card-tooltip changes). Total 13 passed, 1 skipped, 0 failed.
+
+### Lint baseline comparison
+- Current `HelpText.php` (assembled): 18 errors / 8 warnings, all on lines ≤178.
+- `origin/main`'s `HelpText.php` (extracted via `git show origin/main:...`, linted as a renamed copy since phpcs needs a real path): 19 errors / 8 warnings, same lines ≤178 — the "19 vs 18" delta is a class-name-vs-filename false positive introduced solely by the rename needed to run phpcs on a detached blob (confirmed: extra error reads "Class name doesn't match filename," not present when linting the real in-place file).
+- **Verdict: F's claim confirmed.** Zero new lint findings from the 32 appended lines (179-241 in the current file); all 18 errors / 8 warnings are pre-existing debt predating this story.
+
+### Behavior-pinning spot-check
+- Mutated `card.directory.type`'s value to `''` in the assembled `HelpText.php`, re-ran the unit suite: test correctly failed (`Failed asserting that two strings are not identical` at HelpTextTest.php:248) — proves the test pins the actual copy value, not just key existence. Restored the file immediately after; confirmed back to 12/12 GREEN and confirmed via `git status` that no source-tracked file was left dirty (the assembled copy is untracked; the tracked source under `docs/groups/modules/do_chrome/` was never touched).
+- E2E assertions (`toHaveCount(1)` per adjacent trigger, `toHaveCount(3)` per card) are inherently behavior-pinning — RED baseline already proved 0 elements / 7 failures with no triggers present, so removal of any twig trigger reproduces that exact RED. No further mutation needed on the twig/theme side.
+
+### Fixture stability check
+- `drush eval "print count(\Drupal\group\Entity\Group::loadMultiple())"` before and after a full `element-tooltips.spec.ts` run: **8 groups both times** — stable, no zombie fixtures. F's reported deletion of stray IDs 9-12 (created by an unrelated `phase1`/`phase2` self-check run, not by this spec) held; `element-tooltips.spec.ts` itself creates no persistent fixtures.
+
+### A11y spot check
+- Independently re-verified (fresh one-off Playwright check, not committed) that a directory-card ⓘ trigger has `tabindex="0"`, `role="note"`, non-empty `aria-label`, AND is actually focusable via `.focus()` with `document.activeElement` confirming the landing — a stronger check than attribute presence alone. Passed. This corroborates (does not duplicate) the assertions already inside `expectTooltipTrigger()` in the committed spec.
+
+### Cross-check against F's reported numbers
+No discrepancies. F's handoff reported 12/12 unit, 7/7 target e2e, 3/3 regression e2e, 18 errors/8 warnings pre-existing lint, and a resolved fixture-pollution incident (IDs 9-12) — every number reproduced identically on independent re-run.
+
+### Test-quality re-check (playbook §7)
+- Each of the 7 e2e tests + 1 unit test names a distinct behavior (per-element contract, hover, reuse-sourcing, no-double-tooltip, per-surface repeat for stream) — no duplication between directory and stream describe blocks since the DOM/copy differs per surface.
+- Tier placement still correct: e2e for anything requiring rendered DOM + tippy JS; unit for the copy-source contract. No test could be cheaper.
+- Suite is proportionate: 8 new tests for 5 new keys + 6 new DOM triggers across 2 surfaces — no redundancy found, nothing flagged for deletion.
+
+### Verdict
+GREEN. No blocking issues. Handing off to U (UI surface — tippy hover/focus/visual behavior on live SPA nav warrants U's walkthrough beyond headless Playwright).
