@@ -666,3 +666,22 @@ a sibling function F did not modify. Should be a follow-up story, not part of #1
   §"Files to touch" list plus the two F-flagged additions plus `do_group_membership.module`
   (sibling-pattern docblock file) and services.yml wiring.
 - Full report: `docs/planning/handoffs/121-req2join/handoff-A-dup.md`.
+
+## Phase 7 — Orchestrator: diff-gate dual-review adjudication (2026-07-22)
+
+**Decided:**
+- B-1 (GroupAccessHook missing cachePerPermissions/cachePerUser): ACCEPTED — routed to F for surgical fix. Real cache-correctness bug (hook varies per-user via `administer members`; chaining only `addCacheableDependency($group)` risks cross-user cache reuse).
+- B-2 (theme picker missing #cache metadata): DEFERRED as WARN + follow-up. Pre-existing #85 pattern that F extended, not introduced. Fixing it here would balloon the diff into a chrome cache-posture audit; not #121's surgical scope.
+- B-3 (seed vars unset): REJECTED as false positive — verified `$sophie`/`$alex` set at `step_700_demo_data.php:136-137`; T-green Phase 6 already ran the seed end-to-end and confirmed both pending relationships created.
+- W-1/W-2/W-3, NIT-1/-2/-3: recorded, not acted on (consistency with neighboring code; premature optimization; test-authorship territory).
+
+**Assumed:** o4-mini's context window did not include the full seed script (B-3 hallucination). Round 2 will confirm F's B-1 fix resolves the real concerns.
+
+**Hedged:** B-2 deferral relies on Drupal's dynamic page cache defaulting to keying on `url.path` and BigPipe defaulting to per-user personalization — the bounded-risk claim assumes standard site configuration; would be tighter if a follow-up story attaches explicit `#cache` contexts to the entire preprocess picker.
+
+**Evidence:**
+- `docs/planning/handoffs/121-req2join/dual-review-diff.md` (Round-1 reviewer output).
+- `docs/planning/handoffs/121-req2join/dual-review-diff-response.md` (this adjudication).
+- `docs/groups/modules/do_group_membership/src/Hook/GroupAccessHook.php:97,103-105` (B-1 evidence).
+- `docs/groups/scripts/step_700_demo_data.php:136-137` (B-3 rebuttal — vars set).
+- `web/themes/custom/groups_chrome/groups_chrome.theme:329-378` (B-2 evidence — all 3 branches lack #cache, pre-existing).
