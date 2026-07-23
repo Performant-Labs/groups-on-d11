@@ -116,3 +116,37 @@ Append-only. One entry per phase.
   membership pattern)
 
 ---
+## Phase 4 — T (author RED)
+
+**Decided**
+- Authored `GroupLanguageIndicatorTest.php` (6 methods) exactly per brief's render/assertion
+  contract (view builder `full` mode, raw HTML string assertions on `class`/`lang`/`dir`),
+  declaring `field_group_language` as `type: language` per the non-negotiable.
+- Authored `group-language.spec.ts` (3 tests) resolving group paths dynamically from
+  `/all-groups` (no hardcoded gid), asserting `html[dir]` + `.do-group-language[lang]` for the
+  ar/fr cases and the Views language-name column for the directory case.
+- Did not run the Playwright spec live against a site at T-red (no seed/hook/Views-field exist
+  yet) — verified via `--list` only, per task instructions.
+
+**Assumed**
+- The shared DDEV project `pl-groups-on-d11` is mutagen-synced from the main checkout only; this
+  worktree needed its own isolated DDEV instance (`gm139-multilang-rtl`) to run PHPUnit/Playwright
+  at all. Confirmed via `docker inspect` bind-mount list before spinning one up (namespaced per
+  the wave-execution guardrail on container hygiene).
+- The brief's literal `phpcs docs/groups/modules/do_group_language` (no `--standard` flag) isn't
+  the real lint gate — it falls back to phpcs's PEAR default and flags the pre-existing sibling
+  test identically. Used `--standard=Drupal,DrupalPractice` (the project's actual installed
+  standard) instead; the new file is clean against it.
+
+**Hedged**
+- None — RED confirmed valid on the first authored draft (after two small phpcs fixes: a missing
+  `use` import and a doc-comment capitalization).
+
+**Evidence**
+- Kernel run: `Tests: 6, Assertions: 135, Failures: 2` — the 2 failures are the positive-assertion
+  tests (`testRendersRtlIndicatorForArPrimaryGroup`, `testRendersLtrIndicatorForFrPrimaryGroup`),
+  failing on the missing `do-group-language` markup, not a setup/import error.
+- Full kernel suite: `Tests: 106, Assertions: 2913, Failures: 2` — only our 2 new RED tests fail;
+  all 104 other kernel tests (including `GroupLanguageNegotiationTest`) remain green.
+- Playwright `--list`: 3/3 test names resolve with no parse errors.
+- `docs/handoffs/139-multilang-rtl/handoff-T-red.md` (full detail).
