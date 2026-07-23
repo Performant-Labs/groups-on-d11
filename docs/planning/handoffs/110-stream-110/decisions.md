@@ -61,3 +61,51 @@
 
 ## PAUSED (overnight coordinator decision, morning triage)
 - **Paused** end of T-red drafting: 3 PHPUnit test files drafted (`do_chrome/tests/src/Unit/MyFeedHelpTextTest.php`, `do_streams/tests/src/Functional/MyFeedNavLinkTest.php`, `do_streams/tests/src/Functional/MyFeedRouteTest.php`) + 1 Playwright spec (`tests/e2e/my-feed.spec.ts`). T did not write `handoff-T-red.md` — RED-verification runs were not completed. Morning triage: (1) read these 4 test files, decide whether they need refinement or are ready; (2) run assemble + phpunit against the assembled layout to confirm RED-for-the-right-reason; (3) write handoff-T-red.md then launch F.
+
+## T Phase 4 (RED) — completed, valid
+- **Decided:** Morning-triage completed. Reviewed all 4 drafted test files, fixed two genuine
+  T-authoring bugs found during verification (not implementation gaps): (1)
+  `MyFeedNavLinkTest::setUp()` called `installEntitySchema()`, a KernelTestBase-only method
+  undefined on BrowserTestBase — removed (BrowserTestBase's self-install already provides every
+  enabled module's schema); (2) the same file's repo-root path resolution used
+  `dirname(__DIR__, 6)`, one level short of the repo root in the assembled layout — corrected to
+  `dirname(__DIR__, 7)`, verified against both the assembled and source-tree paths (both exactly 7
+  levels below the repo root).
+- **Decided:** E2E spec (`tests/e2e/my-feed.spec.ts`) had two further authoring bugs, both fixed:
+  `ELENA_PASS` defaulted to the username itself instead of the real seeded password
+  (`demo_password_2026`, confirmed by reading `step_700_demo_data.php`); the AC-6 (zero-group user)
+  test logged the admin out via a bare `page.goto('/user/logout')` in the SAME session, which does
+  not survive Drupal 10.3+'s CSRF-protected logout route — fixed by logging the fresh user in via
+  a separate, unauthenticated browser context instead.
+- **Decided:** RED verified on the REAL path per the pipeline's own standard — assembled layout
+  (`scripts/ci/assemble-config.sh` into a dedicated, container-namespaced DDEV instance
+  `gm110-groups-stream-110`, isolated from any sibling story's checkout/containers), PHPUnit run
+  from `web/modules/custom/...` (not the source tree), and Playwright run against a FULLY
+  installed + config-imported + module-enabled + seeded + served site (mirroring
+  `.github/workflows/test.yml`'s e2e job recipe exactly: site:install -> config:import -> drush en
+  -> step_700/720/780/790 seeds -> cache:rebuild), not an isolated fixture.
+- **Decided:** AC-7 (pager > 10 results) is NOT independently tested in this suite — judged
+  disproportionate for RED (would need either a bespoke 11-node fixture or reliance on the demo
+  seed's per-user node counts, which aren't guaranteed >10 for any seeded user). Recommend
+  accepting this as a U/visual check (the pager itself is Drupal core's own `full` pager style,
+  already used verbatim by the existing `activity_stream.yml` — its correctness is a core-Views
+  concern this story doesn't introduce new logic for), flagged in handoff-T-red.md for O/A to
+  weigh; will add a dedicated fixture-backed test before T-green if judged required.
+- **Decided:** AC-12 (axe-core WCAG scan) is NOT covered — this repo carries no
+  `@axe-core/playwright` dependency (consistent with `manage-members.spec.ts`'s own documented
+  gap), so full automated a11y scanning is out of T's remit; U and S are the intended backstops,
+  matching this project's established convention for prior UI stories.
+- **Assumed:** The cache-tag widening question from handoff-A Finding #4a (whether F widens
+  `viewsPostRender`'s `DEMO_VIEW_ID` allowlist to include `my_feed`, or merges the per-user stream
+  tag directly in the controller) is an F implementation choice not independently tested — the
+  authored `testResponseVariesByViewingUser` pins the OBSERVABLE outcome (no cross-user content
+  leakage) regardless of which mechanism F picks, which is the correct level to assert behavior at.
+- **Evidence:** Full RED transcripts (exact failing output per test method, proving each fails for
+  the right reason — 404/missing-key/missing-seed-entry, never an import or setup error) are in
+  `handoff-T-red.md`. Kernel/Functional run via
+  `php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox` against the assembled
+  `web/modules/custom/do_streams` and `web/modules/custom/do_chrome` suites; E2E via
+  `npx playwright test tests/e2e/my-feed.spec.ts` against the seeded DDEV site.
+
+## Ready for F
+T-red complete, RED is valid. F may implement against the authored tests.

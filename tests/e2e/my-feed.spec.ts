@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, Browser } from '@playwright/test';
 
 /**
  * Issue #110 (ST-1 My Feed at /my-feed) E2E.
@@ -29,6 +29,21 @@ import { test, expect, Page } from '@playwright/test';
  * them as NEW files) — every test below is intended to fail at its first
  * navigation/assertion (404 or a shell-selector timeout) until F implements
  * against this suite. This is the deliberate RED.
+ *
+ * T-red self-correction (both fixed before RED was reported valid):
+ *  - ELENA_PASS originally defaulted to the username itself; the real seeded
+ *    password (confirmed by reading step_700_demo_data.php directly) is the
+ *    shared "demo_password_2026" every demo user gets, not their username.
+ *  - The AC-6 (zero-group user) test originally logged the admin OUT via a
+ *    bare `page.goto('/user/logout')` in the SAME page/session, then tried to
+ *    log back in as the fresh user. Drupal 10.3+'s logout route requires a
+ *    CSRF-protected confirmation (a plain GET does not end the session in the
+ *    same way the UI's tokenized "Log out" link does), so the admin session
+ *    persisted and the subsequent login() call timed out waiting for a
+ *    /user/login form that was never reached (still on /user/1). Fixed by
+ *    using a SEPARATE, unauthenticated browser context for the zero-group
+ *    user's login — the realistic multi-user shape, and immune to the
+ *    logout-route's CSRF mechanics entirely.
  */
 
 const ADMIN_USER = process.env.ADMIN_USER ?? 'admin';
@@ -38,10 +53,6 @@ const ADMIN_PASS = process.env.ADMIN_PASS ?? 'admin';
 // 5 group memberships (DrupalCon Portland 2026, Core Committers, Leadership
 // Council, Camp Organizers EMEA, Drupal France) and is NOT a member of
 // Thunder Distribution / Drupal Deutschland (per survey.md's confirmed grep).
-// Password corrected to match step_700_demo_data.php's shared seeded-user
-// password ("demo_password_2026" for every demo user, confirmed by reading
-// the seed script directly) — NOT the username, which the original revision
-// mistakenly assumed.
 const ELENA_USER = 'elena_garcia';
 const ELENA_PASS = process.env.ELENA_PASS ?? 'demo_password_2026';
 
@@ -146,7 +157,8 @@ test.describe('My Feed (#110 ST-1)', () => {
 
   test('a zero-group authenticated user sees the empty state with a CTA to /all-groups (AC-6)', async ({
     page,
-  }) => {
+    browser,
+  }: { page: Page; browser: Browser }) => {
     // Self-provision a fresh 0-group user via the admin UI (no group
     // membership is ever granted), rather than relying on a specific seeded
     // account remaining group-less across future seed changes.
@@ -166,18 +178,26 @@ test.describe('My Feed (#110 ST-1)', () => {
     await page.getByRole('button', { name: /Create new account/i }).click();
     await expect(page.locator('.messages--status, .messages--error')).toBeVisible();
 
-    // Log out the admin, log in as the fresh zero-group user.
-    await page.goto('/user/logout');
-    await login(page, username, password);
+    // Log in as the fresh zero-group user in a SEPARATE browser context (a
+    // distinct, unauthenticated cookie jar) rather than logging the admin out
+    // in the same page — sidesteps Drupal's CSRF-protected logout route
+    // entirely and mirrors a realistic second, independent visitor.
+    const zeroGroupContext = await browser.newContext();
+    const zeroGroupPage = await zeroGroupContext.newPage();
+    try {
+      await login(zeroGroupPage, username, password);
 
-    const response = await page.goto('/my-feed');
-    expect(response?.status()).toBe(200);
+      const response = await zeroGroupPage.goto('/my-feed');
+      expect(response?.status()).toBe(200);
 
-    const empty = page.locator('[data-testid="do-streams-shell-empty"]');
-    await expect(empty).toBeVisible();
+      const empty = zeroGroupPage.locator('[data-testid="do-streams-shell-empty"]');
+      await expect(empty).toBeVisible();
 
-    const cta = page.locator('[data-testid="do-streams-shell-empty-cta"]');
-    await expect(cta).toBeVisible();
-    await expect(cta).toHaveAttribute('href', /\/all-groups/);
+      const cta = zeroGroupPage.locator('[data-testid="do-streams-shell-empty-cta"]');
+      await expect(cta).toBeVisible();
+      await expect(cta).toHaveAttribute('href', /\/all-groups/);
+    } finally {
+      await zeroGroupContext.close();
+    }
   });
 });
