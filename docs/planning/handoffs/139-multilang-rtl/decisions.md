@@ -150,3 +150,59 @@ Append-only. One entry per phase.
   all 104 other kernel tests (including `GroupLanguageNegotiationTest`) remain green.
 - Playwright `--list`: 3/3 test names resolve with no parse errors.
 - `docs/handoffs/139-multilang-rtl/handoff-T-red.md` (full detail).
+
+## Phase 6 — F (implement against T-red)
+
+**Verdict**: GREEN (Tier 1). Indicator suite 6/6; full kernel 106/106; lint clean.
+
+**Deliverables landed**
+- `do_group_language.module` (pointer stub, matching sibling wave modules)
+- `do_group_language/src/Hook/GroupLanguageIndicatorHooks.php`
+  (OO `#[Hook('entity_view')]` — Deviation #1, accepted by O)
+- `do_group_language/do_group_language.libraries.yml`
+- `do_group_language/css/group-language.css`
+- `views.view.all_groups.yml` (append Language column)
+- `scripts/step_760.php` (append Drupal العربية + Arabic topics)
+
+**Deviations accepted by O**
+- **Deviation #1 — OO `#[Hook]` vs procedural `.module`**: F followed the
+  established project convention (sibling modules `do_group_pin`,
+  `do_streams`, and `do_chrome/PermissionMatrixPanel` all use
+  `#[Hook('entity_view')]` in `src/Hook/*Hooks.php`, auto-discovered by
+  Drupal 11.1 HookCollectorPass). Render/cache/suppression contract is
+  identical to the brief. Accept — extending the analogous pattern is
+  correct.
+- **Deviation #2 — site-default-language suppression guard, unspecified
+  in brief**: F discovered `type: language` fields cannot be truly
+  empty (core `LanguageItem::applyDefaultValue()` back-fills the site
+  default `en` unconditionally on `Group::create()` without the field).
+  Without the guard, every pre-existing English group would suddenly
+  render an "English" pill — UX regression. F added: suppress when
+  resolved langcode equals `\Drupal::languageManager()->getDefaultLanguage()->getId()`.
+  Verified compatibility with acceptance: `ar` ≠ `en` (Arabic group
+  still emits RTL indicator); `fr`/`de` ≠ `en` (still emit). Accept.
+
+**Flagged for T (routed by O)**
+- `testNoIndicatorWhenFieldEmpty` docblock now describes a different
+  semantic than what it pins. `createGroup()` with no `field_group_language`
+  key back-fills to `en`, so the test passes via the new site-default
+  guard rather than the "field empty" branch. T should rename/refactor
+  the test at T-green to reflect the actual invariant (e.g. split into
+  "no indicator when langcode equals site default" + a new test that
+  hits the empty-value branch explicitly, or rename the existing test).
+
+**Deferred to T-green**
+- Full RUNBOOK site install + reseed + Playwright live run. F confirmed
+  syntactic validity of step_760.php (`php -l` clean) and validated the
+  create/addMember/set/save/addNode/addRelationship sequence via a
+  throwaway Kernel smoke test (29 assertions, 0 failures, then deleted).
+
+**Notes for T**
+- Playwright helper `resolveGroupPath()` should work as written — the
+  view's label field with `link_to_entity: true` renders `<a>` inside
+  the row exactly matching the helper's `getByRole('link', {name, exact:true})`.
+- Directory column: Views language formatter emits `getName()`, so
+  assertions on `Arabic`/`French` will hold.
+- `getMember()` returns `GroupMembership|FALSE`, not `NULL`.
+
+---

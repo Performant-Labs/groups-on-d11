@@ -2,9 +2,12 @@
 
 /**
  * @file
- * Group-level language negotiation and directory-filter Views wiring.
+ * Group-level language negotiation, directory-filter Views wiring, and the
+ * group-language indicator.
  *
- * All hook implementations are in DoGroupLanguageHooks via the #[Hook] attribute.
+ * All hook implementations are in DoGroupLanguageHooks and
+ * GroupLanguageIndicatorHooks via the #[Hook] attribute.
  *
  * @see \Drupal\do_group_language\Hook\DoGroupLanguageHooks
+ * @see \Drupal\do_group_language\Hook\GroupLanguageIndicatorHooks
  */

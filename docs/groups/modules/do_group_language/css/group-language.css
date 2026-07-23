@@ -1,0 +1,32 @@
+/**
+ * @file
+ * Presentation for the do_group_language group-language indicator.
+ *
+ * Issue #139 (MC-4). Kept intentionally minimal — RTL correctness comes
+ * from `dir` propagation on the element itself (see
+ * GroupLanguageIndicatorHooks::entityView()), not from anything here. This
+ * stylesheet only needs to not break under `dir="rtl"`.
+ */
+
+.do-group-language {
+  display: inline-block;
+  padding: 0.1em 0.6em;
+  margin-inline-end: 0.5em;
+  border-radius: 1em;
+  background-color: #eef1f4;
+  color: #2c3338;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+/*
+ * The base rule above already uses the logical `margin-inline-end`
+ * property, which flips automatically under dir="rtl" — no override is
+ * needed for spacing. This rule exists for any FUTURE non-logical
+ * (physical left/right) property added to the base indicator style, so a
+ * later contributor has an obvious, already-scoped place to add the flip
+ * rather than hardcoding a new physical property with no RTL counterpart.
+ */
+[dir='rtl'] .do-group-language {
+  /* Intentionally empty: margin-inline-end above already flips correctly. */
+}
