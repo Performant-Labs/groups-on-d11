@@ -252,3 +252,21 @@ page).
 **Evidence:** `docs/planning/handoffs/140-links/handoff-U.md`, screenshots in `docs/planning/handoffs/140-links/screens/` (`links-section.png`, `keyboard-focus-conference-schedule.png`, `focus-state.png`, `no-links-group.png`, `edit-form-links-widget.png`).
 
 **Handoff:** Proceed to S.
+
+## Phase 9 — S (final spec audit) — 2026-07-23
+
+**Verdict:** PASS.
+
+**Decided**
+- All 10 acceptance criteria (task-prompt list) satisfied with cited evidence: field storage + instance exist; form widget shows; anonymous visitor sees rendered links on seeded group; external links carry `rel="noopener"` + `target="_blank"`; empty state renders nothing (by construction — `label: above` = section H2, Drupal core suppresses wrapper on zero deltas); WCAG 2.2 AA satisfied for the story's scope (discernible link names via `title: 2` + descriptive seeded titles + no "click here"; keyboard reachable with visible focus outline); existing suite green (kernel 0 failures, E2E 1 unrelated pre-existing failure in #143's own story); Playwright asserts seeded link renders; files-owned match "Owns" list (minor architecturally-equivalent deviation: CSS shipped in module rather than subtheme — O-approved via A-dup finding #2/#3); #141 About coordination clean (reserved-weight-10 comment, alphabetized `dependencies.config`, minimal `hidden:` block).
+- **U's WCAG advisory resolved as non-issue:** `<div class="field__label">` (vs `<h2>`) is not a WCAG 2.2 AA violation. Spec #140 requires WCAG AA for *links* specifically (satisfied); SC 2.4.6 ("Headings and Labels", AA) requires descriptive labels not literal heading tags (satisfied); SC 2.4.10 ("Section Headings") is Level AAA not AA (does not apply to the AA bar); site-wide convention matches (byte-identical to sibling `Visibility` field label); A's Phase-3 plan used "H2" as conceptual/visual descriptor, not literal tag requirement. Not ADVISORY-HOLD.
+- **Test-quality audit PASSED against playbook §7 rubric:** 7 kernel + 2 E2E tests, proportionate to a single-field feature story; each pins a distinct acceptance criterion; T's own rescoping of the E2E `rel="noopener"` locator (from page-wide sweep to `.field--name-field-group-links a[href^="http"]`) and mutation-sensitivity spot-check (`rel: noopener` → `rel: mutated-none`, FAIL → revert → GREEN) are above the pipeline bar and worth calling out. No "delete or merge" findings.
+
+**Advisory (non-blocking, informational for future stories)**
+- A site-wide field-label heading convention (e.g. `#label_tag => 'h2'` or preprocess-field override) would help WCAG SC 2.4.10 (AAA); worth a future accessibility polish epic. Not #140-local, not required for AA.
+
+**Evidence**
+- `docs/planning/handoffs/140-links/handoff-S.md`
+- All prior handoffs referenced in the S handoff's "Precondition checks" table.
+
+**Handoff:** Ready for O to commit + open PR + merge on green CI.
