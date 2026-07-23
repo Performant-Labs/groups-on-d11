@@ -103,3 +103,32 @@ Append-only. One entry per phase. O writes the closing Chain Summary.
   (existing CSS/library isolation + attach-on-render convention for `group_page`).
 
 ---
+
+## A — Phase 3 (up-front)
+
+**Decided:**
+- Verdict: PASS. Plan extends `groups_chrome_preprocess_group()` correctly; no parallel-path risk.
+- Q1 (see-all target): USE existing `/group/{gid}/nodes?type=forum|documentation` — `group_nodes` view has an exposed bundle filter on the page display (path `group/%group/nodes`, filter identifier `type`, `plugin_id: bundle`, `operator: in`, `exposed: true`). NO unfiltered stream fallback needed. Events uses `/group/{gid}/events` unchanged.
+- Q2 (contrast): AA satisfied with `.do-chrome-info` as-is. `#0067b8` on `#ffffff` (`--gc-color-bg`) ≈ 5.36:1 (> 4.5 AA normal-text threshold). F does NOT need a color override — margin/padding-only BEM class on `.gc-group-lead__help` is fine.
+- Node-query mechanism: mirror the neighboring last-activity block's `$group->getRelationships('group_node:{bundle}')` iteration (theme.php:456–470), NOT a new entityQuery, NOT a rendered View. Keeps abstraction consistent with the file.
+- Cache metadata contract: F MUST attach `$group->getCacheTags()`, `node_list:{bundle}` for the resolved section, each rendered node's tags, and contexts `user.node_grants:view` + `user.group_permissions`. Max-age inherits (`-1`).
+- Theme suggestion name shape confirmed: underscores in the suggestion string (`events_first`); Drupal converts to hyphens for filenames (`events-first.html.twig`).
+- Node access: filter items via `$node->access('view', $current_user)` inside the loop (defensive — the top-3 curation warrants an explicit check).
+- Sort: events → prefer upcoming `field_event_date` ASC; fallback to `created` DESC if the field is absent. Discussion/docs → `created` DESC.
+
+**Assumed (needs verification in T/F):**
+- Exact query-string form for the exposed bundle filter (`?type=forum` vs. `?type[]=forum`) — F should verify against the exposed form's actual URL emission once. Either is acceptable if it filters correctly.
+- `field_event_date` (or an analog) exists on `node.type.event`. F confirms at implementation time; if absent, `created` DESC is the accepted degraded semantic.
+
+**Hedged:**
+- None — both of D's open questions resolved definitively.
+
+**Evidence:**
+- `docs/groups/config/views.view.group_nodes.yml` lines 756–786 (exposed bundle filter), line 941 (page path).
+- `docs/groups/modules/do_chrome/css/do_chrome.css` lines 71–88 (`.do-chrome-info` color/focus).
+- `web/themes/custom/groups_chrome/css/tokens.css` line 29 (`--gc-color-bg: #ffffff`).
+- `web/themes/custom/groups_chrome/groups_chrome.theme` lines 204–356 (preprocess to extend), lines 455–481 (relationship-iteration pattern to mirror).
+- `docs/groups/modules/do_chrome/src/Hook/GroupTypeContentHelp.php` lines 136–150 (verbatim `infoTrigger()` pattern).
+- Recently-merged waves inspected: no `do_streams`/`do_showcase`/`do_group_membership` primitive for a "group lead section" exists — no duplication risk.
+
+---
