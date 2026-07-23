@@ -300,3 +300,86 @@ zero collateral breakage; 3 of 4 E2E tests pass against a genuinely seeded site.
   a twig/twig 3.28 sandbox-policy signature notice) — all pre-existing across the whole test suite,
   not introduced by this story, and `SYMFONY_DEPRECATIONS_HELPER=disabled` in CI already prevents
   them from failing the build. Not actionable for this story.
+
+## Phase 6-followup: post F-fix re-verify (2026-07-23)
+
+**Context:** F landed commit `b02c3f6` — added a `label` field to `ShowcaseCatalog::personas()`
+as single source of truth; `PersonaSwitcher::optionLabel()` and `DoShowcaseHooks::personaBanner()`
+both now read `$persona['label']`. This targets the one blocking issue from the prior GREEN pass:
+the Groups-Moderate banner rendered "You're browsing as Moderator — switch back" instead of the
+wireframe/AC-locked "You're browsing as Groups-Moderate — switch back".
+
+### Assemble
+
+```
+ddev exec "bash scripts/ci/assemble-config.sh"
+```
+Result: `==> assemble-config: done` — 95 config files copied, 13 custom modules copied,
+core.extension patched. Clean.
+
+### Kernel + Unit (do_showcase-scoped)
+
+```
+ddev exec "SIMPLETEST_DB='mysql://root:root@db:3306/db' php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox web/modules/custom/do_showcase/tests/src/Kernel web/modules/custom/do_showcase/tests/src/Unit"
+```
+Result: **50/50 pass** (19 Kernel + 31 Unit) — `OK, but there were issues!` — `Tests: 50,
+Assertions: 264, Deprecations: 2, PHPUnit Deprecations: 59`. Zero failures/errors; the 2
+deprecation notices (`KernelTestBase::installSchema()`, `#[RunTestsInSeparateProcesses]`) are
+pre-existing framework-level notices, unrelated to this fix, unchanged from prior GREEN run and
+from F's own report. Unchanged from the last verified count (19/19, 31/31).
+
+### Functional (do_showcase-scoped)
+
+```
+ddev exec "SIMPLETEST_DB='mysql://root:root@db:3306/db' SIMPLETEST_BASE_URL='http://gm120-groups-on-d11.ddev.site' php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox web/modules/custom/do_showcase/tests/src/Functional"
+```
+Result: **17/17 pass** — `OK, but there were issues!` — `Tests: 17, Assertions: 63,
+Deprecations: 5, PHPUnit Deprecations: 23`. Zero failures/errors; deprecations are pre-existing
+(`EntityBase::getOriginal()` etc.), same as prior run. Unchanged from the last verified count
+(17/17), including `PersonaBannerTest::testElenaSessionShowsBannerWithExactCopyAndSwitchBackLink`,
+which exercises the exact `personaBanner()` path this fix changed.
+
+### E2E — `tests/e2e/persona-switcher.spec.ts`
+
+Initial run without `BASE_URL` failed all 4 tests with `net::ERR_CONNECTION_REFUSED` —
+`playwright.config.ts` defaults `baseURL` to `https://groups-on-d11-build.ddev.site:8493`, a
+different DDEV project than this story's seeded `gm120-groups-on-d11`. Re-ran with the correct
+override (same mechanics as the prior T-green pass, `handoff-T-green.md` line 172):
+
+```
+BASE_URL='http://gm120-groups-on-d11.ddev.site' npx playwright test tests/e2e/persona-switcher.spec.ts --reporter=list
+```
+
+Result — **4/4 GREEN** (chromium / win32, MINGW64/Msys under Windows 11):
+
+| # | Test | Browser/OS | Result | Duration |
+|---|------|-----------|--------|----------|
+| 1 | `#120 SC-1 — full switch -> verify -> switch-back › Groups-Moderate: switch, verify pending-queue access, switch back` | chromium / win32 | **PASS** | 2.8s |
+| 2 | `#120 SC-1 — full switch -> verify -> switch-back › Maria Chen (Organizer): switch, verify banner, switch back` | chromium / win32 | PASS | 1.9s |
+| 3 | `#120 SC-1 — keyboard-only operation › Tab to select, choose Maria via keyboard, banner appears; Tab to switch-back, Enter, banner gone` | chromium / win32 | PASS | 1.3s |
+| 4 | `#120 SC-1 — visible focus (WCAG 2.2 AA 2.4.7/2.4.11) › the <select>, the "Go" button, and the switch-back link all show a non-zero focus outline` | chromium / win32 | PASS | 1.1s |
+
+Test 1 is the one that previously failed on the exact-copy assertion
+(`toContainText("You're browsing as Groups-Moderate — switch back")`); it now passes, confirming
+F's fix resolves the production defect this spec pins. No test file was edited to reach this
+result — same spec, same assertions, verbatim.
+
+### Cross-check against F's reported results
+
+F's handoff reports 50/50 (19 Kernel + 31 Unit), 17/17 Functional, 123/123 full custom-module
+Kernel regression, E2E `--list` 4/4 parse (not executed). My PHPUnit counts match F's exactly. My
+E2E **execution** (F only ran `--list`) is the new evidence: 4/4 pass, confirming the fix in
+practice, not just structurally.
+
+### Behavior-not-implementation spot-check
+
+The Groups-Moderate E2E assertion (`toContainText("You're browsing as Groups-Moderate — switch
+back")`) is an exact-copy string match against real rendered DOM from a real HTTP response against
+a real seeded persona session — it is inherently a behavior pin, not an implementation detail; it
+would fail again if `label` reverted to reading `name`. No test changes were needed or made in
+this pass.
+
+### Verdict
+
+**Story-level tests all GREEN; ready for diff-gate + U + S.** No blocking issues remain from the
+T side. The change touches a UI surface (persona-switcher banner/dropdown) — route to **U** next.

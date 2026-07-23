@@ -330,3 +330,17 @@ switcher.spec.ts:52,65,89,99` (the exact pinned banner/option strings this fix t
 not edited); full re-verification below (Tier 1 self-check) — 50/50 (19 Kernel + 31 Unit), 17/17
 Functional, 123/123 full custom-module Kernel regression, all unchanged from the pre-fix baseline;
 E2E `--list` still parses 4/4 tests cleanly.
+
+## T — Phase 6-followup
+
+**Decided:** Re-ran full story-scoped PHPUnit (50/50 Kernel+Unit, 17/17 Functional — both
+unchanged, deprecations-only) plus the actual E2E execution (`--reporter=list`, not just
+`--list`) against F's `b02c3f6` label-unification fix; required `BASE_URL='http://gm120-groups-on-d11.ddev.site'`
+override since `playwright.config.ts`'s default baseURL points at a different DDEV project.
+
+**Found:** 4/4 E2E GREEN, including the previously-failing Groups-Moderate exact-copy assertion —
+confirms the production defect is resolved and no collateral regression in the other 3 tests.
+
+**Evidence:** `handoff-T-green.md` § "Phase 6-followup: post F-fix re-verify (2026-07-23)" —
+assemble output, full PHPUnit testdox output, and the 4-row E2E pass table with per-test
+browser/OS/duration.
