@@ -1,0 +1,248 @@
+# Decision Journal — #144 MC-6 Create-Group flow (creator auto-Organizer + guided preview)
+
+Run slug: `144-auto-organizer`
+Branch: `144-auto-organizer` (off `origin/main`)
+Worktree: `~/Projects/_worktrees/groups-auto-organizer`
+Epic: #137. Review rigor: **second-opinion** (per issue "Depends on" section).
+
+Format per entry: **Decided / Assumed / Hedged / Evidence**.
+
+---
+
+## O — Phase 0/1 (survey + brief)
+
+- **Decided:** Overnight autonomous mode authorized 2026-07-22 by aangelinsf — O may open PR after
+  S PASS, drive CI green, and self-merge on green (superseding the standing "aangelinsf merges"
+  rule for this run only).
+- **Decided:** Lean POC pipeline — skip brief-gate o4-mini, A-dup, pre-PR hold, human D-gate. Diff-gate
+  (dual-review.sh) after T(GREEN) remains mandatory (matches issue's "second-opinion" review rigor).
+- **Decided (Reuse map):** EXTEND `do_group_membership` — no new module. Reuse
+  `GroupMembershipManager::ORGANIZER_ROLE_ID` const and the step_790 grant-existing-membership
+  pattern (load membership -> set group_roles -> set field_membership_status if empty -> save).
+  Do NOT fork #36's creator-membership mechanism (Group 4.x's form-only creator_membership +
+  creator_roles); EXTEND it by appending a submit handler / insert hook that overrides the role
+  after Group's own form save completes.
+- **Assumed:** The existing `creator_roles: [community_group-admin]` group-type setting is what
+  currently grants the Admin role to the creator's form-created membership (per
+  `docs/groups/config/group.type.community_group.yml` line 11-12, and `step_120a.php` line 17).
+  The Organizer role must be granted in ADDITION to (or in place of) Admin. Judgment: grant
+  Organizer alongside Admin (both roles on the one membership) rather than remove Admin — Admin
+  carries `admin: true` (bypasses all group permission checks per group.role.community_group-admin.yml
+  line 10) so removing it would be a functional regression outside this story's scope; adding
+  Organizer is purely additive and satisfies the acceptance criterion ("creator is immediately
+  Organizer — can edit, manage members") without touching Admin's semantics. **Escalation trigger
+  check: this is NOT a scope change or breaking change to shared scope — it's additive to the
+  creator's own membership only — so no operator escalation needed; proceeding on this judgment.**
+- **Evidence:** `docs/groups/RUNBOOK.md` lines 287-292 — creator auto-membership is FORM-ONLY in
+  Group 4.x (CR 2026-04-24); `Group::create()->save()` adds no membership even with
+  `creator_membership: true`. Confirmed by kernel test
+  `docs/groups/modules/do_tests/tests/src/Kernel/CreatorMembershipApiTest.php` (API path
+  memberless) and functional test
+  `docs/groups/modules/do_tests/tests/src/Functional/CreatorMembershipFormTest.php` (form path
+  adds membership, submit button reads "Create Community Group and become a member").
+- **Evidence (hookpoint pattern):** `docs/groups/modules/do_multigroup/src/Hook/DoMultigroupHooks.php`
+  lines 168-187 — `#[Hook('form_alter', order: new OrderAfter(modules: ['group']))]` ensures a
+  custom submit handler is appended/reordered to run AFTER Group's own `CreateFormEnhancer` submit
+  handler on the group-content create form. This is the closest analogous pattern for "run our
+  logic after Group's own form-save logic has created the creator membership" — will mirror this
+  for the `community_group` add form (`group_add_form` form_id, or generic `form_alter` filtered by
+  form_id, ordered after module `group`).
+- **Evidence (route+controller pattern to model the preview page on):**
+  `docs/groups/modules/do_group_membership/do_group_membership.routing.yml` (manage_members,
+  add_member, etc. — `_form` + `_custom_access` + `entity:group` upcasting) and
+  `ManageMembersController` (`ContainerInjectionInterface`, DI via `create()`). The preview page is
+  content-only (no form submission needed beyond links/CTAs), so a `_controller` route is more
+  appropriate than a `_form` route here — will follow the DI/access-callback shape but return a
+  render array, not a form.
+- **Evidence (hook service registration):** `do_chrome.services.yml` shows two valid patterns —
+  FQCN-keyed (`autowire: false` + explicit args, as `GroupAccessHook` already does in
+  `do_group_membership.services.yml`) or custom-id-keyed with `tags: [{name: hook_implementations}]`.
+  Will follow the existing `GroupAccessHook` FQCN-keyed convention for consistency within
+  `do_group_membership`.
+- **Hedged:** Vendor `drupal/group` source (exact `creator_roles` internals — whether it SETS vs
+  ADDS group_roles) was not independently confirmed by O directly (vendor/drupal/group is not
+  present in either checkout's `vendor/` — installed only inside DDEV). Relying on: (a) the
+  RUNBOOK/kernel/functional test evidence above, which pins the FORM-ONLY behavioral contract
+  precisely enough to design against, and (b) a research subagent's findings (folded in below once
+  received, or in T/F's own verification if the subagent's findings are inconclusive). This is a
+  flagged assumption — T(RED) must write a kernel/functional test that asserts the ACTUAL resulting
+  `group_roles` value on the creator's membership after form submit, which will empirically settle
+  the SET-vs-ADD question regardless of vendor internals.
+
+<!-- Further entries appended by each phase below this line. -->
+
+## O — Phase 1 addendum (research-informed design revision)
+
+- **Decided:** Revised hook design from a single `form_alter`-only approach to a SPLIT: (1)
+  `#[Hook('group_relationship_insert')]` for the Organizer role grant (modeled on the already-shipped
+  `do_notifications/src/Hook/DoNotificationsHooks.php:165-198` precedent — zero ordering complexity,
+  fires cleanly after Group's own form-save), and (2) a minimal `#[Hook('form_alter')]` for the
+  redirect-to-preview concern only. Both live in ONE new hook class (single "create-group flow"
+  concern), not two.
+- **Evidence:** Research subagent (background) confirmed via `web/modules/contrib/group/` source
+  (Drupal composer convention — not `vendor/`, which lacks `drupal/group` in both checkouts):
+  `GroupType::getCreatorRoleIds()` (GroupType.php:192-194) read once in `GroupForm.php:54-59`,
+  applied as an initial field value by `CreateFormEnhancer.php:205-244`, saved by
+  `GroupForm::submitForm()` (GroupForm.php:293-301) — plain `$storage->save()`, no hooks involved in
+  applying `creator_roles` itself. Confirms the post-save insert-hook approach is safe and simpler
+  than the originally-planned form_alter-does-everything design.
+- Survey and brief updated in place to reflect this (see survey.md §5, brief.md Reuse map).
+
+## D — Phase 2 (design)
+
+- **Decided:** Mode (a), generate a low-fi wireframe as ASCII embedded directly in `wireframe.md`
+  (no separate HTML file) — the guided-preview page is a single static screen with no icons/
+  glyphs and no data list, so ASCII conveys DOM order and hierarchy (h1 -> p -> h2 -> ul>li>a)
+  at least as clearly as SVG/HTML would, per D's own instructions allowing ASCII for simple
+  layouts.
+- **Decided:** Only ONE data state applies (the "normal" render) — no empty/one/many states,
+  because this page has no collection UI; the access-denied (403) path for a non-owner/
+  non-organizer visitor is explicitly out of scope for the wireframe per the brief, and is noted
+  in wireframe.md so it reads as an intentional exclusion, not an oversight.
+- **Decided:** CTA link text repeats the group name in every link ("Edit "{Group Name}" details",
+  "Manage members of "{Group Name}"", "View "{Group Name}"") to satisfy AC-5's descriptive-link-
+  text requirement even out of surrounding-prose context (e.g. screen-reader "list all links").
+- **Decided:** h1 = confirmation heading, placed as the first content element after the theme's
+  header/nav/breadcrumb landmarks (no JS focus-forcing needed); h2 = "What's next?" section
+  label over the three-item CTA list. No heading level skipped.
+- **Assumed:** CTAs render via Drupal's `#type => 'link'` render elements (matching this module's
+  existing conventions), not raw `<a>` markup and not buttons — these are navigations, not form
+  submits, so `#type => submit`'s known `<input>`-not-`<button>` gotcha does not apply here.
+- **Hedged:** Did not independently re-verify the three target route names
+  (`entity.group.edit_form`, `do_group_membership.manage_members`, `entity.group.canonical`)
+  against `do_group_membership.routing.yml` — relied on survey §6's route list. Flagged as an
+  open question for F/A in the handoff; does not block wireframe approval since it's an
+  implementation detail, not a layout/copy/hierarchy question.
+- **Evidence:** Reused `ManageMembersController`'s DI (`ContainerInjectionInterface::create()`)
+  and access-callback shape (read directly from
+  `docs/groups/modules/do_group_membership/src/Controller/ManageMembersController.php`) as the
+  precedent this page's controller should match structurally — not redesigned, just confirmed
+  consistent with the wireframe's assumed render-array shape.
+
+## O — Phase 2 gate (Design approval)
+
+- **Decided:** Auto-approved D's wireframe (single guided-preview screen at `/group/{group}/created`)
+  per lean-POC-pipeline authorization (human D-gate skipped this run). Wireframe judged sound: correct
+  h1->h2 heading hierarchy with h1 as first content element (satisfies AC-5 focus-order without JS),
+  three self-descriptive CTA links (no "click here"), no new color tokens (reuses subtheme), reuses
+  existing Manage Members render-array/CSS-library conventions, no new components invented.
+  Approval recorded directly in `wireframe.md`'s Approval section at 2026-07-23T07:43:07Z.
+- Proceeding to Phase 3 (Architecture review, A).
+
+## A — Phase 3 (up-front plan review)
+
+- **Verdict:** PASS (handoff-A.md). No brief amendment required; three warns for F/T.
+- **Decided (Q1):** `GroupMembershipManager::ensureRole()` CONFIRMED as the right seam —
+  additive/idempotent, NOT a reuse of `changeRole()` (which REPLACES `group_roles` and would erase
+  the Admin role `creator_roles` grants; also runs the irrelevant last-Organizer guard). ensureRole
+  must APPEND (read existing values), unlike step_790's `set('group_roles',[ORGANIZER])` replace.
+  `hasRole()` may stay `protected` (called intra-class).
+- **Decided (Q2):** ONE hook class `CreateGroupOrganizerHook` with two `#[Hook]` methods CONFIRMED
+  (single create-group-flow concern; matches DoNotificationsHooks multi-method norm). Do NOT fold
+  into `GroupAccessHook` (different hook, different single responsibility). Two classes = over-abstraction.
+- **Best-effort (Q3):** Could not verify vendor `drupal/group` internals (absent from worktree
+  vendor/). Judged from DoMultigroupHooks idioms. F must confirm actual `$form_id` and redirect
+  ordering empirically. Flagged that `creator_wizard: true` makes the add form a MULTI-STEP wizard —
+  form_id/save-step likely differ from a plain add form; T's E2E must walk all wizard steps.
+- **Warns:** (1) creator_wizard multi-step interaction — add to brief's form_alter line; (2) owner
+  -equality insert filter is sound but T must add a non-owner-membership negative kernel test; (3)
+  optional messenger()->addStatus() on redirect for Drupal post-save convention (O's call).
+- **Duplication check:** no fork of #36/#121/#138; new hook targets a distinct hook name and only ADDS.
+- Proceeding to T(RED).
+
+## O — Phase 3 gate (Architecture review verdict: PASS)
+
+- **Decided:** A returned PASS with 3 warns (handoff-A.md). Confirmed: (1) `ensureRole()` is the
+  correct additive seam, NOT `changeRole()` (which replaces group_roles wholesale); (2) ONE hook
+  class (`CreateGroupOrganizerHook`) with two `#[Hook]` methods, not folded into `GroupAccessHook`;
+  (3) form_id/OrderAfter is F's empirical call, no vendor access available to confirm in advance.
+- **Decided:** Folded A's finding #1 (`creator_wizard: true` on `group.type.community_group.yml:10`
+  means the add form is a REAL MULTI-STEP WIZARD, and the existing `CreatorMembershipFormTest`
+  fixture does NOT set `creator_wizard` so it doesn't exercise the wizard at all) directly into
+  brief.md as a new prominent section + AC-1/AC-3/AC-7 wording updates + a new AC-8 (kernel test
+  guarding the insert-hook's owner-equality filter against a same-request non-owner membership,
+  per A's finding #2). No BLOCK, no re-loop needed — this is a brief amendment, not a design
+  rejection.
+- Proceeding to Phase 4: T(RED) — tester authors the failing suite against the amended brief.
+
+## T — Phase 4 (RED)
+
+- **Decided:** Authored 5 new test files (strictly additive — no existing test file modified):
+  Unit `EnsureRoleTest.php`, Kernel `CreateGroupOrganizerHookTest.php`, Functional
+  `GroupCreatedPreviewControllerTest.php` + `CreateGroupWizardOrganizerTest.php`, and Playwright
+  `tests/e2e/create-group.spec.ts`. Full detail in `handoff-T-red.md`.
+- **Decided:** `ensureRole()` is covered at BOTH Unit (mocked, matching
+  `GroupMembershipManagerTest`'s existing convention) and Kernel (real field storage) tiers —
+  mirrors this module's existing `changeRole()`/`hasRole()` dual-tier coverage pattern rather than
+  picking one.
+- **Decided:** The Kernel test for `CreateGroupOrganizerHook::groupRelationshipInsert()` does NOT
+  attempt to drive the real multi-step wizard (no form-submission API at Kernel tier) — it invokes
+  `group_relationship` storage `create()`+`save()` directly with the exact field shape
+  `CreateFormEnhancer` produces, proving the hook's OWN logic in isolation. The REAL wizard path is
+  the Functional test's job, per T's task instructions' explicit division of labor.
+- **Decided:** AC-8's non-owner guard test creates the creator's AND a second user's membership in
+  the SAME test method (same simulated request), asserting the hook fires correctly on one and not
+  the other — directly pins handoff-A.md finding #2.
+- **Assumed → later corrected via empirical evidence:** Initially assumed (per handoff-A.md's own
+  hedge) that `/group/add/community_group` would present multiple distinct wizard-step URLs. Stood
+  up a temporary DDEV instance for this worktree (main checkout's `pl-groups-on-d11` project
+  stopped/unlisted for the duration, restarted after) with `vendor/`, `web/core`, and
+  `web/modules/contrib` manually copied from the main checkout (all correctly gitignored — not a
+  repo change) to get an empirical answer rather than guessing. Found: for the config reachable in
+  this ad-hoc environment, `/group/add/community_group` renders as ONE form (not multiple
+  step-URLs) with a required `field_group_description` field that was not anticipated in the
+  test's first draft — fixed by filling it. Flagged in `handoff-T-red.md`'s "Ambiguity for O" #1
+  that this single-step finding should be re-verified by F against the REAL seeded site (this
+  phase's environment was hand-assembled, not a real `drush site:install`+`cim` run), since it
+  contradicts A's own hedge and either could be right.
+- **Decided:** `CreateGroupWizardOrganizerTest`'s config-import helper
+  (`importRealCommunityGroupConfig()`) has a known, documented gap — writing `field.storage.*`
+  config directly via `config.storage` (to mirror `drush cim`) does not trigger the entity-schema
+  table creation a real `FieldStorageConfig::create()->save()` performs, so the test currently
+  fails one step later than ideal (`SQLSTATE...Base table not found` for
+  `field_group_description`) rather than on the Organizer-role assertion itself. This is still a
+  valid RED (fails because of an incomplete fixture, not because the feature exists) but not the
+  cleanest one. Documented as an explicit follow-up in `handoff-T-red.md` rather than continuing to
+  patch the throwaway environment indefinitely — recommends switching the field-storage import
+  step to the real entity API (`getStorage('field_storage_config')->create($data)->save()`) as the
+  surgical fix, OR running against a fully `drush site:install`+`cim`'d site instead.
+- **Decided:** E2E spec not run in this phase (no fully seeded, served site was stood up — only a
+  bare DDEV+manually-assembled-config environment for PHPUnit). Flagged rather than guessed at, per
+  task instructions.
+- **Verified:** Regression — the full existing `do_group_membership` Kernel+Unit suite (43 tests
+  total, 37 pre-existing) all still pass; `CreatorMembershipFormTest` + `CreatorMembershipApiTest`
+  (#36 regression, explicitly must-not-touch) both still pass unmodified.
+- **Evidence:** Full RED command outputs and per-file confirmation in `handoff-T-red.md`.
+- Proceeding: T tells O `T-red complete, RED is valid for 4/5 files; CreateGroupWizardOrganizerTest
+  needs one more fixture fix (documented) before its RED reaches the cleanest possible failure
+  point, though it IS currently a valid (if not maximally precise) RED. F may begin implementing
+  ensureRole()/CreateGroupOrganizerHook/GroupCreatedPreviewController now.`
+
+## T — Phase 4 (RED authored)
+
+- **Decided:** 5 new test files authored, all strictly additive. 4/5 files confirmed RED for the
+  right reason (missing method / hook not firing / route 404). The 5th (`CreateGroupWizardOrganizerTest`)
+  is a valid RED but fails at a DB-schema step rather than the ideal Organizer-role assertion — T's
+  ad-hoc config-import helper writes `field.storage.*` config directly rather than via the entity
+  API, so the DB tables aren't created. Documented for F/T-green to fix opportunistically.
+- **Hedged (empirical finding to re-verify):** T's environment resolved `/group/add/community_group`
+  as effectively SINGLE-step, not multi-step as A's hedge anticipated. T's environment was
+  hand-assembled (vendor/core/contrib copied from main checkout, no `drush site:install`/`cim`) so
+  this may not match the real seeded-site behavior. F must re-verify on the real DDEV+seeded site
+  before locking in the single-step assumption. If the real site is genuinely single-step, that
+  simplifies F's form_alter implementation; if multi-step, F falls back to the wizard-step
+  handling A anticipated.
+- **Environment note:** T stood up a temporary DDEV instance under the same project name to run
+  phpunit; main checkout's `pl-groups-on-d11` DDEV was stopped for the duration and restarted
+  afterward. T-side environment fully cleaned up. `config/sync/*.yml` modifications produced by
+  T's `bash scripts/ci/assemble-config.sh` run were REVERTED by O post-phase (source-only commits
+  rule — assembled artifacts never committed).
+- **Decided:** Proceeding to Phase 5 (F, feature-implementor) — RED is valid enough for F to
+  implement against; F handles the empirical form_alter/wizard verification and the fixture-fix
+  opportunistically per T-red's flagged notes.
+
+## O — Phase 4 commit
+
+- Staging: 5 test files + all handoff files (survey, brief, wireframe, handoff-D, handoff-A,
+  handoff-T-red, decisions.md itself). NO `config/sync/*.yml` (reverted), NO `web/modules/custom/`,
+  NO `web/sites/simpletest/`. Explicit-path staging, no `git add .`.
