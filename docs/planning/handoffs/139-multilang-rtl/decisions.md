@@ -480,3 +480,39 @@ type/visibility badges.
   in `group-language.css` — DOM tests don't cover visual correctness.
 
 ---
+
+## Phase 7 — A-dup (anti-duplication gate): PASS
+
+**Verdict**: PASS. Two advisories, zero blockers.
+
+**Explicit confirmation**: `resolveDisplayLanguage()` cleanly resolves
+the intra-story duplication risk. Both call sites delegate the full
+four-branch decision and identically treat NULL as suppress. Neither
+site re-checks sentinels or `isEmpty()`. Grep-verified.
+
+**Parallel-path check**: clean.
+- Hook shape mirrors do_chrome/PermissionMatrixPanel (`#[Hook('entity_view')]`).
+- Directory-card extension is additive within existing
+  `groups_chrome_preprocess_views_view_fields__all_groups()`.
+- Badge markup lives in existing custom row template (no new override).
+- Pointer-stub `.module` matches project idiom.
+- `step_640` `createFromLangcode()` aligns with core's own LanguageAddForm.
+- `step_760` Arabic seed mirrors fr/de + step_700 admin-membership patterns.
+
+**Advisories (captured as follow-up, NOT blockers)**
+1. Pre-existing `LanguageNegotiationGroup::getLangcode()` inlines its own
+   sentinel + `isEmpty()` checks. Latent third call site of duplicated
+   decision logic. F correctly did NOT touch (out of story scope,
+   parallel-agent-coexistence discipline). Follow-up story: promote
+   `resolveDisplayLanguage()` (or lean `resolveLangcode()` variant) so
+   negotiation delegates too.
+2. Views preprocess badge doesn't attach explicit
+   `languages:language_interface` cache context or entity language
+   cache tags. Consistent with sibling badges in same preprocess
+   (all rely on Views row cacheability). Optional hardening: push
+   tags/contexts through `$variables['#cache']`.
+
+**Actions (O)**
+- Advance to U (playwright-ui-walkthrough).
+
+---
