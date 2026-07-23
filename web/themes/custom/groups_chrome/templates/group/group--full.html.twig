@@ -1,12 +1,16 @@
 {#
 /**
  * @file
- * Groups Chrome — single-group page furniture.  (#85 / CH-A3)
+ * Groups Chrome — single-group page furniture.  (#85 / CH-A3, #122 / SC-3)
  *
  * Overrides the group module's `group.html.twig` for the `full` view mode only
  * (the canonical /group/{id} route), dressing it as a community page:
  *   - a header with the group name, group-type + visibility badges, member
  *     count, an avatar row, and a correctly-stated Join/Leave action;
+ *   - an OPTIONAL lead section (#122) that previews the group's top-3
+ *     events/discussions/documentation, gated on the group's
+ *     field_group_type — a sibling BETWEEN the header and the tab bar, never
+ *     nested inside either (wireframe.md §2);
  *   - a Stream / Events / Members / About tab bar wired to the group module's
  *     existing per-group view paths.
  *
@@ -21,9 +25,18 @@
  * Added by groups_chrome_preprocess_group():
  * - gc_group: { gid, type_label, visibility_label, visibility_variant,
  *   member_count, members[{name,initial}], members_extra, is_member,
- *   action{label,url,variant}, tabs[{key,title,url,active}] }.
+ *   action{label,url,variant}, tabs[{key,title,url,active}],
+ *   leading_section, lead_label, lead_items[{title,url,meta}],
+ *   lead_help_key, lead_help_copy, lead_see_all_url, lead_see_all_text }.
+ *
+ * The lead section renders ONLY when `gc_group.lead_items is not empty` — NOT
+ * merely when `leading_section` is set — per the empty-state contract
+ * (wireframe.md §2/§7): a leading_section with zero qualifying/accessible
+ * nodes degrades silently to the SAME (no new DOM) fallback as an unmapped
+ * group type.
  *
  * @see groups_chrome_preprocess_group()
+ * @see groups_chrome_theme_suggestions_group_alter()
  * @see web/modules/contrib/group/templates/group.html.twig
  */
 #}
@@ -81,23 +94,69 @@
           {% endif %}
         </ul>
       {% endif %}
-
-      {% if gc_group.tabs is not empty %}
-        <nav class="gc-group-tabs" aria-label="{{ 'Group sections'|t }}">
-          <ul class="gc-group-tabs__list">
-            {% for tab in gc_group.tabs %}
-              <li class="gc-group-tabs__item">
-                <a href="{{ tab.url }}"
-                   class="gc-group-tabs__link{{ tab.active ? ' is-active' : '' }}"
-                   {{ tab.active ? 'aria-current="page"' : '' }}>
-                  {{ tab.title }}
-                </a>
-              </li>
-            {% endfor %}
-          </ul>
-        </nav>
-      {% endif %}
     </header>
+
+    {#
+      Lead section (#122 / SC-3). A sibling of BOTH .gc-group-header and
+      .gc-group-tabs (never nested inside either — wireframe.md §2): the
+      header is identity/action chrome, the tab <nav> is a pure nav landmark,
+      and this section is a content PREVIEW. Gated on lead_items (not merely
+      leading_section) so the empty-state contract holds: an
+      Event-planning group with zero event nodes yet renders IDENTICALLY to
+      an unmapped group type — no empty box, no attached library, no tooltip
+      markup (wireframe.md §7's explicit fallback contract).
+    #}
+    {% if gc_group.lead_items is not empty %}
+      <section class="gc-group-lead" aria-labelledby="gc-group-lead-heading">
+        <h2 id="gc-group-lead-heading" class="gc-group-lead__heading">
+          {{ gc_group.lead_label }}
+          {% if gc_group.lead_help_copy %}
+            {#
+              Verbatim reuse of GroupTypeContentHelp::infoTrigger()'s markup
+              shape (do_chrome module) — span + do-chrome-info class +
+              tabindex="0" + role="note" + aria-label + data-do-tooltip. The
+              do_chrome/tooltips JS library is ALREADY attached globally by
+              DoChromeHooks::pageAttachments(), so no library attach is needed
+              here for the tooltip itself (wireframe.md §3).
+            #}
+            <span class="do-chrome-info gc-group-lead__help"
+                  tabindex="0"
+                  role="note"
+                  aria-label="{{ gc_group.lead_help_copy }}"
+                  data-do-tooltip="{{ gc_group.lead_help_copy }}">ⓘ</span>
+          {% endif %}
+        </h2>
+        <ul class="gc-group-lead__list">
+          {% for item in gc_group.lead_items %}
+            <li class="gc-group-lead__item">
+              <a href="{{ item.url }}" class="gc-group-lead__link">{{ item.title }}</a>
+              {% if item.meta %}<span class="gc-group-lead__meta">{{ item.meta }}</span>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+        {% if gc_group.lead_see_all_url %}
+          <a href="{{ gc_group.lead_see_all_url }}" class="gc-group-lead__see-all">
+            {{ gc_group.lead_see_all_text }} →
+          </a>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    {% if gc_group.tabs is not empty %}
+      <nav class="gc-group-tabs" aria-label="{{ 'Group sections'|t }}">
+        <ul class="gc-group-tabs__list">
+          {% for tab in gc_group.tabs %}
+            <li class="gc-group-tabs__item">
+              <a href="{{ tab.url }}"
+                 class="gc-group-tabs__link{{ tab.active ? ' is-active' : '' }}"
+                 {{ tab.active ? 'aria-current="page"' : '' }}>
+                {{ tab.title }}
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      </nav>
+    {% endif %}
 
   {% else %}
     {# Fallback: no gc_group (unexpected) — render the stock title markup. #}

@@ -235,6 +235,108 @@ else {
   }
 }
 
+// ===== Step 740d: Documentation pages =====
+// Added for #122 (SC-3, group-type-driven homepages): the docs-first
+// exemplar (Thunder Distribution, field_group_type = "Distribution") had ZERO
+// seeded documentation-type nodes anywhere, so the docs-first lead section had
+// no real content to render against — every prior E2E assertion for this
+// exemplar degraded vacuously to the empty-state/fallback path (see
+// docs/planning/handoffs/122-grouptype-home/handoff-T-red.md, "RED-validity
+// note" on the Thunder Distribution test). These 3 nodes give the docs-first
+// path real content to render, matching the same idiomatic seed shape as the
+// forum/event blocks above (idempotent title-existence guard).
+//
+// Group::addRelationship($node, "group_node:documentation") is NOT used here
+// (unlike the forum/event blocks above) because it is broken for THIS
+// specific plugin on THIS group type: GroupRelationshipTypeStorage::
+// getRelationshipTypeId() always re-derives the "preferred" bundle id as
+// "{group_type}-{plugin_id with : -> -}" (here, the 40-char
+// "community_group-group_node-documentation"), but Drupal bundle ids are
+// capped at EntityTypeInterface::BUNDLE_MAX_LENGTH (32), so the entity that
+// was ACTUALLY provisioned at group-type-creation time silently got a
+// different (truncated) id ("community_group-group_node-doc" here). The
+// re-derivation never consults the DB for that fallback id, so
+// addRelationship() throws (an AssertionError, not \Exception — verified via
+// GroupRelationshipStorage::getEntityClass()) for any group_node plugin
+// whose "preferred" id would exceed 32 chars. "forum" (32 chars exactly) and
+// "event" (32 chars exactly) both happen to fit; "documentation" (40 chars)
+// does not. Resolved here by looking up the ACTUAL relationship-type
+// entity by matching getPluginId() (idempotent, safe if re-run) rather than
+// recomputing the id, then creating the group_relationship entity directly
+// — the same two steps createForEntityInGroup() performs internally, minus
+// its broken id recomputation.
+$doc_relationship_type_id = NULL;
+$community_group_relationship_types = \Drupal::entityTypeManager()
+  ->getStorage("group_relationship_type")
+  ->loadByProperties(["group_type" => "community_group"]);
+foreach ($community_group_relationship_types as $rel_type) {
+  if ($rel_type->getPluginId() === "group_node:documentation") {
+    $doc_relationship_type_id = $rel_type->id();
+    break;
+  }
+}
+if (!$doc_relationship_type_id) {
+  echo "ERROR: no community_group relationship type wired for group_node:documentation — skipping Step 740d\n";
+}
+else {
+  echo "\n=== Step 740d: Documentation pages ===\n";
+  $group_relationship_storage = \Drupal::entityTypeManager()->getStorage("group_relationship");
+  $docs = [
+    ["Getting Started with Thunder", $sophie->id(), "A walkthrough for spinning up a fresh Thunder Distribution install and understanding its editorial workflow basics.", "Thunder Distribution"],
+    ["Upgrading from Thunder 7 to 8", $ravi->id(), "Step-by-step guidance for migrating an existing Thunder 7 site to the Thunder 8 codebase, including breaking-change notes.", "Thunder Distribution"],
+    ["Media Library Configuration Guide", $sophie->id(), "Reference documentation for configuring Thunder's media library — bundles, view displays, and the editorial embed workflow.", "Thunder Distribution"],
+  ];
+  foreach ($docs as [$title, $uid, $body, $group_label]) {
+    // Idempotency note: the node-existence check and the relationship
+    // creation are DELIBERATELY separate (unlike the simpler "exists ->
+    // continue" pattern in the forum/event blocks above), so a prior run
+    // that created the node but failed before the relationship save (e.g.
+    // the AssertionError this exact code fixes) self-heals on a re-run
+    // instead of leaving a permanently orphaned node.
+    $existing_nodes = $node_storage->loadByProperties(["title" => $title]);
+    $node = reset($existing_nodes);
+    if ($node) {
+      echo "Exists: $title\n";
+    }
+    else {
+      $node = $node_storage->create([
+        "type" => "documentation", "title" => $title, "uid" => $uid, "status" => 1,
+        "body" => ["value" => $body, "format" => "basic_html"],
+      ]);
+      $node->save();
+      echo "Doc nid=" . $node->id() . " in $group_label\n";
+    }
+
+    $groups = $group_storage->loadByProperties(["label" => $group_label]);
+    $group = reset($groups);
+    if (!$group) {
+      continue;
+    }
+    $already_related = FALSE;
+    foreach ($group->getRelationships("group_node:documentation") as $rel) {
+      if ($rel->getEntity() && (int) $rel->getEntity()->id() === (int) $node->id()) {
+        $already_related = TRUE;
+        break;
+      }
+    }
+    if ($already_related) {
+      continue;
+    }
+    try {
+      $relationship = $group_relationship_storage->create([
+        "type" => $doc_relationship_type_id,
+        "gid" => $group->id(),
+        "entity_id" => $node->id(),
+      ]);
+      $relationship->save();
+      echo "  Related nid=" . $node->id() . " to $group_label\n";
+    }
+    catch (\Exception $e) {
+      echo "  WARNING: relationship create failed for $title: " . $e->getMessage() . "\n";
+    }
+  }
+}
+
 // ===== Step 750: Flags =====
 echo "\n=== Step 750: Flags ===\n";
 $flag_service = \Drupal::service("flag");

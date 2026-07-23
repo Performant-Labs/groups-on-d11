@@ -159,6 +159,21 @@ final class HelpText {
       // #119 B-1: a prior revision added this key with no consuming markup;
       // removed as dead wiring rather than adding an unplanned ⓘ trigger the
       // approved wireframe doesn't call for).
+
+      // --- #122 (SC-3): group-type-driven homepages --------------------------
+      // Appended per the append-only HelpText contract — groups_chrome (a
+      // THEME, not a module) reads this key via
+      // groups_chrome_preprocess_group() and renders it on the new
+      // `.gc-group-lead` section's ⓘ trigger, reusing
+      // the exact GroupTypeContentHelp::infoTrigger() markup pattern verbatim
+      // (span + do-chrome-info class + tabindex="0" + role="note" + aria-label
+      // + data-do-tooltip).
+      //
+      // Copy names the three concrete lead-section variants (events /
+      // discussion / documentation) so a first-time reader immediately
+      // understands what "adapts" means, per the wireframe's own improvement
+      // over the brief's vaguer placeholder wording (wireframe.md §3).
+      'group_type.homepage_adapts' => 'This page adapts to the group\'s type — it leads with events, discussion, or documentation depending on how the group is categorised.',
     ];
   }
 
