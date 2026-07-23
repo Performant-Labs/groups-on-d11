@@ -83,11 +83,16 @@ class DoGroupExtrasHooks {
     /** @var \Drupal\group\Entity\GroupInterface $group */
     $group = $variables['group'];
 
-    // #140 MC-1: attach the Links & Resources section styling for every
-    // community_group render (the field_group_links formatter only ever
-    // produces markup for its own field wrapper, so attaching unconditionally
-    // is harmless when the field is empty or hidden on a given view mode).
-    if ($group->bundle() === 'community_group') {
+    // #140 W-2: attach the Links & Resources section styling only on the
+    // Full (default) view mode, and only when field_group_links actually
+    // has values — avoids attaching the library on empty-state pages or
+    // on other view modes (e.g. Teaser) where the field isn't rendered.
+    if (
+      $group->bundle() === 'community_group'
+      && ($variables['view_mode'] ?? '') === 'default'
+      && $group->hasField('field_group_links')
+      && !$group->get('field_group_links')->isEmpty()
+    ) {
       $variables['#attached']['library'][] = 'do_group_extras/group-links';
     }
 

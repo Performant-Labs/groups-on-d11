@@ -178,6 +178,7 @@ class GroupLinksFieldTest extends GroupsKernelTestBase {
     $this->assertNotNull($instance, 'field_group_links is instanced on the community_group bundle.');
     $this->assertSame('Links & Resources', $instance->getLabel(), 'The field label is "Links & Resources".');
     $this->assertFalse($instance->isRequired(), 'field_group_links is not required at the field level.');
+    $this->assertSame(2, $instance->getSetting('title'), 'title setting is Required (LinkTitleVisibility::Required = 2), per brief AC #2 and WCAG-AA discernible-name requirement.');
   }
 
   /**
