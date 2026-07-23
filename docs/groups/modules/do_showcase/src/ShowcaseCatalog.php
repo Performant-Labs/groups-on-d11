@@ -46,9 +46,17 @@ final class ShowcaseCatalog {
       [
         'id' => 'directory-presentation',
         'title' => $this->t('Directory presentation'),
-        'decision_sentence' => $this->t('Compares list vs. card layouts for the group directory — the decision: information density vs. visual scannability. Not yet built — tracked in issue #124.'),
-        'status' => 'coming',
-        'route' => NULL,
+        'decision_sentence' => $this->t('Compares list vs. card layouts for the group directory — the decision: information density vs. visual scannability.'),
+        // #124 SC-5: the compact/cards toggle ships on /all-groups (the
+        // VariantSwitcher build()'d in DoShowcaseHooks::viewsPreRender()),
+        // not on this /showcase page itself — the route points AT the live
+        // feature, matching how every other `live` entry here links to
+        // where its comparison actually renders (handoff-A-plan.md
+        // advisory #4: 'view.all_groups.page_1' confirmed as the canonical
+        // Views auto-generated route id for /all-groups, cross-checked
+        // against PageHelp.php:72 + PageHelpRouteMapTest.php:46).
+        'status' => 'live',
+        'route' => 'view.all_groups.page_1',
       ],
       [
         'id' => 'membership-models',

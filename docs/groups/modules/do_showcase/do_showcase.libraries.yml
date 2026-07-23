@@ -37,3 +37,23 @@ persona-switcher:
   css:
     theme:
       css/persona-switcher.css: {}
+
+# #124 SC-5: the compact-list row presentation for /all-groups, attached by
+# DoShowcaseHooks::viewsPreRender() alongside `do_showcase/switcher`
+# whenever the all_groups.page_1 view renders. CSS-ONLY (brief.md "Owned
+# files": "docs/groups/modules/do_showcase/css/directory-compact.css
+# (new)") — the compact/cards toggle is a pure presentation delta over the
+# SAME row markup groups_chrome's views-view-fields--all-groups.html.twig
+# already renders (wireframe.md Surface 2/3: "no schema/Views-field change,
+# CSS alone hides/restyles"). Depends on `do_showcase/switcher` so the
+# wrapper-mirror data-* attributes it reads
+# (data-do-showcase-mirror-attribute/-selector, set on the switcher's own
+# render array below) are guaranteed present before this library's styling
+# would ever need to react to a live (no-reload) toggle.
+directory-compact:
+  version: '1.0'
+  css:
+    theme:
+      css/directory-compact.css: {}
+  dependencies:
+    - do_showcase/switcher

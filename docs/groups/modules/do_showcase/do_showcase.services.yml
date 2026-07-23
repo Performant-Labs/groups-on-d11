@@ -51,6 +51,24 @@ services:
   # PersonaSwitcher's alias above already documents.
   Drupal\do_showcase\ShowcaseCatalog: '@do_showcase.showcase_catalog'
 
+  # #124 SC-5: the SAME class-name-alias need as PersonaSwitcher/
+  # ShowcaseCatalog above, now that DoShowcaseHooks also constructor-injects
+  # VariantSwitcher (so viewsPreRender() can call $this->switcher->build()/
+  # ->resolveCurrent() — the SAME do_showcase.variant_switcher instance
+  # ShowcaseController::page() already uses for its own /showcase stub,
+  # rather than a second `new VariantSwitcher()` missing its injected
+  # string_translation service call).
+  Drupal\do_showcase\VariantSwitcher: '@do_showcase.variant_switcher'
+
+  # #124 SC-5: RequestStack is a core Symfony service already registered by
+  # Drupal core (see core.services.yml's `request_stack` entry) — this alias
+  # lets DoShowcaseHooks's autowired registration (see the aliases above)
+  # resolve its $requestStack constructor parameter by TYPE
+  # (Symfony\Component\HttpFoundation\RequestStack), the same problem the
+  # PersonaSwitcher/ShowcaseCatalog/VariantSwitcher aliases above already
+  # solve for do_showcase's own classes.
+  Symfony\Component\HttpFoundation\RequestStack: '@request_stack'
+
   # #120 SC-1 (brief-amendments.md Amendment 3/4): route-level access check
   # for do_showcase.persona_switch — the uid-1 guard + persona-allowlist
   # enforcement, checked BEFORE PersonaSwitchController ever runs. Matches
@@ -80,9 +98,15 @@ services:
   # read the shared ShowcaseCatalog instance instead of `new`-ing its own
   # (see the Drupal\do_showcase\ShowcaseCatalog class-name alias above for
   # why the autowired registration needs it too).
+  #
+  # #124 SC-5: two more arguments, do_showcase.variant_switcher and
+  # request_stack, were added so viewsPreRender() can build the directory-
+  # toggle switcher and read the current request's ?variant= query arg (see
+  # the VariantSwitcher / RequestStack class-name aliases above for why the
+  # autowired registration needs them too).
   do_showcase.hooks:
     class: Drupal\do_showcase\Hook\DoShowcaseHooks
     autowire: false
-    arguments: ['@do_showcase.persona_switcher', '@do_showcase.showcase_catalog']
+    arguments: ['@do_showcase.persona_switcher', '@do_showcase.showcase_catalog', '@do_showcase.variant_switcher', '@request_stack']
     tags:
       - { name: 'hook_implementations' }

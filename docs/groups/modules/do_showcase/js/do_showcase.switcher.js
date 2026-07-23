@@ -17,6 +17,26 @@
  * and re-selects it (unless the page was loaded with an explicit `?variant=`
  * query param, which always wins, so the no-JS fallback and a direct/shared
  * link behave predictably).
+ *
+ * #124 SC-5 (O decision #1 / A-advisory #2): a generic, data-driven
+ * "wrapper-mirror" addition — on selection, if the radiogroup wrapper
+ * carries `data-do-showcase-mirror-attribute` +
+ * `data-do-showcase-mirror-selector`, the newly-selected option's
+ * `data-do-showcase-id` is mirrored onto the named attribute of the
+ * document's FIRST element matching the named selector. This is deliberately
+ * NOT a directory-specific branch (no `if (instanceId === 'directory.layout')`
+ * anywhere in this file) — this codebase has zero existing CustomEvent/
+ * dispatchEvent precedent (grepped, none found), so rather than inventing
+ * one, any current/future switcher instance (SC-4/SC-6/ST-8) that needs its
+ * selection mirrored onto some OTHER element's attribute gets it for free by
+ * setting these two data-* attributes on ITS OWN wrapper at render time
+ * (`DoShowcaseHooks::viewsPreRender()` does this for the `directory.layout`
+ * instance on /all-groups, mirroring onto `.view-id-all_groups`'s
+ * `data-do-directory-variant` attribute) — the switcher itself stays
+ * single-responsibility (selection + persistence), agnostic to what its
+ * selection MEANS to any particular caller, matching how
+ * `VariantSwitcher::build()` is itself data-driven (caller supplies
+ * instance_id/options; the widget doesn't know or care what they represent).
  */
 ((Drupal, once) => {
   'use strict';
@@ -56,6 +76,34 @@
     });
   }
 
+  /**
+   * Mirrors the selected option id onto a caller-named element's attribute.
+   *
+   * #124 SC-5: a generic, data-driven callback — reads
+   * `data-do-showcase-mirror-attribute` + `data-do-showcase-mirror-selector`
+   * off the radiogroup wrapper itself; no-ops (does nothing, throws nothing)
+   * when either is absent, so every switcher instance that does NOT need
+   * this behavior (the /showcase stub's OWN wrapper, ST-8, etc.) is
+   * completely unaffected.
+   *
+   * @param {HTMLElement} group
+   *   The `[role="radiogroup"]` wrapper element.
+   * @param {string} id
+   *   The newly-selected option's `data-do-showcase-id` value.
+   */
+  function mirrorSelectionToWrapperAttribute(group, id) {
+    const targetAttribute = group.getAttribute('data-do-showcase-mirror-attribute');
+    const targetSelector = group.getAttribute('data-do-showcase-mirror-selector');
+    if (!targetAttribute || !targetSelector) {
+      return;
+    }
+    const target = document.querySelector(targetSelector);
+    if (!target) {
+      return;
+    }
+    target.setAttribute(targetAttribute, id);
+  }
+
   Drupal.behaviors.doShowcaseSwitcher = {
     attach(context) {
       once('do-showcase-switcher', '[role="radiogroup"][data-do-showcase-instance]', context).forEach((group) => {
@@ -78,6 +126,13 @@
           if (target) {
             setRovingTabindex(options, target);
           }
+          // Mirror the selection onto a caller-named element's attribute
+          // (#124 SC-5) — runs on EVERY select() call (both a user's live
+          // click/keydown AND the page-load persisted-choice restore below),
+          // so the wrapper attribute a CSS toggle keys off always reflects
+          // the currently-displayed selection, not just the ones that get
+          // persisted to sessionStorage.
+          mirrorSelectionToWrapperAttribute(group, id);
           if (persist) {
             try {
               window.sessionStorage.setItem(STORAGE_PREFIX + instanceId, id);

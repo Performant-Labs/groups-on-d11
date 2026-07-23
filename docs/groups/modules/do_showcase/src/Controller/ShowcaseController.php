@@ -39,6 +39,14 @@ use Symfony\Component\HttpFoundation\Request;
  * `VariantSwitcher::build()` for a per-option ⓘ, which is out-of-scope
  * framework surgery), guarded identically on non-empty
  * `showcase_help.map` copy.
+ *
+ * #124 SC-5 (A-advisory #7): the stub switcher's three-option list
+ * (compact/cards/map) now reads from
+ * `VariantSwitcher::directoryLayoutOptions()` — the SAME shared,
+ * already-translated source `DoShowcaseHooks::viewsPreRender()` uses for
+ * the `/all-groups` instance — rather than a hand-written literal, so #125
+ * (SC-6) flips `map`'s `available` flag in exactly ONE place instead of two
+ * call sites silently drifting apart.
  */
 class ShowcaseController extends ControllerBase {
 
@@ -89,13 +97,16 @@ class ShowcaseController extends ControllerBase {
     ];
 
     // The one guaranteed wired stub switcher instance (wireframe.md's own
-    // example: Compact list / Cards / Map, Map unavailable).
+    // example: Compact list / Cards / Map, Map unavailable). Options are
+    // shared with DoShowcaseHooks::viewsPreRender() (#124 SC-5,
+    // A-advisory #7) via VariantSwitcher::directoryLayoutOptions(), which
+    // already returns them translated.
     $variant = (string) ($this->request->query->get('variant') ?? 'cards');
-    $build['switcher'] = $this->switcher->build('directory.layout', [
-      ['id' => 'compact', 'label' => (string) $this->t('Compact list')],
-      ['id' => 'cards', 'label' => (string) $this->t('Cards')],
-      ['id' => 'map', 'label' => (string) $this->t('Map'), 'available' => FALSE],
-    ], $variant);
+    $build['switcher'] = $this->switcher->build(
+      'directory.layout',
+      $this->switcher->directoryLayoutOptions(),
+      $variant,
+    );
 
     // #132 SD-5: map-view orientation ⓘ, adjacent to the switcher. Guarded
     // on non-empty copy (same guard the per-entry help below uses) so an
