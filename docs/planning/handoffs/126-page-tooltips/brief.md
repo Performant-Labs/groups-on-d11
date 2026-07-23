@@ -25,9 +25,11 @@ Entries whose route does not resolve at request time render nothing (no ⓘ, no 
 
 ## Design (skip-D justification)
 - Identical ⓘ affordance to #89 `GroupTypeContentHelp::infoTrigger()` — same DOM: `<span class="do-chrome-info page-help-info" tabindex="0" role="note" aria-label="{copy}" data-do-tooltip="{copy}">ⓘ</span>`
-- Injection: `hook_preprocess_page` (route-driven), adds a `#page_help` variable, printed by a small template override or by injecting into the existing `page.html.twig` title suffix region. **Simpler, no template touch:** we build a render array and attach it as an addition to `$variables['page']['content']` prepended, OR — cleanest — implement `hook_preprocess_page_title` and append the ⓘ to `$variables['title_suffix']` (a standard Drupal render slot printed adjacent to the H1). Using `page_title` preprocess keeps zero template edits and lands the ⓘ literally after the H1 span in `page-title.html.twig` core output.
+- Injection: `hook_preprocess_page_title` — hooks into `page_title.html.twig`'s `title_suffix` slot, which core already prints. No template override. Route match via injected `RouteMatchInterface`.
 
-**Decision:** use `hook_preprocess_page_title` — hooks into `page_title.html.twig`'s `title_suffix` slot, which core already prints. No template override. Route match via injected `RouteMatchInterface`.
+**A11y decision (from A warn #2):** `aria-label` chosen over `aria-describedby` for baseline parity with #89 / #122. Attribute set: `tabindex="0"` + `role="note"` + `aria-label="{copy}"` + `data-do-tooltip="{copy}"`. Recorded in decisions.md.
+
+**Default-deny gate (from A warn #1):** the route-name→helpkey map is the ALLOWLIST. `PageHelp::preprocessPageTitle()` looks up `$routeMatch->getRouteName()` in the map; if not a key, return immediately (no `title_suffix` mutation). No admin-theme check needed — the map is the gate. This prevents leakage onto `/admin/*`, node edit forms, or any unregistered route.
 
 ## Reuse & Analogous-Feature map
 - **Analogous feature (extend pattern, not copy):** `docs/groups/modules/do_chrome/src/Hook/GroupTypeContentHelp.php` — provides `infoTrigger()` render-array shape. **We DO NOT copy this method** — extract it to a shared `TooltipTrigger` helper OR (lower-risk, matches existing pattern) duplicate the tiny private method with a `page-help-info` extra class. Given the extant B-stories (#88/#89/#90) each ship their own trivial `infoTrigger`, we follow that established convention — a shared helper would be a cross-cutting refactor outside this story's scope.
@@ -39,7 +41,7 @@ Entries whose route does not resolve at request time render nothing (no ⓘ, no 
 - **NEW:** `docs/groups/modules/do_chrome/src/Hook/PageHelp.php` (sole owner, all logic here)
 - **APPEND-ONLY:** `docs/groups/modules/do_chrome/src/HelpText.php` (new `page.*` section at end)
 - **NEW:** `tests/e2e/page-help.spec.ts` (Playwright: anon on 2 pages + Elena on 1)
-- **NEW (T-authored):** kernel or unit test for the route→key map + inert W2 keys
+- **NEW (T-authored):** kernel or unit test for the route→key map + inert W2 keys + default-deny (unknown route → no output)
 
 ## Acceptance criteria
 1. Anonymous visitor on `/stream`, `/all-groups`, group Stream tab, group Events tab, group Members tab: ⓘ renders after the H1, opens a tippy tooltip with the correct copy.
@@ -47,6 +49,7 @@ Entries whose route does not resolve at request time render nothing (no ⓘ, no 
 3. Keyboard: Tab to ⓘ → focus visible → Enter/Space opens tooltip (tippy default behaviour, inherited).
 4. `aria-label` non-empty, ⓘ contrast ≥ AA (baseline established by #122: 5.36:1).
 5. Existing suite green. New Playwright spec asserts ⓘ present + tooltip visible on 2 anon pages + 1 authed.
+6. **Default-deny:** the ⓘ does NOT appear on any route not in the allowlist (e.g. `/admin`, `/node/1/edit`, `/user/login`).
 
 ## Copy (author here, plain visitor-facing, no jargon)
 - `page.stream` → "The site-wide activity stream: recent posts, replies, and events from every public group. This is what a signed-out visitor sees to get a sense of the community."
