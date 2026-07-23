@@ -405,3 +405,32 @@ walk live.)
 - `git diff --stat origin/main..HEAD` — all source changes under `docs/groups/modules/do_group_extras/`, zero edits to other modules.
 - `docs/groups/modules/do_group_extras/do_group_extras.routing.yml` vs. `docs/groups/modules/do_group_membership/do_group_membership.routing.yml` — same `_form` + `_custom_access` shape.
 - `docs/groups/modules/do_group_extras/src/Controller/RestoreGroupAccess.php` vs. `docs/groups/modules/do_group_membership/src/Controller/ManageMembersController.php` — same `access()` signature + `AccessResult` cacheability shape.
+
+## U — Phase 8
+
+**Decided.**
+- Full round-trip walkthrough PASS: archived-state observability (badge + Restore tab +
+  keyboard reachability) confirmed on `/group/8` before restore; restore confirmation form at
+  `/group/8/restore` matches wireframe Surfaces 2/3 exactly (real `<button type="submit">`,
+  `aria-describedby` wired to the description `<p>`'s id, select->button->cancel tab order,
+  select defaults to "Working group" with "Archive" excluded); submit redirects to canonical
+  with exact success-flash copy, badge/tab both disappear; re-archive via the existing edit
+  form's Group Type select brings badge/tab back; anonymous gets a clean 403 on the restore
+  route. Zero console/page errors across the whole authenticated walkthrough.
+- One non-blocking observation: the live "Archived" badge (`span.group__archived-badge`)
+  renders lower on the page (near the Stream/Events/Members/About sub-tabs) rather than
+  inline next to the `<h1>` as the wireframe's schematic ASCII mockup shows. This is
+  pre-existing `do_chrome`/`ArchivePinHooks` chrome, not introduced by #143, and the element
+  itself (selector/text/ARIA) is correct. Carried forward for S's visual-conformance judgment,
+  not a U blocker.
+
+**Evidence.**
+- Playwright headless walkthrough (throwaway script, deleted after run) against
+  `https://gm143-groups-on-d11.ddev.site`, gid=8 "Legacy Infrastructure".
+- Screenshots: `01-admin-group.png` through `11-badge-closeup.png` in the session scratchpad
+  (paths listed in `handoff-U.md`).
+- `drush php:eval` pre/post state check confirmed gid=8 returned to its original seeded state
+  (`status=0`, `field_group_type=Archive`) after the verification round-trip -- no lasting
+  data change.
+
+**Verdict:** PASS. Ready for S.
