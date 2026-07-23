@@ -129,3 +129,11 @@ exists with `permissions: {}` + `admin: true`; `ShowcaseCatalog::personas()` lin
 **Decided (warn 10):** ONE route `do_showcase.persona_switch` at `/persona-switch/{persona}`; POST for switch-to-persona (state change), GET allowed only when `persona=anonymous` (banner link).
 
 **Evidence:** A handoff-A-plan.md findings 1-11; ShowcaseCatalog.php lines 97-120 (existing personas list); group.role.community_group-groups_moderate.yml (admin: true, permissions: {}); group.role.community_group-organizer.yml (real perm names); ManageMembersController.php line 39 + RestoreGroupAccess.php line 50 (real permission enforcement sites).
+
+## A — Phase 3 re-review
+
+**Decided:** PASS. All 3 blockers + 6 warnings from `handoff-A-plan.md` resolved by the 8 amendments in `brief-amendments.md`. T may author RED tests. See `handoff-A-plan-2.md` for the resolution table.
+
+**Evidence:** A1 adds group role edit with enumerated perms; A2 drops PersonaRegistry and extends `ShowcaseCatalog::personas()` (no field-name collision with existing `{id,name,description}`); A3 drops masquerade dep and routes uid-1/allowlist enforcement through A4's route-level `PersonaAccessCheck` (tagged `access_check`, POST-only for state-change); A5 splits banner into a sibling `#[Hook('page_top')]`; A6 pins `#cache[contexts]=>[user]`; A7 trims HelpText to ≤135 chars; A8 uses `STATUS_PENDING` const.
+
+**Non-blocking note for F:** `RestoreGroupAccess::access` only checks `edit group` (group) or `administer group` (user); no separate archive-only group perm exists in `do_group_extras`. The "archive perm" third bullet in A1 will collapse to just `edit group` on inspection — harmless if kept, cleaner if dropped with a one-liner.
