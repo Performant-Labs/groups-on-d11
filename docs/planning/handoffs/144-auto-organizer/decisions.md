@@ -508,3 +508,47 @@ and W-2 all landed exactly as scoped in the task (2-line guard + 1-line const; 1
 class/file created.
 
 - **Verdict: 83/83 GREEN, zero lint errors on the production fix, ready for diff-gate re-review.**
+
+## O — Diff-gate rework outcome
+
+- Round 1 (before F committed): 11 BLOCKs, all FALSE POSITIVES — dual-review.sh diffs `origin/main..HEAD` and F's code was still uncommitted, so the reviewer only saw the T(RED) test commit and reasonably concluded "missing implementation." Root cause: worktree state, not review quality.
+- Committed F+T-green as `60311eb`, re-ran diff-gate: 1 real BLOCK (B-1: insert hook lacked bundle guard — genuinely could misfire), 2 warns (OrderAfter, DOM-order test tightening).
+- F respawned to fix all three (`8ef8296`). 83/83 GREEN, phpcs clean.
+- Round 3 (post-fix): **PASS.** 3 residual warns are all non-actionable:
+  - W-1/W-2: reviewer partially missed the OrderAfter attribute (confirmed present at line 148); the "runtime hypothesis" concern is empirically resolved by CreateGroupWizardOrganizerTest's real form-submit AC-3 assertion.
+  - W-3: reviewer uncertain about `hook_implementation` tag necessity — the existing GroupAccessHook proves the tag-less FQCN pattern works (both live in the same services.yml, and 82/82 tests including hook-firing GREEN empirically prove hook discovery works without the tag).
+- Diff-gate CLEARED. Proceeding to Phase 8 (U walkthrough) + Phase 9 (S audit) — will launch in parallel since they read the same committed diff.
+
+---
+
+## S — Phase 9 (Spec audit)
+
+- **Verdict: PASS** (handoff-S.md). All AC (issue-verbatim + brief-added AC-8 + diff-gate B-1) backed by concrete tests: AC-1 by Kernel + Unit + Functional-wizard trio; AC-2 (guided/preview) by Functional controller test (2/2, DOM-order-locked); AC-3 (WCAG) by heading-hierarchy + descriptive-link + no-hex-color assertions + `_title_callback` single-h1 refinement; AC-4 (existing suite green + Playwright walk) by 83/83 test count and structurally-reviewed E2E spec (execution deferred to U/CI). Dependencies (#138 Organizer role, #120 personas) verified present.
+- **Diff-gate cleared legitimately:** round-2 B-1 (bundle guard) fixed with regression test at CreateGroupOrganizerHookTest.php:263; W-1 (OrderAfter) at CreateGroupOrganizerHook.php:148; W-2 (DOM-order tightening) via `You're the Organizer` string anchor. Round-3 PASS residuals are non-actionable (reviewer partial-miss on OrderAfter + `hook_implementation` tag not required since `GroupAccessHook` proves the tag-less pattern works).
+- **Scope discipline verified:** 21 files, +3750 lines, ZERO forbidden paths (no `config/sync/`, `web/modules/custom/`, `.ddev/`, `web/sites/simpletest/` in diff). No fork of #36/#121/#138. `HelpText.php` untouched. Group add-form display config not modified — reduction from brief's "Owns" list is documented and correct (single form_id filter sufficient).
+- **Advisory:** T-green's flag about the E2E spec missing `field_group_description` is stale — line 117 of `tests/e2e/create-group.spec.ts` fills it. Spec is structurally sound; first-run environment corrections may still be needed, normal for first E2E execution.
+- **Ready for O:** PR + CI per the overnight-authorized flow.
+
+---
+
+## U -- Phase 8 (UI Walkthrough)
+
+- **Verdict: PASS.** Drove the real assembled site (fresh gm144-auto-organizer DDEV project, no
+  prior project existed) end to end: login, submit /group/add/community_group (confirmed a
+  single-page form, not a multi-step wizard, matching F/T empirical findings), landed on
+  /group/1/created (AC-3), verified DOM structure scoped to the main landmark (exactly one h1,
+  one h2, zero h3-plus, DOM order h1 then p then h2 then ul>li>a x3 matching the wireframe exactly,
+  AC-4/AC-5), clicked through to Manage members (AC-7) and confirmed admin listed with
+  community_group-admin, Organizer roles. No console errors, no failed network requests.
+- **Setup required two empirical fixes** (both environment-only, no repo changes since
+  settings.php is gitignored): (1) config_sync_directory was unset, defaulting to DDEV own
+  sites/default/files/sync instead of the repo config/sync/ per RUNBOOK.md:152-170; (2) a
+  Site UUID mismatch between a fresh site:install and the baked config/sync, fixed via
+  drush config:set system.site uuid.
+- **Confirmed (not newly found) a test-authoring gap:** tests/e2e/create-group.spec.ts fills the
+  description via .ck-editor__editable at line 117 per S own advisory note above -- this was
+  already fixed in the committed spec, so no further action needed there. My own throwaway
+  walkthrough script needed the same CKEditor-fill technique, independently confirming the
+  production UI/behavior is correct.
+- Full details, screenshots, and per-AC checklist in handoff-U.md.
+- Ready for O to proceed with PR + CI.
