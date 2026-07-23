@@ -16,6 +16,8 @@ import { test, expect, Page, Locator } from '@playwright/test';
  *   - docs/planning/handoffs/122-grouptype-home/handoff-A.md (Q1/Q2
  *     resolutions: see-all path `/group/{gid}/nodes?type=forum|documentation`,
  *     ⓘ contrast confirmed AA with the existing `.do-chrome-info` styling)
+ *   - docs/planning/handoffs/122-grouptype-home/handoff-F.md (F's "Step 740d"
+ *     Thunder-docs seed addition — see the Thunder Distribution note below)
  *
  * RED (Phase 4, before F): `groups_chrome_preprocess_group()` does not yet
  * derive `gc_group.leading_section` / `lead_items`, `group--full.html.twig`
@@ -31,19 +33,18 @@ import { test, expect, Page, Locator } from '@playwright/test';
  *     (e.g. "DrupalCon Portland Keynote", "Code Sprint: Migrate API").
  *   - Core Committers -> Working group; has seeded `forum` nodes (e.g.
  *     "Patch Review Process RFC", "Drupal 11 Migration Path").
- *   - Thunder Distribution -> Distribution; NO `documentation`-type nodes
- *     exist anywhere in the seed (verified: step_700_demo_data.php seeds
- *     forum/event/comment content only, no `"type" => "documentation"`
- *     node-create call). Per the wireframe's own empty-state contract (§2):
- *     "If the group's leading content type has zero qualifying nodes ...
- *     do NOT render `.gc-group-lead` at all — same as the null fallback."
- *     So Thunder Distribution's own page is INDISTINGUISHABLE from the
- *     fallback case today. This spec therefore does NOT assert a rendered
- *     docs-first lead section for Thunder Distribution (that would be an
- *     invalid assertion against real seed data); instead it pins the
- *     degraded/empty-state behavior for that exemplar explicitly (see the
- *     "Thunder Distribution" describe block) and documents the gap for
- *     F/U so a manual/seed-augmented check isn't silently skipped.
+ *   - Thunder Distribution -> Distribution. At RED time this group had NO
+ *     `documentation`-type nodes seeded anywhere, so the Thunder test
+ *     originally pinned the (vacuous) empty-state contract. F's Phase 5
+ *     implementation (per T's own "prefer (a): seed real content" note in
+ *     handoff-T-red.md) added a new "Step 740d" seed block
+ *     (docs/groups/scripts/step_700_demo_data.php) that creates 3 real
+ *     documentation nodes for this group ("Getting Started with Thunder",
+ *     "Upgrading from Thunder 7 to 8", "Media Library Configuration Guide").
+ *     T (Phase 6/GREEN) rewrote the Thunder describe block below to assert
+ *     the genuine, positive docs-first rendering contract instead of
+ *     `.gc-group-lead` count === 0 — verified directly against the rendered
+ *     `/group/4` page (see handoff-T-green.md for the raw DOM evidence).
  *   - Drupal France -> Geographical (unmapped type) — used as the fallback
  *     exemplar; still an active (non-archived) group with seeded members.
  *
@@ -74,9 +75,22 @@ async function login(page: Page, user: string, pass: string): Promise<void> {
  * the `/all-groups` directory (directory-cards.spec.ts's own surface) —
  * avoids hard-coding a group id, which is not guaranteed stable across a
  * fresh CI seed run.
+ *
+ * T (Phase 6/GREEN) fix: scope the directory lookup with the `?search=`
+ * query param instead of relying on unpaginated page-1 listing. The
+ * unscoped version (page 1 only, no pagination-awareness) was flagged by F
+ * (handoff-F.md) and independently reproduced by T-green: this shared,
+ * long-lived DDEV instance accumulates throwaway fixture groups from other
+ * specs across repeated runs (8 -> 59 -> 76 groups observed across 3 runs
+ * in one T-green session), which pushes these 4 exemplar/fallback groups
+ * past the directory's 25-per-page pager and makes plain page-1 scanning
+ * unreliable. `?search=<label>` resolves each exemplar to exactly one card
+ * regardless of total group count or pagination (verified directly via
+ * curl for all four labels before this fix). This is a test-infrastructure
+ * fix only — no production code changed.
  */
 async function groupUrlByLabel(page: Page, label: string): Promise<string> {
-  await page.goto('/all-groups');
+  await page.goto(`/all-groups?search=${encodeURIComponent(label)}`);
   const card = page
     .locator('.gc-directory-card')
     .filter({ has: page.getByRole('link', { name: label, exact: true }) })
@@ -164,36 +178,51 @@ test.describe('SC-3 — Discussion-first lead section (#122, Core Committers)', 
   });
 });
 
-test.describe('SC-3 — Thunder Distribution (#122, Distribution type, no seeded documentation nodes)', () => {
-  test('degrades to the empty-state contract: leading_section maps to docs, but no lead section renders because zero documentation nodes are seeded', async ({
+test.describe('SC-3 — Docs-first lead section (#122, Thunder Distribution)', () => {
+  test('leads with a "Documentation" section linking to 3 seeded documentation nodes and a type-filtered see-all', async ({
     page,
   }) => {
-    // This is the DOCUMENTED gap (see file header): the seed has no
-    // `documentation`-type nodes anywhere, so this exemplar cannot exercise
-    // a *rendered* docs-first section against real data. Per the wireframe's
-    // own empty-state decision (§2), the correct behavior here is IDENTICAL
-    // to the fallback contract — the theme suggestion may still resolve to
-    // `group__community_group__docs_first`, but `.gc-group-lead` must not
-    // render because `gc_group.lead_items` is empty.
-    //
-    // RED reason: today NEITHER branch exists (no leading_section logic at
-    // all), so this assertion currently passes vacuously (no `.gc-group-lead`
-    // exists because nothing does) — see "RED validity note" in
-    // handoff-T-red.md for why this specific test is not counted as a
-    // meaningful RED gate and is retained primarily as a GREEN-phase
-    // regression pin once F's empty-state gating exists.
+    // T (Phase 6/GREEN) rewrite: F took option (a) and seeded 3 real
+    // documentation nodes for Thunder Distribution ("Step 740d" in
+    // step_700_demo_data.php), so this exemplar now has a genuine,
+    // non-vacuous docs-first rendering path to assert — see file header.
     const url = await groupUrlByLabel(page, 'Thunder Distribution');
     const res = await page.goto(url);
     expect(res?.status()).toBe(200);
 
-    await expect(leadSection(page)).toHaveCount(0);
-    // No lead-section library payload should be present either (mirrors
-    // the fallback contract's library assertion below).
-    const libRefs = page.locator('link[href*="group-type-homepage"]');
-    await expect(libRefs).toHaveCount(0);
+    const lead = leadSection(page);
+    await expect(lead).toBeVisible();
 
-    // Tab bar stays intact regardless (this group still has an Events tab
-    // etc. — only the lead section is gated).
+    // Heading names documentation (wireframe §1: "Documentation").
+    const heading = lead.locator('.gc-group-lead__heading');
+    await expect(heading).toBeVisible();
+    await expect(heading).toContainText(/doc/i);
+
+    // Top-N (<=3) item links point at real documentation node URLs — be
+    // defensive about the exact count (>0, <=3) rather than hard-coding 3,
+    // since the seed's own node count is an implementation/content detail,
+    // not a contract this test needs to over-specify.
+    const itemLinks = lead.locator('.gc-group-lead__link');
+    const itemCount = await itemLinks.count();
+    expect(itemCount).toBeGreaterThan(0);
+    expect(itemCount).toBeLessThanOrEqual(3);
+    for (let i = 0; i < itemCount; i++) {
+      const href = await itemLinks.nth(i).getAttribute('href');
+      expect(href).toBeTruthy();
+      expect(href).toMatch(/\/node\/\d+/);
+    }
+
+    // "See all documentation" links at the type-filtered group_nodes path
+    // (handoff-A.md Q1 resolution), mirroring the discussion exemplar.
+    const seeAll = lead.locator('.gc-group-lead__see-all');
+    await expect(seeAll).toBeVisible();
+    await expect(seeAll).toContainText(/see all documentation/i);
+    const seeAllHref = await seeAll.getAttribute('href');
+    expect(seeAllHref).toMatch(/\/group\/\d+\/nodes\?type(\[\])?=documentation/);
+
+    // Tab-order regression guard preserved for this exemplar (was already
+    // pinned pre-rewrite; kept so this test still independently proves the
+    // new lead section doesn't disturb the existing tab wiring).
     await expect(page.locator('.gc-group-tabs__link')).toHaveText([
       'Stream',
       'Events',

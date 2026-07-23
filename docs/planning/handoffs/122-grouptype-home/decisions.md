@@ -272,3 +272,51 @@ Append-only. One entry per phase. O writes the closing Chain Summary.
   order.
 
 ---
+
+## T — Phase 6 (GREEN + Tier 2)
+
+**Decided:**
+- Rewrote the Thunder Distribution test in `tests/e2e/group-type-homepage.spec.ts` from a
+  vacuous `.gc-group-lead` count-0 empty-state assertion to a positive docs-first assertion
+  (heading matches `/doc/i`, 1-3 item links to `/node/\d+`, see-all href matches
+  `/group/\d+/nodes\?type(\[\])?=documentation`, tab-order guard preserved) — pre-authorized by
+  my own Phase-4 handoff once F confirmed taking option (a) (real seed content via "Step 740d").
+- Fixed `groupUrlByLabel()` (test-infrastructure only, no production code) to use
+  `/all-groups?search=<label>` instead of unpaginated page-1 scanning, after independently
+  reproducing F's flagged environment-state finding live: the shared `gm122-groups-on-d11`
+  instance had grown from 8 to 76+ groups across repeated full-suite runs, which broke ALL NINE
+  of my spec's `groupUrlByLabel()`-dependent tests for an environment reason, not a feature
+  reason. This is a legitimate test-quality fix within T's remit (repairing a broken/flaky test
+  helper I authored), not a scope violation — no other spec file was touched.
+- Verified cache metadata via direct render-array introspection (`CacheableMetadata::
+  createFromRenderArray()`) rather than HTTP response headers, since
+  `http.response.debug_cacheability_headers` is off on this install — confirmed `group:{gid}`,
+  `node_list:{bundle}`, per-node tags, and both required contexts
+  (`user.node_grants:view`, `user.group_permissions`) present exactly per A's mandatory contract.
+- All Tier 1 suites GREEN: PHPUnit Unit 59/59 (incl. the new HelpText key), PHPUnit Kernel
+  100/100 (0 failures/errors, matches F's baseline), `group-type-homepage.spec.ts` 10/10, phpcs
+  clean on `groups_chrome.theme` and net-improved on `HelpText.php` vs. pre-#122 baseline.
+
+**Assumed (needs verification in A-dup/U):**
+- None — every AC bullet is now backed by either a passing E2E assertion or direct render/cache
+  evidence captured in `handoff-T-green.md`.
+
+**Hedged:**
+- WCAG 2.2 AA axe scan remains unautomated (pre-existing repo-wide tooling gap, same as
+  `manage-members.spec.ts`) — keyboard/focus/aria-label proven by E2E; full axe coverage is U's
+  call per the pipeline's own Tier-3/UI-walkthrough boundary.
+- `directory-cards.spec.ts`'s own pre-existing `#84` test remains red against this shared,
+  heavily-polluted instance (93 groups as of my last check) — independently reproduced, not
+  owned by this story, not fixed by my `groupUrlByLabel()` change (different file, out of my
+  remit without O's say-so). Flagged for O, not blocking #122.
+
+**Evidence:**
+- E2E target spec: `BASE_URL="http://gm122-groups-on-d11.ddev.site" npx playwright test tests/e2e/group-type-homepage.spec.ts` -> 10 passed.
+- E2E full regression (post-fix): 56 passed, 1 skipped, 1 failed (pre-existing `#84`, unrelated).
+- PHPUnit Unit: 59/59, PHPUnit Kernel: 100/100 (0 F/E).
+- phpcs: `groups_chrome.theme` exit 0; `HelpText.php` 18/8 vs. 19/6 baseline (net -1 error).
+- Direct render/cache-tag dumps for gid=1 and gid=4 (full output in `handoff-T-green.md`).
+- Direct DOM `curl` evidence for all 4 states (`.gc-group-lead` presence/absence, see-all hrefs,
+  tab bar order, tooltip attributes) — see `handoff-T-green.md`.
+
+---
