@@ -15,7 +15,13 @@
   top: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
+  /* #145: was 1000, which sat above Olivero's .skip-link.focusable:focus
+   * (z-index: 503, web/core/themes/olivero/css/components/skip-link.css --
+   * DO NOT EDIT core file), so the ribbon painted over the focused skip-link
+   * and made the first Tab stop on every page invisible. 499 keeps the
+   * ribbon above normal document flow and above groups_chrome's own
+   * --gc-z-sticky (100) tier, but below Olivero's skip-link focus layer. */
+  z-index: 499;
   pointer-events: none;
   display: flex;
   align-items: center;
