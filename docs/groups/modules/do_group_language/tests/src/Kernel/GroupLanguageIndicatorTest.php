@@ -15,10 +15,10 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 /**
  * Behavioral coverage for do_group_language's language-indicator render hook.
  *
- * Issue #139 (MC-4). Exercises the not-yet-implemented
- * `do_group_language_entity_view()` (a `hook_entity_view()` implementation)
- * by rendering a real saved `community_group` group through the entity view
- * builder at view mode `full`, then asserting on the raw rendered HTML.
+ * Issue #139 (MC-4). Exercises `GroupLanguageIndicatorHooks::entityView()`
+ * (a `#[Hook('entity_view')]` implementation) by rendering a real saved
+ * `community_group` group through the entity view builder at view mode
+ * `full`, then asserting on the raw rendered HTML.
  *
  * Unlike {@see GroupLanguageNegotiationTest}, which declares
  * `field_group_language` as a plain `string` field (the negotiation plugin
@@ -26,6 +26,20 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  * the production shape — because the render pipeline for a `language`-typed
  * field (langcode resolution, direction lookup) behaves differently than a
  * bare string.
+ *
+ * Suppression-branch coverage map (see GroupLanguageIndicatorHooks::entityView()
+ * doc comment for the authoritative list of branches):
+ * (a) empty/`und`/`zxx` sentinel value -> testNoIndicatorForUndefinedLangcode()
+ * (b) uninstalled/bogus langcode -> testNoIndicatorForUninstalledLangcode()
+ * (c) resolved langcode equals the site's current default language ->
+ *     testNoIndicatorWhenLangcodeIsSiteDefault() (this is what
+ *     `createGroup()` with no explicit `field_group_language` key actually
+ *     exercises — see that test's doc comment)
+ * (d) a genuinely empty field (zero field-item-list values, no default-value
+ *     back-fill) -> testNoIndicatorWhenFieldIsTrulyUnset()
+ * (e) real, non-default, installed langcode -> emits the indicator ->
+ *     testRendersRtlIndicatorForArPrimaryGroup(),
+ *     testRendersLtrIndicatorForFrPrimaryGroup()
  *
  * @group do_group_language
  * @group do_tests
@@ -128,10 +142,59 @@ class GroupLanguageIndicatorTest extends GroupsKernelTestBase {
   }
 
   /**
-   * A group with the field unset renders no indicator element.
+   * A group whose langcode resolves to the site default renders no
+   * indicator (the site-default-language suppression branch).
+   *
+   * `createGroup()` with no explicit `field_group_language` key does NOT
+   * leave the field empty: core's own
+   * {@see \Drupal\Core\Field\Plugin\Field\FieldType\LanguageItem::applyDefaultValue()}
+   * runs unconditionally whenever the field is absent from the values passed
+   * to `Group::create()`, back-filling the site's default language (`en` in
+   * this project). What this test actually pins is
+   * `GroupLanguageIndicatorHooks::entityView()`'s explicit suppression when
+   * the resolved langcode equals `LanguageManagerInterface::getDefaultLanguage()`
+   * — NOT a "field is empty" branch. (Renamed from the T-red-authored
+   * `testNoIndicatorWhenFieldEmpty`, whose docblock described a different
+   * semantic than what it actually exercised — flagged by F in
+   * decisions.md's Phase 6 entry. See testNoIndicatorWhenFieldIsTrulyUnset()
+   * below for the branch this test's old name implied.)
    */
-  public function testNoIndicatorWhenFieldEmpty(): void {
+  public function testNoIndicatorWhenLangcodeIsSiteDefault(): void {
     $group = $this->createGroup();
+
+    $this->assertSame(
+      'en',
+      $group->get('field_group_language')->value,
+      'Fixture sanity: createGroup() with no explicit language back-fills the site default (en), it does not leave the field empty.',
+    );
+
+    $html = $this->renderGroup($group);
+
+    $this->assertStringNotContainsString('do-group-language', $html);
+  }
+
+  /**
+   * A group with a genuinely empty `field_group_language` (zero field-item
+   * values) renders no indicator.
+   *
+   * This is the "truly unset" branch `testNoIndicatorWhenLangcodeIsSiteDefault()`
+   * above cannot reach, because `applyDefaultValue()` only fires when the
+   * field key is absent from the values passed to `create()` — once a group
+   * is saved, the field already holds a value (the back-filled site
+   * default). To reach a genuinely empty field-item list we explicitly
+   * `set()` it to an empty array and save; `applyDefaultValue()` is a
+   * create()-time-only hook and does not re-fire on an explicit empty
+   * `set()` + `save()` of an already-saved entity, so this reliably produces
+   * `isEmpty() === TRUE` on the loaded field.
+   */
+  public function testNoIndicatorWhenFieldIsTrulyUnset(): void {
+    $group = $this->createGroup(['field_group_language' => 'fr']);
+    $group->set('field_group_language', [])->save();
+
+    $this->assertTrue(
+      $group->get('field_group_language')->isEmpty(),
+      'Fixture sanity: explicit set([]) + save() produces a truly empty field-item list.',
+    );
 
     $html = $this->renderGroup($group);
 

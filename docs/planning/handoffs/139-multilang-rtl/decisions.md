@@ -206,3 +206,129 @@ Append-only. One entry per phase.
 - `getMember()` returns `GroupMembership|FALSE`, not `NULL`.
 
 ---
+
+## Phase 6 — T (verify GREEN + Tier 2)
+
+**Verdict**: BLOCKED. Kernel suite is fully green (107/107, including the reconciled
+`do_group_language` indicator suite) and F's hook logic is independently confirmed CORRECT via a
+live seeded site — but two real production bugs prevent full Playwright GREEN, and neither is
+fixable within T's edit scope.
+
+**Decided**
+- Task 2 reconciliation: took **Option A**. Renamed `testNoIndicatorWhenFieldEmpty` →
+  `testNoIndicatorWhenLangcodeIsSiteDefault` (docblock corrected to describe the actual
+  site-default suppression branch it pins). Added a new test,
+  `testNoIndicatorWhenFieldIsTrulyUnset`, that forces a genuinely empty field via
+  `->set('field_group_language', [])->save()` on an already-saved group — confirmed this reliably
+  produces `isEmpty() === TRUE` (bypasses `LanguageItem::applyDefaultValue()`, which only fires at
+  `create()`-time). Suite is now 7 tests, 163 assertions, 0 failures.
+- Stood up a real seeded site (fresh `drush site:install` + `config:import` + full demo-data +
+  step_760 seed) inside the isolated `gm139-multilang-rtl` DDEV container to run live Playwright,
+  per the deferred-to-T-green task.
+- Ran the full kernel suite in module-grouped batches rather than one monolithic
+  `find | xargs phpunit` invocation — the brief's literal command took 45+ minutes and was only
+  72% done when killed (10 test classes force `#[RunTestsInSeparateProcesses]`, each forking a
+  fresh PHP process + full bootstrap). Batched runs reached the identical 107/107 green result
+  (0 failures anywhere) in a few minutes total, verified by summing `Tests:`/`Assertions:` across
+  all batches and cross-checking against a full per-module test-method count (107, matching the
+  T-red 106 baseline + 1 new test).
+
+**Blocked — Bug #1 (F's file, real, fixable by F)**
+- `docs/groups/config/views.view.all_groups.yml` line 6: `dependencies.config` lists
+  `group__field_group_language` (a *Views table name*), not the actual config entity ID
+  `field.storage.group.field_group_language`. This makes a clean-room `config:import` fail
+  outright ("depends on configuration that will not exist after import"). Confirmed root cause by
+  locally correcting only the dependency entry (not the `table:` key at line 51, which correctly
+  stays `group__field_group_language`) in the assembled copy — import then succeeds. T does not
+  have write access to `docs/groups/config/`; routed back to F.
+
+**Blocked — Bug #2 (scope/architecture gap, needs an O decision, not a T or F unilateral fix)**
+- The `/all-groups` directory's row output is fully overridden by a pre-existing custom Twig
+  template (`web/themes/custom/groups_chrome/templates/content/views-view-fields--all-groups.html.twig`,
+  from story #84/CH-A2) that only prints a curated `gc_directory.*` variable set assembled in
+  `groups_chrome.theme`'s preprocess function — it does NOT loop over the view's raw `fields`
+  array. Adding `field_group_language` to the view's field list (what F did, correctly per the
+  brief's literal instruction) is therefore invisible on the real rendered page — confirmed live,
+  zero occurrences of the language text or field markup in the directory HTML. This file lives
+  outside `docs/groups/` entirely, so it isn't one of this story's "disjoint files" and neither F
+  nor T could touch it under the stated scope. A's plan review did not catch that this view has a
+  custom row override that defeats a bare Views-field addition. Needs O to decide: amend brief to
+  include a `groups_chrome.theme` + template change, or descope this criterion to a follow-up.
+
+**Noted, not blocking (pre-existing infra bug, outside this story entirely)**
+- `docs/groups/scripts/step_640.php` (baseline runbook script, git-blamed to the initial commit)
+  creates configurable languages via `$storage->create(['id' => $langcode])->save()`, which does
+  NOT populate `direction`/`label` from Drupal's predefined-language data — `ar` resolves to
+  `direction: ltr` on a fresh seed, silently invalidating the brief's Phase-1 "Assumed" that
+  "Arabic is RTL by default." Manually corrected on the live seeded DB (not committed) to confirm
+  F's hook is correct once language metadata is right: `ar` → `dir="rtl"` on both `<html>` and the
+  indicator, `fr` → `dir="ltr"`, both confirmed via live curl + Playwright. Flagged to O as a
+  separate pre-existing bug; not fixed here (`step_640.php` is untouched by this story).
+
+**Evidence**
+- Kernel: 107/107 green (7+6 do_group_language, 48+28+18 other modules), 0 `✘` markers in any
+  batch log.
+- Playwright: 2/3 pass (`RTL Arabic group renders dir="rtl"`, `LTR French group renders dir="ltr"`
+  both green against the live seeded+corrected site); 1/3 fails
+  (`directory /all-groups shows language column`) for the diagnosed Bug #2, not a spec defect.
+- `docs/handoffs/139-multilang-rtl/handoff-T-green.md` (full detail, repro steps for both bugs).
+
+**Action (routed to O)**
+- T-green found blocking issues. F must fix Bug #1 (`views.view.all_groups.yml` dependency).
+  O must decide Bug #2's scope (amend brief vs. follow-up issue). Re-run A if the brief/scope
+  changes, then T again, before U/S can proceed.
+
+---
+
+## Phase 6 — T (green + Tier 2): BLOCKED with 3 findings
+
+**Kernel**: 107/107 green (added 1 test via Option A refactor of the
+semantically-drifted `testNoIndicatorWhenFieldEmpty`).
+
+**Option A taken** (semantic-drift reconciliation): renamed to
+`testNoIndicatorWhenLangcodeIsSiteDefault` + added new
+`testNoIndicatorWhenFieldIsTrulyUnset` that bypasses
+`LanguageItem::applyDefaultValue()` via post-`save()` `->set([])`. Both
+tests confirmed to pin distinct suppression branches via inline
+fixture-sanity assertions. Added class-level suppression-branches
+comment cross-referencing each branch to its pinning test.
+
+**Playwright**: 2/3 (RTL/LTR pass; directory column fails).
+
+**Bugs surfaced (all routed to F, accepted in-scope by O)**
+1. `views.view.all_groups.yml` dependencies.config — `group__field_group_language`
+   (Views table name) should be `field.storage.group.field_group_language`
+   (config entity ID). Breaks clean-room config:import.
+2. `/all-groups` custom row template (`web/themes/custom/groups_chrome/`)
+   doesn't loop over Views fields — the new Views field addition has
+   zero visible effect. In-scope fix: extend
+   `groups_chrome.theme` preprocess + template to emit
+   `.do-group-language` badge from resolved `gc_directory.language_*`
+   keys. Consider a shared trait/service with `GroupLanguageIndicatorHooks`
+   to prevent A-dup BLOCK from duplicated resolve-and-suppress logic.
+3. `step_640.php` uses `$storage->create(['id' => $langcode])` instead
+   of `ConfigurableLanguage::createFromLangcode()`. `direction` never
+   populated → `ar` gets LTR silently → RTL acceptance can't be verified
+   against clean-room seed without T's manual DB patch. Ships as
+   non-reproducible. Fix: `createFromLangcode()` API.
+
+**Also validated**: F's hook is entirely correct (T proved by manually
+patching the language config on the live DB — RTL/LTR indicators both
+render as intended once language metadata is right).
+
+**Actions (O)**
+- Brief v4 appended with all three bug specs + shared-logic guidance
+  for Bug #2 (avoid A-dup BLOCK).
+- Phase order updated: O-triage → F-fix → T(green-2) → A-dup → U → S.
+- Spawning F for the three-bug fix.
+
+**Advisory (future T)**
+- `#[RunTestsInSeparateProcesses]` × 10 classes makes the monolithic
+  `find | xargs phpunit` invocation impractical (45+ min, killed).
+  Batched-by-module invocation is functionally equivalent and finishes
+  in minutes. Adopt as project default.
+
+**Evidence**
+- `docs/planning/handoffs/139-multilang-rtl/handoff-T-green.md`
+
+---
