@@ -2,9 +2,6 @@ uuid: 9d7afe48-fc91-48bf-b60a-857fdce80e25
 langcode: en
 status: true
 dependencies:
-  config:
-    - field.storage.group.field_group_language
-    - field.storage.group.field_group_location_text
   module:
     - group
 id: all_groups
@@ -34,8 +31,6 @@ display:
           entity_field: label
           plugin_id: field
           label: 'Group Name'
-          settings:
-            link_to_entity: true
         field_group_description:
           id: field_group_description
           table: group__field_group_description
@@ -58,7 +53,6 @@ display:
           entity_field: created
           plugin_id: field
           label: Created
-          date_format: medium
       pager:
         type: full
         options:

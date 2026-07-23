@@ -1,0 +1,10 @@
+<?php
+
+/**
+ * @file
+ * Group-level language negotiation and directory-filter Views wiring.
+ *
+ * All hook implementations are in DoGroupLanguageHooks via the #[Hook] attribute.
+ *
+ * @see \Drupal\do_group_language\Hook\DoGroupLanguageHooks
+ */
