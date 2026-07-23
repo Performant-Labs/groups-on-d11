@@ -1,0 +1,106 @@
+{
+  "withAbout": {
+    "label": "DrupalCon Portland 2026 (with About)",
+    "url": "https://gm141-about.ddev.site/group/1",
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": [
+          {
+            "target": [
+              ".gc-badge--success"
+            ],
+            "html": "<span class=\"gc-badge gc-badge--success\">Open</span>",
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 3.68 (foreground color: #218d5b, background color: #e6f4ec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      }
+    ],
+    "passesCount": 30
+  },
+  "withoutAbout": {
+    "label": "Drupal France (without About)",
+    "url": "https://gm141-about.ddev.site/group/2",
+    "violations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": [
+          {
+            "target": [
+              ".gc-badge--success"
+            ],
+            "html": "<span class=\"gc-badge gc-badge--success\">Open</span>",
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 3.68 (foreground color: #218d5b, background color: #e6f4ec, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      }
+    ],
+    "passesCount": 30
+  },
+  "headingStructureGroup1": [
+    {
+      "tag": "H2",
+      "text": "Main navigation"
+    },
+    {
+      "tag": "H2",
+      "text": "Breadcrumb"
+    },
+    {
+      "tag": "H1",
+      "text": "DrupalCon Portland 2026"
+    },
+    {
+      "tag": "H2",
+      "text": "Upcoming events\n                                  ⓘ"
+    },
+    {
+      "tag": "H2",
+      "text": "Who can do what"
+    },
+    {
+      "tag": "H2",
+      "text": "Community"
+    }
+  ],
+  "headingStructureGroup2": [
+    {
+      "tag": "H2",
+      "text": "Main navigation"
+    },
+    {
+      "tag": "H2",
+      "text": "Breadcrumb"
+    },
+    {
+      "tag": "H1",
+      "text": "Drupal France"
+    },
+    {
+      "tag": "H2",
+      "text": "Who can do what"
+    },
+    {
+      "tag": "H2",
+      "text": "Community"
+    }
+  ],
+  "emptyLandmarkCheck": [
+    {
+      "tag": "BUTTON",
+      "role": "switch",
+      "class": "sticky-header-toggle"
+    },
+    {
+      "tag": "SPAN",
+      "role": "img",
+      "class": "drupal-logo"
+    }
+  ]
+}

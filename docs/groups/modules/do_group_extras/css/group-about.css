@@ -1,0 +1,35 @@
+/**
+ * @file
+ * Styles for the group "About" section (#141 MC-2).
+ *
+ * Minimal prose spacing/typography for the field_group_about formatter
+ * output on the group Full display. The section heading is the field's own
+ * label (`label: above` in
+ * core.entity_view_display.group.community_group.default.yml) — no separate
+ * wrapper markup exists to style, so this only touches the field wrapper
+ * Drupal already emits.
+ */
+
+.field--name-field-group-about {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.field--name-field-group-about .field__label {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.field--name-field-group-about .field__item {
+  line-height: 1.6;
+}
+
+.field--name-field-group-about p {
+  margin: 0 0 0.75rem;
+}
+
+.field--name-field-group-about p:last-child {
+  margin-bottom: 0;
+}

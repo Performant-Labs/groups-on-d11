@@ -6,6 +6,7 @@ langcode: en
 status: true
 dependencies:
   config:
+    - field.field.group.community_group.field_group_about
     - field.field.group.community_group.field_group_description
     - field.field.group.community_group.field_group_image
     - field.field.group.community_group.field_group_links
@@ -47,7 +48,18 @@ content:
       image_loading:
         attribute: lazy
     third_party_settings: {  }
-  # (weight 10 reserved for #141 About)
+  # --- Section: About (weight 10) ---
+  # `label: above` IS the section's H2 source (no template wrapper). Core
+  # field-render suppresses the entire wrapper (including the label) when the
+  # field has zero deltas, so the empty state ("no bare header") holds by
+  # construction — see handoff-A-plan.md warn #4/#6 (#141).
+  field_group_about:
+    label: above
+    type: text_default
+    weight: 10
+    region: content
+    settings: {  }
+    third_party_settings: {  }
   # --- Section: Links & Resources (MC-1 #140) ---
   # `label: above` IS the section's H2 source (no template wrapper). Core
   # field-render suppresses the entire wrapper (including the label) when the

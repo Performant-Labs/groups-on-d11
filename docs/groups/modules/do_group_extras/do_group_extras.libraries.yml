@@ -7,3 +7,8 @@ group-links:
   css:
     theme:
       css/group-links.css: {}
+
+group-about:
+  css:
+    theme:
+      css/group-about.css: {}

@@ -1,0 +1,58 @@
+{
+  "listingTitle": "All Groups | Drupal Groups",
+  "withAbout": [
+    {
+      "group": "DrupalCon Portland 2026",
+      "wrapperCount": 1,
+      "labelText": "About",
+      "bodyText": "DrupalCon Portland 2026 is the flagship North American gathering for the Drupal community, bringing together developers,",
+      "hasStrong": true,
+      "hasHeadingH2InWrapper": false
+    },
+    {
+      "group": "Core Committers",
+      "wrapperCount": 1,
+      "labelText": "About",
+      "bodyText": "Core Committers is the working group for maintainers with commit access to Drupal core and its most widely used contribu",
+      "hasStrong": true,
+      "hasHeadingH2InWrapper": false
+    },
+    {
+      "group": "Thunder Distribution",
+      "wrapperCount": 1,
+      "labelText": "About",
+      "bodyText": "Thunder is a publishing-focused Drupal distribution built for newsrooms and content-heavy sites that need a fast, opinio",
+      "hasStrong": true,
+      "hasHeadingH2InWrapper": false
+    }
+  ],
+  "withoutAbout": [
+    {
+      "group": "Drupal France",
+      "wrapperCount": 0,
+      "hasAboutLabelTextAnywhere": false
+    },
+    {
+      "group": "Leadership Council",
+      "wrapperCount": 0,
+      "hasAboutLabelTextAnywhere": false
+    }
+  ],
+  "linksRegression": {
+    "count": 1
+  },
+  "descriptionRegression": {
+    "count": 1,
+    "text": "Planning committee for DrupalCon Portland 2026. Everyone is welcome to contribute."
+  },
+  "imageRegression": {
+    "count": 0
+  },
+  "readingOrderClasses": [
+    "text-content clearfix field field--name-field-group-description field--type-text-long field--label-hidden field__item",
+    "field field--name-field-group-visibility field--type-list-string field--label-above",
+    "text-content clearfix field field--name-field-group-about field--type-text-long field--label-above",
+    "field field--name-field-group-links field--type-link field--label-above"
+  ],
+  "consoleErrors": []
+}
