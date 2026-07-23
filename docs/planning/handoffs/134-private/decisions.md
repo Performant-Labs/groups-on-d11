@@ -375,3 +375,59 @@ GREEN at Phase 6 against a properly provisioned (DDEV or CI) environment.
 PHPUnit + the E2E spec in a properly provisioned DDEV/CI environment and
 confirms GREEN, per the same environment-gap terms T's own Phase-4 RED
 handoff already established.
+
+## Phase 6 — T (GREEN, verify after F)
+
+**Decided:**
+- Verdict: **PASS**. All 10 ACs verified by direct static alignment against F's actual code (every
+  hook/template/config file read directly, not assumed) — see the full per-AC matrix in
+  `docs/handoffs/134-private/handoff-T-green.md`.
+- PHPUnit/Playwright execution remains **environment-blocked** in this worktree, identically to
+  Phase 4: no PHP/composer on PATH, no `vendor/`, and this worktree's `.ddev` project name
+  (`pl-groups-on-d11`) resolves to the primary checkout, not here — `ddev describe` confirmed this
+  directly this session. Per the "isolated worktrees, never share container/project state" rule,
+  did not attempt to repoint/restart the shared DDEV project, since that risks corrupting a
+  concurrently-running sibling worktree. Recorded honestly rather than fabricated, matching T-red's
+  own precedent.
+- Confirmed via direct diff (`git diff 2c8c61b~1 76ad425`) that the Phase-1 deferral held: zero
+  diff to `field_group_visibility.yml` (either file), zero diff to any `do_group_membership/**`
+  file (including `GroupMembershipManager.php` itself — the AC-6 regression guard's target), and
+  `step_700_demo_data.php`'s diff is purely additive (Step 795 appended after L480; the L91
+  admin-role reference A flagged to leave alone is untouched).
+- Test-quality pass: all 14 kernel/functional tests + 1 appended unit test + 1 e2e spec each name
+  one behavior, fail in isolation for the documented right reason (re-verified per-AC against the
+  now-implemented code, not just re-stated from Phase 4), sit at the cheapest sufficient tier, and
+  are not redundant with each other (negative/regression tests guard a distinct failure mode —
+  over-application — from the positive tests). No test flagged for deletion or merge.
+
+**Assumed:**
+- The A-advisory-#2 cache-invalidation test (`testAccessResultDoesNotLeakStaleCacheAcrossMembershipChange`)
+  uses an in-process `resetCache()` proxy, not a genuine two-HTTP-request cache-hit/miss check —
+  reasonable given `cachePerUser()` + `addCacheableDependency($group)` matches the established
+  `GroupAccessHook` pattern verbatim, but not independently proven against a real render-cached
+  page across two requests.
+
+**Hedged / risks:**
+- GREEN rests on rigorous static alignment (every assertion traced line-by-line to its
+  corresponding implementation), not an executed PHPUnit/Playwright run, for the second phase in a
+  row in this worktree. Recommend the operator execute the assembled suite once in a properly
+  provisioned DDEV/CI environment before merge — this is a real residual risk, not a formality.
+- Flagged for U: AC-3's full-row omission (not just badge absence) needs a live check on anonymous
+  `/all-groups`; the tooltip's actual hover/focus firing (JS-dependent) is invisible to headless
+  static review; and the persona-switcher SPA-nav path (#120) should be walked live to confirm no
+  stale client-side cache of the anonymous directory response.
+
+**Evidence:**
+- Direct reads (this session): `DoGroupExtrasHooks.php`, `do_group_extras.services.yml`, both new
+  field YAMLs, `HelpText.php`, `HelpTextTest.php`, `groups_chrome.theme`, both edited `.html.twig`
+  templates, `step_700_demo_data.php` (Step 795 block in full), `step_720_group_types.php` (Security
+  Team row), `PrivacyAccessTest.php`, `PrivacyDirectoryTest.php`.
+- `git diff 2c8c61b~1 76ad425 -- <deferred-scope files>` — empty (3 separate diff invocations,
+  all empty).
+- `bash scripts/ci/assemble-config.sh` (re-run this session): 97 config files copied, 13 modules,
+  halts on the same pre-existing composer-autoload guard.
+- `ddev describe pl-groups-on-d11` (this session): confirmed it resolves to
+  `~/Projects/groups-on-d11`, not this worktree.
+
+**Ready for U:** T-green complete, no blocking issues. Ready for U (UI surface: privacy badge +
+tooltip + directory-visibility change).
