@@ -86,7 +86,7 @@ test.describe('#120 SC-1 — Persona switcher: full switch -> verify -> switch-b
     await page.goto('/');
 
     const select = page.locator(SWITCHER_SELECT);
-    await select.selectOption({ label: /Maria Chen/i });
+    await select.selectOption({ label: 'Maria Chen — Organizer' });
 
     const goButton = page.getByRole('button', { name: /go/i });
     if (await goButton.isVisible().catch(() => false)) {
@@ -128,7 +128,7 @@ test.describe('#120 SC-1 — Persona switcher: keyboard-only operation', () => {
     // pins the KEYBOARD-REACHABLE / KEYBOARD-COMMITTABLE contract via
     // selectOption while focus is already established via Tab, matching
     // Playwright's documented approach for native select keyboard tests).
-    await select.selectOption({ label: /Maria Chen/i });
+    await select.selectOption({ label: 'Maria Chen — Organizer' });
     await page.keyboard.press('Tab');
 
     await page.waitForLoadState('networkidle');
@@ -157,13 +157,13 @@ test.describe('#120 SC-1 — Persona switcher: visible focus (WCAG 2.2 AA 2.4.7/
     const selectOutline = await select.evaluate((el) => getComputedStyle(el, ':focus-visible').outlineWidth || getComputedStyle(el).outlineWidth);
     expect(selectOutline).not.toBe('0px');
 
-    const goButton = page.locator('form button[type="submit"]');
+    const goButton = page.locator('form.do-showcase-persona-switcher-form button[type="submit"]');
     await goButton.focus();
     const buttonOutline = await goButton.evaluate((el) => getComputedStyle(el, ':focus-visible').outlineWidth || getComputedStyle(el).outlineWidth);
     expect(buttonOutline).not.toBe('0px');
 
     // Switch to a persona first so the switch-back link exists to focus.
-    await select.selectOption({ label: /Maria Chen/i });
+    await select.selectOption({ label: 'Maria Chen — Organizer' });
     const go = page.getByRole('button', { name: /go/i });
     if (await go.isVisible().catch(() => false)) {
       await go.click();

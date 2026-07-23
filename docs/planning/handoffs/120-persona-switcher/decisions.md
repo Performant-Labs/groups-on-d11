@@ -259,3 +259,36 @@ custom-module suite), 31/31 Unit, 18/19 Kernel (do_showcase-scoped), 14/17 Funct
 (do_showcase), all lint-clean except pre-existing debt in `HelpText.php` (append-only, zero lines
 of my diff touch the flagged region) and `DoShowcaseHooks.php`'s existing raw-`t()`/`\Drupal::`
 style (consistent with the untouched `pageTop()` method).
+
+## T — Phase 6 (GREEN + Tier 2)
+
+**Decided:** Fixed all 3 F-flagged test-authorship bugs (`PersonaSpecTest`'s `??`-vs-NULL bug;
+`followRedirects(false)` missing in 3 Functional tests) exactly as F's own suggested fixes
+specified. Also found and fixed a 4th, unflagged test-authorship bug: `do_group_membership`'s
+pre-existing (#138) `GroupRoleConfigShapeTest::testGroupsModerateRoleConfigShape` asserted the
+OLD `admin: true` shape that #120's own approved Amendment 1 deliberately supersedes — updated
+its assertion to the new enumerated-permission shape (surgical 3-point edit, not a rewrite),
+since this story's approved config change would otherwise regress that suite.
+
+**Decided:** Fixed 2 test-authorship bugs in `tests/e2e/persona-switcher.spec.ts` (my own E2E
+spec): `selectOption({label: /regex/})` is invalid Playwright API (label must be an exact string)
+in 3 spots; a `form button[type="submit"]` locator collided with 2 unrelated search-form buttons
+on the seeded page, fixed by scoping to `form.do-showcase-persona-switcher-form`.
+
+**Found (escalated to O, NOT fixed by T):** A genuine production defect —
+`DoShowcaseHooks::personaBanner()` renders the Groups-Moderate persona's banner as "You're
+browsing as Moderator — switch back" instead of the wireframe-locked "You're browsing as
+Groups-Moderate — switch back", because it trusts `ShowcaseCatalog::personas()`'s
+`moderator.name` field (`'Moderator'`) directly, while `PersonaSwitcher::optionLabel()`
+correctly hardcodes `'Groups-Moderate'` for the same persona id instead of trusting that same
+field. This is E2E test 1's sole failure; 3/4 E2E tests pass. Full PHPUnit regression (Kernel
+123/123, Unit 62/62, Functional 46/46) is 100% green — none of those suites assert this exact
+string today (a coverage gap also flagged in the advisory notes).
+
+**Evidence:** Full run logs in `handoff-T-green.md` — every PHPUnit tier at pre-story-plus-fixes
+counts with zero collateral failures; E2E run against a genuinely fresh seeded install (drush
+site:install -> config:set uuid -> cim -> 4 seed scripts incl. step_790 -> runserver ->
+playwright), confirmed via `drush user:information groups_moderate_demo` that the seed applied;
+`curl` against the live seeded page confirmed the dropdown option renders "Groups-Moderate"
+correctly while the banner (once switched) renders "Moderator" — isolating the defect to
+`personaBanner()`'s name-resolution path, not the dropdown's.

@@ -94,12 +94,23 @@ final class PersonaSpecTest extends KernelTestBase {
    * Every persona entry carries the new `uname` field with the exact
    * expected value — NULL for anonymous, the seeded account name for the
    * other three (Amendment 2).
+   *
+   * T's fix (Phase 6, Bug A): the original `EXPECTED_UNAME[$id] ?? '__unexpected__'`
+   * used PHP's `??`, which treats an array key whose VALUE is NULL as if the
+   * key were absent — since `EXPECTED_UNAME['anonymous']` is itself NULL (the
+   * correct expected value per Amendment 2), the expression always fell
+   * through to the '__unexpected__' fallback for the anonymous case,
+   * regardless of what `personas()` actually returned. Fixed by checking
+   * `array_key_exists()` first (still guards against a genuinely unexpected
+   * persona id appearing), then indexing directly so a real NULL expected
+   * value is preserved.
    */
   public function testEveryPersonaHasExpectedUname(): void {
     $catalog = new ShowcaseCatalog();
     foreach ($catalog->personas() as $persona) {
       $this->assertArrayHasKey('uname', $persona, sprintf('Persona "%s" must carry a "uname" key.', $persona['id'] ?? '?'));
-      $expected = self::EXPECTED_UNAME[$persona['id']] ?? '__unexpected__';
+      $this->assertArrayHasKey($persona['id'], self::EXPECTED_UNAME, sprintf('Persona id "%s" is not one of the expected personas.', $persona['id'] ?? '?'));
+      $expected = self::EXPECTED_UNAME[$persona['id']];
       $this->assertSame($expected, $persona['uname'], sprintf('Persona "%s" uname must be %s.', $persona['id'], var_export($expected, TRUE)));
     }
   }

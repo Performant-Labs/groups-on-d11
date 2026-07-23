@@ -47,11 +47,19 @@ final class PersonaSwitchControllerMethodTest extends BrowserTestBase {
   /**
    * POST on a real (non-anonymous) persona target succeeds — a redirect
    * after the login (302/303).
+   *
+   * T's fix (Phase 6, Bug B): Mink's `BrowserKitDriver` sets
+   * `$client->followRedirects(true)` by default, so without disabling it the
+   * client transparently follows the 302 to its destination BEFORE
+   * `getInternalResponse()` is populated — the test would observe the FINAL
+   * page's 200, never the redirect's own 302/303. Must call
+   * `followRedirects(false)` before issuing the request.
    */
   public function testPostOnNonAnonymousPersonaRedirects(): void {
     $this->drupalCreateUser([], 'maria_chen');
 
     $client = $this->getSession()->getDriver()->getClient();
+    $client->followRedirects(false);
     $client->request('POST', $this->buildUrl('/persona-switch/maria-chen'));
     $status = $client->getInternalResponse()->getStatusCode();
     $this->assertContains($status, [302, 303], 'POST to a real persona target must redirect (successful login), not 405/403.');
@@ -61,12 +69,20 @@ final class PersonaSwitchControllerMethodTest extends BrowserTestBase {
    * GET on `persona=anonymous` (switch-back) is explicitly ALLOWED — the
    * banner's switch-back control is a real `<a href="/persona-switch/
    * anonymous">` link (wireframe.md §2), which issues a GET.
+   *
+   * T's fix (Phase 6, Bug C): same Mink auto-follow-redirect issue as Bug B,
+   * but here the request goes through `drupalGet()`, which uses the Mink
+   * session directly rather than a raw BrowserKit client. `drupalGet()` has
+   * no "don't follow redirects" mode, so this test must drop down to the
+   * same `getClient()`+`followRedirects(false)` technique used elsewhere in
+   * this suite to observe the actual 302/303 rather than the followed
+   * destination's 200.
    */
   public function testGetOnAnonymousRedirects(): void {
-    $this->drupalGet('/persona-switch/anonymous');
-    // A GET to the switch-back target must not 405 (it's explicitly
-    // permitted) — expect a redirect (session logout + redirect back).
-    $status_code = $this->getSession()->getStatusCode();
+    $client = $this->getSession()->getDriver()->getClient();
+    $client->followRedirects(false);
+    $client->request('GET', $this->buildUrl('/persona-switch/anonymous'));
+    $status_code = $client->getInternalResponse()->getStatusCode();
     $this->assertContains($status_code, [302, 303], 'GET on persona=anonymous (switch-back) must redirect, never 405.');
   }
 

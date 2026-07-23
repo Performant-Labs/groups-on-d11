@@ -477,15 +477,18 @@ jobs:
           grep -c "databases\['default'\]\['default'\]" web/sites/default/settings.php || true
           php vendor/drush/drush/drush.php status --fields=drupal-version,db-status,bootstrap
 
-      - name: Seed full demo data (groups, content, types, nav) — mirror the deployed image
+      - name: Seed full demo data (groups, content, types, nav, personas) — mirror the deployed image
         # CI installs + imports config but does NOT run the container entrypoint,
-        # so without this the site has NO demo groups, members, group-type tags or
-        # nav links — and directory-cards.spec.ts (#84), nav.spec.ts (#83) and the
-        # phase2/3/4 specs that assert seeded groups/streams would all fail even
-        # though the deployed image renders them. Run the SAME scripts the
-        # entrypoint runs, in the same order, as uid 1 (matches the entrypoint's
-        # seed-as-admin wrapper so do_group_extras' unpublish-on-create presave
-        # hook leaves the seeded groups published). All scripts are idempotent.
+        # so without this the site has NO demo groups, members, group-type tags,
+        # nav links, or persona-switcher accounts — and directory-cards.spec.ts
+        # (#84), nav.spec.ts (#83), the phase2/3/4 specs that assert seeded
+        # groups/streams, and persona-switcher.spec.ts (#120) that assert the
+        # `groups_moderate_demo` account + Maria's Organizer grant + the pending
+        # relationship, would all fail even though the deployed image renders
+        # them. Run the SAME scripts the entrypoint runs, in the same order, as
+        # uid 1 (matches the entrypoint's seed-as-admin wrapper so
+        # do_group_extras' unpublish-on-create presave hook leaves the seeded
+        # groups published). All scripts are idempotent.
         #
         # Absolute script paths: under `drush php:script`, PHP's getcwd() resolves
         # to the docroot, not the workspace, so relative requires break. Resolve
@@ -495,6 +498,7 @@ jobs:
           DEMO_SCRIPT="$PWD/docs/groups/scripts/step_700_demo_data.php"
           TYPES_SCRIPT="$PWD/docs/groups/scripts/step_720_group_types.php"
           NAV_SCRIPT="$PWD/docs/groups/scripts/step_780_nav_menu.php"
+          PERSONA_SCRIPT="$PWD/docs/groups/scripts/step_790_persona_switcher.php"
           # 1) Demo data (users, 8 groups, memberships, in-group content) as uid 1.
           cat > /tmp/seed-demo.php <<PHP
           <?php
@@ -520,6 +524,16 @@ jobs:
           require '${NAV_SCRIPT}';
           PHP
           php vendor/drush/drush/drush.php php:script /tmp/seed-nav.php
+          # 4) Persona-switcher seed (#120 SC-1): groups_moderate role +
+          #    groups_moderate_demo account, Maria's Organizer grant, one pending
+          #    group_relationship (persona-switcher.spec.ts).
+          cat > /tmp/seed-persona.php <<PHP
+          <?php
+          \$admin = \Drupal\user\Entity\User::load(1);
+          if (\$admin) { \Drupal::currentUser()->setAccount(\$admin); }
+          require '${PERSONA_SCRIPT}';
+          PHP
+          php vendor/drush/drush/drush.php php:script /tmp/seed-persona.php
           php vendor/drush/drush/drush.php cache:rebuild -y
 
       - name: Serve the site

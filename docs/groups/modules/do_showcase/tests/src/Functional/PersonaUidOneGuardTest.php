@@ -47,6 +47,14 @@ final class PersonaUidOneGuardTest extends BrowserTestBase {
    * Issues a POST request to a path via the Mink session's BrowserKit
    * client and returns the HTTP status code.
    *
+   * T's fix (Phase 6, Bug B/C): Mink's `BrowserKitDriver` sets
+   * `$client->followRedirects(true)` on the client by default, so without
+   * disabling it the client transparently follows a 302/303 to its
+   * destination BEFORE `getInternalResponse()` is populated — every caller
+   * of this helper would observe the FINAL page's 200, never the redirect's
+   * own status. Must call `followRedirects(false)` before issuing the
+   * request so `getInternalResponse()` reflects the actual first response.
+   *
    * @param string $path
    *   The site-relative path (e.g. '/persona-switch/root').
    *
@@ -55,6 +63,7 @@ final class PersonaUidOneGuardTest extends BrowserTestBase {
    */
   private function postAndGetStatus(string $path): int {
     $client = $this->getSession()->getDriver()->getClient();
+    $client->followRedirects(false);
     $client->request('POST', $this->buildUrl($path));
     return $client->getInternalResponse()->getStatusCode();
   }
