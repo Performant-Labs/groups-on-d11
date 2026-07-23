@@ -1,0 +1,25 @@
+name: DO Activity
+description: 'Activity log foundation — records post/comment/membership/flag/pin events as Message entities for later stream rendering (#116).'
+type: module
+core_version_requirement: ^11.2
+package: Custom
+# NOTE (T, Phase 4 RED, #116): this skeleton info.yml is authored by the Tester
+# so the eight kernel tests below can install/enable `do_activity` and fail on
+# REAL missing production behavior (absent hooks, absent message templates,
+# absent backfill script) rather than on "module do_activity not found" /
+# ModuleLoaderException. No hook class, install file, or template config is
+# shipped here — F authors src/Hook/DoActivityHooks.php, do_activity.install,
+# and config/install/message.template.*.yml per the amended brief
+# (docs/planning/handoffs/116-activity/brief-amended.md). Dependencies below
+# are the full stack the six log points + deletion hygiene need; do_group_pin
+# is NOT a hard dependency (do_activity reacts to raw flagging_insert/_delete
+# per the brief's model, matching the flag id, not do_group_pin's own hooks).
+dependencies:
+  - drupal:message
+  - drupal:message_notify
+  - drupal:group
+  - drupal:gnode
+  - drupal:node
+  - drupal:comment
+  - drupal:flag
+  - drupal:user
