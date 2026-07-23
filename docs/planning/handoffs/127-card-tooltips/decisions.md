@@ -150,3 +150,13 @@ No discrepancies. F's handoff reported 12/12 unit, 7/7 target e2e, 3/3 regressio
 
 ### Verdict
 GREEN. No blocking issues. Handing off to U (UI surface — tippy hover/focus/visual behavior on live SPA nav warrants U's walkthrough beyond headless Playwright).
+
+## Phase 8 - U
+
+Verdict: PASS -- ready for S.
+
+Drove the live DDEV site (gm127-card-tooltips.ddev.site) with a throwaway Playwright script (standard page.goto/hover/focus -- this is plain Drupal with no SPA/HTMX nav to special-case). All 19 checklist items from the U prompt confirmed PASS: correct tooltip copy on hover for all 6 elements (directory type/visibility/members, stream byline/type/comments) across /all-groups and /stream; visibility copy byte-identical to the reused visibility.open HelpText key; no double-tooltip (badge itself has no native title and does not fire tippy); full keyboard reachability with a visible 2px solid focus outline (rgb(0,103,184)) and tippy showing on focus; distinct non-empty accessible names confirmed via ariaSnapshot; contrast approximately 5.78:1, comfortably AA; zero console errors across the entire walkthrough; window.Drupal.behaviors.doChromeTooltips confirmed registered. Regression-checked /showcase (200 OK, no card templates rendered there by design, unrelated page-level info icons unaffected) and the authenticated Elena Garcia (member) persona on both surfaces (session confirmed via cookie persistence, cards and tooltips render identically to anonymous).
+
+Independently assessed diff-gate W-3 (role=note passivity concern): judged as not a UI-behavior blocker from the live-browser angle -- the element is keyboard-reachable, carries a full accessible name, and behaves honestly (a passive annotation, not a misrepresented control). The semantic-correctness question of role=note versus an alternative ARIA pattern is forwarded to S formal WCAG audit rather than adjudicated here.
+
+No behavioral defects found. Ready for S.
