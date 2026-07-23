@@ -73,3 +73,42 @@ site format is broader, but the test only needs to prove sanitization does NOT s
 **Evidence:** `handoff-A-plan.md`.
 
 ---
+
+## T — Phase 4 (RED)
+
+**Date:** 2026-07-23  **Verdict:** RED valid, 1/8 kernel tests fails for the right reason.
+
+**Decided:**
+- Authored `GroupAboutFieldTest.php` mirroring `GroupLinksFieldTest.php`'s programmatic-fixture
+  shape exactly (storage/instance/displays built in `setUp()`, since kernel tests never
+  auto-install a not-yet-shipped module's `config/install/`).
+- Included the optional library-attach assertion (A warn #6) — cheap given the render helper
+  already existed; it is the test that actually fails at RED time (production `preprocessGroup`
+  hasn't been extended to attach `do_group_extras/group-about` yet).
+- Chose the `basic_html` FilterFormat route (not `plain_text`) for AC-5's fixture per A warn #5,
+  with minimal `allowed_html: '<p> <strong>'`.
+- E2E spec (`group-about.spec.ts`) deliberately does NOT pin a specific seeded group label/phrase
+  (unlike `group-links.spec.ts`'s `SEEDED_LINK_TITLES`) because F has not yet written the About
+  seed setter — asserts structurally (heading present + non-empty body on at least one seeded
+  group; heading absent on at least one other) instead, iterating the full 8-label seeded roster.
+  Left a `TODO(F)` inviting a future pinned-phrase revision if desired.
+
+**Assumed:**
+- The 7 non-failing kernel tests (config shape, render, empty-state) are a VALID RED posture even
+  though they pass today, because they pass only via T's own programmatic fixture standing in for
+  not-yet-shipped config — confirmed this is the established, already-merged convention by running
+  the sibling `GroupLinksFieldTest` as a baseline (identical ✔/⚠-only, zero-failures result).
+
+**Hedged:**
+- None for the authored tests themselves. Renamed this worktree's `.ddev/config.yaml` project name
+  from `pl-groups-on-d11` to `gm141-about` to avoid a DDEV project-name collision with the already-
+  running main checkout — a necessary environment fix, not a test-content decision, done without
+  touching the sibling project's containers.
+
+**Evidence:**
+- `docs/planning/handoffs/141-about/handoff-T-red.md` — full RED command + output + interpretation.
+- Kernel run: `ddev exec 'SIMPLETEST_DB=mysql://db:db@db/db SIMPLETEST_BASE_URL=https://web php vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/do_group_extras/tests/src/Kernel/GroupAboutFieldTest.php --testdox'` → `Tests: 8, Assertions: 191, Failures: 1`.
+- Baseline sanity check: `GroupLinksFieldTest.php` (already merged/GREEN) run identically →
+  `Tests: 7, Assertions: 166, Deprecations: 2`, zero failures — confirms the ⚠-only pattern is
+  expected/benign, not evidence of an invalid RED.
+- E2E: `npx playwright test --list tests/e2e/group-about.spec.ts` → `Total: 2 tests in 1 file`.
