@@ -292,3 +292,41 @@ playwright), confirmed via `drush user:information groups_moderate_demo` that th
 `curl` against the live seeded page confirmed the dropdown option renders "Groups-Moderate"
 correctly while the banner (once switched) renders "Moderator" — isolating the defect to
 `personaBanner()`'s name-resolution path, not the dropdown's.
+
+## F — Phase 5-fix (2026-07-23)
+
+**Decided:** Chose Option B — added a fifth field, `label`, to each `ShowcaseCatalog::personas()`
+entry (`'Anonymous'` / `'Elena Garcia — Member'` / `'Maria Chen — Organizer'` / `'Groups-Moderate'`)
+rather than Option A (a new `personaLabel(string $id): string` method on `ShowcaseCatalog`).
+Rejected Option A because `ShowcaseCatalogTest::testPersonaSwitcherEntryNamesAllFourPersonas()`
+(a currently-GREEN, pre-existing Unit test) already pins `$p['name']` to the plain persona
+name/title (`'Moderator'`, not `'Groups-Moderate'`) — and `ShowcaseController::build()`'s
+`/showcase` tour listing (`@name — @description`) is a FOURTH consumer that genuinely needs the
+plain `name`, not the display label, so `name` cannot be repurposed. A data-driven `label` field
+is the minimal, additive fix matching this method's own existing per-field (`name`/`description`)
+pattern — both `PersonaSwitcher::optionLabel()` (now a one-line `return $persona['label']`) and
+`DoShowcaseHooks::personaBanner()` (now reads `$active_persona['label']` directly, in place of
+the old `$active_persona['name']` + independent `$role_suffix` match) read from this ONE field.
+Verified additive-safe against every existing consumer (`PersonaAccessCheck`,
+`PersonaSwitchController` — neither reads `name` or `label` at all) before editing.
+
+**Decided:** Also fixed a `phpcs` "avoid backslash escaping in translatable strings" warning I
+introduced in `personaBanner()`'s new `$lead_text` construction — switched
+`t('You\'re browsing as @label — ', ...)` (single-quoted, escaped apostrophe) to
+`t("You're browsing as @label — ", ...)` (double-quoted, no escape), matching both `phpcs`'s own
+recommendation and the pre-fix code's own quoting style.
+
+**Found:** Confirmed via `git diff` against the pre-fix file (linted a scratch copy of the original
+`DoShowcaseHooks.php` inside DDEV) that the class's remaining 9 `phpcs` warnings (raw `t()`/
+`\Drupal::` calls, no DI/`StringTranslationTrait`) are 1-for-1 pre-existing — present in the
+original file before this fix, in the SAME established style as the untouched `pageTop()` method.
+Not new debt introduced by this fix.
+
+**Evidence:** `ShowcaseCatalogTest.php:146-153` (`testPersonaSwitcherEntryNamesAllFourPersonas`,
+asserts `$p['name']` is `'Moderator'`, not `'Groups-Moderate'` — still GREEN after the fix, proving
+`label` is additive and `name` is genuinely untouched); `ShowcaseController.php:124-137` (4th
+`name` consumer, the `/showcase` tour listing, unaffected by this fix); `tests/e2e/persona-
+switcher.spec.ts:52,65,89,99` (the exact pinned banner/option strings this fix targets — read-only,
+not edited); full re-verification below (Tier 1 self-check) — 50/50 (19 Kernel + 31 Unit), 17/17
+Functional, 123/123 full custom-module Kernel regression, all unchanged from the pre-fix baseline;
+E2E `--list` still parses 4/4 tests cleanly.

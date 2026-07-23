@@ -142,7 +142,7 @@ final class PersonaSwitcher {
    *
    * Derives the id from real session state (never a hardcoded default).
    *
-   * @param array<int, array{id: string, name: string, description: \Drupal\Core\StringTranslation\TranslatableMarkup, uname: string|null, tooltip_key: string}> $personas
+   * @param array<int, array{id: string, name: string, label: string, description: \Drupal\Core\StringTranslation\TranslatableMarkup, uname: string|null, tooltip_key: string}> $personas
    *   The persona list, as returned by ShowcaseCatalog::personas().
    *
    * @return string
@@ -172,19 +172,23 @@ final class PersonaSwitcher {
    * "Maria Chen — Organizer", "Groups-Moderate" (no role suffix), and plain
    * "Anonymous".
    *
-   * @param array{id: string, name: string, description: \Drupal\Core\StringTranslation\TranslatableMarkup, uname: string|null, tooltip_key: string} $persona
+   * Phase 5-fix (#120 production defect repair): this used to independently
+   * `match ($persona['id'])`-hardcode these same four strings, which is
+   * exactly how `DoShowcaseHooks::personaBanner()` — reading
+   * `$persona['name']` directly instead — diverged and regressed the
+   * Groups-Moderate banner to "You're browsing as Moderator" (caught by
+   * `tests/e2e/persona-switcher.spec.ts`). Now delegates to
+   * `ShowcaseCatalog::personas()`'s own `label` field, the single source of
+   * truth both this method and `personaBanner()` read from.
+   *
+   * @param array{id: string, name: string, label: string, description: \Drupal\Core\StringTranslation\TranslatableMarkup, uname: string|null, tooltip_key: string} $persona
    *   One persona entry.
    *
    * @return string
    *   The visible option label.
    */
   private function optionLabel(array $persona): string {
-    return match ($persona['id']) {
-      'elena-garcia' => (string) $this->t('Elena Garcia — Member'),
-      'maria-chen' => (string) $this->t('Maria Chen — Organizer'),
-      'moderator' => (string) $this->t('Groups-Moderate'),
-      default => (string) $this->t('Anonymous'),
-    };
+    return $persona['label'];
   }
 
 }

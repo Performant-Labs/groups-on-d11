@@ -167,17 +167,37 @@ class DoShowcaseHooks {
    * persona `uname` values (wireframe.md §2: "no banner markup renders at
    * all — not hidden via CSS — truly absent from the DOM" when Anonymous).
    *
-   * Copy is the exact issue phrasing, instantiated per persona — Elena and
-   * Maria get a role suffix ("— Member" / "— Organizer"); the Moderator
-   * persona's display name already reads as a role ("Groups-Moderate"), so
-   * no separate role suffix is appended for it (matches
-   * `tests/e2e/persona-switcher.spec.ts`'s pinned copy: "You're browsing as
-   * Groups-Moderate — switch back", no additional suffix). The visible
-   * "switch back" text is carried by the real `<a>` link itself (not baked
-   * into the preceding text span), so the banner's full text-content reads
-   * as one continuous phrase with no duplicated "switch back" — matching
+   * Copy is the exact issue phrasing, instantiated per persona, reading the
+   * persona's `label` field (`ShowcaseCatalog::personas()`) — the SAME
+   * display-string source `\Drupal\do_showcase\Persona\
+   * PersonaSwitcher::optionLabel()` reads for its `<select>` `<option>`
+   * text. Elena and Maria's `label` already carries the role suffix
+   * ("Elena Garcia — Member" / "Maria Chen — Organizer"); the Moderator
+   * persona's `label` ("Groups-Moderate") already reads as a role, so no
+   * separate role-suffix concatenation happens here.
+   *
+   * Phase 5-fix (#120 production defect repair): this method used to build
+   * `$lead_text` from `$active_persona['name']` (the persona's plain name,
+   * e.g. "Moderator") plus its OWN independent `match ($active_persona['id'])`
+   * role-suffix table — a second, divergent copy of the exact logic
+   * `PersonaSwitcher::optionLabel()` already encoded, which is how the
+   * Groups-Moderate banner regressed to "You're browsing as Moderator —
+   * switch back" instead of the wireframe/AC-locked "You're browsing as
+   * Groups-Moderate — switch back" (caught by
+   * `tests/e2e/persona-switcher.spec.ts`'s Groups-Moderate full-switch
+   * test). Fixed by reading the persona's `label` field directly — there is
+   * now exactly one source of truth for this visible copy
+   * (`ShowcaseCatalog::personas()`), consumed identically by the switcher's
+   * `<option>` text and this banner.
+   *
+   * The visible "switch back" text is carried by the real `<a>` link itself
+   * (not baked into the preceding text span), so the banner's rendered text
+   * concatenates to the exact issue phrasing with no duplicated phrase:
+   * "You're browsing as Elena Garcia — Member — switch back" /
+   * "You're browsing as Groups-Moderate — switch back" — matching
    * `PersonaBannerTest`'s `assertStringContainsString()` on the concatenated
-   * banner text.
+   * banner text and `persona-switcher.spec.ts`'s `toContainText()`
+   * assertions for every persona.
    *
    * The wrapper is a real `<aside role="status">` (wireframe.md §2 /
    * `PersonaBannerTest`'s `aside[role="status"].do-showcase-persona-banner`
@@ -233,19 +253,15 @@ class DoShowcaseHooks {
       return;
     }
 
-    $role_suffix = match ($active_persona['id']) {
-      'elena-garcia' => ' — ' . (string) t('Member'),
-      'maria-chen' => ' — ' . (string) t('Organizer'),
-      default => '',
-    };
-
-    // "You're browsing as {name}{role_suffix} — " immediately precedes the
-    // real <a>"switch back"</a> link, so the banner's rendered text
-    // concatenates to the exact issue phrasing with no duplicated phrase:
-    // "You're browsing as Elena Garcia — Member — switch back".
-    $lead_text = (string) t("You're browsing as @name@role_suffix — ", [
-      '@name' => $active_persona['name'],
-      '@role_suffix' => $role_suffix,
+    // "You're browsing as {label} — " immediately precedes the real
+    // <a>"switch back"</a> link, so the banner's rendered text concatenates
+    // to the exact issue phrasing with no duplicated phrase. `label` is the
+    // single source of truth shared with PersonaSwitcher::optionLabel() (see
+    // this method's docblock) — it already carries the role suffix for
+    // Elena/Maria and reads correctly as-is for Moderator/Anonymous, so no
+    // separate role-suffix table is built here.
+    $lead_text = (string) t("You're browsing as @label — ", [
+      '@label' => $active_persona['label'],
     ]);
 
     $children = [
