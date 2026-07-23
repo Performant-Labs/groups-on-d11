@@ -169,3 +169,209 @@ Append-only. One entry per phase.
 successful config/module assembly) though not executed this session for lack of a reachable PHP
 runtime for this worktree/branch. F may implement against these tests. T will execute + confirm
 GREEN at Phase 6 against a properly provisioned (DDEV or CI) environment.
+
+## Phase 5 — F (implementation, GREEN target)
+
+**Decided:**
+- Field config: NEW `field.storage.group.field_group_privacy.yml` +
+  `field.field.group.community_group.field_group_privacy.yml`, mirroring
+  `field_group_visibility`'s shape exactly (list_string, cardinality 1,
+  allowed_values public/unlisted/private in that order, default `public`,
+  required: true on the field instance).
+- `do_group_extras/src/Hook/DoGroupExtrasHooks.php`: added
+  `#[Hook('group_access')] groupAccess()` (forbids `op=view` on private
+  groups for non-members) and extended the existing `nodeAccess()` with a
+  new `op === 'view'` branch. Extracted `isPrivateForNonMember()` (shared
+  private helper) per the brief's explicit instruction, avoiding duplicating
+  the "private AND non-member" predicate across the two hook methods.
+- Node-owning-group lookup uses `group_relationship` storage
+  (`loadByEntity($node)` -> `getGroup()`), NOT `$this->routeMatch`, because
+  T's kernel test calls `$node->access('view', $account, TRUE)` with no
+  route context at all, and because content is viewed from many
+  non-group-scoped routes in production (search, streams, `/node/{n}`) where
+  a route-based lookup would silently fail to gate anything. Added
+  `EntityTypeManagerInterface` as a new constructor dependency (updated
+  `do_group_extras.services.yml`'s explicit `arguments:` list, since this
+  service is registered with `autowire: false`).
+- Both forbid paths attach `->addCacheableDependency($group)
+  ->cachePerPermissions()->cachePerUser()` per A advisory #2, matching
+  `GroupAccessHook::groupRelationshipCreateAccess()`'s established pattern
+  verbatim. `cachePerUser()` already adds the `user` cache context, so no
+  redundant `addCacheContexts(['user'])` call was added on top of it.
+- **A advisory #1 deep-dive (real gap found, not just the literal check):**
+  grepped `views.view.all_groups.yml` for `disable_sql_rewrite` — absent
+  (confirmed default `false`, no config edit needed, exactly as advisory #1
+  anticipated for that branch). However, reading
+  `Drupal\group\Hook\QueryHooks::viewsQueryAlter()` and
+  `Drupal\group\QueryAccess\GroupQueryAlter::doAlter()` directly (core
+  contrib source) revealed that the `all_groups` Views listing is filtered
+  ENTIRELY by the group-role PERMISSION-GRANT calculator
+  (`calculateFullPermissions()`), which has zero awareness of any entity
+  FIELD, including the new `field_group_privacy`. Since the seeded
+  `outsider_view`/`anon_view` roles grant "view group" unconditionally
+  (scope `outsider`, no per-group-instance override mechanism), EVERY seeded
+  group — including a private one — would pass that filter identically. This
+  is the deeper root cause the survey's own risk note gestured at
+  ("Entity_access hook does NOT filter Views by default UNLESS..."), now
+  confirmed precisely. Addressed via `#[Hook('views_query_alter')]` scoped
+  to `$view->id() === 'all_groups'` (view-id guard, mirroring
+  `DoGroupPinHooks::viewsQueryAlter()`'s `STREAM_VIEW_ID` guard in the same
+  module), adding a manual LEFT JOIN to `group__field_group_privacy` +
+  `addWhereExpression()` excluding rows where privacy is `private` AND an
+  `EXISTS` subquery against `group_relationship_field_data` (filtered
+  `plugin_id = 'group_membership'`, `entity_id = <current uid>`) finds no
+  membership row. This is authorized by advisory #1's own stated fallback
+  ("if present and true... add hook_views_query_alter... still in
+  do_group_extras, NOT a generic hook_query_TAG_alter") — the trigger
+  condition differs from what advisory #1 literally named
+  (`disable_sql_rewrite`), but the remedy mechanism and module placement are
+  exactly what advisory #1 pre-authorized for this class of gap.
+- `HelpText::all()`: appended the 4 `privacy.*` keys verbatim from
+  `wireframe.md` §3 (reconstructed as single-line strings from the
+  wireframe's soft-wrapped markdown; minor char-count drift from the
+  wireframe's own stated counts, e.g. 142 vs. stated 152 for
+  `privacy.public`, is due to wrap-join ambiguity, not a content change —
+  all four keys still comfortably clear the test's `>= 40 chars` floor and
+  match every content-specific regex/substring assertion in
+  `HelpTextTest::testPrivacyKeys()`).
+- Theme: extended `groups_chrome_preprocess_group()` and
+  `groups_chrome_preprocess_views_view_fields__all_groups()` with a shared
+  `_groups_chrome_privacy_label()` helper (avoids duplicating the "is this
+  private" check across both call sites), populating `gc_group.privacy_label`
+  / `gc_directory.privacy_label` (+ `..._help_copy`, read from
+  `HelpText::get('privacy.private')`). Both templates
+  (`group--full.html.twig`, `views-view-fields--all-groups.html.twig`) render
+  the badge verbatim per wireframe §§1-2, guarded by
+  `{% if gc_*.privacy_label == 'Private' %}`, class
+  `gc-badge gc-badge--warning gc-*-privacy gc-privacy-badge` +
+  `data-do-tooltip` — matches the AC-9 selector
+  `.gc-privacy-badge[data-do-tooltip]` exactly. No new CSS class was added
+  (`gc-badge--warning` already exists in `primitives.css`, verified before
+  use).
+- Seed (Step 795, `step_700_demo_data.php`): idempotent
+  (`loadByProperties(['label' => 'Security Team'])` group guard,
+  `getMember()` membership guards, node-title-existence guard for the two
+  forum topics), appended immediately after the existing Step 790 block.
+  Elena + Maria + James all added as members; Maria specifically granted
+  `GroupMembershipManager::ORGANIZER_ROLE_ID` (matching her #120-catalog
+  "Maria Chen — Organizer" persona label, confirmed by reading
+  `ShowcaseCatalog::personas()` directly rather than guessing).
+  `field_group_privacy=private` and `field_group_visibility=invite_only` are
+  both set with the same `hasField()`-guarded, idempotent pattern Step 790
+  already established.
+- **Deviation from the brief's literal instruction (documented, not
+  silent):** the brief's item 9 said to set `field_group_type` = "Working
+  group" term inside Step 795 (`step_700_demo_data.php`), "look up the term
+  id like step 790 does." Reading `deploy/entrypoint.sh` (seed at line
+  ~117, group-types provisioning at line ~150) and
+  `.github/workflows/test.yml` (DEMO_SCRIPT invoked before TYPES_SCRIPT)
+  directly revealed that `step_720_group_types.php` — the script that
+  creates `field_group_type` itself — runs AFTER `step_700_demo_data.php`
+  in BOTH the deploy entrypoint and the CI E2E job. A same-block assignment
+  attempt inside Step 795 would therefore be a silent no-op on every real
+  run (the field would not exist yet). Instead, added one row
+  (`'Security Team' => 'Working group'`) to `step_720_group_types.php`'s
+  own pre-existing, already-idempotent `$group_type_map` loop — its
+  explicitly-stated purpose is exactly "tag a demo group by label", so this
+  is the correct extension point, not step_700. Step 795 itself does not
+  attempt to set `field_group_type` at all (no dead/no-op code left behind).
+  This does not affect any T-authored test (none of the four test files
+  assert on Security Team's `field_group_type`); it only affects the real
+  deploy/CI-seeded demo, which is exactly the surface this deviation was
+  found and fixed for.
+- **T-assumption compliance:** implemented `group_access` as a
+  `#[Hook('group_access')]`-attributed method (confirmed the exact
+  invocation signature by reading
+  `Drupal\Core\Entity\EntityAccessControlHandler::access()` directly:
+  `moduleHandler->invokeAll($entity->getEntityTypeId() . '_access', [$entity,
+  $operation, $account])`, i.e. `hook_group_access(EntityInterface $entity,
+  $operation, AccountInterface $account): AccessResultInterface`) — T's
+  kernel test asserts only on the observable `AccessResultInterface` via
+  `$group->access('view', $account, TRUE)`, never on the hook's internal
+  name/signature, so this satisfies the assumption as written. Extended the
+  EXISTING `DoGroupExtrasHooks::nodeAccess()` method (same file, same class)
+  rather than adding a second node-access hook class, matching T's stated
+  fixture assumption exactly. Did not touch `PrivacyDirectoryTest`'s
+  `$defaultTheme = 'groups_chrome'` assumption — the real theme's real
+  templates were edited (not a fixture), so that assumption is satisfied by
+  construction.
+
+**Advisories addressed (Phase 3 A review):**
+1. **Views SQL rewrite.** Grepped and confirmed `disable_sql_rewrite`
+   absent/false — the literal check passes. Additionally discovered and
+   fixed the DEEPER root cause (permission-calculator gap, see above) via
+   the exact fallback mechanism advisory #1 pre-authorized
+   (`hook_views_query_alter` in `do_group_extras`).
+2. **Cache invalidation.** `addCacheableDependency($group)
+   ->cachePerPermissions()->cachePerUser()` on both forbid paths, matching
+   `GroupAccessHook`'s established pattern.
+3. **Title-leak breadth.** No F action needed — this advisory targeted T's
+   test authorship (literal-string assertion), already reflected in
+   `PrivacyDirectoryTest::testAnonymousAllGroupsOmitsSecurityTeamLiterally()`.
+4. **`step_700` L91 admin-role reference.** Confirmed via `git diff` that no
+   hunk touches that line; the diff is purely additive at the end of the
+   file (Step 795 appended after the pre-existing Step 790 block).
+
+**Deviations from the brief (both documented above, not silent):**
+- `field_group_type` tagging moved from Step 795 to `step_720_group_types.php`'s
+  existing map (deploy-ordering constraint discovered at implementation
+  time; see above).
+- The A-advisory-#1 remedy fires on a different ROOT CAUSE
+  (permission-calculator gap) than the literal `disable_sql_rewrite` check
+  advisory #1 named, though the prescribed FIX mechanism
+  (`hook_views_query_alter` in `do_group_extras`) is identical to what
+  advisory #1 already authorized.
+
+**Tier 1 self-check:**
+- `bash scripts/ci/assemble-config.sh`: config copy succeeded (97 files, up
+  from T's 95 — the 2 new field config files), module copy succeeded (13
+  modules). The script then halts on its own pre-existing composer-autoload
+  guard (`vendor/autoload.php` missing) — this worktree has never had
+  `composer install` run (no `vendor/` in either this worktree or the
+  primary checkout; no `php`/`composer` binary on PATH), identical to what
+  T's Phase-4 RED handoff already documented as an environment limitation,
+  not a story-content problem.
+- PHPUnit NOT run this session (no reachable PHP runtime), per task
+  instructions.
+- Static verification performed instead: both new YAML files parse cleanly
+  via PyYAML (structure matches `field_group_visibility`'s shape,
+  `allowed_values` in the exact required order, `default_value: public`);
+  brace/paren/bracket balance confirmed on every touched PHP file; Twig
+  `if`/`endif` and `for`/`endfor` tag counts balanced on both edited
+  templates; grepped the assembled copies to confirm the new hook methods
+  and config files landed at the CI-assembled path.
+- Confirmed via `git status`/`git diff` that no test file was touched, no
+  `config/sync/` or `web/modules/custom/` path was staged, and none of the
+  explicitly forbidden files (vestigial role YAMLs, `field_group_visibility`
+  config, `do_group_membership/**`, `step_700` L91) show any diff.
+- Confirmed (by reading `JoinPolicyEnforcementTest.php` and
+  `GroupRestoreAccessTest.php` directly) that neither existing functional
+  test actually exercises the `all_groups` Views listing, so the new
+  `views_query_alter` hook carries no regression risk against AC-10's named
+  tests.
+
+**Evidence:**
+- Core source read directly: `Drupal\Core\Entity\EntityAccessControlHandler`
+  (`::access()`, `::processAccessHookResults()`), `Drupal\group\Entity\
+  Access\GroupAccessControlHandler`, `Drupal\group\Hook\QueryHooks`,
+  `Drupal\group\QueryAccess\GroupQueryAlter`, `Drupal\group\Entity\
+  GroupMembershipTrait` (`loadSingle`/`loadByUser`), `Drupal\group\Entity\
+  Storage\GroupRelationshipStorage` (`loadByEntity`), `Drupal\group\Entity\
+  GroupRelationship` (`getGroup`, `data_table` annotation), `Drupal\Core\
+  Access\AccessResult` (`cachePerPermissions`/`cachePerUser`), `Drupal\views\
+  Plugin\views\query\Sql` (`addWhereExpression`, `disable_sql_rewrite`
+  default).
+- `deploy/entrypoint.sh` (seed vs. group-types provisioning order) and
+  `.github/workflows/test.yml` (DEMO_SCRIPT vs. TYPES_SCRIPT order) read
+  directly to establish the `field_group_type` deferral.
+- `docs/groups/modules/do_group_pin/src/Hook/DoGroupPinHooks.php` read as
+  the landed `views_query_alter` precedent in this same module family.
+- `docs/groups/modules/do_showcase/src/ShowcaseCatalog.php::personas()`
+  read directly to confirm Maria's Organizer persona labeling.
+- Commit `2c8c61b` on branch `134-private` (10 files, 525 insertions(+),
+  20 deletions(-)) — source-only, staged by explicit path.
+
+**Ready for T (Phase 6):** F has implemented against T's RED suite. T executes
+PHPUnit + the E2E spec in a properly provisioned DDEV/CI environment and
+confirms GREEN, per the same environment-gap terms T's own Phase-4 RED
+handoff already established.
