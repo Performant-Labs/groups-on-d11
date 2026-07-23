@@ -77,6 +77,21 @@ class DoStreamsHooks {
   ) {}
 
   /**
+   * The id of ST-4's shipped `/trending` view (#113).
+   *
+   * Used by self::preprocessViewsView() to scope the `do_streams/trending`
+   * library attachment to exactly this view, per #113's handoff-A.md
+   * Finding 3 (advisory): extend the SAME view-id-guarded preprocess method
+   * used for FOLLOWING_FEED_VIEW_ID with a second guard branch, rather than
+   * introducing a new hook (e.g. a separate `views_pre_render`
+   * implementation). `/trending` is a plain Views page — NOT a
+   * `do_streams_shell` consumer — so this attach is the ONLY do_streams
+   * involvement in ST-4; see brief.md's explicit non-scope ("No changes to
+   * the do_streams shell").
+   */
+  public const TRENDING_VIEW_ID = 'trending';
+
+  /**
    * The block plugin id of ST-5's shipped "Recent posts" block (#114).
    *
    * The exact `plugin:` value block.block.do_streams_user_activity.yml
@@ -453,6 +468,7 @@ class DoStreamsHooks {
   /**
    * Do_streams' ONE legal `preprocess_views_view` listener.
    *
+   * Handles FOUR independent, view-id-guarded concerns in one method, because
    * Drupal's `ModuleHandler::invoke()` throws `LogicException: "Module
    * do_streams should not implement preprocess_views_view more than once"`
    * the moment TWO classes in this module each carry a
@@ -462,11 +478,16 @@ class DoStreamsHooks {
    *
    * 1. Issue #111 ST-2: attaches the `do_streams/following` library on the
    *    `/following` view only (self::FOLLOWING_FEED_VIEW_ID).
-   * 2. Issue #115 ST-6: delegates to
+   * 2. Issue #113 ST-4: attaches the `do_streams/trending` library on the
+   *    `/trending` view only (self::TRENDING_VIEW_ID). Per #113's
+   *    handoff-A.md Finding 3 (advisory): extend the SAME view-id-guarded
+   *    preprocess method rather than adding a new hook — that would trip
+   *    exactly the LogicException described above.
+   * 3. Issue #115 ST-6: delegates to
    *    {@see StreamSwitcherHooks::preprocessViewsView()} for any view in
    *    `StreamSwitcherHooks::ATTACH_VIEW_IDS` — prepends the switcher tabs
    *    render array and attaches `do_streams/stream-switcher`.
-   * 3. Issue #130 ST-8: delegates to
+   * 4. Issue #130 ST-8: delegates to
    *    {@see ModelToggleHooks::preprocessViewsView()} for the SC-F1
    *    Content/Activity variant switcher mount on `activity_stream:page_1`.
    *    The delegation call uses the null-safe operator (`?->`) because
@@ -475,9 +496,9 @@ class DoStreamsHooks {
    *    the real container-built `do_streams.hooks` service always supplies
    *    a real instance.
    *
-   * All three concerns can fire independently for the SAME `$variables`
-   * (e.g. `activity_stream` is in `ATTACH_VIEW_IDS` AND is the model-toggle
-   * mount target — both branches must run).
+   * All applicable concerns can fire independently for the SAME `$variables`
+   * (e.g. `/trending` is BOTH the trending view and switcher-attached;
+   * `activity_stream` is switcher-attached AND the model-toggle target).
    */
   #[Hook('preprocess_views_view')]
   public function preprocessViewsView(array &$variables): void {
@@ -488,6 +509,10 @@ class DoStreamsHooks {
 
     if ($view->id() === self::FOLLOWING_FEED_VIEW_ID) {
       $variables['#attached']['library'][] = 'do_streams/following';
+    }
+
+    if ($view->id() === self::TRENDING_VIEW_ID) {
+      $variables['#attached']['library'][] = 'do_streams/trending';
     }
 
     if (in_array($view->id(), StreamSwitcherHooks::ATTACH_VIEW_IDS, TRUE)) {

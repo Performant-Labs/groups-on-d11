@@ -1,0 +1,22 @@
+/**
+ * @file
+ * Scoped tweaks for /trending (views.view.trending, #113 ST-4).
+ *
+ * Card visuals (stream-card-wrapper / stream_card view mode) are inherited
+ * from the shared theme stylesheet (groups_chrome/css/stream.css) — this
+ * file adds ONLY the small container/empty-state spacing tweaks specific to
+ * the trending page, mirroring css/following.css's pattern (brief.md §Plan
+ * step 2: "Do NOT modify shared stream styles"). `.gc-empty` itself is
+ * styled by the theme; the rule below is additive spacing only, scoped
+ * under `.trending-page` so it cannot leak onto the shared empty-state
+ * markup used by other views (e.g. activity_stream, following_feed).
+ */
+
+.trending-page {
+  margin-top: 1rem;
+}
+
+.trending-page .gc-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+}

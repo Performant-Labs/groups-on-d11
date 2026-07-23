@@ -1,0 +1,353 @@
+# Decision journal — #113 ST-4 Trending surface (/trending)
+
+Run start: 2026-07-23. Worktree: `C:/Users/aange/Projects/_worktrees/groups-st4-trending-113`. Branch: `113-trending`. Base: `01f49a51`.
+
+Pipeline: **POC lean** — O → D → D-gate (auto) → A → T(RED) → F → T(GREEN) → diff-gate → U → S → rebase-and-CI-check → PR → self-merge.
+
+---
+
+## O — Phase 1 (Survey + Brief)
+
+**Decided:** Extend existing infrastructure — DO NOT invent new modules. Story is essentially "add one views config + one CSS file + wire cron + one Playwright spec." All heavy lifting already exists:
+- `do_discovery_hot_score` table + `hook_cron` recomputer + views-data exposure (do_discovery).
+- do_streams shell scope registry already knows `trending` label + empty-copy + tab (`?scope=trending`).
+- `do_chrome`'s `PageHelp` and `HelpText` already map `view.trending.page_1 → page.trending` (satisfies HelpText criterion at zero cost — do NOT re-add).
+
+**Reuse & Analogous-Feature map:**
+| Concern | Analogous artifact | Recommendation |
+|---|---|---|
+| Views YAML shape | `docs/groups/config/views.view.following_feed.yml` (page display, `stream_card` row, `use_ajax: true`, `css_class`, empty area_text_custom) | **CLONE + delta** — do not synthesize from scratch |
+| Sort by hot score | `docs/groups/config/views.view.hot_content.yml` (has `do_discovery_hot_score` join + score-DESC sort) | Copy the two `sorts:` entries (`score` primary DESC, `created` secondary DESC) |
+| CSS scoping pattern | `docs/groups/modules/do_streams/css/following.css` | Clone (empty-state spacing only; NO shared stream style edits) |
+| Library declaration | `docs/groups/modules/do_streams/do_streams.libraries.yml` (`following:` block) | Add sibling `trending:` block |
+| E2E spec structure | `tests/e2e/following.spec.ts` (login helper, seeded-persona conventions) | Clone login helper; a public page (no auth for viewing) |
+| Cron trigger addition | `# --- do_activity step_7xx BEGIN/END ---` markers pattern in BOTH `deploy/entrypoint.sh` and `.github/workflows/test.yml` (from #116) | Same marker pattern (`--- do_discovery cron BEGIN/END ---`); append-only |
+
+**No new objects justified** — no new module, no new service, no new hook, no new plugin. Sole novelty: **one** new views config + **one** small CSS file + **one** library entry + **one** e2e spec + **one** marker block appended in two files.
+
+**Assumed (unverified, will surface if wrong):**
+- ST-F1 (#109) is merged (grep confirms shell + trending copy + HelpText already exist on main). Verified by log inspection: commit c4ea97d/caa2b1a landed pre-base.
+- The demo dataset has two 2-comment nodes ("Venue Logistics Thread", "Patch Review Process RFC") → post-cron hot score = 6.0, outranking zero-comment nodes. **Confirmed** in step_700_demo_data.php lines 141-218.
+- `drush cron` from CLI populates `do_discovery_hot_score` synchronously (the `#[Hook('cron')]` runs in-process). Verified by reading DoDiscoveryHooks.php.
+
+**Forward-compat check:** N/A — this is a leaf story; no downstream phase consumes /trending as a shared component.
+
+**Sibling coordination (#116 activity backfill):** #116 also touches `deploy/entrypoint.sh` and `.github/workflows/test.yml`. First-to-merge wins; second rebases its BEGIN/END marker block after the first's. Story uses distinct marker string (`# --- do_discovery cron BEGIN ---` vs `# --- do_activity step_7xx BEGIN ---`) so blocks are independent.
+
+**Review rigor:** `none` (per issue body).
+
+## D — Phase 2 (Design)
+
+**Decided:**
+- Mode (a), generated low-fi wireframe, written as markdown/ASCII (page is a plain
+  Views page — structure/hierarchy/copy carry all the signal; no novel widget
+  justifies SVG/HTML rendering).
+- `/trending` is a **plain Views page, not a `do_streams_shell` consumer** — no
+  scope tabs, no "Recent/Hot" ranking-control pill on this route. Confirmed against
+  `do_streams/README.md`'s "Shell contract" section: the shell's own `trending`
+  scope-tab (`?scope=trending`, ranking forced to `hot`) is an unrelated code path
+  the shell exposes for ITS OWN shell-driven views; this story's standalone
+  `/trending` route does not attach to the shell at all (brief's explicit
+  non-scope: "No changes to the do_streams shell").
+- Card row layout (§2 of wireframe): 100% inherited `stream_card` view mode +
+  `groups_chrome/css/stream.css` — not redesigned. `trending.css` scope-limited to
+  container/empty-state spacing only, mirroring `following.css`'s existing pattern
+  exactly (same two rules: `.trending-page { margin-top }` /
+  `.trending-page .gc-empty { padding; text-align }`).
+- Empty state renders the issue-body copy `"Nothing trending yet."` verbatim, as
+  the VIEW's own `empty:area_text_custom` (single `<p class="gc-empty__title">`,
+  no secondary CTA line, no CTA link/button) — because there is no follow-style
+  "go do this to populate it" action available for a cron-driven surface. Contrast
+  with `following_feed`'s two-line empty state + CTA link, which is deliberately
+  NOT cloned here (different problem: following requires user action to populate;
+  trending does not).
+- Anonymous vs authenticated confirmed IDENTICAL — no per-viewer personalization,
+  no role gate, matches brief's `access.type: none`.
+- WCAG 2.2 AA minimums mapped: exactly one H1 (Views page title "Trending"), pager
+  links are real `<a>` (keyboard-focusable, inherited Views pager plugin, unchanged
+  `h4` pagination heading level), and no color-only status anywhere on the page
+  (ordering is invisible chrome — no visible "hot" badge/score chip is introduced,
+  so nothing here could fail a color-only-status check).
+
+**Assumed:**
+- No visible ranking indicator/pill is correct for THIS story's scope (single fixed
+  sort, no toggle) — flagged as an explicit design decision (not silently
+  resolved) in wireframe.md §6, in case a human reviewer expects shell-style
+  ranking-pill parity. If a future story unifies `/trending` into the shell with a
+  live ranking toggle, this no-pill design would need revisiting; out of scope now.
+- No bespoke error state — a query/DB failure at this route is Drupal's standard
+  platform-level 500, not a designed state; nothing in the acceptance criteria asks
+  for a custom error surface.
+
+**Hedged:**
+- The empty-copy string mismatch between the shell's `trending`-tab copy
+  ("Nothing is trending right now. Check back soon.", `DoStreamsHooks.php:499`) and
+  this story's view-level copy ("Nothing trending yet.", issue-body verbatim) is
+  restated as an open question for A in wireframe.md's D-gate self-review — the
+  two strings live on two different, currently-unconnected code paths (shell tab
+  vs. standalone view), so no immediate fix is proposed, but it is flagged rather
+  than silently accepted in case A judges it worth a follow-up.
+
+**Evidence:**
+- `docs/groups/config/views.view.following_feed.yml` (clone base: page display
+  shape, `stream_card` row, `use_ajax`, `css_class`, empty area_text_custom
+  structure).
+- `docs/groups/config/views.view.hot_content.yml` (sort-block source: score DESC +
+  created DESC; confirms `hot_content.yml` uses `teaser` view mode + exposed
+  `score`/`created` fields, NOT carried into `/trending`'s design — no visible
+  numeric score badge is proposed here).
+- `docs/groups/modules/do_streams/README.md` ("Shell contract" + "ranking" +
+  "Trending (a shell tab, not a ranking value)" sections — basis for the no-pill,
+  no-shell-chrome decision in §6 of the wireframe).
+- `docs/groups/modules/do_streams/css/following.css` +
+  `docs/groups/modules/do_streams/do_streams.libraries.yml` (CSS scoping +
+  library-declaration pattern cloned 1:1 for `trending.css`/`trending:` block).
+- `gh issue view 113` (verbatim empty-state copy, acceptance bullets, "Hot becomes
+  a ranking, not a destination" framing that grounds the no-pill decision).
+
+**Wireframe artifact:** `docs/planning/handoffs/113-trending/wireframe.md`.
+
+## D-gate — Phase 2.5
+_Pending_ (auto-approve per POC lean)
+
+## A — Phase 3 (Plan review)
+
+**Verdict:** PASS. T may proceed to author the RED suite.
+
+**Decided:**
+- All seven author-visible questions resolve in favor of the brief as written. Zero brief amendments required.
+- Empty-copy divergence between the view ("Nothing trending yet.") and the shell scope entry ("Nothing is trending right now. Check back soon.") is acceptable — /trending is not a shell consumer; the two strings live on unconnected render paths.
+- No ranking pill on /trending is correct — matches the analogous plain-Views-page pattern (following_feed, hot_content) and avoids inert interactive chrome.
+- Cloning following_feed.yml + copying hot_content.yml's sort block is the correct extend-the-analogous-object move; adding a page_2 display to hot_content.yml is forbidden by the issue AC and would compromise its admin surface anyway.
+- Sibling collision with #116 is a distinct-namespace marker-block append; merge-clean regardless of order.
+- Cron placement in test.yml (after do_activity END, before cache:rebuild) is correct — scores populated before Playwright, cache invalidated after cron.
+
+**Assumed:**
+- The group.role.community_group-anon_view config-provisioned grants let anon view published group_nodes (matches how /hot already runs publicly on the same base table).
+
+**Hedged:**
+- Advisory (non-blocking): F should extend the existing DoStreamsHooks::preprocessViewsView() method (lines 399-406) with a second view-id guard rather than adding a new views_pre_render hook — the class docblock (line 41) documents this as the idiomatic convention. Brief's "F may prefer... whichever is more idiomatic" latitude already permits this.
+- Advisory (non-blocking): F may swap cron/cache-rebuild ordering in entrypoint.sh; brief-as-written is acceptable either way.
+
+**Evidence:**
+- docs/groups/config/views.view.following_feed.yml (clone base)
+- docs/groups/config/views.view.hot_content.yml (sort-block source; regression guard)
+- docs/groups/modules/do_streams/src/Hook/DoStreamsHooks.php:41,399-406,499 (idiomatic preprocess_views_view attach; shell empty_copy source)
+- docs/groups/modules/do_streams/do_streams.libraries.yml + css/following.css (mirror pattern)
+- deploy/entrypoint.sh:155-179 and .github/workflows/test.yml:558-576 (#116 BEGIN/END marker convention + cron placement anchors)
+- handoff-A.md (full finding table)
+
+
+## T(RED) — Phase 4
+
+**Decided:**
+- Authored `tests/e2e/trending.spec.ts` (NEW, 6 tests) mapping 1:1 to the brief's
+  acceptance criteria and A's three watch items (Findings 3 and the two advisory
+  items on library-attach mechanism and node-access/regression risk).
+- Test 2 (score-ordering) is scoped with `.stream-card-wrapper:nth-of-type(-n+10)`
+  and `getByRole('link', { name, exact: true })` rather than a whole-page substring
+  probe — a positive top-10-window check per A's watch #1, so it cannot pass by
+  accident if the titles rendered on a later page.
+- Test 4 (regression guard on `/hot`) logs in as `elena_garcia` per the task's
+  instruction, but investigation of `docs/groups/config/views.view.hot_content.yml`
+  found **no `access:` block at all** — Views' default is unrestricted/public, not
+  role-gated. The login step is retained as a superset check (authenticated users
+  must also still see `/hot` unaffected) rather than as a proof that `/hot` requires
+  auth, since it does not. This is a deviation from a literal reading of the task
+  prompt ("check hot_content.yml's access to be sure") — verified and the file is
+  in fact public; documented here rather than silently assumed.
+- Test 5 (library attach) asserts only the observable HTML contract
+  (`trending.css`/`following.css` substrings in `page.content()`), deliberately
+  agnostic to whether F wires the attach via a new `views_pre_render` hook or by
+  extending `DoStreamsHooks::preprocessViewsView()`'s existing id() guard (A's
+  Finding 3) — the test must not encode the mechanism.
+- Test 3 (card-class presence) and Test 6 (WCAG H1 + pager) are each single-purpose,
+  cheapest-tier checks (DOM presence / count), not duplicating the ordering test.
+- Kept the anonymous-200 test FIRST in file order so a 404 signature is immediately
+  obvious without reading past it — matches the following.spec.ts convention of
+  ordering the "does the route even exist" check first.
+
+**RED verification:**
+- No local DDEV site was booted for this story (per task guidance: "if the local
+  server isn't running, that's fine — record the failure signature"); the pipeline
+  brief also states CI runs the spec against the seeded served site, which is the
+  faithful verification surface.
+- `npx playwright test tests/e2e/trending.spec.ts --list` confirms all 6 tests
+  parse and are discovered with zero import/compile errors.
+- `npx playwright test tests/e2e/trending.spec.ts --reporter=list` (npm deps
+  installed fresh in the worktree via `npm install`) → **6 failed**, every failure
+  `net::ERR_CONNECTION_REFUSED at https://groups-on-d11-build.ddev.site:8493/...`.
+  This is the correct RED signature for "no server running yet" — distinct from a
+  test-authorship bug (which would show an assertion/type/import error instead).
+  Since `/trending` does not exist yet in config either, a live server would 404 on
+  this same first test; the connection-refused variant observed here is the
+  environment-level equivalent given no DDEV instance was started, and is the
+  documented acceptable substitute per this phase's instructions.
+
+**Assumed:**
+- CI's DDEV/served-site harness (per `.github/workflows/test.yml`'s e2e job) will
+  produce a genuine 404-then-pass RED→GREEN transition once F lands the view;
+  this was not independently re-verified against a booted local DDEV instance in
+  this run, per the task's explicit allowance to skip that step.
+
+**Evidence:**
+- `tests/e2e/following.spec.ts` (spec/login-helper pattern cloned).
+- `docs/groups/config/views.view.hot_content.yml` (confirms no `access:` key —
+  public by default).
+- `docs/groups/scripts/step_700_demo_data.php:139-152,215-222` (confirms the two
+  2-comment seed titles and their exact strings used in the top-10 assertion).
+- `.github/workflows/test.yml:488,501,558,575-576` (confirms cron-trigger insertion
+  point referenced in the spec's doc-comment, for context — not edited by T).
+- Playwright run output (6/6 fail, `ERR_CONNECTION_REFUSED`) — RED confirmed.
+
+## F — Phase 5 (Implementation)
+
+**Decided:**
+- Extended `DoStreamsHooks::preprocessViewsView()` (added `TRENDING_VIEW_ID`
+  constant + refactored the single `!==` guard into a `$library_by_view_id`
+  map) rather than adding a new `views_pre_render` hook, per A's Finding 3
+  (advisory) and the task's explicit direction. `following_feed`'s resolved
+  library and early-return behavior on unrelated views are unchanged.
+- Created `views.view.trending.yml` by cloning `following_feed.yml`'s shape
+  (page-display/row/style/empty-area structure, including its NON-exposed
+  `type` filter — verified `following_feed.yml`'s actual filter block carries
+  no `exposed: true`, contrary to `hot_content.yml`'s exposed one) and copying
+  `hot_content.yml`'s two-entry sort block (`score` DESC then `created` DESC)
+  verbatim.
+- `dependencies.module: [comment, do_discovery, node, user]` — `do_streams`
+  correctly dropped; the view has no `do_streams`-provided filter plugin and
+  the library attach is wired PHP-side by view id, not via a config
+  dependency.
+- Created `trending.css` mirroring `following.css`'s exact two-rule pattern
+  under `.trending-page`; appended a sibling `trending:` block to
+  `do_streams.libraries.yml`.
+- Appended the `# --- do_discovery cron BEGIN/END ---` marker block (brief's
+  literal ordering: after `$DRUSH cr`) in `deploy/entrypoint.sh`'s fresh-install
+  branch, and the workflow-YAML equivalent in `.github/workflows/test.yml`
+  (after the `# --- do_activity step_7xx END ---` marker, before
+  `cache:rebuild -y`) — no other line of either file touched.
+
+**Assumed:**
+- CI's e2e job (vendor installed, real seeded DDEV-equivalent site) is the
+  authoritative GREEN surface; no local PHP/DDEV toolchain exists in this
+  worktree (no `vendor/`, no `php` on PATH), and per task instruction no new
+  DDEV instance was spun up (sibling worktrees already have concurrent DDEV
+  projects running on this host).
+
+**Hedged:**
+- None beyond A's own advisories (Findings 3, 5, 7), which this implementation
+  follows as written — no new ambiguity was introduced during implementation.
+
+**Evidence:**
+- `docs/groups/config/views.view.following_feed.yml` (clone base; verified its
+  `type` filter carries `expose: {operator: ''}` with no `exposed: true`).
+- `docs/groups/config/views.view.hot_content.yml` (sort-block source; `git diff`
+  confirms zero changes — regression guard intact).
+- `docs/groups/modules/do_discovery/src/Hook/DoDiscoveryHooks.php` (confirmed
+  `do_discovery_hot_score` table name, `views_data()` registration, and the
+  `comment_count * 3 + view_count * 0.5` scoring formula underlying the 6.0
+  score claim).
+- `docs/groups/scripts/step_700_demo_data.php:141,143,216-219` (independently
+  re-confirmed both "Venue Logistics Thread" and "Patch Review Process RFC"
+  each receive exactly 2 seeded comments).
+- `bash scripts/ci/assemble-config.sh` output (129 config files + 14 modules
+  copied; only the vendor-dependent core.extension patch sub-step failed, a
+  pre-existing environment gap) — confirmed both new/edited files land
+  byte-identical in the assembled build output.
+- `docs/planning/handoffs/113-trending/handoff-F.md` (full detail).
+
+## T(GREEN) — Phase 6
+
+**Decided:**
+- Verdict: GREEN pending CI. All headless-inspectable Tier 1 + Tier 2 checks pass:
+  `hot_content.yml`/`do_chrome/` regression guards empty; `views.view.trending.yml`
+  and `.github/workflows/test.yml` both parse as valid YAML; `DoStreamsHooks.php`
+  brace/paren/bracket-balanced (35/35, 184/184, 92/92); assembled `config/sync/` +
+  `web/modules/custom/` copies byte-identical to `docs/groups/` source for all 4
+  touched/created files; scoped `git diff` shows exactly F's declared file list
+  (the raw whole-worktree `git diff --stat` is noisy with pre-existing
+  already-merged-story assembled build artifacts, not part of this diff — branch
+  has zero commits, HEAD == merge-base == origin/main).
+- Did not execute `npx playwright test` — `node_modules` is not installed in this
+  worktree (`Cannot find module '@playwright/test'` resolving `playwright.config.ts`),
+  a pre-existing environment gap unrelated to this story's diff. Read
+  `trending.spec.ts` directly instead: syntactically valid, all 6 tests assert
+  observable behavior (not implementation), spot-checked that each would fail if
+  its pinned behavior were removed (library-attach removal breaks test 5; sort
+  reversal breaks test 2's top-10-window locator).
+- Made zero edits to `tests/e2e/trending.spec.ts` — the suite authored in Phase 4
+  needed no changes; F's implementation (map-lookup inside the existing
+  `preprocessViewsView()`) matches what the mechanism-agnostic test 5 expects.
+- Independently re-verified F's Design decision #2 (`type` filter not exposed):
+  read `following_feed.yml`'s actual filter block, confirmed `expose: {operator: ''}`
+  with no `exposed: true` — matches `trending.yml`'s identical shape.
+- Independently re-verified the demo-data claim: both "Venue Logistics Thread" and
+  "Patch Review Process RFC" are `type: forum` nodes (matches `trending.yml`'s
+  `type` filter bundle list) each with exactly 2 seeded comments.
+
+**Assumed:**
+- CI's e2e job (real seeded, cron'd DDEV-equivalent site with `node_modules`
+  installed) will show the true execution-level GREEN for all 6 tests plus the
+  existing suite (especially `following.spec.ts` and `page-help.spec.ts`) — not
+  independently re-verified here per the environment constraint.
+
+**Hedged:**
+- Advisory (non-blocking) to whoever reviews CI output: watch the
+  `:nth-of-type(-n+10)` locator in test 2 if it's the one that surprises anyone —
+  `nth-of-type` counts same-tag siblings, not simply "Nth matching element";
+  redundant-but-safe here since `items_per_page: 10` makes the whole page the
+  top-10 window regardless.
+- Advisory: this worktree's `node_modules` gap will block any future local
+  Playwright confirmation until `npm install` is run once (U's tool is
+  unaffected — it drives a live browser directly, not via this repo's Playwright
+  config).
+
+**Evidence:**
+- `docs/planning/handoffs/113-trending/handoff-T-green.md` (full detail, all
+  Tier 1/Tier 2 tables, per-assertion inspection of `views.view.trending.yml`,
+  acceptance-criteria status table).
+- Direct `diff` output confirming byte-identical assembled/source pairs (4 files).
+- `git diff` output for `entrypoint.sh`, `do_streams.libraries.yml`, `test.yml`,
+  `DoStreamsHooks.php` — each read in full.
+- `docs/groups/scripts/step_700_demo_data.php:141,143,216-219` (re-verified).
+- `docs/groups/config/views.view.following_feed.yml` (re-verified `type` filter
+  non-exposed shape).
+- `web/themes/custom/groups_chrome/css/stream.css` (confirmed `.stream-card-wrapper`
+  styling ownership sits in the shared theme, not duplicated by `trending.css`).
+
+## diff-gate — Phase 6.5
+_Pending (skipped: review rigor = none)_
+
+## U — Phase 8 (UI walkthrough)
+_Pending_
+
+## S — Phase 9 (Spec audit)
+
+**Verdict:** PASS. All 9 acceptance criteria map to a shipped artifact; every artifact directly inspected. Zero blocking findings. Consent granted for O to proceed directly to Phase 10 (rebase + CI + PR + self-merge).
+
+**Decided:**
+- Empty state copy ("Nothing trending yet.") and description ("Popular this week — nodes ranked by hot score.") are byte-verbatim vs the issue body — verified via direct Read of `views.view.trending.yml` lines 13 and 128.
+- `hot_content.yml` and `do_chrome/**` regression guards: `git diff` empty on both — confirmed.
+- Cron trigger present in BOTH `deploy/entrypoint.sh` (lines 181-187) and `.github/workflows/test.yml` (lines 576-582); marker namespaces (`do_discovery cron` vs `do_activity step_7xx`) distinct — independent blocks, merge-clean vs #116 either order.
+- `preprocessViewsView()` refactor (single `!==` guard → id-map) preserves `following_feed`'s attach behavior byte-for-byte in outcome (verified via reading the diff); ratified in advance by A Finding 3.
+- Owned-files list respected exactly: 3 new + 4 edited, all within the brief's declared scope; no collateral touches.
+- Test-quality (test-quality.md §7): all 6 tests in `trending.spec.ts` pass the rubric — one behavior each, cheapest-sufficient tier (e2e), behavior-not-implementation (mechanism-agnostic library check), proportionate suite, no smells, no delete/merge candidates.
+
+**Assumed:**
+- CI's e2e job (real seeded, cron'd site) will show execution-level GREEN for all 6 new tests + the existing suite. Inspection-only S audit cannot prove this; deferred to CI per environment note (no local DDEV in this worktree, U skipped as N/A-cannot-exercise).
+
+**Hedged:**
+- Non-blocking advisory (already flagged by T-green): the `nth-of-type(-n+10)` locator in test 2 works correctly with Views' default `<div>`-siblings row markup, and is redundant-but-safe since `items_per_page: 10` makes the whole page_1 response the top-10 window regardless. Not a spec bug — will not false-positive nor false-negative in this project's DOM shape.
+- Non-blocking cosmetic: no README update for the new `trending:` library entry in `do_streams/README.md`. README documents shell contract, not library inventory, so not strictly a doc gap.
+
+**Evidence:**
+- `docs/planning/handoffs/113-trending/handoff-S.md` (full audit tables).
+- Direct Read of all 7 touched artifacts + regression-guard diffs.
+- `grep` for `view.trending.page_1 / page.trending` in `do_chrome/` — mappings intact (`PageHelp.php:79`, `HelpText.php:231`, `PageHelpRouteMapTest.php:52`).
+- `git diff --stat HEAD -- docs/groups deploy .github tests/e2e` = 4 files / 66+/12- (matches F's declared change surface exactly; the huge `config/sync/`+`web/modules/custom/` `git status` noise is pre-existing assembled build output, not this diff).
+
+## O — Phase 10 (rebase-and-CI-check + PR + self-merge)
+_Pending_
+
+## Chain Summary
+_Written at post-merge sweep._
