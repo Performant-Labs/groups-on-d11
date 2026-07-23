@@ -74,6 +74,17 @@ class BackfillIdempotencyTest extends ActivityKernelTestBase {
    * Running the backfill against already-hook-logged fixtures adds nothing.
    */
   public function testBackfillIsNoOpAgainstAlreadyLoggedFixtures(): void {
+    // The backfill script (docs/groups/scripts/step_7xx_backfill_activity.php)
+    // intentionally echoes per-row progress ("=== step_7xx.N: ..." / "Exists:
+    // ...") for operators watching a real seed/backfill run — see that
+    // script's docblock. This test `require`s it directly (twice, per the
+    // idempotency assertion below), so PHPUnit sees stdout from this test
+    // method. Declaring it here (rather than suppressing it via ob_start())
+    // tells PHPUnit the output is expected, clearing the "risky" flag that
+    // trips CI's failOnRisky=true, while keeping the echoed lines visible to
+    // anyone debugging a real run.
+    $this->expectOutputRegex('/.*/s');
+
     // Seed via the LIVE subscriber path: group -> membership -> node-in-group
     // -> comment -> flagging, each already logged by the enabled hooks.
     $owner = $this->createUser();
@@ -147,6 +158,13 @@ class BackfillIdempotencyTest extends ActivityKernelTestBase {
    * time, not "now".
    */
   public function testBackfillPreservesSourceTimestamp(): void {
+    // Declare expected stdout up front — see the comment in
+    // testBackfillIsNoOpAgainstAlreadyLoggedFixtures() above for why: the
+    // backfill script's operator-facing progress echoes are expected output,
+    // not a symptom of a broken test, so PHPUnit's failOnRisky=true (CI-side)
+    // must not flag this method for producing them.
+    $this->expectOutputRegex('/.*/s');
+
     $owner = $this->createUser();
     $this->setCurrentUser($owner);
     $group = $this->createGroup(['uid' => $owner->id()]);
