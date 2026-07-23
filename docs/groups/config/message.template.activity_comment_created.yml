@@ -1,0 +1,16 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - message
+template: activity_comment_created
+label: 'Activity: comment created'
+description: 'Recorded when a comment is created (log point 2, #116). Carries an empty group reference when the commented entity has no group context.'
+text:
+  -
+    value: '[message:field_referenced_entity_type] [message:field_referenced_entity_id] was commented on by [message:uid].'
+    format: plain_text
+settings:
+  'token options':
+    clear: false
+    'token replace': false

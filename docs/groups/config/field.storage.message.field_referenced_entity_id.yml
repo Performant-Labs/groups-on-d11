@@ -1,0 +1,19 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - message
+id: message.field_referenced_entity_id
+field_name: field_referenced_entity_id
+entity_type: message
+type: integer
+settings:
+  unsigned: true
+  size: normal
+module: core
+locked: false
+cardinality: 1
+translatable: false
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

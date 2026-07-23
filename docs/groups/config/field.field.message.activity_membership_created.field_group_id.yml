@@ -1,0 +1,23 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.message.field_group_id
+    - message.template.activity_membership_created
+  module:
+    - group
+    - message
+id: message.activity_membership_created.field_group_id
+field_name: field_group_id
+entity_type: message
+bundle: activity_membership_created
+label: 'Group context'
+description: 'The group the member joined.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: default:group
+  handler_settings: {  }
+field_type: entity_reference
