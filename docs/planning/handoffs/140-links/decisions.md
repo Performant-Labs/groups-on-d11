@@ -28,3 +28,26 @@ Append-only. Every phase adds an entry.
 - `docs/planning/handoffs/140-links/brief.md`
 - `gh issue view 140 --repo Performant-Labs/groups-on-d11` (title "MC-1: Links & Resources field + rendering", owns disjoint files list matches survey)
 - Analogue verified: `docs/groups/config/field.{storage,field}.group{,.community_group}.field_group_description.yml`
+
+---
+
+## Phase 3 — A (up-front plan review)
+
+**Verdict:** PASS with 3 warns (encoded as observable-behavior tests for T, not blockers).
+
+**Decided (from A)**
+- Extend `do_group_extras` confirmed correct home.
+- Core `link` field cardinality -1 confirmed idiomatic.
+- No `hook_install` strip needed — Group 4.x contrib does NOT ship `entity_view_display.group.*.default` in `config/optional`. Belt-and-suspenders: F runs `drush cex --diff` after `drush en` to confirm.
+- Section-marker comments are cosmetic only (stripped on `drush cex`); use them as source-tree signposts with a header note.
+- **H2 source = field's own `label: above` setting** (not a template `<section>` wrapper). Core field-render suppresses the entire wrapper when zero deltas, satisfying empty-state by construction.
+- HelpText append is N/A (HelpText.php is tooltip registry, not general ledger).
+
+**T authoring instructions (WARNs)**
+- Assert `rel="noopener"` against **observable rendered HTML** on external `<a>`, not formatter config shape. F picks formatter-settings first; add `preprocess_field` fallback only if red.
+- Cover empty-state: seeded group with zero links renders NO section header and NO wrapper markup.
+- `.info.yml` dep line: `- drupal:link` (match existing style).
+- Kernel `$modules`: `link`, `field`, `text`, `user`, `group`, `do_group_extras`.
+
+**Evidence**
+- `docs/planning/handoffs/140-links/handoff-A-plan.md`
