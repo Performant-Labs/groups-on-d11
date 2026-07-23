@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Drupal\do_showcase\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Routing\RouteProviderInterface;
 use Drupal\Core\Url;
 use Drupal\do_chrome\HelpText;
 use Drupal\do_showcase\ShowcaseCatalog;
 use Drupal\do_showcase\VariantSwitcher;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
 /**
  * Controller for the `/showcase` tour page (SC-F1, #119).
@@ -54,6 +56,7 @@ class ShowcaseController extends ControllerBase {
     private readonly ShowcaseCatalog $catalog,
     private readonly VariantSwitcher $switcher,
     private readonly Request $request,
+    private readonly RouteProviderInterface $routeProvider,
   ) {}
 
   /**
@@ -64,7 +67,38 @@ class ShowcaseController extends ControllerBase {
       new ShowcaseCatalog(),
       $container->get('do_showcase.variant_switcher'),
       $container->get('request_stack')->getCurrentRequest(),
+      $container->get('router.route_provider'),
     );
+  }
+
+  /**
+   * Whether a route name is currently registered.
+   *
+   * #124 SC-5: the `directory-presentation` catalog entry references
+   * `view.all_groups.page_1` — a Views-auto-generated route whose existence
+   * depends on the `views` module being installed AND the `all_groups` view
+   * config being present. On a full site install both hold; on an isolated
+   * BrowserTestBase install with only `['do_showcase', 'node']` (see
+   * `ShowcaseControllerHelpTest`) neither does, and letting
+   * `Url::fromRoute()` render for a missing route throws
+   * `RouteNotFoundException` → 500. This guard degrades gracefully by
+   * omitting only the deep-link on installs where its target is absent,
+   * leaving the entry's title/badge/decision/help ⓘ metadata rendered.
+   *
+   * @param string $route_name
+   *   The route name (e.g. 'view.all_groups.page_1').
+   *
+   * @return bool
+   *   TRUE if the route is registered, FALSE otherwise.
+   */
+  private function routeExists(string $route_name): bool {
+    try {
+      $this->routeProvider->getRouteByName($route_name);
+      return TRUE;
+    }
+    catch (RouteNotFoundException) {
+      return FALSE;
+    }
   }
 
   /**
@@ -176,8 +210,20 @@ class ShowcaseController extends ControllerBase {
       }
 
       // Only live entries get a deep-link — coming entries have no dead
-      // link (truthful-copy rule, wireframe.md).
-      if ($entry['status'] === 'live' && $entry['route'] !== NULL) {
+      // link (truthful-copy rule, wireframe.md). Additionally guarded on
+      // route EXISTENCE at render time: `view.all_groups.page_1` (the
+      // #124 SC-5 route target for `directory-presentation`) is a
+      // Views-auto-generated route that only exists once `views` is
+      // installed AND the `all_groups` view config is imported. A minimal
+      // test install (BrowserTestBase with `['do_showcase', 'node']` and
+      // no config import) has neither — rendering `Url::fromRoute()` on
+      // that missing route would throw RouteNotFoundException → 500 (which
+      // ShowcaseControllerHelpTest caught on this branch after the entry
+      // flipped from `status: coming, route: NULL` to `status: live,
+      // route: 'view.all_groups.page_1'`). Guarding here keeps the entry's
+      // metadata + help ⓘ rendering intact while just omitting the deep-
+      // link on installs where its target is not registered.
+      if ($entry['status'] === 'live' && $entry['route'] !== NULL && $this->routeExists($entry['route'])) {
         $item['link'] = [
           '#type' => 'link',
           '#title' => $this->t('View this comparison'),

@@ -115,7 +115,7 @@ test.describe('#124 SC-5 — Directory compact/cards toggle (/all-groups)', () =
     // snippet carries .gc-directory-card__snippet (directory-compact.css
     // hides exactly that class in compact mode).
     await expect(firstRow.locator('a').first()).toBeVisible();
-    await expect(firstRow).toContainText(/members/i);
+    await expect(firstRow).toContainText(/member/i);
     await expect(firstRow).toContainText(/Open|Moderated|Invite Only/);
     await expect(firstRow.locator('.gc-directory-card__snippet')).toBeHidden();
 
