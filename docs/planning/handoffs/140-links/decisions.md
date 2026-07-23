@@ -211,3 +211,29 @@ Append-only. Every phase adds an entry.
 
 **Verdict:** T-green complete, no blocking issues. Ready for U (UI surface — group Full display
 page).
+
+## Phase 7 — A-dup (anti-duplication + drift gate) — 2026-07-23
+
+**Verdict:** PASS.
+
+- Extension seam confirmed: F extended the existing `DoGroupExtrasHooks::preprocessGroup()`
+  method in place; no parallel hook, no new hook class, no `hook_preprocess_field__*` fallback.
+  W-2 scope condition (community_group bundle + view_mode=default + hasField + !isEmpty) is
+  faithfully applied.
+- New `group-links` library is a sibling entry under the same `do_group_extras.libraries.yml`,
+  not a new libraries file — correct grouping. Kept separate from the always-attached
+  `do_group_extras` bundle so W-2 conditional attach can do its work.
+- New CSS file namespace (`.field--name-field-group-links`) is disjoint from the existing
+  `do_group_extras.css` (`.group--archived*`) — no overlap in `do_chrome`, `do_group_extras`,
+  or the subtheme.
+- Full-display file `core.entity_view_display.group.community_group.default.yml` is genuinely
+  new (verified against origin/main); shadows nothing. #138 hook_install-strip trap does not
+  apply.
+- Coordination with #141 About: reserved-weight-10 comment + alphabetized
+  `dependencies.config` + minimal `hidden:` block means #141 inserts one key + one dependency
+  line without touching siblings. Clean.
+- No `web/modules/custom/` or `config/sync/` artifacts staged. `HelpText.php` correctly not
+  touched (per Phase 3 finding #8).
+- No shared-surface / drive-by edits outside `do_group_extras`.
+
+**Handoff:** `docs/planning/handoffs/140-links/handoff-A-dup.md`. Proceed to U → S.
