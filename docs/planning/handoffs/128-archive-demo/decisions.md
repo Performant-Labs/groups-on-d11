@@ -272,3 +272,41 @@
   site — completed without error; gid=8 confirmed
   `status=1 type=Archive` both immediately before and immediately after the
   re-run (idempotent).
+
+## Phase 8 (U): live browser walkthrough — PASS
+
+- **Decided:** PASS, no REWORK. Drove the live gm128-archive-demo.ddev.site
+  site headlessly with a standalone Playwright script (chromium) -- no
+  u-drive.mjs helper exists in this repo (correctly; this is Drupal/DDEV,
+  not the HTMX Language-Buddy stack the generic U contract targets, per the
+  project override). Anonymous persona for AC-1a/AC-1b/AC-2, authenticated
+  elena_garcia (seeded non-Organizer) for AC-1c, at desktop (1280x900) and
+  mobile (360x800) viewports.
+- **Confirmed via real DOM/visual rendering** (not just T's curl status
+  codes): AC-1a's Archive type badge on the /all-groups card; AC-1b's
+  span.group__archived-badge with visible "Archived" text and a truthy
+  data-do-tooltip, confirmed via hover + focus; AC-1c's 403 "Access denied"
+  render on /group/8 (Legacy Infrastructure) vs. 200 real content-create
+  form render on /group/3 (Core Committers control), same user
+  (elena_garcia), same route; AC-2's span.pin-badge "Pinned" + tooltip on
+  /node/1 for anonymous.
+- **Zero console errors** across all pages/contexts driven (the only
+  console entry was the browser's own network-log echo of the expected 403
+  response on AC-1c, not a script error).
+- **A11y quick check (POC bar):** Archive badge has tabindex="0", reachable
+  via natural keyboard Tab order (step 21 on /group/8), shows a visible
+  default focus outline. Tooltip copy on both badges is non-empty and
+  behaviorally meaningful. Card link accessible name on /all-groups is
+  "Legacy Infrastructure" (real, descriptive). No obvious a11y regression --
+  full axe scan deferred to S per the pipeline contract.
+- **Reconfirmed advisory, not blocking:** the /all-groups directory card
+  renders only the plain .gc-directory-card__type "Archive" label, no
+  data-do-tooltip -- this is because the all_groups View renders rows via
+  Views fields, which never invokes hook_preprocess_group (where the real
+  badge+tooltip markup is attached). Pre-existing, out of #128's Files In
+  Scope (brief's non-goals forbid template changes), already flagged
+  identically by T-RED and T-green. Worth a follow-up ticket, not a #128
+  blocker.
+- **Evidence:** 7 screenshots (desktop + 360px) under
+  docs/planning/handoffs/128-archive-demo/screenshots/; full per-AC
+  action/expected/observed table in handoff-U.md.
