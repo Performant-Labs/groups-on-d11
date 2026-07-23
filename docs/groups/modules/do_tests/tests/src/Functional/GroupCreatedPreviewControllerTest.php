@@ -158,15 +158,25 @@ class GroupCreatedPreviewControllerTest extends GroupBrowserTestBase {
       $this->assertNotEquals('click here', strtolower(trim($text)), 'No bare "click here" link text.');
     }
 
-    // DOM order check: h1 appears before the first p, which appears before
-    // h2, which appears before the ul.
+    // DOM order check: h1 appears before the organizer paragraph, which
+    // appears before h2, which appears before the ul.
+    //
+    // Diff-gate W-2 (Phase 5b): locates the paragraph via its own known copy
+    // substring ("You're the Organizer") rather than a bare `<p` tag search
+    // — `<p` would also match a `<p>` emitted by the active theme's page
+    // shell/wrapper (e.g. a footer region), which is not part of the
+    // sequence under test and would make this assertion imprecise.
     $html = $this->getSession()->getPage()->getContent();
     $h1_pos = strpos($html, '<h1');
+    $p_pos = strpos($html, "You're the Organizer");
     $h2_pos = strpos($html, '<h2');
     $ul_pos = strpos($html, '<ul');
     $this->assertNotFalse($h1_pos);
+    $this->assertNotFalse($p_pos, 'The organizer paragraph\'s copy is present in the response.');
     $this->assertNotFalse($h2_pos);
     $this->assertNotFalse($ul_pos);
+    $this->assertLessThan($p_pos, $h1_pos, 'h1 precedes the organizer paragraph in DOM order.');
+    $this->assertLessThan($h2_pos, $p_pos, 'The organizer paragraph precedes h2 in DOM order.');
     $this->assertLessThan($h2_pos, $h1_pos, 'h1 precedes h2 in DOM order.');
     $this->assertLessThan($ul_pos, $h2_pos, 'h2 precedes the CTA <ul> in DOM order.');
   }

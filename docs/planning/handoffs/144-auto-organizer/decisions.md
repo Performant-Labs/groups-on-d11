@@ -403,3 +403,108 @@ Format per entry: **Decided / Assumed / Hedged / Evidence**.
 - **Evidence:** Full command outputs in `handoff-T-green.md`.
 - **Verdict: GREEN, no blocking issues.** UI surface present (guided-preview page + wizard flow) —
   ready for U (UI Walkthrough).
+
+---
+
+## F — Phase 5b (diff-gate rework)
+
+Round-1 diff-gate (`dual-review.sh`) returned **BLOCK** (`docs/planning/handoffs/144-auto-organizer/diff-review.md`).
+Fixed the BLOCK plus both WARN findings; NITs left as-is (reviewer's counter-arguments in the task
+brief judged sound — `html_tag` is the safer XSS-escaping choice over raw `#markup`, and global
+`t()` is standard in a static submit-handler context).
+
+- **Fixed (B-1, BLOCK):** Added a bundle guard as the FIRST check in
+  `CreateGroupOrganizerHook::groupRelationshipInsert()` — `if ($group->bundle() !==
+  self::COMMUNITY_GROUP_BUNDLE_ID) { return; }` — ordered before the existing plugin-id and
+  owner-equality filters, so a `group_membership` insert on any OTHER group type now short-circuits
+  before ever reaching `ensureRole()`. Added the `protected const COMMUNITY_GROUP_BUNDLE_ID =
+  'community_group'` constant, parallel to the existing `COMMUNITY_GROUP_ADD_FORM_ID`, so the
+  bundle string is named once, not duplicated as a bare literal. Exactly the reviewer's suggested
+  form; no design deviation.
+- **Fixed (B-1 regression test):** Added
+  `testInsertHookDoesNotGrantOrganizerOnNonCommunityGroupBundle()` to `CreateGroupOrganizerHookTest.php`
+  (Kernel), mirroring `testInsertHookDoesNotGrantOrganizerToNonOwnerMembership()`'s shape: creates a
+  second, distinct group type inline via `createGroupType(['id' => 'other_type', 'creator_membership'
+  => TRUE])` (from `GroupTestTrait`, no real assembled config needed for this negative test),
+  constructs a `group_membership` relationship on THAT group with owner-uid EXACTLY matching (the
+  precise condition that would misfire absent the guard), and asserts
+  `community_group-organizer` is NOT present on the reloaded relationship's `group_roles`. This
+  isolates the bundle guard as the only thing preventing the misfire — every other filter condition
+  in the hook is satisfied.
+- **Fixed (W-1, WARN):** Added `order: new OrderAfter(modules: ['group'])` to the `#[Hook('form_alter')]`
+  attribute on `CreateGroupOrganizerHook::formAlter()` — took the recommended Option A (declarative
+  ordering only, no belt-and-suspenders submit-array reorder helper). This declares the ordering
+  intent explicitly, matching the `DoMultigroupHooks::formAlterEnsureSubmitLast()` precedent's own
+  `OrderAfter` usage, without adding the extra reorder-helper complexity Option B would have
+  introduced — F's empirically-confirmed Phase-5 finding (Group's own redirect happens at
+  form-BUILD time, before `hook_form_alter()` runs at all) already made plain appending correct
+  today; this just stops that correctness depending implicitly on an internal ordering detail that
+  core could change later.
+- **Fixed (W-2, WARN):** In `GroupCreatedPreviewControllerTest::testPreviewPageRendersForOwner()`,
+  added a `$p_pos` computation locating the organizer paragraph and two new DOM-order assertions
+  (`assertLessThan($p_pos, $h1_pos)` — h1 precedes p — and `assertLessThan($h2_pos, $p_pos)` — p
+  precedes h2), plus `assertNotFalse($p_pos)`, fully locking in the wireframe's h1 -> p -> h2 -> ul
+  sequence (previously only h1->h2->ul was asserted, silently leaving the paragraph's position
+  unconstrained). Per the task's explicit guidance, used
+  `strpos($html, "You're the Organizer")` — a substring of the paragraph's actual copy (verified
+  byte-exact against `GroupCreatedPreviewController::view()`'s `$this->t("You're the Organizer of
+  this group...")` call, plain ASCII apostrophe, not a curly one) — INSTEAD of the reviewer's
+  literal `strpos($html, '<p')` suggestion, because a bare `<p` tag search is not scoped to the main
+  content region and could false-positive-match a `<p>` emitted by the active theme's page
+  shell/wrapper (e.g. a footer region), which would silently pass even if the real content
+  paragraph were missing or misplaced.
+- **NIT-1/NIT-2:** Left unaddressed per the task's explicit instruction — reasonable
+  counter-arguments already noted in the diff-review (html_tag's escaping safety; static-context
+  t() being standard practice here).
+
+**Test count:** 82 -> **83** (the one new B-1 regression test). All 83 GREEN, zero failures/errors,
+deprecation-notice-only (the same pre-existing `cache.backend.memory` deprecation noise every
+prior phase's run also reported — unrelated to this change).
+
+**Environment:** This worktree's `.ddev/config.yaml` still carried a tracked `name:
+pl-groups-on-d11` (its committed value on this branch) — colliding with a STALE, broken
+`gm144-auto-organizer` DDEV registration left over from an earlier phase (an "invalid hostname"
+error on `ddev describe`, from that prior registration having somehow lost its proper name — not
+something this phase caused). Ran `ddev stop --unlist gm144-auto-organizer` to clear the stale
+registration, then applied the SAME local, uncommitted `name:` override sibling worktrees already
+carry (confirmed by reading `groups-links`' own `.ddev/config.yaml`, read-only, which shows an
+identical unstaged `M` modification to `gm140-groups-links`) — i.e. this is the established,
+working pattern across every sibling worktree, not a one-off. `ddev start` then produced
+correctly-namespaced containers (`ddev-gm144-auto-organizer-web`/`-db`). `assemble-config.sh`
+needs PHP, which is not on this host's PATH — CI runs it with `shivammathur/setup-php` on the
+runner directly (confirmed by reading `.github/workflows/test.yml`); the DDEV-native equivalent is
+`ddev exec bash scripts/ci/assemble-config.sh` (PHP 8.4.22 lives inside the web container, repo
+bind-mounted at `/var/www/html`) — used that instead of trying to install a host PHP. PHPUnit and
+phpcs likewise ran via `ddev exec`, with `SIMPLETEST_DB='mysql://db:db@db/db#test'` (DDEV's
+in-network default MariaDB credentials, host `db`) since Kernel tests read the DB DSN purely from
+that env var, not from `settings.php`. Followed T's own Phase-6 housekeeping convention exactly at
+the end: reverted `.ddev/config.yaml`'s local rename back to the tracked `pl-groups-on-d11`,
+reverted every `config/sync/*.yml` change and removed every newly-created `config/sync/*.yml` file
+`assemble-config.sh` produced, and deleted `web/modules/custom/` — final `git status --short`
+shows only the three intended source-file edits (plus the pre-existing, not-mine
+`diff-review.md`/`diff-review.md.prompt.txt` handoff artifacts already present before this phase
+started). `ddev stop` at the end removed the containers/network; `pl-groups-on-d11`,
+`gm139-multilang-rtl`, `gm140-groups-links` were never touched.
+
+**Lint:** `phpcs --standard=Drupal,DrupalPractice` reports ZERO errors/warnings on
+`CreateGroupOrganizerHook.php` (the actual B-1/W-1 production fix). Ran the same command against
+the pre-diff-gate `60311eb` baseline copies of both test files (temporarily, `.php`-suffixed so
+phpcs would actually lint them — a `.bak`-suffixed first attempt silently produced zero output
+because phpcs skips unrecognized extensions, which briefly looked like "no pre-existing debt" and
+would have been a wrong read) and confirmed the SAME docblock-style findings phpcs reports on my
+current files (single-line-short-description / capital-letter-start) already existed, verbatim, in
+T's ORIGINAL authored test files, before I touched them — 6 pre-existing findings in the Kernel
+test, 4 in the Functional test. My own newly-added B-1 test method's docblock (drafted with the
+same multi-sentence-run-on style purely by pattern-matching the surrounding file) initially added
+2 of its own NEW findings; reflowed that one docblock (single-line short description + blank line
++ long description, content otherwise identical) to bring MY contribution to zero new debt, while
+leaving T's pre-existing docblocks in `GroupCreatedPreviewControllerTest.php` and the rest of
+`CreateGroupOrganizerHookTest.php` untouched, per the "F does not rewrite T's existing test
+prose beyond the one explicitly-authorized W-2 fix" constraint.
+
+**No surprises beyond the environment/lint notes above** — the B-1 fix, its regression test, W-1,
+and W-2 all landed exactly as scoped in the task (2-line guard + 1-line const; 1-attribute change;
+~4 lines in the functional test; one new ~30-line test method), no scope creep, no production
+class/file created.
+
+- **Verdict: 83/83 GREEN, zero lint errors on the production fix, ready for diff-gate re-review.**

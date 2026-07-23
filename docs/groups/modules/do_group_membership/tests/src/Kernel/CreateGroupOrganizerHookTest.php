@@ -239,4 +239,66 @@ class CreateGroupOrganizerHookTest extends GroupsKernelTestBase {
     );
   }
 
+  /**
+   * Diff-gate B-1 regression guard (Phase 5b).
+   *
+   * A `group_membership` relationship inserted on a DIFFERENT group type
+   * (not `community_group`), even with owner-uid EXACTLY matching (the
+   * precise scenario that would misfire without the bundle guard), must NOT
+   * be granted `community_group-organizer` — that role id does not exist
+   * on, and is invalid for, any other group type.
+   *
+   * Mirrors
+   * {@see self::testInsertHookDoesNotGrantOrganizerToNonOwnerMembership()}'s
+   * shape: constructs the relationship directly via storage `create()`+
+   * `save()` so the owner-uid-matching condition is exact, isolating the
+   * bundle guard as the only thing that can prevent the misfire.
+   *
+   * The other group type is created inline via `createGroupType()`
+   * (from `GroupTestTrait`, available on the base class) — this negative
+   * test does not need any real assembled config, only a second, distinct
+   * `group_type` id with `creator_membership` enabled so the relationship
+   * insert models the same "creator's own membership" shape.
+   */
+  public function testInsertHookDoesNotGrantOrganizerOnNonCommunityGroupBundle(): void {
+    $other_type_id = 'other_type';
+    $this->createGroupType([
+      'id' => $other_type_id,
+      'label' => 'Other Type',
+      'creator_membership' => TRUE,
+    ]);
+
+    $creator = $this->createUser();
+    $group = $this->createGenericGroup([
+      'type' => $other_type_id,
+      'label' => $this->randomMachineName(),
+      'uid' => $creator->id(),
+    ]);
+
+    $relationship_type_id = $this->entityTypeManager
+      ->getStorage('group_relationship_type')
+      ->getRelationshipTypeId($other_type_id, 'group_membership');
+    $storage = $this->entityTypeManager->getStorage('group_relationship');
+
+    // Owner-uid EXACTLY matches the group's owner — the exact condition
+    // that (absent the bundle guard) would satisfy the insert hook's other
+    // filters and misfire.
+    $relationship = $storage->create([
+      'type' => $relationship_type_id,
+      'gid' => $group->id(),
+      'entity_id' => $creator->id(),
+      'group_roles' => [],
+    ]);
+    $relationship->save();
+
+    $reloaded = $storage->loadUnchanged($relationship->id());
+    $this->assertNotNull($reloaded, 'The relationship was saved.');
+    $role_ids = array_column($reloaded->get('group_roles')->getValue(), 'target_id');
+    $this->assertNotContains(
+      'community_group-organizer',
+      $role_ids,
+      'B-1 regression guard: an owner-uid-matching group_membership on a NON-community_group bundle must NOT receive community_group-organizer — that role id is invalid for other group types.',
+    );
+  }
+
 }

@@ -6,6 +6,7 @@ namespace Drupal\do_group_membership\Hook;
 
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Hook\Attribute\Hook;
+use Drupal\Core\Hook\Order\OrderAfter;
 use Drupal\do_group_membership\GroupMembershipManager;
 use Drupal\group\Entity\GroupRelationshipInterface;
 
@@ -61,6 +62,18 @@ class CreateGroupOrganizerHook {
    */
   protected const COMMUNITY_GROUP_ADD_FORM_ID = 'group_community_group_add_form';
 
+  /**
+   * The bundle this hook's Organizer-grant logic is scoped to.
+   *
+   * Diff-gate B-1 (Phase 5b): {@see self::groupRelationshipInsert()} must
+   * only ever grant `community_group-organizer` on a `community_group`
+   * relationship — that role id does not exist on (and is invalid for) any
+   * other group type. Named as a constant, parallel to
+   * {@see self::COMMUNITY_GROUP_ADD_FORM_ID}, so the bundle id is not
+   * duplicated as a bare string literal.
+   */
+  protected const COMMUNITY_GROUP_BUNDLE_ID = 'community_group';
+
   public function __construct(
     private readonly GroupMembershipManager $manager,
   ) {}
@@ -69,9 +82,15 @@ class CreateGroupOrganizerHook {
    * Grants the creator's own membership the Organizer role, additively.
    *
    * Filters:
-   *   1. `$relationship->getPluginId() === 'group_membership'` — skip
+   *   1. Diff-gate B-1 (Phase 5b) bundle guard: the group's bundle must be
+   *      `community_group` — `community_group-organizer` is a role scoped
+   *      to that group type only, so without this guard the hook would fire
+   *      on a `group_membership` insert for ANY group type (present or
+   *      future) whose owner-uid happens to match, appending an invalid
+   *      role id to that group's relationship.
+   *   2. `$relationship->getPluginId() === 'group_membership'` — skip
    *      `group_node:*` and any other relation plugin's insert.
-   *   2. AC-8 guard: the relationship's member-user-id equals
+   *   3. AC-8 guard: the relationship's member-user-id equals
    *      `$relationship->getGroup()->getOwnerId()` — only fires for the
    *      CREATOR's own membership, never for other members added later or
    *      in the same request (e.g. a batch-added member or demo-data
@@ -82,11 +101,15 @@ class CreateGroupOrganizerHook {
    */
   #[Hook('group_relationship_insert')]
   public function groupRelationshipInsert(GroupRelationshipInterface $relationship): void {
+    $group = $relationship->getGroup();
+    if ($group->bundle() !== self::COMMUNITY_GROUP_BUNDLE_ID) {
+      return;
+    }
+
     if ($relationship->getPluginId() !== 'group_membership') {
       return;
     }
 
-    $group = $relationship->getGroup();
     $member = $relationship->getEntity();
     if ($member === NULL || (string) $member->id() !== (string) $group->getOwnerId()) {
       return;
@@ -105,8 +128,15 @@ class CreateGroupOrganizerHook {
    * on the saved group id from `$form_state->getFormObject()->getEntity()`
    * (per handoff-A.md Q3's best-effort read, empirically confirmed by F —
    * see handoff-F.md: Group's own submit handler does not call
-   * `setRedirect()` on this form, so no `OrderAfter` reordering fallback is
+   * `setRedirect()` on this form, so no submit-array reordering fallback is
    * needed).
+   *
+   * Diff-gate W-1 (Phase 5b): explicitly ordered AFTER the `group` module
+   * (matching the `DoMultigroupHooks::formAlterEnsureSubmitLast()`
+   * precedent) so this declares its ordering intent rather than relying
+   * implicitly on Group's own form_alter having already appended its submit
+   * handlers by the time this one runs — a correct empirical observation
+   * today, but one that core internals could otherwise silently invalidate.
    *
    * @param array $form
    *   The form render array, by reference.
@@ -115,7 +145,7 @@ class CreateGroupOrganizerHook {
    * @param string $form_id
    *   The form id.
    */
-  #[Hook('form_alter')]
+  #[Hook('form_alter', order: new OrderAfter(modules: ['group']))]
   public function formAlter(array &$form, FormStateInterface $form_state, string $form_id): void {
     if ($form_id !== self::COMMUNITY_GROUP_ADD_FORM_ID) {
       return;
