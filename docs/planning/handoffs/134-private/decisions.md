@@ -500,3 +500,37 @@ tooltip + directory-visibility change).
 `anon-group9-403.png`, `elena-all-groups.png`, `elena-canonical-security-team.png`,
 `elena-tooltip-hover-directory.png`, `elena-tooltip-focus-directory.png`,
 `elena-canonical-tooltip-hover.png`.
+
+## Phase 8 — S (Spec Audit) — PASS
+
+**Verdict:** **PASS**. Ready to open PR. Vestigial-role cleanup deferral is acceptable for a POC merge with the recorded evidence.
+
+**AC matrix (issue body §Acceptance, 6 items):**
+
+| # | Spec AC | Status | Cite |
+|---|---------|--------|------|
+| 1 | Anon/non-member: Security Team absent from `/all-groups`, direct URL → 403, content absent from streams/search | **Met** | Live curl: 403 on `/group/9`; `grep -ci "security team"` = 0 on anon `/all-groups`. U evidence `anon-all-groups.png`, `anon-group9-403.png`. `PrivacyDirectoryTest::testAnonymousAllGroupsOmitsSecurityTeamLiterally` |
+| 2 | Elena (via #120): Security Team appears + fully usable; MyFeed asserted if #110 merged, noted if not | **Met** | Live screenshot `elena-tooltip-focus-directory.png` shows Security Team card + Private badge. #110 not in scope, correctly noted. |
+| 3 | Private vs Invite Only teaching copy; no copy claims `field_group_visibility` controls visibility | **Met** | `HelpText.php:224-227` — `privacy.vs_invite_only` names both distinctions; `field_group_visibility` untouched (`git diff origin/main` empty on both YMLs). |
+| 4 | Vestigial roles resolved (removed or reconciled) with config export clean; noted in PR | **Deviated (documented)** | Phase 1 deferral: 4 role YMLs kept because `community_group-admin` is a hard dep of `group.type.community_group.yml` and `community_group-member` has 15+ prod refs (AddMemberForm, ChangeRoleForm, PermissionMatrixTest, etc.). Recorded, non-silent. See "Deferred cleanup audit" below. |
+| 5 | Seed idempotent; CI E2E green; kernel/browser self-provision (outsider 403 + member 200 min) | **Met (CI pending)** | Step 795 has label/member/node-title guards. `PrivacyAccessTest` + `PrivacyDirectoryTest` self-provision roles+field. `tests/e2e/private-group.spec.ts` authored, selectors match F's markup (verified: `getByText('Security Team', {exact:true})`, `h1` contains name). CI run is the operator's merge-gate confirmation. |
+| 6 | Ships own HelpText entry (append-only) | **Met** | 4 keys appended in `HelpText.php`; `HelpTextTest::testPrivacyKeys()` guards. |
+| 7 (NFR) | WCAG 2.2 AA | **Met (spot-check)** | Badge has `tabindex="0"`, `role="note"`, `aria-label` = full tooltip copy; keyboard focus lands on badge (U confirmed live via `document.activeElement`); tooltip fires on both hover AND focus (not hover-only); `gc-badge--warning` variant used (no new color token). No automated axe run (axe-core not on host; POC bar). |
+
+**Story brief's 10-item AC** (from brief.md): all met per T-green's per-AC matrix in `handoff-T-green.md`; re-verified against F's landed code paths this session (direct diff/read). No drift.
+
+**Two-axis integrity:** **Preserved.** `git diff origin/main -- <field_group_visibility>` empty in both `config/sync/` and `docs/groups/config/`. `field_group_privacy` is a new independent field, enforced through a distinct hook path (`groupAccess` + `nodeAccess op=view` + `views_query_alter`) — no coupling with the visibility axis.
+
+**Deferred vestigial-role cleanup — audit verdict:** **Acceptable for POC merge.** Weighing 4 config files vs. 15+ code paths (AddMemberForm, ChangeRoleForm, ManageMembersForm, PermissionMatrixTest, and the `group.type.community_group.yml` hard dep), the deferral is proportionate. Phase 1 evidence is specific (line-count refs, not vibes). Recommend a follow-up issue titled "SC-7 followup: retire vestigial community_group-* baseline roles" so this doesn't get lost — should be surfaced in the PR body.
+
+**`/showcase` tour entry:** **Not shipped, acceptable.** Spec item 3 explicitly defers full copy sweep to SD-5 #132 / SD-6 #133. This story ships its HelpText keys (the append-only obligation), which is the story-scoped teaching-layer contract. `/showcase` remains #119's surface.
+
+**Test-quality audit (`testing/test-quality.md` §7):** proportionate; each test names one behavior; negative/regression tests (`joinPolicyFor()` unchanged, cache-invalidation) guard distinct failure modes; no snapshot/tautological/coverage-pad tests. `testAccessResultDoesNotLeakStaleCacheAcrossMembershipChange` uses in-process `resetCache()` (T flagged), which is acceptable given `cachePerUser()` + `addCacheableDependency($group)` matches `GroupAccessHook` verbatim — noted, not a REWORK trigger.
+
+**PR readiness:** **Ready.** No blockers. Recommend PR body call out: (a) deferred vestigial-role cleanup as its own follow-up issue, (b) CI is the E2E-green confirmation gate (T-green + S static verification covers the pre-CI bar), (c) `.ddev/config.yaml` local rename is uncommitted (correct).
+
+**Evidence (this session):**
+- Live site probes: `curl -sI https://gm134-private.ddev.site` → 200; `/group/9` anon → 403; `/all-groups` anon body contains 0 occurrences of "Security Team".
+- Direct reads: `HelpText.php:212-227` (all 4 privacy keys verbatim, teaching copy correct), `tests/e2e/private-group.spec.ts` (selectors align with F's markup).
+- Visual: `evidence/elena-tooltip-focus-directory.png` — badge + tooltip + persona banner all render as spec'd.
+- `git diff origin/main` on `field_group_visibility` (both YMLs, both trees): empty.
