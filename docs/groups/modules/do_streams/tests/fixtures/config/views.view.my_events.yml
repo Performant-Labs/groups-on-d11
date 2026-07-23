@@ -1,0 +1,252 @@
+uuid: null
+langcode: en
+status: true
+dependencies:
+  module:
+    - do_streams
+    - flag
+    - node
+    - user
+id: my_events
+label: 'My Events'
+module: views
+description: 'Two-display Events + My RSVPs feed for /my-feed/events (issue #112, ST-3). `default` = Upcoming (future events, membership-scoped by default, overridable to global via ?scope=global); `my_rsvps` = the viewing user''s rsvp_event flaggings. Both event-bundle-only, field_date_of_event ASC, stream_card row. do_streams'' MyEventsController owns the /my-feed/events route and composes both displays into one shell.'
+tag: ''
+base_table: node_field_data
+base_field: nid
+display:
+  default:
+    id: default
+    display_title: 'Upcoming'
+    display_plugin: default
+    position: 0
+    display_options:
+      title: 'Upcoming Events'
+      fields: {  }
+      pager:
+        type: full
+        options:
+          pagination_heading_level: h4
+          items_per_page: 10
+          offset: 0
+      sorts:
+        field_date_of_event_value:
+          id: field_date_of_event_value
+          table: node__field_date_of_event
+          field: field_date_of_event_value
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: field_date_of_event
+          plugin_id: datetime
+          order: ASC
+      filters:
+        status:
+          id: status
+          table: node_field_data
+          field: status
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+          group: 1
+          expose:
+            operator: ''
+        type:
+          id: type
+          table: node_field_data
+          field: type
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: type
+          plugin_id: bundle
+          value:
+            event: event
+          group: 1
+          expose:
+            operator: ''
+        field_date_of_event_value:
+          id: field_date_of_event_value
+          table: node__field_date_of_event
+          field: field_date_of_event_value
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: field_date_of_event
+          plugin_id: datetime
+          operator: '>='
+          value:
+            type: offset
+            value: now
+          group: 1
+          expose:
+            operator: ''
+        do_streams_membership_scope:
+          id: do_streams_membership_scope
+          table: node_field_data
+          field: do_streams_membership_scope
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: do_streams_membership_scope
+          group: 1
+          expose:
+            operator: ''
+      filter_groups:
+        operator: AND
+        groups:
+          1: AND
+      style:
+        type: default
+        options:
+          grouping: {  }
+          row_class: stream-card-wrapper
+          default_row_class: true
+      row:
+        type: 'entity:node'
+        options:
+          relationship: none
+          view_mode: stream_card
+      query:
+        type: views_query
+        options:
+          disable_sql_rewrite: false
+          distinct: true
+          replica: false
+          query_comment: ''
+          query_tags: {  }
+      use_ajax: false
+      access:
+        type: role
+        options:
+          role:
+            authenticated: authenticated
+      cache:
+        type: none
+        options: {  }
+      empty: {  }
+      header: {  }
+      footer: {  }
+      css_class: my-events-view
+  my_rsvps:
+    id: my_rsvps
+    display_title: 'My RSVPs'
+    display_plugin: default
+    position: 1
+    display_options:
+      title: 'My RSVPs'
+      fields: {  }
+      pager:
+        type: full
+        options:
+          pagination_heading_level: h4
+          items_per_page: 10
+          offset: 0
+      sorts:
+        field_date_of_event_value:
+          id: field_date_of_event_value
+          table: node__field_date_of_event
+          field: field_date_of_event_value
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: field_date_of_event
+          plugin_id: datetime
+          order: ASC
+      filters:
+        status:
+          id: status
+          table: node_field_data
+          field: status
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+          group: 1
+          expose:
+            operator: ''
+        type:
+          id: type
+          table: node_field_data
+          field: type
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: type
+          plugin_id: bundle
+          value:
+            event: event
+          group: 1
+          expose:
+            operator: ''
+        flagging_uid:
+          id: flagging_uid
+          table: flagging
+          field: uid
+          relationship: rsvp_relationship
+          group_type: group
+          admin_label: ''
+          plugin_id: user_current
+          group: 1
+          expose:
+            operator: ''
+      filter_groups:
+        operator: AND
+        groups:
+          1: AND
+      style:
+        type: default
+        options:
+          grouping: {  }
+          row_class: stream-card-wrapper
+          default_row_class: true
+      row:
+        type: 'entity:node'
+        options:
+          relationship: none
+          view_mode: stream_card
+      query:
+        type: views_query
+        options:
+          disable_sql_rewrite: false
+          distinct: true
+          replica: false
+          query_comment: ''
+          query_tags: {  }
+      relationships:
+        rsvp_relationship:
+          id: rsvp_relationship
+          table: node_field_data
+          field: flag_relationship
+          relationship: none
+          group_type: group
+          admin_label: 'RSVP event flag'
+          required: true
+          flag: rsvp_event
+          user_scope: current
+          plugin_id: flag_relationship
+      use_ajax: false
+      access:
+        type: role
+        options:
+          role:
+            authenticated: authenticated
+      cache:
+        type: none
+        options: {  }
+      empty: {  }
+      header: {  }
+      footer: {  }
+      css_class: my-rsvps-view

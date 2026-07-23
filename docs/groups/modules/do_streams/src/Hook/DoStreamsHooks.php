@@ -6,6 +6,7 @@ namespace Drupal\do_streams\Hook;
 
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Database\Query\SelectInterface;
+use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
@@ -46,6 +47,15 @@ class DoStreamsHooks {
   public const FOLLOWING_FEED_VIEW_ID = 'following_feed';
 
   /**
+   * The id of the `rsvp_event` flag consumed by issue #112's RSVP chip.
+   *
+   * Named here (rather than a bare string literal repeated in three
+   * methods) so a future rename only touches one place, mirroring
+   * DoGroupPinHooks::PIN_FLAG_ID's own convention.
+   */
+  public const RSVP_FLAG_ID = 'rsvp_event';
+
+  /**
    * Builds the per-viewing-user stream cache tag ([A-W2]).
    *
    * Membership/following scope is per-viewing-user (not per-group like
@@ -60,6 +70,32 @@ class DoStreamsHooks {
    */
   public static function userStreamCacheTag(int|string $uid): string {
     return 'do_streams:user_stream:' . $uid;
+  }
+
+  /**
+   * Builds the per-event flagging-list cache tag consumed by the RSVP chip.
+   *
+   * Issue #112 (ST-3), handoff-A.md Finding #2: a going-count/viewer-state
+   * chip is invalidated by ANY `rsvp_event` flagging insert/delete on the
+   * given node (any viewer's RSVP toggle changes the count everyone sees),
+   * so the tag is scoped per NODE, not per flagging or per flagger.
+   * Deliberately a synthetic, do_streams-owned tag
+   * (`flagging_list:node:<nid>`) rather than
+   * a bare `flagging_list` tag (which the `flag` contrib module's own
+   * Flagging entity type already exposes as its default list cache tag,
+   * per Drupal core's EntityTypeInterface::getListCacheTags() convention) —
+   * the bare list tag would over-invalidate (every event's chip on ANY
+   * RSVP anywhere), where this one invalidates only the affected event's own
+   * chip (self::onRsvpFlaggingChange() below invalidates exactly this tag).
+   *
+   * @param int|string $nid
+   *   The event node's id.
+   *
+   * @return string
+   *   The scoped cache tag, e.g. `flagging_list:node:203`.
+   */
+  public static function rsvpChipCacheTag(int|string $nid): string {
+    return 'flagging_list:node:' . $nid;
   }
 
   /**
@@ -313,6 +349,7 @@ class DoStreamsHooks {
   #[Hook('entity_insert')]
   public function entityInsert(EntityInterface $entity): void {
     $this->onFlaggingChange($entity);
+    $this->onRsvpFlaggingChange($entity);
   }
 
   /**
@@ -321,6 +358,7 @@ class DoStreamsHooks {
   #[Hook('entity_delete')]
   public function entityDelete(EntityInterface $entity): void {
     $this->onFlaggingChange($entity);
+    $this->onRsvpFlaggingChange($entity);
   }
 
   /**
@@ -351,6 +389,32 @@ class DoStreamsHooks {
     }
 
     Cache::invalidateTags([self::userStreamCacheTag($entity->getOwnerId())]);
+  }
+
+  /**
+   * Invalidates the affected event's RSVP-chip cache tag on RSVP toggle.
+   *
+   * Issue #112 (ST-3), handoff-A.md Finding #2: an `rsvp_event` flagging
+   * insert/delete changes the going-count EVERY viewer's chip for that
+   * event shows, so the invalidation is scoped per-NODE
+   * ({@see self::rsvpChipCacheTag()}), not per-flagger — unlike
+   * self::onFlaggingChange()'s per-viewing-user pin tag, this one is a
+   * genuinely shared, node-scoped count.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity that was inserted or deleted; a no-op unless it is an
+   *   `rsvp_event` flagging.
+   */
+  protected function onRsvpFlaggingChange(EntityInterface $entity): void {
+    if (!$entity instanceof FlaggingInterface || $entity->getFlagId() !== self::RSVP_FLAG_ID) {
+      return;
+    }
+    $node = $entity->getFlaggable();
+    if (!$node instanceof NodeInterface) {
+      return;
+    }
+
+    Cache::invalidateTags([self::rsvpChipCacheTag($node->id())]);
   }
 
   /**
@@ -406,7 +470,41 @@ class DoStreamsHooks {
   }
 
   /**
-   * Registers the shared stream shell theme hook ([B-3]).
+   * Registers the shared stream shell theme hook ([B-3]) plus the issue #112
+   * `event--stream-card` node-suggestion template.
+   *
+   * Issue #110 (ST-1) extension: adds `empty_cta` (default `[]`, an
+   * optional render array), forward-compat for #111-#115's own scope-specific
+   * empty-state CTAs (handoff-A.md Finding #5). A `#`-prefixed property on a
+   * `#theme => do_streams_shell` render array only reaches the template if
+   * its bare name is declared here in `variables` -- {@see
+   * \Drupal\Core\Theme\ThemeManager::render()} copies ONLY declared
+   * keys off the element -- so this declaration is required, not cosmetic.
+   *
+   * Issue #112 (ST-3) extension: explicitly registers the
+   * `node__event__stream_card` theme-hook SUGGESTION (bundle=event,
+   * view_mode=stream_card -- Drupal's own
+   * \Drupal\node\Hook\NodeThemeHooks::themeSuggestionsNode() computes this
+   * exact suggestion name for every event-bundle node rendered in the
+   * stream_card view mode) so
+   * templates/node--event--stream-card.html.twig is found at all.
+   *
+   * Reach-boundary discovery (recorded here, not merely in the template's
+   * own docblock, since this IS the fix): a THEME's own `templates/`
+   * directory is scanned automatically for suggestion-named files (see
+   * \Drupal\Core\Template\TwigThemeEngine::getThemeSuggestions() ->
+   * drupal_find_theme_templates(), invoked with the ACTIVE THEME's own path
+   * only) -- but a MODULE's `templates/` directory is NEVER filesystem-
+   * scanned for suggestion names; a module only gets a suggestion-level
+   * template recognized if it explicitly registers the suggestion's
+   * `template` (+ `path` + `base hook`) here, in its OWN hook_theme()
+   * implementation (see \Drupal\Core\Theme\Registry::processExtension(),
+   * which invokes every module's hook_theme() before the theme's own, but
+   * performs NO independent directory scan on a module's behalf). Confirmed
+   * against a live smoke test: without this explicit entry,
+   * node__event__stream_card resolved in the registry but pointed at
+   * core's own generic `node` template -- the module-owned file was
+   * silently never found.
    */
   #[Hook('theme')]
   public function theme(array $existing, string $type, string $theme, string $path): array {
@@ -420,8 +518,14 @@ class DoStreamsHooks {
           'ranking_control' => [],
           'empty' => TRUE,
           'empty_copy' => '',
+          'empty_cta' => [],
         ],
         'template' => 'do-streams-shell',
+      ],
+      'node__event__stream_card' => [
+        'base hook' => 'node',
+        'path' => $path . '/templates',
+        'template' => 'node--event--stream-card',
       ],
     ];
   }
@@ -449,6 +553,22 @@ class DoStreamsHooks {
    * D-gate resolution 2 (handoff-D.md, binding): 4 DISTINCT, scope-truthful
    * empty-state copy strings — Global's must never contain a follow-oriented
    * CTA.
+   *
+   * Issue #110 note: `empty_cta` is NOT touched here — it passes through
+   * untouched from whatever the caller set on `#empty_cta` (default `[]`
+   * from the theme hook's own `variables` declaration when a caller sets
+   * nothing), per handoff-A.md Finding #5 ("built by controller, not
+   * preprocess" — this preprocess function never hardcodes a route).
+   *
+   * Issue #112 note: the Events page (do_streams.my_events route) does NOT
+   * use this shell's own `scope_tabs`/`empty`/`empty_copy` branches at all —
+   * per handoff-A.md Finding #1's binding resolution, MyEventsController
+   * pre-composes both Upcoming/My RSVPs sections into ONE `#results` render
+   * array (with its OWN two-tab scope markup and per-section empty states)
+   * and always passes `empty: FALSE` on the outer shell invocation, so this
+   * preprocess's `empty`/`empty_copy` assignment below is harmless dead
+   * weight on that one route (never read by the Events page's own template
+   * fragment) rather than a collision — no edit needed here for #112.
    */
   #[Hook('preprocess_do_streams_shell')]
   public function preprocessDoStreamsShell(array &$variables): void {
@@ -503,6 +623,196 @@ class DoStreamsHooks {
     $variables['ranking_control'] = $ranking_control;
     $variables['empty'] = empty($results);
     $variables['empty_copy'] = $empty_copy[$active_scope] ?? $empty_copy['global'];
+  }
+
+  /**
+   * Populates the `event--stream-card` event-card template's variables.
+   *
+   * Issue #112 (ST-3): guards on BOTH the `event` bundle AND the
+   * `stream_card` view mode (mirroring groups_chrome_preprocess_node()'s own
+   * guard shape, the closest analogous per-node-in-a-stream preprocess this
+   * codebase already has), so every OTHER node render (any other bundle, or
+   * `event` in a different view mode) is left completely untouched.
+   *
+   * Populates `gc_event.*` per templates/node--event--stream-card.html.twig's
+   * own docblock (date badge parts, node URL, first owning group's label,
+   * and the RSVP chip render array). Every sub-lookup fails SAFE (no date
+   * field / no group relationship / flag service unavailable all degrade to
+   * omitting that piece, per survey.md's "#60: gracefully hide the date
+   * badge, don't 500" convention, extended here to the group badge and chip
+   * as the same defensive shape).
+   */
+  #[Hook('preprocess_node__event__stream_card')]
+  public function preprocessNodeEventStreamCard(array &$variables): void {
+    $node = $variables['node'] ?? NULL;
+    if (!$node instanceof NodeInterface || $node->bundle() !== 'event') {
+      return;
+    }
+
+    $variables['#attached']['library'][] = 'do_streams/events';
+
+    $variables['gc_event'] = [
+      'date_month' => NULL,
+      'date_day' => NULL,
+      'date_display' => NULL,
+      'node_url' => NULL,
+      'group_label' => NULL,
+      'chip' => NULL,
+    ];
+
+    // --- Date badge (defensive: #60, survey.md) ------------------------
+    if ($node->hasField('field_date_of_event') && !$node->get('field_date_of_event')->isEmpty()) {
+      $raw = $node->get('field_date_of_event')->value;
+      try {
+        $date = new DrupalDateTime($raw);
+        $variables['gc_event']['date_month'] = $date->format('M');
+        $variables['gc_event']['date_day'] = $date->format('d');
+        $variables['gc_event']['date_display'] = $date->format('M j, Y \a\t g:i A');
+      }
+      catch (\Exception $e) {
+        // Malformed date value — omit the badge/display rather than fatal.
+      }
+    }
+
+    // --- Canonical link (defensive) -------------------------------------
+    try {
+      $variables['gc_event']['node_url'] = $node->toUrl()->toString();
+    }
+    catch (\Exception $e) {
+      // Leave node_url NULL; the template renders the title unlinked.
+    }
+
+    // --- First owning group's label (defensive) -------------------------
+    try {
+      $storage = \Drupal::entityTypeManager()->getStorage('group_relationship');
+      foreach ($storage->loadByEntity($node) as $relationship) {
+        $group = $relationship->getGroup();
+        if ($group) {
+          $variables['gc_event']['group_label'] = $group->label();
+          break;
+        }
+      }
+    }
+    catch (\Exception $e) {
+      // Group module unavailable — omit the group badge.
+    }
+
+    // --- RSVP chip (handoff-A.md Finding #2 cache metadata) --------------
+    $variables['gc_event']['chip'] = $this->buildRsvpChipRenderArray($node);
+  }
+
+  /**
+   * Builds the RSVP chip render array for a single event node.
+   *
+   * Issue #112 (ST-3): a READ-time indicator only (going-count +
+   * viewer-state) — per handoff-D.md's Q-D1 resolution, no live toggle
+   * interaction is wired on this page (the Reuse map only asks for display,
+   * not a new toggle surface), so this renders an inert `<span>`, never a
+   * `<button>`/`<input>` Form API element — sidesteps the documented
+   * `#type=>submit` renders `<input>` gotcha by not being a form element at
+   * all.
+   *
+   * Icon + text in BOTH states (never color-only, WCAG 2.2 AA 1.4.1):
+   * outline "○ RSVP · N going" (not attending) vs filled "✓ You're going ·
+   * N going" (attending) — matches the approved wireframe verbatim.
+   *
+   * Fails safe: if the `rsvp_event` flag is not installed (e.g. a context
+   * where `flag` module config was never imported), returns NULL — no chip
+   * renders rather than a fatal, matching this class's established
+   * defensive-degradation convention (self::preprocessNodeEventStreamCard()'s
+   * date/group-badge guards).
+   *
+   * @param \Drupal\node\NodeInterface $node
+   *   The event node.
+   *
+   * @return array|null
+   *   A render array for the chip, or NULL if the flag is unavailable.
+   */
+  public function buildRsvpChipRenderArray(NodeInterface $node): ?array {
+    // FlagServiceInterface cannot be DI-injected on hook_implementations
+    // services (Drupal DefinitionErrorExceptionPass rejects unknown
+    // interface aliases) — mirrors do_notifications's own documented
+    // constraint (DoNotificationsHooks::commentInsert()).
+    try {
+      /** @var \Drupal\flag\FlagServiceInterface $flag_service */
+      $flag_service = \Drupal::service('flag');
+      $flag = $flag_service->getFlagById(self::RSVP_FLAG_ID);
+    }
+    catch (\Exception $e) {
+      return NULL;
+    }
+    if (!$flag) {
+      return NULL;
+    }
+
+    // Count via a direct entity query (survey.md's own recommendation:
+    // "cheap, cached per event render") rather than loading every Flagging
+    // entity through getEntityFlaggings() — this render path runs once per
+    // card on every page view.
+    $going_count = (int) \Drupal::entityTypeManager()
+      ->getStorage('flagging')
+      ->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('flag_id', self::RSVP_FLAG_ID)
+      ->condition('entity_id', $node->id())
+      ->count()
+      ->execute();
+
+    $current_account = \Drupal::currentUser()->getAccount();
+    $is_going = !$current_account->isAnonymous()
+      && $flag_service->getFlagging($flag, $node, $current_account) !== NULL;
+
+    $viewer_state = $is_going ? 'going' : 'not_going';
+
+    $label = $is_going
+      ? new TranslatableMarkup("You're going")
+      : new TranslatableMarkup('RSVP');
+    $icon = $is_going ? '✓' : '○';
+
+    return [
+      '#type' => 'html_tag',
+      '#tag' => 'span',
+      '#value' => $icon . ' ' . $label . ' · ' . new TranslatableMarkup('@count going', ['@count' => $going_count]),
+      '#attributes' => [
+        'class' => array_filter(['rsvp-chip', $is_going ? 'rsvp-chip--going' : NULL]),
+        'data-testid' => 'rsvp-chip',
+        'data-going-count' => (string) $going_count,
+        'data-viewer-state' => $viewer_state,
+      ],
+      '#cache' => $this->buildRsvpChipCacheMetadata($node),
+    ];
+  }
+
+  /**
+   * Returns the `#cache` array the RSVP chip's render context must carry.
+   *
+   * Handoff-A.md Finding #2 (binding), pinned verbatim by
+   * MyEventsViewTest::testChipCacheMetadata(): the chip's going-count varies
+   * per-NODE (invalidated by ANY RSVP toggle on that event —
+   * {@see self::rsvpChipCacheTag()}, {@see self::onRsvpFlaggingChange()})
+   * and its viewer-state varies per-VIEWING-USER, so BOTH a node-scoped
+   * flagging cache tag AND the `user` cache context are mandatory — missing
+   * either is the exact cache-poisoning bug Finding #2 names ("chip shows
+   * the wrong going count" / "logged-in-as-B sees A's viewer-state").
+   *
+   * Extracted as its own small, directly-callable, side-effect-free method
+   * (rather than inlined into buildRsvpChipRenderArray()) specifically so a
+   * kernel test can assert on the exact metadata shape without needing a
+   * full render pipeline — mirrors StreamsShellTest's own established
+   * precedent of invoking a hook method directly.
+   *
+   * @param \Drupal\node\NodeInterface $node
+   *   The event node the chip describes.
+   *
+   * @return array
+   *   A `#cache` array with `contexts` (includes `user`) and `tags`
+   *   (includes this node's {@see self::rsvpChipCacheTag()}).
+   */
+  public function buildRsvpChipCacheMetadata(NodeInterface $node): array {
+    return [
+      'contexts' => ['user'],
+      'tags' => [self::rsvpChipCacheTag($node->id())],
+    ];
   }
 
 }

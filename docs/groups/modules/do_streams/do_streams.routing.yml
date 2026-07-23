@@ -1,0 +1,16 @@
+do_streams.my_events:
+  path: '/my-feed/events'
+  defaults:
+    _controller: '\Drupal\do_streams\Controller\MyEventsController::build'
+    _title: 'My Feed — Events'
+  requirements:
+    # Drupal 11 core's actual authenticated-only route gate:
+    # `_user_is_logged_in: 'TRUE'` (\Drupal\user\Access\LoginStatusCheck).
+    # The issue brief names `_role: authenticated`, but core does not
+    # implement a generic `_role` route requirement outside a Views page
+    # display's own alterRouteDefinition() (see
+    # \Drupal\user\Plugin\views\access\Role::alterRouteDefinition(), which
+    # only fires for a VIEW's own page display, not a hand-authored
+    # routing.yml entry). This mechanism denies anonymous requests with a
+    # 403, satisfying the acceptance criterion's "403 or login redirect".
+    _user_is_logged_in: 'TRUE'

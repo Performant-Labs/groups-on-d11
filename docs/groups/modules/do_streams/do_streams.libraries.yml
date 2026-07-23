@@ -3,3 +3,9 @@ following:
   css:
     theme:
       css/following.css: {}
+
+events:
+  version: 1.x
+  css:
+    theme:
+      css/events.css: {}
