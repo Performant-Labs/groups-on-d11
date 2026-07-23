@@ -6,6 +6,7 @@ namespace Drupal\do_showcase\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Url;
+use Drupal\do_chrome\HelpText;
 use Drupal\do_showcase\ShowcaseCatalog;
 use Drupal\do_showcase\VariantSwitcher;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -26,6 +27,18 @@ use Symfony\Component\HttpFoundation\Request;
  * guaranteed wired stub `VariantSwitcher` instance (`directory.layout`, per
  * wireframe.md's own example) so brief.md Acceptance #1 ("at least one wired
  * demo instance") is satisfied.
+ *
+ * #132 SD-5: extends the per-entry loop with an optional `[data-do-tooltip]`
+ * ⓘ help trigger (`$item['help']`), rendered only when
+ * `HelpText::get('showcase_help.<id>')` is non-empty (survey.md failure-mode
+ * note: never render an empty `data-do-tooltip=""`, which would produce an
+ * empty tippy popover on hover) — placed alongside the entry's
+ * title/badge/decision metadata, before the `link` conditional. Also adds a
+ * single `$build['switcher_map_help']` ⓘ trigger adjacent to the stub
+ * switcher (the brief's approved alternative to touching
+ * `VariantSwitcher::build()` for a per-option ⓘ, which is out-of-scope
+ * framework surgery), guarded identically on non-empty
+ * `showcase_help.map` copy.
  */
 class ShowcaseController extends ControllerBase {
 
@@ -50,9 +63,10 @@ class ShowcaseController extends ControllerBase {
    * Renders the `/showcase` tour page.
    *
    * @return array
-   *   A render array: page title/intro, the stub switcher instance, and one
+   *   A render array: page title/intro, the stub switcher instance, one
    *   block per catalog entry (title, decision sentence, `[ live ]`/
-   *   `[ coming ]` status badge, and a deep-link only where `live`).
+   *   `[ coming ]` status badge, an optional ⓘ help trigger, and a deep-link
+   *   only where `live`), and a map-orientation ⓘ adjacent to the switcher.
    */
   public function page(): array {
     $build = [];
@@ -83,6 +97,25 @@ class ShowcaseController extends ControllerBase {
       ['id' => 'map', 'label' => (string) $this->t('Map'), 'available' => FALSE],
     ], $variant);
 
+    // #132 SD-5: map-view orientation ⓘ, adjacent to the switcher. Guarded
+    // on non-empty copy (same guard the per-entry help below uses) so an
+    // empty showcase_help.map key would never render an empty tooltip.
+    $map_copy = HelpText::get('showcase_help.map');
+    if ($map_copy !== '') {
+      $build['switcher_map_help'] = [
+        '#type' => 'html_tag',
+        '#tag' => 'span',
+        '#value' => 'ⓘ Map view',
+        '#attributes' => [
+          'class' => ['do-showcase-info', 'do-showcase-map-help'],
+          'tabindex' => '0',
+          'role' => 'note',
+          'aria-label' => $map_copy,
+          'data-do-tooltip' => $map_copy,
+        ],
+      ];
+    }
+
     $items = [];
     foreach ($this->catalog->entries() as $entry) {
       $badge = $entry['status'] === 'live' ? $this->t('[ live ]') : $this->t('[ coming ]');
@@ -110,6 +143,26 @@ class ShowcaseController extends ControllerBase {
         '#tag' => 'p',
         '#value' => $entry['decision_sentence'],
       ];
+
+      // #132 SD-5: per-entry ⓘ help trigger, rendered only when
+      // showcase_help.<id> resolves to non-empty copy (survey.md
+      // failure-mode note) — placed with the entry's metadata, before the
+      // `link` conditional below.
+      $help_copy = HelpText::get('showcase_help.' . $entry['id']);
+      if ($help_copy !== '') {
+        $item['help'] = [
+          '#type' => 'html_tag',
+          '#tag' => 'span',
+          '#value' => 'ⓘ',
+          '#attributes' => [
+            'class' => ['do-showcase-info', 'do-showcase-entry-help'],
+            'tabindex' => '0',
+            'role' => 'note',
+            'aria-label' => $help_copy,
+            'data-do-tooltip' => $help_copy,
+          ],
+        ];
+      }
 
       // Only live entries get a deep-link — coming entries have no dead
       // link (truthful-copy rule, wireframe.md).

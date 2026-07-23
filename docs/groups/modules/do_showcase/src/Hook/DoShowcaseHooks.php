@@ -8,6 +8,7 @@ use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Template\Attribute;
 use Drupal\Core\Url;
+use Drupal\do_chrome\HelpText;
 use Drupal\do_showcase\Persona\PersonaSwitcher;
 use Drupal\do_showcase\ShowcaseCatalog;
 
@@ -233,6 +234,20 @@ class DoShowcaseHooks {
    * `#cache['contexts'] => ['user']` (Amendment 6) — this render fragment
    * must never be served from a cached page to a session it doesn't belong
    * to.
+   *
+   * #132 SD-5 (brief-amendments.md Amendment 1 / Amendment 2): appends a
+   * fourth `$children` node, `'help'`, AFTER `'switch_back'` — the corrected
+   * DOM order `glyph, text, switch_back, help` (the brief's own worked
+   * example placed it before `glyph`, which A's review corrected: the ⓘ
+   * trails the switch-back link so it does not visually crowd the leading
+   * `▶`). The trigger reuses the verbatim `<span class="do-showcase-info"
+   * tabindex="0" role="note" aria-label data-do-tooltip>ⓘ</span>` pattern
+   * already used by `PersonaSwitcher::build()` and
+   * `GroupTypeContentHelp::infoTrigger()`, reading its copy from
+   * `HelpText::get('showcase_help.persona_banner')`. `do_chrome/tooltips` is
+   * now attached explicitly in this hook's own `#attached['library']`
+   * (Amendment 2) rather than relying on the transitive attach via
+   * `do_showcase/persona-switcher`.
    */
   #[Hook('page_top')]
   public function personaBanner(array &$page_top): void {
@@ -282,6 +297,8 @@ class DoShowcaseHooks {
       '@label' => $active_persona['label'],
     ]);
 
+    $help_copy = HelpText::get('showcase_help.persona_banner');
+
     $children = [
       'glyph' => [
         '#type' => 'html_tag',
@@ -300,6 +317,18 @@ class DoShowcaseHooks {
         '#url' => Url::fromRoute('do_showcase.persona_switch', ['persona' => 'anonymous']),
         '#attributes' => ['class' => ['do-showcase-persona-banner-switch-back']],
       ],
+      'help' => [
+        '#type' => 'html_tag',
+        '#tag' => 'span',
+        '#value' => 'ⓘ',
+        '#attributes' => [
+          'class' => ['do-showcase-info'],
+          'tabindex' => '0',
+          'role' => 'note',
+          'aria-label' => $help_copy,
+          'data-do-tooltip' => $help_copy,
+        ],
+      ],
     ];
     $children_html = (string) \Drupal::service('renderer')->renderInIsolation($children);
 
@@ -312,7 +341,10 @@ class DoShowcaseHooks {
     $page_top['do_showcase_persona_banner'] = [
       '#markup' => Markup::create('<aside' . $aside_attributes . '>' . $children_html . '</aside>'),
       '#attached' => [
-        'library' => ['do_showcase/persona-switcher'],
+        'library' => [
+          'do_showcase/persona-switcher',
+          'do_chrome/tooltips',
+        ],
       ],
       '#cache' => [
         'contexts' => ['user'],
