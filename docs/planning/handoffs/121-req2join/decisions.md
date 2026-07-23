@@ -703,3 +703,50 @@ adjudication.
 - `docs/groups/modules/do_group_membership/src/Controller/ManageMembersController.php:80-84,131-135,176-180` (reference idiom).
 - `git diff -- docs/groups/` (exactly 1 file, 4 lines changed).
 - Kernel `RequestJoinFlowTest.php` 7/7 GREEN; Functional `JoinPolicyEnforcementTest.php` 9/9 GREEN; phpcs 0 errors/0 warnings on the touched file.
+
+## Phase 9 — Spec Auditor: final audit (2026-07-22)
+
+**Decided:** Verdict PASS. All 16 ACs backed by tests (matrix in `handoff-S.md`). All 6
+coordinator hard rules honored (source-only paths clean; personas Sophie/Alex/Ravi, zero
+Elena; `visibility.invite_only` contains "visible" + no "hidden"; `HelpTextTest` L71-73
+updated in same commit `ee10531` as HelpText copy edit; `RequestJoinForm` uses
+`#type=>submit`; no `grequest` production code — only 2 docblock references in
+`do_showcase/` explicitly noting incompatibility). Concur with O's U N/A declaration (narrow
+surface, contrast/focus inherited from #85's verified `.gc-button--primary`, semantic
+controls, F did 3 live smoke verifications). Concur with T-green r2's decision that the
+discoverability guarantee is E2E-tier only (`JoinPolicyEnforcementTest` uses `stark` theme
+per its own docblock; `PermissionMatrixPanelTest` sets same precedent; no Functional test in
+this project installs `groups_chrome`).
+
+**Assumed:** none — every AC verified against a named test file/method; every hard rule
+verified via `grep`/`git log --stat`/direct file read.
+
+**Hedged:** WARN-S1 — branch merge-base is `a254035`; #122 (merged `e269c66`) and #143
+(merged `6827fb8`) landed on `main` AFTER this branch was cut. O must rebase or merge `main`
+before opening the PR to avoid ~14k spurious "deletion" lines in the PR diff. Verified
+`git diff --name-only "$(git merge-base origin/main HEAD)"..HEAD -- docs/groups/ tests/e2e/
+web/themes/custom/` shows only story-scoped files; the deletions are the newer main content,
+not story churn.
+
+**Evidence:**
+- `docs/planning/handoffs/121-req2join/handoff-S.md` (full audit — per-AC matrix, hard-rules
+  matrix, coverage-tier audit, follow-up ticket list, PR-body readiness check).
+- `git diff --stat "$(git merge-base origin/main HEAD)"..HEAD -- docs/groups/ tests/e2e/
+  web/themes/custom/` (16 files, +1736 −64 story-scoped).
+- `git diff --name-only "$(git merge-base origin/main HEAD)"..HEAD | grep -E
+  "^(web/modules/custom|config/sync)/"` — 0 hits (source-only guard clean).
+- `grep -c elena tests/e2e/membership-models.spec.ts docs/groups/modules/do_group_membership/tests/
+  -r` — 0 in all test surfaces (persona rule honored).
+- `docs/groups/modules/do_chrome/src/HelpText.php:94-96` (three corrected visibility strings;
+  `visibility.invite_only` contains "visible", no "hidden", no "Not yet enforced").
+- `docs/groups/modules/do_chrome/tests/src/Unit/HelpTextTest.php:75-108` (sweeping
+  visibility.* invariant loop; explicit `visible`/`request`/`approv`/`hidden`-absent
+  assertions).
+- `docs/groups/scripts/step_700_demo_data.php:341-379` (Step 790 append-only, idempotent
+  guards, both `sophie_mueller` AND `alex_novak` pending rows per v2 NIT).
+- `tests/e2e/membership-models.spec.ts:130-210` (4 tests, Sophie/Alex/Ravi personas, both
+  `link` and `button` locator shapes for G9).
+- Follow-up tickets to file post-merge: B-2 (theme picker `#cache` metadata); A-dup
+  carry-forward (`/all-groups` directory-card third branch); `do_group_extras` CLI-unpublish
+  hook; malformed `language.content_settings.node.*` config; drush uli positional-arg
+  gotcha (documentation note).
