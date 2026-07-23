@@ -207,6 +207,30 @@ final class HelpText {
       'persona.elena' => 'Elena Garcia is an active Member across several groups. Plain-member view: can post and join, cannot manage members.',
       'persona.maria' => 'Maria Chen holds the Organizer role on a seeded group. Can edit the group and manage its members.',
       'persona.moderator' => 'Groups-Moderate is site moderation. Reviews the pending-join queue and approves, archives, or restores any group. Nothing else.',
+
+      // --- #126 (SD-1): page-level "what am I looking at" ⓘ tooltips. -------
+      // Appended per the append-only HelpText contract. Read by
+      // \Drupal\do_chrome\Hook\PageHelp::preprocessPageTitle(), keyed by the
+      // route-name => key allowlist in PageHelp::getRouteMap(). Every key
+      // must resolve non-empty (see HelpTextPageKeysTest) even for the 5 W2
+      // pre-registered keys below, whose routes do not exist yet — the point
+      // of registering them now is that a future W2 story does not need to
+      // edit do_chrome to add its ⓘ, only to build the route.
+      //
+      // 5 LIVE (rendered now, brief.md §Scope "Covered now"):
+      'page.stream' => 'The site-wide activity stream: recent posts, replies, and events from every public group. This is what a signed-out visitor sees to get a sense of the community.',
+      'page.all_groups' => 'Every community group on the site, listed together. Filter by name to find one, or browse to see what topics have working groups. Any signed-in visitor can join an Open group instantly.',
+      'page.group.stream' => 'This group\'s activity: posts, replies, and events from members, newest first. This is the default landing view for the group.',
+      'page.group.events' => 'Upcoming and past events organised by this group. Members can add events from the Add content menu.',
+      'page.group.members' => 'Everyone who has joined this group. Organizers manage the roster; joining rules depend on the group\'s visibility (Open, Moderated, or Invite Only).',
+      // 5 W2 pre-registered (inert — map entry present, route does not exist
+      // yet; entries whose route never resolves at request time render
+      // nothing, per brief.md):
+      'page.my_feed' => 'A personalised feed of activity from the groups you belong to.',
+      'page.following' => 'Posts and threads you\'ve chosen to follow.',
+      'page.trending' => 'Posts drawing the most engagement across the site right now.',
+      'page.my_feed_events' => 'Upcoming events from the groups you belong to.',
+      'page.profile_stream' => 'This person\'s public activity across all their groups.',
     ];
   }
 

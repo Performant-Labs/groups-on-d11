@@ -14,3 +14,14 @@ services:
     autowire: false
     tags:
       - { name: 'hook_implementations' }
+
+  # #126 (SD-1): page-level ⓘ tooltips. Own service (own route-map + own
+  # hook method) so this story stays parallel-safe with the other tooltip
+  # surfaces above.
+  do_chrome.page_help:
+    class: Drupal\do_chrome\Hook\PageHelp
+    autowire: false
+    arguments:
+      - '@current_route_match'
+    tags:
+      - { name: 'hook_implementations' }
