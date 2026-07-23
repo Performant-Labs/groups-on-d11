@@ -119,3 +119,64 @@ Orchestrator writes the closing Chain Summary at post-merge sweep.
 - `docs/planning/handoffs/121-req2join/handoff-A-plan-r2.md` (this round's full report).
 - `docs/planning/handoffs/121-req2join/brief-response-v2.md` (amendment reviewed).
 - `docs/groups/modules/do_group_membership/src/Controller/ManageMembersController.php:38-45` (peer method shape confirmed as faithful mirror).
+
+## Phase 4 — Tester: RED authored (2026-07-22)
+
+**Decided:**
+- Authored 4 test files against the v2-amended plan: `RequestJoinFlowTest.php` (Kernel,
+  7 tests), `JoinPolicyEnforcementTest.php` (Functional, 9 tests), `HelpTextTest.php`
+  (Unit, updated `testVisibilityCopyIsPresentPlainTextAndHonest()`), and
+  `membership-models.spec.ts` (Playwright E2E, authored not run).
+- Verified RED against the assembled layout (`ddev` at `gm121-groups-on-d11`,
+  `SIMPLETEST_DB` pointed at the ddev `db` service, a `php -S` test-router server for
+  Functional). 7/7 Kernel tests fail (missing `requestJoin`/`joinPolicyFor` methods,
+  or a neutral-not-forbidden access result). 3/9 Functional tests fail for the right
+  reason (missing `/join-request` route; `entity.group.join` not yet gated on
+  invite_only); the other 6/9 Functional tests are legitimate regression guards on
+  pre-existing behavior (#95's open-join route, #138's ManageMembersForm surface) and
+  are correctly GREEN already — not an invalid RED, since AC-4/AC-15/AC-16 target that
+  existing surface per v2 §A-1. 1/10 Unit tests fails (stale "Not yet enforced" copy).
+- Per A-W2: the invite_only-forbidden kernel test asserts on `AccessResultInterface::isForbidden()`
+  against the real entity-create access API (`getAccessControlHandler('group_relationship')->createAccess()`),
+  not on a specific hook name — satisfies "T must not commit to the exact hook name."
+- Fixed 5 test-authorship bugs found during RED authoring (documented in detail in
+  `handoff-T-red.md` "Surprises for F"): (1) `AccessResult::neutral()` also fails
+  `isAllowed()`, so the invite_only test needed `isForbidden()` specifically to avoid
+  a trivial pre-F pass; (2) `field_membership_status`/`field_group_visibility` are not
+  installed by `GroupTestTrait::createGroupType()`/`createGroup()` — both Kernel and
+  Functional suites install them explicitly in `setUp()`, mirroring
+  `GroupMembershipManagerKernelTest`/`ManageMembersPageRenderTest`; (3)
+  `drupalCreateUser($permissions, $name)`'s first arg is permissions, not values —
+  fixed two calls that mistakenly passed `['name' => ...]`; (4) Symfony's CssSelector
+  does not support `:contains()`/`:has-text()` — replaced with a real selector + manual
+  text-match fallback; (5) discovered #95's "Join group" clickable affordance is
+  theme-layer (`groups_chrome`'s `gc-directory-card__join` link on `/all-groups`), not
+  rendered on the group canonical page nor present in a minimal module Functional
+  fixture — the open-group AC-1 Functional test asserts on the `entity.group.join`
+  route directly (200 + successful submit) instead, which is the real enforcement
+  surface and the tier-appropriate assertion for a module-level test.
+
+**Assumed:**
+- E2E RED verification is deferred to T-green (Phase 6) once F's implementation +
+  a seeded site exist, per task instructions — the spec is authored now as the
+  contract F implements against.
+- F's theme/template work (if any) for a Join/Request affordance directly on the
+  group canonical page, if the (still-absent) wireframe calls for one, is out of
+  this test suite's scope — flagged as a surprise for F, not assumed away silently.
+
+**Hedged:** none.
+
+**Evidence:**
+- RED run output for all three PHPUnit suites (see `handoff-T-red.md` "RED
+  confirmation" for full pasted testdox + exception text).
+- `docs/groups/modules/do_group_membership/tests/src/Kernel/GroupMembershipManagerKernelTest.php`
+  (Kernel field-install pattern mirrored).
+- `docs/groups/modules/do_group_membership/tests/src/Functional/ManageMembersPageRenderTest.php`
+  (Functional field-install pattern mirrored).
+- `docs/groups/modules/do_group_membership/tests/src/Functional/ManageMembersRouteAccessTest.php`
+  (Functional access-test pattern mirrored for AC-15/AC-16).
+- `web/themes/custom/groups_chrome/templates/content/views-view-fields--all-groups.html.twig`
+  (confirms the Join affordance is theme-layer, directory-view-only).
+- `docs/groups/modules/do_group_membership/do_group_membership.routing.yml` (confirms
+  `/group/{group}/join-request` does not yet exist — 404 is the correct RED reason).
+- Full report: `docs/planning/handoffs/121-req2join/handoff-T-red.md`.

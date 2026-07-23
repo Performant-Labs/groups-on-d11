@@ -50,11 +50,21 @@ final class HelpTextTest extends TestCase {
   }
 
   /**
-   * The #88 per-option visibility copy exists, is plain text, and is honest.
+   * The #88/#121 per-option visibility copy exists, is plain text, and is
+   * honest about NOW-LIVE enforcement.
    *
-   * Reconciled with the #81 deck + its CH-F4 (#95) update: Open is enforced
-   * (present as live), while Moderated and Invite Only remain unenforced labels
-   * and must say so.
+   * #121 SC-2 makes join-policy enforcement real: Open (already live via
+   * #95), Moderated (request-to-join + organizer approval, now live), and
+   * Invite Only (visible but closed to direct joining, now live) are ALL
+   * enforced. The old "Not yet enforced" wording for Moderated/Invite Only
+   * is now FALSE and must not appear anywhere in the visibility.* copy
+   * (AC-6). The corrected Invite Only copy MUST contain the word "visible"
+   * (AC-7) — guarding against a faithful-but-wrong edit that drops "not yet
+   * enforced" but keeps the old (wrong) "hidden" framing; hidden is Private
+   * (#134), not Invite Only. The corrected Moderated copy must describe
+   * request + approval as LIVE behavior. The field-level intro
+   * (visibility.field) must retain a phrase that separates *viewing* from
+   * *joining* (A-W3 guard rail).
    *
    * @covers ::get
    */
@@ -65,12 +75,38 @@ final class HelpTextTest extends TestCase {
       $this->assertStringNotContainsString('<', $copy, 'Copy must be plain text (allowHTML is disabled).');
     }
 
-    // Open is wired by #95 — present it as live/joinable.
+    // Open is wired by #95 — present it as live/joinable. Unchanged by #121.
     $this->assertMatchesRegularExpression('/\bjoin\b/i', HelpText::get('visibility.open'), 'Open copy must describe joining.');
 
-    // Moderated and Invite Only are NOT enforced — the copy must not over-claim.
-    $this->assertStringContainsString('Not yet enforced', HelpText::get('visibility.moderated'), 'Moderated copy must flag it is not enforced.');
-    $this->assertStringContainsString('Not yet enforced', HelpText::get('visibility.invite_only'), 'Invite Only copy must flag it is not enforced.');
+    // AC-6 (sweeping): NO visibility.* key may still contain "Not yet
+    // enforced" — #121 makes all three states real, enforced behavior.
+    foreach (HelpText::all() as $key => $copy) {
+      if (str_starts_with($key, 'visibility.')) {
+        $this->assertStringNotContainsString('Not yet enforced', $copy, sprintf('"%s" copy must not claim to be unenforced (AC-6) — #121 makes join-policy enforcement live.', $key));
+      }
+    }
+
+    // Moderated copy must describe request-to-join AND organizer approval
+    // as LIVE (brief-response §4 / AC-7).
+    $moderated_copy = HelpText::get('visibility.moderated');
+    $this->assertMatchesRegularExpression('/\brequest/i', $moderated_copy, 'Moderated copy must describe requesting to join.');
+    $this->assertMatchesRegularExpression('/\bapprov/i', $moderated_copy, 'Moderated copy must describe organizer approval.');
+
+    // Invite Only copy MUST contain "visible" (AC-7) — Invite Only is
+    // visible-but-closed-to-joining, NOT hidden (hidden is Private, #134) —
+    // and must NOT contain the misleading word "hidden".
+    $invite_only_copy = HelpText::get('visibility.invite_only');
+    $this->assertMatchesRegularExpression('/\bvisible\b/i', $invite_only_copy, 'Invite Only copy must contain the word "visible" (AC-7).');
+    $this->assertStringNotContainsString('hidden', $invite_only_copy, 'Invite Only copy must NOT describe the group as "hidden" — that is Private (#134), not Invite Only.');
+
+    // A-W3: the field-level intro must retain a phrase that separates
+    // *viewing* from *joining*, so the invite_only correction reads
+    // consistently with the field-level framing.
+    $field_copy = HelpText::get('visibility.field');
+    $this->assertTrue(
+      (bool) preg_match('/\bjoin\b/i', $field_copy) || (bool) preg_match('/\bview\b/i', $field_copy),
+      'visibility.field copy must retain wording that separates viewing from joining (A-W3).',
+    );
   }
 
   /**
