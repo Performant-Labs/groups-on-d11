@@ -1,0 +1,20 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.message.field_referenced_entity_id
+    - message.template.activity_post_created
+  module:
+    - message
+id: message.activity_post_created.field_referenced_entity_id
+field_name: field_referenced_entity_id
+entity_type: message
+bundle: activity_post_created
+label: 'Referenced entity ID'
+description: 'The id of the primary referenced entity.'
+required: true
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: integer

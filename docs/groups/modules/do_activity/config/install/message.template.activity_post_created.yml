@@ -1,0 +1,16 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - message
+template: activity_post_created
+label: 'Activity: post created in group'
+description: 'Recorded when a node is created in, or added to, a group (log point 1, #116).'
+text:
+  -
+    value: '[message:field_referenced_entity_type] [message:field_referenced_entity_id] was posted to group [message:field_group_id] by [message:uid].'
+    format: plain_text
+settings:
+  'token options':
+    clear: false
+    'token replace': false

@@ -152,6 +152,30 @@ PHP
     echo "[entrypoint] WARNING: group-types script not found at $GROUP_TYPES_SCRIPT" >&2
   fi
 
+  # --- do_activity step_7xx BEGIN ---
+  # Marker convention (established by #116): all activity-layer backfills live
+  # between BEGIN/END markers so a later story (#113) can rebase against them.
+  # Runs LAST in the seed sequence (after groups, memberships, content,
+  # comments, flaggings, and group types all exist) so the backfill has
+  # everything to catch up on. Same admin-account wrapper as the seed scripts
+  # above — do_activity's own live hooks already logged most of this data as
+  # it was created above; the backfill's idempotency key
+  # (template + field_referenced_entity_type + field_referenced_entity_id +
+  # created) is what keeps this a true no-op against already-hook-logged rows.
+  ACTIVITY_BACKFILL_SCRIPT="${APP_DIR}/docs/groups/scripts/step_7xx_backfill_activity.php"
+  if [ -f "$ACTIVITY_BACKFILL_SCRIPT" ]; then
+    cat > /tmp/backfill-activity.php <<PHP
+<?php
+\$admin = \Drupal\user\Entity\User::load(1);
+if (\$admin) { \Drupal::currentUser()->setAccount(\$admin); }
+require '${ACTIVITY_BACKFILL_SCRIPT}';
+PHP
+    $DRUSH php:script /tmp/backfill-activity.php || echo "[entrypoint] WARNING: activity backfill returned non-zero (continuing)"
+  else
+    echo "[entrypoint] WARNING: activity backfill script not found at $ACTIVITY_BACKFILL_SCRIPT" >&2
+  fi
+  # --- do_activity step_7xx END ---
+
   $DRUSH cr
   echo "[entrypoint] Install + seed complete"
 fi

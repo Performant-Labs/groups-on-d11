@@ -1,0 +1,16 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - message
+template: activity_group_created
+label: 'Activity: group created'
+description: 'Recorded when a group is created (log point 5, #116). Actor is the group owner.'
+text:
+  -
+    value: '[message:uid] created group [message:field_referenced_entity_id].'
+    format: plain_text
+settings:
+  'token options':
+    clear: false
+    'token replace': false

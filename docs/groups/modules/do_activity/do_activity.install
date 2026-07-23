@@ -1,0 +1,52 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the DO Activity module.
+ */
+
+declare(strict_types=1);
+
+/**
+ * Implements hook_uninstall().
+ *
+ * `do_activity`'s uninstall boundary (per the amended brief, "Uninstall
+ * boundary" §): delete ONLY this module's own `message_template` config
+ * entities and the `message` rows whose `template` field points at one of
+ * them. Never uninstall `message` or `message_notify` — they are shared
+ * infrastructure other modules (or a future story) may also depend on.
+ *
+ * Message rows are deleted BEFORE their owning templates (a message_template
+ * is `bundle_of => message`, so its bundle-delete-time entity-cleanup would
+ * otherwise leave orphaned message rows referencing a deleted bundle).
+ */
+function do_activity_uninstall(): void {
+  $entity_type_manager = \Drupal::entityTypeManager();
+
+  $templates = [
+    'activity_post_created',
+    'activity_comment_created',
+    'activity_membership_created',
+    'activity_flagging_created',
+    'activity_group_created',
+    'activity_pin_toggled',
+  ];
+
+  // 1. Delete every Message row belonging to one of this module's templates.
+  $message_storage = $entity_type_manager->getStorage('message');
+  $mids = $message_storage->getQuery()
+    ->accessCheck(FALSE)
+    ->condition('template', $templates, 'IN')
+    ->execute();
+  if ($mids) {
+    $message_storage->delete($message_storage->loadMultiple($mids));
+  }
+
+  // 2. Delete only this module's own message_template config entities —
+  // never touch a template belonging to another module.
+  $template_storage = $entity_type_manager->getStorage('message_template');
+  $template_entities = $template_storage->loadMultiple($templates);
+  if ($template_entities) {
+    $template_storage->delete($template_entities);
+  }
+}

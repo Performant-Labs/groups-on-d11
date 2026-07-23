@@ -1,0 +1,16 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - message
+template: activity_flagging_created
+label: 'Activity: flagging created'
+description: 'Recorded when a non-pin flagging (e.g. rsvp_event, follow_user) is created (log point 4, #116).'
+text:
+  -
+    value: '[message:uid] flagged [message:field_referenced_entity_type] [message:field_referenced_entity_id].'
+    format: plain_text
+settings:
+  'token options':
+    clear: false
+    'token replace': false

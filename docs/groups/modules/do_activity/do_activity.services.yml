@@ -1,0 +1,8 @@
+services:
+  do_activity.hooks:
+    class: Drupal\do_activity\Hook\DoActivityHooks
+    autowire: false
+    arguments:
+      - '@entity_type.manager'
+    tags:
+      - { name: 'hook_implementations' }
