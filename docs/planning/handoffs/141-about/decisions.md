@@ -184,3 +184,57 @@ suite GREEN (no regression on `GroupLinksFieldTest`/`GroupRestoreTest`/`GroupExt
   file-wide style debt, not introduced by this change (proportional-density comparison above).
 
 ---
+## T — Phase 6 (GREEN + Tier 2)
+
+**Date:** 2026-07-23  **Verdict:** GREEN — 27/27 kernel (independently re-verified, identical to F's
+numbers), 2/2 targeted E2E, 2/2 sibling E2E regression, 70/71 full E2E single-pass (1 pre-existing
+unrelated skip). No blocking issues.
+
+**Decided:**
+- Fixed a genuine RED-time E2E spec bug (mine to own): `getByRole('heading', { name: /^About$/i })`
+  never matched anything because Drupal's `field--label-above` template renders the field label as
+  a plain `<div class="field__label">`, not a heading — confirmed against BOTH the live rendered
+  markup (`curl` group/1) and the merged sibling spec's own precedent (`group-links.spec.ts` asserts
+  via `getByText`, not `getByRole('heading', ...)`). Also discovered an unrelated "About" **tab
+  link** in the group nav present on every group page regardless of About content, which an
+  unscoped `getByText('About')` would have collided with. Rewrote both tests in
+  `group-about.spec.ts` to detect presence/absence via the `.field--name-field-group-about` wrapper
+  directly (matching the `group-links.spec.ts` idiom), then assert label + body text scoped inside
+  that wrapper. This is a test-authorship fix, not a production defect — F's shipped markup is
+  correct and idiomatic.
+- Followed the canonical seeded-E2E sequence from `.github/workflows/test.yml`'s `e2e` job
+  (site:install standard → uuid fix → config_sync_directory override → config:import → enable
+  modules → seed step_700/720/790 as uid 1 → cache:rebuild), adapted from bare `php
+  vendor/drush/drush/drush.php` to `ddev exec drush` since DDEV already serves the site (no separate
+  `runserver` needed).
+- Resolved a self-inflicted DB-state issue from repeated full-suite Playwright runs (accumulated
+  fixture groups pushed seeded groups off page 1 of `/all-groups`) via a full fresh
+  `site:install`+reseed, not partial SQL cleanup — a first attempt at raw `DELETE FROM groups WHERE
+  id > 8` left orphaned rows in dependent field tables (`groups_field_data`, `groups_revision`),
+  confirming entity-API-only deletion or a fresh install are the only safe cleanup paths for Group
+  entities' multi-table storage.
+
+**Assumed:**
+- The brief's AC-7 wording ("About heading") is shorthand for "visible About section", not a literal
+  requirement for an `<h2>` element — the established sibling convention (`field_group_links`) uses
+  the same non-heading `field__label` div, and AC-8 (the actual heading-structure/WCAG requirement)
+  is explicitly U's job, not T's. Flagged as an advisory note for S/U rather than treated as an AC-7
+  failure.
+
+**Hedged:**
+- None — the E2E fix was verified by directly inspecting rendered HTML (not guessed), and the
+  kernel re-verification was independent of F's reported numbers (matched exactly).
+
+**Evidence:**
+- `docs/planning/handoffs/141-about/handoff-T-green.md` — full command + output for kernel,
+  seed sequence, E2E (before/after fix), Tier 1/2 tables, AC-by-AC status.
+- Kernel: `Tests: 27, Assertions: 809, Deprecations: 4` — 0 failures, re-run twice (matches F
+  exactly both times).
+- E2E target: `tests/e2e/group-about.spec.ts` → 2/2 pass after fix (was 0/2 with the RED-time
+  `getByRole` assertion, against the REAL seeded site — the RED-time E2E spec had never actually
+  been run against a live site before this phase, per T-red's own note).
+- E2E sibling regression: `tests/e2e/group-links.spec.ts` → 2/2 pass.
+- E2E full single-pass: 70 passed / 1 skipped (pre-existing) / 0 failed.
+- Diff: `tests/e2e/group-about.spec.ts` (+39/-23), no production file touched.
+
+---
