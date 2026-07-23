@@ -318,10 +318,10 @@ zero regressions.
   file touched in Phase 6; 3 "Risky" flags are PHPUnit's generic "unexpected stdout" notice from
   `require`ing `step_780_nav_menu.php`'s own `echo` statements — pre-existing in this test file,
   not new).
-- **Decided:** Zero regressions confirmed — `do_streams` Kernel suite 23/23 (`Tests: 23, Assertions:
-  723`), `do_chrome` full suite 27/27 (`Tests: 27, Assertions: 321`), both 0 Failures, matching F's
-  reported baselines exactly. E2E: `my-feed.spec.ts` 6/6 and `nav.spec.ts` 6/6, run together
-  (12/12 passed, 13.9s) as a final combined confirmation.
+- **Decided:** Zero regressions confirmed — `do_streams` Kernel suite 23/23 (`Tests: 23,
+  Assertions: 723`), `do_chrome` full suite 27/27 (`Tests: 27, Assertions: 321`), both 0 Failures,
+  matching F's reported baselines exactly. E2E: `my-feed.spec.ts` 6/6 and `nav.spec.ts` 6/6, run
+  together (12/12 passed, 13.9s) as a final combined confirmation.
 - **Decided:** phpcs advisories on both edited test files (docblock-short-description,
   line-length warnings) are pre-existing-style-consistent and NOT CI-gated (confirmed
   `grep phpcs .github/workflows/*.yml` returns nothing) — flagged as advisory only, not fixed, per
@@ -339,3 +339,203 @@ T-green complete, no blocking issues. This story touches a UI surface (`/my-feed
 chrome + nav link + empty-state CTA) — ready for U to walk the live SPA-navigation path, noting the
 pre-existing shell-chrome CSS gap (handoff-A Finding #7 / F's Deviations #4) and AC-7's pager as a
 visual-only check (automated coverage deliberately deferred).
+
+## S Phase 8 (Spec Audit) — REWORK
+- **Decided:** Verdict **REWORK**. Two ACs fail live under a realistic multi-user access pattern.
+- **Finding (blocking):** `/my-feed` cross-user render-cache leak. Reproduced live on
+  `gm110-groups-stream-110`: after `drush cr`, admin (uid=1) fetches `/my-feed` and populates the
+  view's render cache with admin's group content (Thunder Distribution × 5, DrupalCon Portland
+  2026 × 4, Leadership Council × 1). A fresh Elena session immediately after receives the
+  IDENTICAL cached response — Thunder Distribution × 5 included — despite Elena not being a
+  member of that group (verified: Elena is in gids 1,2,3,5,6; Thunder is gid 4). Reverse
+  ordering shows the mirror bleed. Cold-session (Elena first after a clear) is correct; the
+  defect is cache reuse, not query correctness.
+- **Root cause:** `MyFeedController::buildShell()` sets per-user cache metadata
+  (`contexts: [user, user.roles:authenticated]`, tag `do_streams:user_stream:<uid>`) on the
+  OUTER shell render array, but the inner `#type => 'view'` subtree is governed by the view's
+  own cache plugin — `views.view.my_feed.yml` line 118: `cache: { type: tag }`. Tag-only
+  caching keys the view output on tags only; the outer contexts do not propagate into the
+  inner cache key, so the inner subtree is shared across users.
+- **Why tests missed it:** `MyFeedRouteTest` uses fresh per-test BrowserTestBase installs (no
+  persistent render cache). `my-feed.spec.ts` runs sequentially with a `drush cr`-like seed
+  step before it, so each spec's first fetch always wins the cache. No suite exercises "user
+  A fetch → user B fetch, same process, no cache clear."
+- **Recommended fix (S proposes; F/A decide):** change `views.view.my_feed.yml` line 118-120
+  from `cache: { type: tag, options: {} }` to `cache: { type: none, options: {} }`. `/my-feed`
+  is per-user by definition — nothing to cache-share across users. One-line YAML change in an
+  already-owned artifact. Alternatives (per-user context on the view's cache plugin, or
+  `max-age: 0` on the `#type => 'view'` element) are acceptable if they verifiably eliminate
+  the cross-user bleed.
+- **Required test to add:** a functional or E2E test that fetches `/my-feed` as user A, then
+  as user B, in the same test process WITHOUT a cache clear between, asserting each response
+  contains only that user's group content. This exact scenario is what the current suite
+  lacks.
+- **PASS list (9/12 ACs verified live + tests):** AC-1 (anon 403 — curl confirmed), AC-2
+  (auth 200 + shell — curl confirmed), AC-3 (`my_feed` tab is-active + aria-current="true"),
+  AC-4 (`recent` pill is-active), AC-6 (empty state + CTA — code path audited + E2E green),
+  AC-7 (pager markup renders when >10 rows — verified `class="pager__items js-pager__items"`
+  present), AC-8 (nav-link auth-only + ordering — tests green + diff audited), AC-10
+  (HelpText append-only — tests green + diff audited), AC-11 (front page untouched — no
+  `system.site.yml` diff). AC-12 remains deferred to U per repo convention (no axe
+  dependency).
+- **Non-blocking:** shell chrome CSS gap (#109 leftover, unchanged from A/F/T), phpcs
+  test-file advisories (not CI-gated), `HelpText.php` pre-existing lint debt (~250 pre-existing
+  errors, proportionate addition).
+- **Diagnostic scripts** used during audit (`check-elena.php`, `debug-view.php`,
+  `debug-preview.php`) were removed before this handoff; working tree matches d1e2628 + the
+  handoff-S.md and this decisions.md append only.
+
+## T Phase 6 rework round 2 (cross-user cache-leak covering test) — complete
+- **Decided:** Authored a new E2E test in `tests/e2e/my-feed.spec.ts` per S's exact required
+  shape — fetch `/my-feed` as admin, then as `elena_garcia` in a separate unauthenticated
+  browser context, with NO cache-clearing step between, asserting Elena's response excludes
+  Thunder Distribution (out of her scope), includes her own pinned content, and is not
+  byte-identical to admin's response. Test-files only; no production code touched.
+- **Decided:** Confirmed F's fix (`docs/groups/config/views.view.my_feed.yml` cache plugin
+  `type: tag` -> `type: none`) was already present (uncommitted) and active on
+  `gm110-groups-stream-110` at task start.
+- **Found (reported, not fixed):** Could not force a live re-repro of S's exact original
+  symptom (Thunder Distribution bleeding into Elena's response) via HTTP under the pre-fix
+  `type: tag` setting in this session, despite reverting both source YAML and active config and
+  following S's documented steps closely. `cache_render` inspection showed no
+  `views_view:my_feed`-keyed entry under either cache-plugin setting; the controller's outer
+  `#cache => ['contexts' => ['user', ...]]` (pre-existing, unrelated to F's YAML fix) may already
+  prevent the leak at the page-render-cache level independent of the inner view's cache plugin.
+  Flagged for A/S to weigh whether this changes confidence in "fixed" vs. "not currently
+  observable" — the new test is still valuable as a permanent regression guard shaped exactly to
+  the defect's signature, kept regardless.
+- **Found (pre-existing, NOT introduced by this rework):** E2E test 5 (AC-9 "pinned lead"
+  assertion — `elena_garcia's feed leads with pinned "Sprint Planning: Portland 2026"...`) fails.
+  Reproduced identically with this rework's changes fully reverted via `git stash` against
+  unmodified `d1e2628` plus a fresh `drush cr` — a ranking/pin-order drift unrelated to the
+  cache-leak fix. Not fixed (out of scope for this rework; test-files-only mandate; S's REWORK
+  verdict named only the cache-leak as blocking for this round). Flagged for O/S triage.
+- **Decided:** GREEN tally — 7 E2E tests total (6 original + 1 new). 6 pass; 1 fails (the
+  pre-existing AC-9 issue above, unrelated to this rework's scope).
+- **Evidence:** Full run transcripts, revert-based load-bearing verification, and the
+  `cache_render` bin inspection are in `handoff-T-green-r2.md`.
+
+## F Phase 5 rework round 2 (AC-9 deterministic pin-first ordering) — complete
+- **Decided:** Root cause of the AC-9 flag confirmed live: all 20 seeded nodes share one
+  byte-identical bulk-seed `created`/`changed` timestamp (`1784829022`, verified via
+  `drush sql-query` against `node_field_data`), so `ORDER BY created DESC` alone has no
+  deterministic tiebreaker — the round-1 cache fix (`type: tag` → `type: none`) correctly forces
+  every request to re-run the query, which surfaced this pre-existing non-determinism instead of
+  freezing one arbitrary (accidentally-AC-9-satisfying) order forever.
+- **Decided:** Traced the pinning mechanism to Step 750 of `step_700_demo_data.php`
+  (`docs/groups/scripts/step_700_demo_data.php:344-353`): `Sprint Planning: Portland 2026` (nid=1)
+  is flagged via the `flag` module's `pin_in_group` flag (a GLOBAL flag, `entity_type: node`,
+  confirmed via `docs/groups/config/flag.flag.pin_in_group.yml`), not a node field. This is the
+  same flag `do_group_pin` and `do_streams` both already read for THEIR OWN views
+  (`group_content_stream` / `do_streams_demo`) — but both of those modules' `viewsQueryAlter()`
+  hooks are hardcoded to their own view id (`DoGroupPinHooks::STREAM_VIEW_ID` /
+  `DoStreamsHooks::DEMO_VIEW_ID`) and explicitly `return` early for any other view, so neither
+  hook fires for `my_feed`. Confirmed by reading both classes in full: `my_feed` is not in either
+  guard clause.
+- **Decided (rejected the task's options 2 and 3 with evidence before picking option 1):**
+  - Option 2 (`changed DESC` tiebreaker) provides ZERO discriminating power — `changed` is
+    byte-identical to `created` for all 20 nodes (same bulk-seed timestamp; flagging a node via
+    the `flag` module creates a separate `flagging` entity and does NOT re-save/touch the node's
+    own `changed` column). Confirmed live before rejecting.
+  - Option 3 (`nid DESC` tiebreaker) is actively WRONG, not just "least semantic": nid=1
+    ("Sprint Planning: Portland 2026") has the LOWEST nid of all 20 seeded nodes (it's the very
+    first node created), so `nid DESC` would sort it LAST among ties, not first — the opposite of
+    AC-9's requirement. (`nid ASC` would coincidentally work here, but that's accidental luck of
+    creation order, not a "pinned" semantic, and wasn't what was asked.)
+  - Option 1 (pin-field-aware primary sort) is therefore the only option that is both correct and
+    matches the task's own preference ordering.
+- **Decided:** Implemented option 1 ENTIRELY IN VIEW YAML — no controller/hook/seed-script
+  changes, honoring the task's hard constraint. Confirmed no Views-native declarative sort field
+  existed for "is pinned" via `do_group_pin`'s or `do_streams`' own mechanism (both require a PHP
+  `hook_views_query_alter`, which the task's constraints forbid touching) — but the Flag CONTRIB
+  module itself ships a genuine, dedicated Views sort plugin for exactly this purpose:
+  `flag_sort` (`web/modules/contrib/flag/src/Plugin/views/sort/FlagViewsSortFlagged.php`),
+  registered against a synthetic `flagging.flagged` field
+  (`web/modules/contrib/flag/src/FlaggingViewsData.php:59-77`, `real field: uid`), with `DESC`
+  meaning "Flagged first" (`$this->query->addOrderBy(NULL, "$this->tableAlias.uid",
+  $this->options['order'])` — a flagged row's non-NULL `uid` sorts before a NULL/absent one under
+  `ORDER BY ... DESC` in both MySQL and Postgres). This is a first-class, config-schema-valid,
+  purely-declarative Views sort — never used anywhere else in this codebase (verified via a
+  repo-wide grep for `flag_sort`/`flag_relationship` before writing the YAML), but shipped and
+  documented by the `flag` module itself, with a live shipped example
+  (`web/modules/contrib/flag/modules/flag_bookmark/config/install/views.view.flag_bookmark.yml`)
+  confirming the exact relationship + sort key shapes used here.
+- **Decided:** Added a `flag_relationship` (plugin `flag_relationship`, `flag: pin_in_group`,
+  `required: false`, `user_scope: any`) to `views.view.my_feed.yml`'s `relationships`, joining
+  `node_field_data` to `flagging` scoped to the `pin_in_group` flag. `required: false` is
+  DELIBERATE (not the `flag_bookmark` example's `required: true`) — a required relationship would
+  INNER JOIN and drop every unpinned node from the feed entirely, which is wrong for a general
+  feed view (only `flag_bookmark`'s bookmarks-only view wants that). `user_scope: any` is
+  correct-but-inert for a GLOBAL flag: read `FlagViewsRelationship::query()` directly — it only
+  adds a `uid = current_user` extra join condition `if (!$flag->isGlobal())`, so `user_scope` has
+  no effect at all on a global flag like `pin_in_group`; set to `any` (not `current`) so the
+  config's own stated intent is never accidentally misleading if a future flag swap ever made it
+  matter.
+- **Decided:** Added `pin_sort` (table `flagging`, field `flagged`, `relationship:
+  flag_relationship`, `plugin_id: flag_sort`, `order: DESC`) as the FIRST entry in `sorts:` (Views
+  executes registered sorts in YAML-map order), with the existing `created DESC` sort UNCHANGED
+  and left as the second/secondary key — exactly the "primary sort by pin-field DESC, then
+  created DESC" shape the task asked for, and exactly the #52/#56-style "front of orderby, not
+  appended" correctness `do_group_pin`/`do_streams` both had to fix in PHP; here it is achieved
+  for free by YAML map ORDER, since Views compiles `sorts:` entries in declaration order with no
+  query-alter needed.
+- **Decided:** Fan-out risk assessed and ruled out (matching `do_group_pin`'s/`do_streams`' own
+  documented reasoning for the identical join shape): confirmed live via `drush sql-query` that
+  exactly ONE `flagging` row exists for `pin_in_group` site-wide (`SELECT COUNT(*), entity_id
+  FROM flagging WHERE flag_id='pin_in_group' GROUP BY entity_id` → count=1), consistent with
+  `pin_in_group`'s `global: true` flag definition (at most one flagging row per node, by Flag
+  module's own global-flag semantics) — a LEFT JOIN scoped to a global flag cannot fan a node out
+  into duplicate rows, and `distinct: true` (already set on this view, unchanged) remains an
+  additional safety net regardless.
+- **Decided:** Added `flag` to `dependencies.module` and `flag.flag.pin_in_group` to
+  `dependencies.config` on the view — required because `FlagViewsRelationship::
+  calculateDependencies()` adds the referenced flag's own config dependency, and the relationship
+  plugin itself requires the `flag` module for its Views plugin classes to resolve.
+- **Decided:** Applied via a SCOPED partial config import (an in-repo, ddev-mounted scratch
+  directory containing ONLY the updated `views.view.my_feed.yml`, deleted immediately after
+  import), not a full `config:import`, to avoid pulling in unrelated pre-existing config drift
+  already present in this DDEV instance's `config/sync` (confirmed via `git status` before/after:
+  only `views.view.my_feed` changed operation-wise; the many other `config/sync`/`web/modules/
+  custom` diffs visible in `git status` are pre-existing build-artifact regeneration from
+  `assemble-config.sh`, untouched by this rework).
+- **Decided:** The `do_streams` module-local test fixture
+  (`docs/groups/modules/do_streams/tests/fixtures/config/views.view.my_feed.yml`, used by
+  `MyFeedRouteTest`) is now STALE relative to the production view (still shows the pre-round-1
+  `cache: type: tag` and lacks this round's sort/relationship) — this is a TEST fixture under
+  `tests/fixtures/`, T's territory per this pipeline's conventions, so it was NOT touched here.
+  Flagged for T/O: `MyFeedRouteTest`'s own PHPUnit assertions do not currently cover AC-9's
+  ordering claim (per F round-1's own decisions.md entry, that suite's fixture-based install
+  predates this rework entirely), so this staleness has no immediate test-breakage impact, but if
+  T ever wants equivalent PHPUnit-layer coverage for the pin-first ordering, the fixture will need
+  a byte-copy refresh from the production file.
+- **Verified live (repeated the exact query the round-1 S audit used):** Elena's `my_feed` view,
+  executed as uid=4 with the pager both capped (10) and uncapped (14, her real full scope), leads
+  with nid=1 "Sprint Planning: Portland 2026" in BOTH cases, and her full 14-row scoped result set
+  contains zero Thunder Distribution / Drupal Deutschland nids — confirmed via a throwaway
+  `drush php:script` diagnostic (two variants, one pager-capped and one uncapped), BOTH deleted
+  before this handoff, no diagnostic script shipped.
+- **Decided:** E2E confirmed 7/7 GREEN, run twice in a row for stability
+  (`BASE_URL="http://gm110-groups-stream-110.ddev.site" npx playwright test
+  tests/e2e/my-feed.spec.ts --reporter=list`) — including test #5 (AC-9 pinned-lead assertion,
+  now passing for the first time this rework round) and test #7 (the round-1/round-2 cross-user
+  cache-leak regression guard, confirmed still passing — the round-1 `cache: type: none` fix is
+  untouched by this round's diff, verified in the final YAML diff).
+- **Decided:** Zero regressions confirmed: `do_streams` Kernel suite 23/23 (`Tests: 23,
+  Assertions: 723` — byte-identical to T's Phase 6 baseline, requires `SIMPLETEST_DB` exported
+  manually in this shell — DDEV's standard internal credentials
+  `mysql://db:db@db:3306/db#simpletest`, confirmed against `settings.ddev.php`, since this
+  environment variable is not baked into `.ddev/config.yaml`'s `web_environment` and must be set
+  per invocation); `nav.spec.ts` E2E 6/6. `do_chrome`'s full mixed Kernel+Functional suite showed
+  a rotating single-test flake across 3 consecutive full-suite runs (`PageHelpRouteMapTest` once,
+  clean; `PermissionMatrixPanelTest` twice, erroring) — root-caused as PRE-EXISTING
+  Functional+Kernel process-isolation noise (confirmed by re-running `PermissionMatrixPanelTest`
+  in complete isolation, where it passes cleanly, `Tests: 1, Assertions: 5`), NOT a regression
+  from this rework: neither rotating failure has ANY code path through `views.view.my_feed.yml`,
+  `flag`, or `pin_in_group` (`do_chrome` only ever references the string `'view.my_feed.page_1'`
+  as an inert, never-matched route-map key, per F round-1's own decisions.md entry — it never
+  loads or executes the view).
+- **Evidence:** Full command transcripts (config diff, live query results both pager-capped and
+  uncapped, E2E run x2, do_streams Kernel run, do_chrome full-suite runs x3 + isolated re-run,
+  nav.spec.ts run) are in `handoff-F-r2.md`.
+
+## Ready for O (AC-9 deterministic pin-first ordering fixed via a genuine Views-native `flag_sort` config sort — no hooks, no controller/seed-script changes; both cross-user cache-leak (round 1) and AC-9 pin-order (round 2) fixes verified live and green together, 7/7 E2E; zero regressions)

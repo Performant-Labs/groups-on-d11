@@ -24,6 +24,23 @@ import { test, expect, Page, Browser } from '@playwright/test';
  *    Distribution / Drupal Deutschland).
  *  - AC-6: a fresh 0-group authenticated user sees the empty state AND the
  *    new empty_cta slot linking to /all-groups.
+ *  - AC-5/AC-9 REWORK (docs/planning/handoffs/110-stream-110/handoff-S.md
+ *    Phase 8 audit): cross-user render-cache correctness. S found that the
+ *    view's `cache: { type: tag }` plugin (docs/groups/config/views.view.my_feed.yml
+ *    line 118-120) does not vary the INNER view render subtree by viewing
+ *    user, so the FIRST user to hit /my-feed after a cache clear has their
+ *    rendered feed served to every SUBSEQUENT user, regardless of that
+ *    user's own group memberships. Reproduced live: admin fetches /my-feed
+ *    (sees Thunder Distribution content), then a fresh Elena session fetches
+ *    /my-feed immediately after (with NO cache clear in between) and is
+ *    served admin's cached feed, including Thunder Distribution content —
+ *    even though Elena is not a member of that group. The test below fetches
+ *    as admin then as Elena, in the SAME test-process, with no cache-clearing
+ *    step between the two fetches, and asserts Elena's response contains
+ *    only her own group content. This is the exact scenario the rest of this
+ *    suite's per-test-fresh-context pattern does not exercise, because each
+ *    existing test either runs in isolation or is the first authenticated
+ *    fetch after seeding.
  *
  * None of the route/controller/view exist yet (this story's own brief names
  * them as NEW files) — every test below is intended to fail at its first
@@ -198,6 +215,60 @@ test.describe('My Feed (#110 ST-1)', () => {
       await expect(cta).toHaveAttribute('href', /\/all-groups/);
     } finally {
       await zeroGroupContext.close();
+    }
+  });
+
+  test('/my-feed does not leak one user\'s cached results to the next user with no cache clear between (AC-5, AC-9 — handoff-S cross-user cache leak)', async ({
+    page,
+    browser,
+  }: { page: Page; browser: Browser }) => {
+    // Reproduces docs/planning/handoffs/110-stream-110/handoff-S.md's finding
+    // exactly: fetch /my-feed as admin (uid=1, member of Thunder Distribution
+    // among other groups), THEN fetch /my-feed as elena_garcia in a separate,
+    // unauthenticated browser context — with NO drush cr / cache invalidation
+    // step between the two fetches. Elena is seeded into gids 1, 2, 3, 5, 6
+    // and is NOT a member of Thunder Distribution (gid 4). If the view's
+    // render cache is keyed without a per-viewing-user context (the type:tag
+    // plugin bug S found), Elena's response will incorrectly still contain
+    // admin's Thunder Distribution content — this test fails exactly the way
+    // the defect manifests, and only passes once /my-feed's cache is made
+    // per-user (e.g. the view's cache plugin set to `type: none`, or an
+    // equivalent per-user cache context/tag fix).
+    await login(page, ADMIN_USER, ADMIN_PASS);
+    const adminResponse = await page.goto('/my-feed');
+    expect(adminResponse?.status()).toBe(200);
+    const adminResults = page.locator('[data-testid="do-streams-shell-results"]');
+    await expect(adminResults).toBeVisible();
+    const adminResultsText = (await adminResults.textContent()) ?? '';
+
+    // Deliberately NO cache-clearing step here — this is the point of the test.
+
+    const elenaContext = await browser.newContext();
+    const elenaPage = await elenaContext.newPage();
+    try {
+      await login(elenaPage, ELENA_USER, ELENA_PASS);
+      const elenaResponse = await elenaPage.goto('/my-feed');
+      expect(elenaResponse?.status()).toBe(200);
+
+      const elenaResults = elenaPage.locator('[data-testid="do-streams-shell-results"]');
+      await expect(elenaResults).toBeVisible();
+
+      // Elena must see only her own group content: Thunder Distribution
+      // (gid 4) is out of scope for her and must NOT appear, even though it
+      // was present in the immediately-preceding admin response above.
+      await expect(elenaResults).not.toContainText('Thunder Distribution');
+
+      // Elena's own scoped content (pinned lead item from her DrupalCon
+      // Portland 2026 membership) must be present — proves this is a real,
+      // freshly-scoped render for Elena, not merely an empty/error response.
+      await expect(elenaResults).toContainText('Sprint Planning: Portland 2026');
+
+      // The two users' rendered result sets must differ — if the cache
+      // leaked, Elena's text would be byte-identical to admin's.
+      const elenaResultsText = (await elenaResults.textContent()) ?? '';
+      expect(elenaResultsText).not.toBe(adminResultsText);
+    } finally {
+      await elenaContext.close();
     }
   });
 });

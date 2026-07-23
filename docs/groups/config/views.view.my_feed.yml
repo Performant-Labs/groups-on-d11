@@ -2,9 +2,12 @@ uuid: null
 langcode: en
 status: true
 dependencies:
+  config:
+    - flag.flag.pin_in_group
   module:
     - comment
     - do_streams
+    - flag
     - node
     - user
 id: my_feed
@@ -30,6 +33,15 @@ display:
           items_per_page: 10
           offset: 0
       sorts:
+        pin_sort:
+          id: pin_sort
+          table: flagging
+          field: flagged
+          relationship: flag_relationship
+          group_type: group
+          admin_label: ''
+          plugin_id: flag_sort
+          order: DESC
         created:
           id: created
           table: node_field_data
@@ -108,7 +120,18 @@ display:
           replica: false
           query_comment: ''
           query_tags: {  }
-      relationships: {  }
+      relationships:
+        flag_relationship:
+          id: flag_relationship
+          table: node_field_data
+          field: flag_relationship
+          relationship: none
+          group_type: group
+          admin_label: 'Pin in group flag'
+          required: false
+          flag: pin_in_group
+          user_scope: any
+          plugin_id: flag_relationship
       use_ajax: false
       access:
         type: role
@@ -116,7 +139,7 @@ display:
           role:
             authenticated: authenticated
       cache:
-        type: tag
+        type: none
         options: {  }
       empty: {  }
       header: {  }
