@@ -112,3 +112,35 @@ Hedged:
 Verdict: **GREEN. No blocking issues. Ready for U** (this story adds a real UI surface — two
 exposed filter controls + reset on `/all-groups` — that headless Tier 1/2 checks cannot fully
 substitute for a live walkthrough).
+
+## U — Phase 8 (UI walkthrough)
+Decided:
+- Drove the walkthrough against the already-running namespaced DDEV site
+  (`gm142-directory-filters.ddev.site`), reusing T's Phase 6 GREEN state (config already
+  imported, groups already seeded) rather than re-installing from scratch, since a
+  live-inspection check confirmed both the views config and the 3 canonical seed groups
+  were already present and matched F's shipped values exactly.
+- Confirmed no HTMX/SPA-nav applies to this surface (`/all-groups` is a plain Drupal Views
+  page with a GET-submitted exposed-filter form) - the project override's "SPA nav" rule is
+  N/A here; a hard page load is the actual user path, so no special-casing was needed.
+- Installed `@axe-core/playwright` locally (`--no-save`, not committed to `package.json`)
+  purely for this walkthrough's WCAG spot-check, since it wasn't already a project
+  dependency.
+
+Findings:
+- All 8 walkthrough tasks (load, location filter, language filter, combined filter, reset,
+  access-safety, WCAG axe scan, visual sanity desktop+mobile) PASS with no behavioral
+  defects. Zero console/page errors across the entire run.
+- One WCAG advisory (not a rework item): axe found a `color-contrast` (serious) violation on
+  `.gc-badge--success` (the green "Open" visibility badge on every directory card),
+  pre-existing since story #84's card styling (`primitives.css`), unrelated to and not
+  introduced by this story's new filter controls. A form-scoped axe re-scan (`.include()` on
+  just the exposed-filter form) returned 0 violations of any severity, confirming the new
+  surface itself is clean. Flagged for S/backlog, not blocking #142.
+
+Evidence: `docs/planning/handoffs/142-directory-filters/handoff-U.md` (full checklist,
+screenshots under `docs/planning/handoffs/142-directory-filters/screenshots/`).
+
+Verdict: **PASS. Ready for S** (Spec Auditor) - the new filter-form surface behaves exactly
+per brief and T's GREEN suite, is axe-clean on its own new controls, and has no visual
+regressions on the existing directory chrome.
