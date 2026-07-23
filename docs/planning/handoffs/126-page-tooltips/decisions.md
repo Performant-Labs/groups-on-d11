@@ -29,3 +29,11 @@
 - **Verified (not merely assumed):** ran `phpcs --standard=Drupal,DrupalPractice` against both touched files and confirmed every flagged line falls in pre-existing, untouched code (not my diff) or reproduces identically on sibling files (`GroupTypeContentHelp.php`, `PermissionMatrixPanel.php`) that predate this story — no CI phpcs gate exists in `.github/workflows/*.yml`, confirmed by grep.
 - **Verified (not merely assumed):** ran the full `do_chrome` test directory as a broader regression check beyond the two files named in the issue. 23/24 pass; the one failure (`PermissionMatrixPanelTest`) is a pre-existing PR #106 (#91) Functional test — confirmed via `git diff` that I made zero changes to its target classes (`PermissionMatrixPanel.php`, `PermissionMatrix.php`), so this is pre-existing environment/seed-state fragility, not a regression I introduced.
 - **Evidence:** `php vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/do_chrome/tests/src/Unit/HelpTextPageKeysTest.php web/modules/custom/do_chrome/tests/src/Kernel/PageHelpRouteMapTest.php --testdox` → 8/8 GREEN, run inside `ddev-gm126-page-tooltips-web`/`-db` containers via `docker exec` (per T's left-running instance). Full handoff at `docs/planning/handoffs/126-page-tooltips/handoff-F.md`.
+
+## U — Phase 8 (walkthrough) — REWORK
+- **Defect:** `/group/{group}/members` resolves to `do_group_membership.manage_members` (#138's controller), NOT `view.group_members.page_1`. My Phase-1 assumption (upgraded by T to "Verified" against `config/sync/views.view.group_members.yml`) missed that #138's Manage-members controller supersedes the Views page at runtime. T verified the view display config exists — but the router picks the controller route first.
+- **Verified via U:** 4/5 pages ⓘ working; contrast 5.42:1 (AA pass); default-deny holds; W2 inert holds; keyboard + focus outline correct.
+- **Fix:** repoint `page.group.members` in `PageHelp::getRouteMap()` from `view.group_members.page_1` → `do_group_membership.manage_members`. T repairs the pinned assertion in `PageHelpRouteMapTest`.
+
+## O — Phase 5b (rework dispatch)
+- **Decided:** Skip A re-review — no structural change, only a route-name string swap. F+T re-work in parallel (F edits src, T edits test), then T-green re-verifies, then U re-walks Members-tab only.
