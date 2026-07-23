@@ -1,0 +1,23 @@
+uuid: 3611b79f-d844-4c9a-952e-cb882bdba985
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.group.field_group_privacy
+    - group.type.community_group
+  module:
+    - options
+id: group.community_group.field_group_privacy
+field_name: field_group_privacy
+entity_type: group
+bundle: community_group
+label: Privacy
+description: ''
+required: true
+translatable: true
+default_value:
+  -
+    value: public
+default_value_callback: ''
+settings: {  }
+field_type: list_string

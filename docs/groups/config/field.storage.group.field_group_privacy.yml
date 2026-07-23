@@ -1,0 +1,30 @@
+uuid: 90a1fc50-c5e3-434c-b3b6-6032ab9a1270
+langcode: en
+status: true
+dependencies:
+  module:
+    - group
+    - options
+id: group.field_group_privacy
+field_name: field_group_privacy
+entity_type: group
+type: list_string
+settings:
+  allowed_values:
+    -
+      value: public
+      label: Public
+    -
+      value: unlisted
+      label: Unlisted
+    -
+      value: private
+      label: Private
+  allowed_values_function: ''
+module: options
+locked: false
+cardinality: 1
+translatable: true
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

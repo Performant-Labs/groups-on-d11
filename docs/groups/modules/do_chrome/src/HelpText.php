@@ -411,6 +411,23 @@ final class HelpText {
       // appended here now and SD-6 (#133), the named capstone backstop,
       // wires the allowlist entry during its final coverage sweep.
       'page.activity' => 'Your activity feed: posts, joins, and comments from the groups you belong to, newest first, with repeated posts by the same person grouped together.',
+      // --- #134 (SC-7): privacy axis --------------------------------------
+      // Appended per the append-only HelpText contract. `privacy.*` is the
+      // VIEW axis (`field_group_privacy`) — a SEPARATE concern from
+      // `visibility.*` above, which is the JOIN axis (`field_group_visibility`).
+      // A reader can easily conflate "Invite Only" (visible, closed to
+      // joining) with "Private" (hidden entirely) — `privacy.vs_invite_only`
+      // is the teaching key that exists specifically to prevent that
+      // conflation, per AC-8. Copy is verbatim from the approved wireframe
+      // (wireframe.md §3), which is careful about HONESTY: only `private` is
+      // enforced this story (view-access gate + directory hide + node hide);
+      // `privacy.unlisted` explicitly says directory-hiding is NOT enforced
+      // yet, matching the same "state it only when true" convention already
+      // used above for `visibility.invite_only`.
+      'privacy.public' => 'Public: visible to everyone, including anonymous visitors — listed in the group directory and searchable. This is the default for every group.',
+      'privacy.unlisted' => 'Unlisted: reachable only by direct link — left out of the group directory. Seeded on the demo for reference; hiding from the directory listing isn\'t enforced by this build yet.',
+      'privacy.private' => 'Private: hidden from everyone except members — non-members get a "not found" page and it never appears in the directory or search. This is live and enforced on the demo.',
+      'privacy.vs_invite_only' => 'Private vs Invite Only: Private HIDES the group entirely from non-members (404-style). Invite Only keeps the group fully visible — it only closes the join/request path.',
     ];
   }
 

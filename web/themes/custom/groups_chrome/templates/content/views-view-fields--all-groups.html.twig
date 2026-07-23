@@ -5,8 +5,8 @@
  *
  * Overrides the `all_groups` view's row (fields) output — turning the bare
  * list into a rich card showing the group name + link, a description snippet,
- * a type badge (field_group_type term), a visibility badge, member count,
- * last-activity, and a Join affordance.
+ * a type badge (field_group_type term), a visibility badge, a privacy badge
+ * (#134, SC-7), member count, last-activity, and a Join affordance.
  *
  * The `gc_directory` metadata is assembled in
  * groups_chrome_preprocess_views_view_fields__all_groups() (groups_chrome.theme)
@@ -18,6 +18,7 @@
  * - gc_directory.snippet
  * - gc_directory.type_label
  * - gc_directory.visibility_label / visibility_variant
+ * - gc_directory.privacy_label / privacy_help_copy   (#134, SC-7 — 'Private' or NULL)
  * - gc_directory.member_count
  * - gc_directory.last_activity        (timestamp, or null)
  * - gc_directory.last_activity_display / last_activity_ago
@@ -30,6 +31,13 @@
  *
  * `fields` (the raw Views field render arrays) remains available as a fallback
  * but is intentionally not printed — the card presents the derived metadata.
+ *
+ * #134 (SC-7): a private group the current session cannot view never reaches
+ * this template at all (excluded upstream by do_group_extras' views query
+ * alter) — the privacy badge here only ever needs to announce "this
+ * (already-visible) group is private", appended as a THIRD badge after the
+ * visibility badge (134-private/wireframe.md §1), reusing the landed
+ * `gc-badge` + `data-do-tooltip` trigger contract verbatim.
  */
 #}
 <article class="gc-card gc-card--interactive gc-directory-card">
@@ -49,6 +57,15 @@
         <span class="do-chrome-info gc-card-info" tabindex="0" role="note"
               aria-label="{{ gc_directory.tooltips.visibility }}"
               data-do-tooltip="{{ gc_directory.tooltips.visibility }}">ⓘ</span>
+      {% endif %}
+      {% if gc_directory.privacy_label == 'Private' %}
+        <span class="gc-badge gc-badge--warning gc-directory-card__privacy gc-privacy-badge"
+              tabindex="0"
+              role="note"
+              aria-label="{{ gc_directory.privacy_help_copy }}"
+              data-do-tooltip="{{ gc_directory.privacy_help_copy }}">
+          {{ gc_directory.privacy_label }}
+        </span>
       {% endif %}
     </div>
 
