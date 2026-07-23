@@ -42,17 +42,19 @@ Add a dedicated **Restore** action that returns an archived `community_group` to
 
 **Do NOT touch:** `step_700_demo_data.php` (SD-3 #128 territory), any other seed step, `web/modules/custom/`, `config/sync/`, other stories' modules.
 
-## Design outline (for A to validate)
+## Design outline (validated by A round 1 → BLOCK on perm string; amended below)
 
 - **Route:** `do_group_extras.restore` → `GET|POST /group/{group}/restore` → `_form: \Drupal\do_group_extras\Form\RestoreGroupForm` gated by `_custom_access: \Drupal\do_group_extras\Controller\RestoreGroupAccess::access`. `{group}` upcasts to `GroupInterface` via existing `group` param converter.
-- **Access (pinned per adjudicated brief-review B-1):** `AccessResult::allowedIf($isArchived && ($group->hasPermission('administer group', $account) || $account->hasPermission('administer group')))` where `$isArchived = ($group->hasField('field_group_type') && !$group->get('field_group_type')->isEmpty() && $group->get('field_group_type')->entity?->label() === 'Archive')`. Cacheability: `->addCacheableDependency($group)->cachePerPermissions()->cachePerUser()` (mirror MMC; drop MMC's `url.path` context — restore is per-group, not per-path-shape). Both non-privileged AND non-archived → 403 (single denial path; 404 would leak existence).
-    - Perm string rationale: `'administer group'` is the group-settings-scope perm (Organizer holds it on `community_group`). MMC uses `'administer members'` for the membership surface; restore is a group-settings mutation, so the settings-scope perm is correct.
-- **Form:** `RestoreGroupForm extends ConfirmFormBase` (Drupal core) → renders real `<button type="submit">` submit natively.
-    - **DI:** constructor promotion + static `create(ContainerInterface $container)` matching `RemoveMemberForm::create`. Inject: `entity_type.manager` (for term storage). `messenger` + `stringTranslation` are provided by `ConfirmFormBase`'s trait chain; no extra injection needed.
-    - **buildForm:** call `parent::buildForm()` first; then add a `#type => 'select'` for target `group_type` term (options = all vocab terms except "Archive"; default = tid of "Working group" term; `#title => t('Set group type to')`; `#description` explains the exclusion rationale); then set `$form['actions']['submit']['#attributes']['aria-describedby']` to the description paragraph's `id` (same post-parent pattern MMC's RemoveMemberForm uses to add its danger-button class).
+- **Access (pinned per A round 1 BLOCK fix — perm string revised):** `AccessResult::allowedIf($isArchived && ($group->hasPermission('edit group', $account) || $account->hasPermission('administer group')))` where `$isArchived = ($group->hasField('field_group_type') && !$group->get('field_group_type')->isEmpty() && $group->get('field_group_type')->entity?->label() === 'Archive')`. Cacheability: `->addCacheableDependency($group)->cachePerPermissions()->cachePerUser()` (mirror MMC; drop MMC's `url.path` context — restore is per-group, not per-path-shape). Both non-privileged AND non-archived → 403 (single denial path; 404 would leak existence).
+    - **Perm string rationale (revised A r1):** `'edit group'` is the group-scope perm actually held by the `community_group-organizer` role (verified in `docs/groups/config/group.role.community_group-organizer.yml` — grants `'edit group'` + `'administer members'`, NOT `'administer group'`). Restore *is* an edit of group settings, so `'edit group'` is the semantically correct group-scope perm. `'administer group'` is the site-wide (`user.permissions`) escape hatch — same pattern as MMC's `$account->hasPermission('administer group')` fallback. `Groups-Moderate` (`admin: true` on the group role) satisfies via the implicit group-admin path regardless of specific perm string. Prior brief-r1 draft had `'administer group'` on both sides — that would have 403'd AC-1 (Organizer). A r1 caught it.
+    - **Cacheability note (F):** `$group->save()` in `submitForm` auto-invalidates the group's cache tags; that propagates to tab visibility and the AccessResult. NO manual `Cache::invalidateTags()` needed.
+- **Form:** `RestoreGroupForm extends ConfirmFormBase` (Drupal core) → renders real `<button type="submit">` submit natively. (Confirmed by A r1 NIT-7: Drupal 10/11 `Submit` extends `Button`, emits `<button>` via `button.html.twig`; survey's D7-era gotcha is inaccurate for D10/11.)
+    - **DI:** constructor promotion + static `create(ContainerInterface $container)` matching `RemoveMemberForm::create`. Inject: `entity_type.manager` (for term storage). `messenger` + `stringTranslation` are provided by `ConfirmFormBase`'s trait chain; no extra injection needed. (A r1 NIT-5 note: no domain-service wrapper exists for term lookup in `do_group_extras`; direct EntityTypeManager injection is the minimum-abstraction choice, matches core form patterns. Not a deviation A-dup should flag.)
+    - **buildForm:** call `parent::buildForm()` first; then add a `#type => 'select'` for target `group_type` term (options = all vocab terms except "Archive"; default = tid of "Working group" term; `#title => t('Set group type to')`; `#description` explains the exclusion rationale); then set `$form['actions']['submit']['#attributes']['aria-describedby']` to the description paragraph's `id` (same post-parent pattern MMC's `RemoveMemberForm::buildForm` line 97 uses to add its danger-button class — A r1 NIT-6 GO).
+    - **aria-describedby id mechanism (A r1 NIT-6 spec):** `ConfirmFormBase::buildForm` renders the description into `$form['description']['#markup']` without a wrapper id. Wrap it: override `$form['description']` post-`parent::buildForm()` to inject a `<p id="do-group-extras-restore-desc-{gid}">…</p>` wrapper, using the group id for uniqueness. Then set the submit button's `aria-describedby` to that same id. This is one preferred spec; the alternative (embed the `<p id=…>` markup inside the `TranslatableMarkup` returned by `getDescription()`) also works — F picks.
     - **buildForm — empty-vocab guard:** if the filtered options array is empty (all-Archive vocab), refuse to render the confirm/select controls and return a `#markup` block with the wireframe's actionable message.
     - **validateForm:** trust Drupal Form API's server-side `#options` validation for the select (rejects tampered TIDs automatically); no extra validator needed.
-    - **submitForm:** re-check `field_group_type` is currently Archive (race guard per wireframe Surface 2). If NOT: `messenger()->addWarning()` with the "no longer archived — no changes were made" copy; redirect to canonical; return early. If YES: wrap the reassignment in try/catch (mirror `RemoveMemberForm`'s pattern):
+    - **submitForm:** re-check `field_group_type` is currently Archive (race guard per wireframe Surface 2 — A r1 WARN-3 confirmed this defensive posture is correct despite access controller also gating on `isArchived`; the race window is render→submit, small but real). If NOT: `messenger()->addWarning()` with the "no longer archived — no changes were made" copy; redirect to canonical; return early. If YES: wrap the reassignment in try/catch (mirror `RemoveMemberForm`'s pattern):
         ```
         try {
           $group->set('field_group_type', $target_tid);
@@ -67,14 +69,14 @@ Add a dedicated **Restore** action that returns an archived `community_group` to
         ```
         (Addresses adjudicated B-2/B-5.)
     - `getQuestion()` / `getDescription()` / `getConfirmText()` / `getCancelUrl()` per wireframe Surface 2. All strings use `t()` via `TranslatableMarkup` return types (matches `RemoveMemberForm` — automatic in `ConfirmFormBase` overrides).
-- **Local task:** `do_group_extras.links.task.yml` — `do_group_extras.restore_tab: route_name: do_group_extras.restore, base_route: entity.group.canonical, title: 'Restore group', weight: 30`. Visibility controlled by the access check (tab hides on 403 via Drupal's standard local-task access filtering).
+- **Local task (A r1 NIT-4 rename):** `do_group_extras.links.task.yml` — `do_group_extras.restore: route_name: do_group_extras.restore, base_route: entity.group.canonical, title: 'Restore group', weight: 30`. **Plugin key = route name (no `_tab` suffix), matches MMC precedent (`do_group_membership.manage_members`).** Visibility controlled by the access check (tab hides on 403 via Drupal's standard local-task access filtering; A r1 NIT-8 confirmed no `hook_menu_local_tasks_alter()` needed — `do_group_membership.links.task.yml` uses the same pattern).
 - **Round-trip note:** re-archiving is handled by the existing group edit form's Group Type widget (already surfaced by `step_720`). No new "Archive" action needed — the story only asks for RESTORE. The e2e round-trip archive → restore → archive uses: seed (archived) → restore via new form → group edit form to reset Type to Archive → confirm badge returns. (Cross-ref: AC-8 spells out the exact click sequence.)
 
 ## Brief-gate adjudication (round 1)
 
 o4-mini raised 6 BLOCKs; 4 were real gaps (folded into the outline above), 2 were spurious (rejected as noise). Detail:
 
-- **B-1 access (real, addressed):** pinned exact perm strings + AccessResult shape above; both site-admin escape hatch and group-scope Organizer perm covered.
+- **B-1 access (real, addressed then revised A r1):** initial fix pinned `'administer group'` on both sides; A r1 caught that Organizer role config doesn't grant it, revised to `'edit group'` for the group-scope side. See §Access above.
 - **B-2 validation (partial, addressed):** empty-vocab guard added; tampering rejected as non-vector (Drupal Form API validates `#options` server-side); missing-Archive-term is out of scope (site-owned vocab; would break enforcement site-wide, not just restore); save exception → try/catch below.
 - **B-3 403 vs 404 (real, addressed):** pinned 403 for both non-privileged and non-archived, per MMC convention.
 - **B-4 AC-8 sequence (real, addressed):** cross-referenced wireframe Surface 4 into AC-8 with explicit 5-step click path.
@@ -82,6 +84,17 @@ o4-mini raised 6 BLOCKs; 4 were real gaps (folded into the outline above), 2 wer
 - **B-6 DI spec (spurious, rejected):** the analogous `RemoveMemberForm` sets the DI convention (constructor promotion + static `create`) — F mirrors it; no separate DI-strategy section warranted for a 1-service form. Recorded as convention-followed.
 
 **WARN/NIT triage.** W-1 (term-storage load-and-validate) — Form API `#options` covers this. W-2 (local-task hide) — Drupal handles via access filtering; verified working in `do_group_membership.links.task.yml`. W-3 (E2E session isolation) — Playwright per-test contexts already give this. NIT-1 (route naming) — `do_group_extras.restore` matches project convention (see `do_group_membership.remove_member`, not `do_group_membership.group.remove_member`). NIT-2 (`t()`) — automatic via `TranslatableMarkup` return types. NIT-3 (unique aria-describedby id) — id includes the `ConfirmFormBase` form id, guaranteed unique per page.
+
+## A round 1 outcome (2026-07-22)
+
+**Verdict:** BLOCK (1 block, 2 warns, 7 nits) at handoff `handoff-A-plan.md`.
+
+- **BLOCK #1 (perm string):** FIXED in §Design outline / Access above. Group-scope perm changed from `'administer group'` → `'edit group'` (matches actual Organizer role grants; verified in `group.role.community_group-organizer.yml`).
+- **WARN #2 (cacheability):** ACCEPTED as-is; `->addCacheableDependency($group)` covers `field_group_type` invalidation. Note folded into §Design outline / Access.
+- **WARN #3 (race guard):** ACCEPTED as-is; defensive double-check is correct posture. Note folded into §Design outline / submitForm.
+- **NITs #4 (task key), #5 (DI direct EntityTypeManager), #6 (aria-describedby id mechanism), #7 (button confirmation), #8 (local-task visibility), #9 (test locus), #10 (anti-duplication clean):** all folded into §Design outline for F's benefit; anti-duplication scan clean.
+
+Re-review is trivial (one perm-string swap already in place). A round 2 launching next.
 
 ## Model discipline
 

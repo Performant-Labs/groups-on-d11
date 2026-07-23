@@ -79,3 +79,66 @@ WARN/NIT: W-1 covered by Form API; W-2 covered by Drupal local-task access filte
 - `docs/groups/modules/do_group_membership/src/Form/RemoveMemberForm.php` (DI + submit try/catch pattern actual).
 
 **No round 2.** All 6 BLOCKs adjudicated in this response — 4 folded into brief, 2 rejected with rationale. Advancing to A.
+
+## A — Phase 3 (up-front plan review, 2026-07-22)
+
+**Decided.** Verdict: **BLOCK** on 1 finding (BLOCK), 2 WARNs, 7 NITs. Handoff:
+`docs/planning/handoffs/143-archive-restore/handoff-A-plan.md`.
+
+- **BLOCK #1 (perm-string):** brief pins group-scope perm `'administer group'` for restore access.
+  Config evidence (`group.role.community_group-organizer.yml`) shows Organizer grants
+  `'edit group'` + `'administer members'` — NOT `'administer group'`. As written, AC-1 fails
+  (Organizer 403s). Fix: swap group-scope perm to `'edit group'`; keep site-admin escape hatch
+  `$account->hasPermission('administer group')`. Groups-Moderate (`admin: true`) covers AC-2
+  either way. One-line brief amendment; re-review trivial.
+- **WARN #2 (cacheability):** dropping `url.path` is correct for a single-URL surface; group's
+  own cache tags (via `addCacheableDependency($group)`) auto-invalidate on `$group->save()` — no
+  manual `Cache::invalidateTags()` in submitForm needed. Note to F.
+- **WARN #3 (race guard):** double-check in `submitForm` is redundant-but-harmless; correct posture.
+- **D-Q2 (aria-describedby wiring point):** GO — post-`parent::buildForm()` mirroring MMC's
+  `RemoveMemberForm::buildForm()` line 97 pattern works because `ConfirmFormBase` populates
+  `$form['actions']['submit']` before the return. F needs to also set the description paragraph's
+  `id` (either via `<p id="…">` wrapper inside `getDescription()` return, or by overriding
+  `$form['description']` post-parent). Spec'd in NIT #6.
+- **`#type => 'submit'` renders `<button>`:** CONFIRMED for Drupal 10/11 core; theme-agnostic
+  (`Submit` element extends `Button`). Survey.md gotcha was inaccurate (D7-era). No override
+  needed. #138 GREEN evidence supports.
+- **Local-task visibility:** access-callback-driven filtering suffices; no
+  `hook_menu_local_tasks_alter` needed (MMC precedent).
+- **Anti-duplication:** clean — no overlap with existing `do_group_extras` or `do_chrome` code.
+
+**Assumed.** `admin: true` on group roles grants all group perms implicitly (Drupal `group`
+module convention) — this is why Groups-Moderate and community_group-admin both pass regardless
+of which specific perm string is chosen. If this assumption is wrong, both `'administer group'`
+and `'edit group'` fail equally for those roles and a different mechanism is needed; F can
+confirm at test time.
+
+**Hedged.** None.
+
+**Evidence.**
+- `docs/groups/config/group.role.community_group-organizer.yml` — perm list (the BLOCK).
+- `docs/groups/config/group.role.community_group-groups_moderate.yml` — `admin: true`.
+- `docs/groups/config/group.role.community_group-admin.yml` — `admin: true`.
+- `docs/groups/config/views.view.pending_groups.yml:68` — `'administer group'` as site-wide perm.
+- `docs/groups/modules/do_group_membership/src/{Controller/ManageMembersController.php, Form/RemoveMemberForm.php}` — analogous pattern.
+- `docs/groups/modules/do_group_extras/src/Hook/DoGroupExtrasHooks.php` — Archive-name check pattern.
+
+**Return path.** O amends brief §Design outline (perm string swap + rationale). A re-reviews
+(delta-only). No T/F respawn (no code exists yet).
+
+## O — A round 1 adjudication (2026-07-22)
+
+**Decided.** A r1 verdict BLOCK (1 block, 2 warns, 7 nits) — genuine catch: pinned perm string `'administer group'` on the group scope would have 403'd Organizer (AC-1) because `group.role.community_group-organizer.yml` grants `'edit group'` + `'administer members'` only. VERIFIED against config file.
+
+**Fix folded into brief §Design outline / Access:** group-scope check → `$group->hasPermission('edit group', $account)`; site-admin fallback `$account->hasPermission('administer group')` unchanged.
+
+All A r1 WARNs (#2 cacheability, #3 race guard) accepted as-is (both are "no change; note in brief"). All NITs (#4 task key rename to `do_group_extras.restore`, #5 direct EntityTypeManager injection acceptable, #6 aria-describedby id mechanism spec, #7 `#type=>submit` renders `<button>` in D10/11 confirmed, #8 local-task visibility handled by access filtering, #9 test locus correct, #10 anti-duplication clean) folded into brief for F's benefit.
+
+D-Q2 (aria-describedby wiring point) → A r1 NIT-6 answered GO (post-`parent::buildForm()` pattern works); id mechanism specified.
+
+**Assumed.** A r2 will verify the one-line perm swap and pass on the second look. If A r2 raises new BLOCKs, will amend and re-launch; escalation threshold = >2 blocks per handoff §12.
+
+**Evidence.**
+- `docs/planning/handoffs/143-archive-restore/handoff-A-plan.md` — full A r1 findings.
+- `docs/groups/config/group.role.community_group-organizer.yml` (perm list — confirms BLOCK).
+- Existing brief §Design outline (now revised).
