@@ -89,3 +89,30 @@ Append-only. One entry per phase.
   test purposes)
 
 ---
+
+## Phase 3 — A (up-front plan review), round 2: PASS
+
+**Verdict**: PASS with two `warn` items (folded into brief v3).
+
+**Warns folded**
+- Views `language` formatter emits the language *name*, not the raw
+  langcode. Playwright directory assertion rewritten against the name
+  (`Arabic` / `French` for anonymous English UI).
+- Views-field YAML must mirror sibling views' full key shape
+  (relationship, group_type, table, field, entity_type, plugin_id, type,
+  label, settings.link_to_entity: false). Concrete YAML block now in
+  the brief.
+- Bonus advisory: copy step_700's `addMember($admin_user,
+  ['group_roles' => ['community_group-admin']])` pattern so the new
+  Arabic group is testable under Group access policies.
+
+**Decided**
+- Advance to T(red) on brief v3. No further A pre-code cycles required.
+
+**Evidence**
+- `views.view.group_content_stream.yml`, `views.view.group_members.yml`,
+  `views.view.group_nodes.yml` (Views-field key shape)
+- `step_700_demo_data.php:77-93` (community_group creation + admin
+  membership pattern)
+
+---

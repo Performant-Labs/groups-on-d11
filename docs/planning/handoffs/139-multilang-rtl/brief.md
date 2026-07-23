@@ -4,9 +4,14 @@ Branch: `139-multilang-rtl` · Worktree: `~/Projects/_worktrees/groups-multilang
 Spec (re-read every phase): `gh issue view 139 --repo Performant-Labs/groups-on-d11`
 Review rigor: **none**
 
-Amendment history: v2 after A-BLOCK — resolved Finding #1 (`/all-groups`
-teaser gap), rolled in advisories #4 (null-language guard), #5 (step_760
-new-group creation pattern), #6 (Kernel test uses `type: language`).
+Amendment history:
+- v2 after A-round1 BLOCK — resolved Finding #1 (`/all-groups` teaser
+  gap), rolled in advisories #4 (null-language guard), #5 (step_760
+  new-group creation pattern), #6 (Kernel test uses `type: language`).
+- v3 after A-round2 PASS+warns — folded in Views-field key shape
+  (mirror sibling views), Playwright directory assertion pinned to
+  language *name* (not raw langcode), and step_700 admin-membership
+  advisory for the new group.
 
 ## Objective
 
@@ -75,18 +80,42 @@ Deliver the MVP multilingual baseline for the demo:
 
 - **APPEND** `docs/groups/config/views.view.all_groups.yml` — add
   `field_group_language` to `display.default.display_options.fields`
-  (weight after `field_group_description`, before `created`). Use
-  `plugin_id: field`, `type: language`, `label: Language`, no rewrite.
-  This is the row that MC-3 will attach its filter to. Add
-  `group__field_group_language` to `dependencies.config`.
+  (positioned after `field_group_description`, before `created`). The
+  full key shape must mirror sibling views
+  (`views.view.group_content_stream.yml`, `views.view.group_members.yml`,
+  `views.view.group_nodes.yml`):
+  ```yaml
+  field_group_language:
+    id: field_group_language
+    table: group__field_group_language
+    field: field_group_language
+    relationship: none
+    group_type: group
+    entity_type: group
+    plugin_id: field
+    label: Language
+    type: language
+    settings:
+      link_to_entity: false
+  ```
+  Add `group__field_group_language` to `dependencies.config`.
+  Note: the core Views `language` formatter emits the **language name**
+  (e.g. `Arabic` / `العربية` / `Français`), NOT the raw langcode.
+  Playwright assertion is written against the name, not the code.
 
 - **APPEND** `docs/groups/scripts/step_760.php` — add an Arabic-primary
   community group ("Drupal العربية", langcode `ar`) with 1–2 Arabic
   forum topics. Idempotency contract for the new pattern:
     - `loadByProperties(['label' => 'Drupal العربية'])`; if empty,
       create via `$group_storage->create(['type' => 'community_group',
-      'label' => 'Drupal العربية', ...])` and `->save()`. If found,
+      'uid' => 1, 'status' => 1, 'label' => 'Drupal العربية',
+      'field_group_description' => ...])` and `->save()`. If found,
       reuse.
+    - Add an admin member so the group is accessible for testing —
+      copy the pattern from `step_700_demo_data.php:77-93`:
+      `$group->addMember($admin_user, ['group_roles' =>
+      ['community_group-admin']]);` (guard with a try/catch, matching
+      step_700's own idempotency for re-runs).
     - Unconditionally `->set('field_group_language', 'ar')->save()`
       (idempotent).
     - For each Arabic topic: `loadByProperties(['title' => $title])`
@@ -114,12 +143,16 @@ Deliver the MVP multilingual baseline for the demo:
       `.do-group-language[lang="ar"]` visible on the page.
     - anonymous visits the seeded Drupal France group; expect
       `html[dir="ltr"]` and `.do-group-language[lang="fr"]` visible.
-    - anonymous visits `/all-groups`; expect the Views-rendered
-      Language column to show `ar` (native `العربية` or the langcode
-      per Views language-field formatter default) for the Arabic
-      group's row, and `fr` for the France row. Assert against the
-      row containing the group label, not the whole page, to avoid
-      false positives.
+    - anonymous visits `/all-groups`; the Views-rendered Language
+      column emits the language **name** via the core `language`
+      formatter (NOT the raw langcode). Assert:
+        - the row containing "Drupal العربية" shows the Arabic
+          language name (`العربية` if the UI is Arabic, else `Arabic`
+          — test whichever the anonymous English UI actually renders;
+          most likely `Arabic`)
+        - the row containing "Drupal France" shows `French`
+      Scope each assertion to the row containing the group label, not
+      the whole page, to avoid false positives.
 
 ## Acceptance (from issue)
 
