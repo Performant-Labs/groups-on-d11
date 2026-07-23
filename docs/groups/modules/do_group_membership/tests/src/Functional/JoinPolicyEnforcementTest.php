@@ -32,7 +32,7 @@ class JoinPolicyEnforcementTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected static $modules = ['group', 'gnode', 'options', 'node', 'do_group_membership'];
+  protected static $modules = ['group', 'gnode', 'options', 'node', 'link', 'do_group_membership'];
 
   /**
    * {@inheritdoc}
