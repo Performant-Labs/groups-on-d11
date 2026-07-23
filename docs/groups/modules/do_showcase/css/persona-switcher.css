@@ -1,0 +1,64 @@
+/**
+ * @file
+ * #120 SC-1 styling: persona-switcher header widget + persistent banner.
+ *
+ * Matches the visual family already established by #119's
+ * .do-showcase-variant-switcher / .do-showcase-ribbon (do_showcase.css):
+ * same #4da3ff focus-ring token, same ribbon dark-bg/white-text contrast
+ * pairing for the banner (already AA-contrast-checked there). No color-only
+ * state cues: the banner's status is ALSO carried by the leading ▶ glyph
+ * (aria-hidden) plus explicit text, never color alone; the <select>'s
+ * current selection is carried by the native <option selected> mechanism
+ * (inherently non-visual-only).
+ */
+
+/* --- Header dropdown widget (Surface 1) --------------------------------- */
+
+.do-showcase-persona-switcher-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.do-showcase-persona-switcher-form label {
+  font-size: 0.9rem;
+}
+
+#persona-switcher-select {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #767676;
+  background: #ffffff;
+}
+
+#persona-switcher-select:focus-visible,
+.do-showcase-persona-switcher-go:focus-visible,
+.do-showcase-persona-banner-switch-back:focus-visible {
+  outline: 2px solid #4da3ff;
+  outline-offset: 2px;
+}
+
+.do-showcase-persona-switcher-go {
+  background: #ffffff;
+  border: 1px solid #767676;
+  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+}
+
+/* --- Persistent active-persona banner (Surface 2) ----------------------- */
+
+.do-showcase-persona-banner {
+  display: block;
+  background: #1a1a1a;
+  color: #ffffff;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.do-showcase-persona-banner a {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.do-showcase-persona-banner [aria-hidden="true"] {
+  margin-right: 0.35rem;
+}

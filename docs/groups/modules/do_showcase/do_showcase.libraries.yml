@@ -24,3 +24,16 @@ ribbon:
   dependencies:
     - core/drupal
     - core/once
+
+# #120 SC-1: persona-switcher widget + persistent banner styling. No JS file
+# here — the widget's "auto-submit on change" behavior is a minimal inline
+# onchange="..." attribute on the <select> itself (PersonaSwitcher::build()),
+# so no external behavior-attach script is needed for that interaction. This
+# library exists to load the visual styling only (focus-ring token, banner
+# dark/light contrast pairing, matching .do-showcase-ribbon's already-AA
+# pairing) — see css/persona-switcher.css.
+persona-switcher:
+  version: '1.0'
+  css:
+    theme:
+      css/persona-switcher.css: {}

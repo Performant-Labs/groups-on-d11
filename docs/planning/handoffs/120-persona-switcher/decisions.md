@@ -59,7 +59,7 @@ just the same one-control interaction.
 
 **Hedged:** Native `<select>` cannot host a live do_chrome/tippy tooltip per `<option>` (browser-
 native popup, outside the DOM) — proposed one wrapper-level combined `ⓘ` tooltip + native `title=`
-per option as the closest achievable reading of "each option carries a tooltip." Flagged as Open
+per option as the closest achievable reading of "each option carries a tooltip". Flagged as Open
 Question #1 for explicit operator sign-off before Architecture/Feature build against it.
 
 **Evidence:** `VariantSwitcher.php` (one-tooltip-per-wrapper convention, non-color state glyph),
@@ -165,3 +165,97 @@ uid-1 uname would be fragile either way.
 tests fail for the right reason (missing class/service/method/field/route/markup); E2E spec
 `--list`s cleanly (4 tests); existing `do_showcase` Unit suite (29 pre-existing tests) stays green
 with zero collateral breakage.
+
+## F — Phase 5 (implement)
+
+**Decided:** Compared uid-1 by resolved account **id** (`(int) $target_user->id() === 1`), not
+uname string, in `PersonaAccessCheck` — per T's own recommendation in handoff-T-red.md. Belt-and-
+suspenders: even if a future allowlist edit accidentally pointed a persona's `uname` at uid-1's own
+account name, this still denies it (T's `testUidOneTargetIsAlwaysDenied` already passes because
+`root_admin` isn't an allowlisted persona id at all — the uid-comparison is defense-in-depth on top
+of the allowlist, not the only guard).
+
+**Decided:** The "Browse as" widget renders via a THIRD sibling `#[Hook('page_top')]` method
+(`personaSwitcherWidget()`), not solely via `PersonaSwitcherBlock` placement. Discovered via RED-
+loop: `PersonaSwitcherDropdownTest` (BrowserTestBase, `$modules=['do_showcase']`, no config import)
+requires the widget to render on `<front>` from module-enable alone — no module in this repo self-
+installs `block.block.*` placement config via `config/install/`, so a Block-plugin-only path would
+never satisfy that test (or a fresh production install without manual Block Layout placement).
+`PersonaSwitcherBlock` still exists as an optional, explicitly-placeable alternative; both share
+the ONE `do_showcase.persona_switcher` service render-array producer.
+
+**Decided:** `DoShowcaseHooks` needed a constructor (`PersonaSwitcher $personaSwitcher`) to delegate
+cleanly — required adding a class-name alias (`Drupal\do_showcase\Persona\PersonaSwitcher:
+'@do_showcase.persona_switcher'`) in services.yml, because Drupal's `#[Hook]` attribute discovery
+(`HookCollectorPass`) auto-registers ANY Hook-namespaced class as its own autowired service,
+resolving constructor args by CLASS NAME — which fails for a custom class with no such alias
+(matches core's own pattern, e.g. `EntityTypeManagerInterface: '@entity_type.manager'`).
+
+**Decided:** `PersonaSwitcher::build()`'s assembled `<form>`/`<select>`/`<button>` HTML string is
+wrapped in `Markup::create()` — `#markup` is XSS-filtered against `Xss::getAdminTagList()` by
+default, which does not include `form`/`select`/`option`/`button`, silently stripping them (same
+gotcha `RestoreGroupForm::preRenderAsButtonTag()` already documents for its own real `<button>`).
+Every dynamic value is `htmlspecialchars()`-escaped before assembly, so the whole string is safe.
+
+**Decided:** The persona banner's `<aside role="status">` wrapper is ALSO hand-assembled +
+`Markup::create()`'d (children pre-rendered via `renderInIsolation()`, wrapped with an
+`Attribute`-escaped `<aside>...</aside>`) — `'#type' => 'container'` always themes to a hardcoded
+`<div>` (`container.html.twig`), which cannot satisfy `PersonaBannerTest`'s
+`aside[role="status"].do-showcase-persona-banner` selector no matter what `#attributes` are set.
+
+**Decided:** Added `do_chrome:do_chrome` to `do_showcase.info.yml` dependencies. Pre-existing gap
+from #119 (`VariantSwitcher.php` already used `Drupal\do_chrome\HelpText` with no formal
+dependency declared) — never surfaced before because no prior test exercised `do_showcase`-only-
+enabled code that calls into `HelpText` inside an isolated BrowserTestBase install. My
+`PersonaSwitcher::build()` was the first to do so on `<front>`, surfacing
+`Class "Drupal\do_chrome\HelpText" not found` as a real 500 until fixed.
+
+**Decided:** Dropped the redundant third "archive perm" bullet from Amendment 1's group-role edit
+(per A's own non-blocking note, confirmed by reading `RestoreGroupAccess::access`: only `edit
+group` or `administer group` gate restore — no separate archive-only permission exists in
+`do_group_extras`). `group.role.community_group-groups_moderate.yml` ships exactly
+`['administer members', 'edit group']`.
+
+**Decided:** Left `composer.json`/`composer.lock`/`core.extension.yml` untouched per the brief's own
+"simplest: leave alone" branch — verified `core.extension.yml` is a generated file (not tracked
+under `docs/groups/config/`) and its assembled copy already carries no `masquerade` line, so both
+of Amendment 3's file-touch items resolve to a true no-op.
+
+**Found (route back to T):** `PersonaSpecTest::testEveryPersonaHasExpectedUname` has a real
+test-authorship bug: `self::EXPECTED_UNAME[$persona['id']] ?? '__unexpected__'` — PHP's `??`
+treats an EXISTING array key whose value is `NULL` (the `anonymous` persona's correct, spec'd
+`uname`) as if the key were absent, always falling through to `'__unexpected__'`. My
+`ShowcaseCatalog::personas()` correctly ships `'uname' => NULL` for `anonymous` per Amendment 2 —
+confirmed via a direct source-string check. Fix (for T): index directly
+(`self::EXPECTED_UNAME[$persona['id']]`) or use `array_key_exists()`, not `??`, since every real
+persona id is a valid key in that map. Not edited (F does not edit tests).
+
+**Found (route back to T):** Three Functional tests assert a 302/303 status via a code path that
+cannot observe it, given Mink's `BrowserKitDriver` sets `followRedirects(true)` on its client by
+default (verified in `vendor/behat/mink-browserkit-driver/src/BrowserKitDriver.php:64`):
+`PersonaSwitchControllerMethodTest::testPostOnNonAnonymousPersonaRedirects`,
+`::testGetOnAnonymousRedirects`, and `PersonaUidOneGuardTest::testPostToAllowlistedPersonaSucceeds`
+(via its shared `postAndGetStatus()` helper) all call
+`$client->request(...); $client->getInternalResponse()->getStatusCode()` WITHOUT first calling
+`$client->followRedirects(false)` — so the driver silently follows the 302 to its destination
+before `getInternalResponse()` is read, and the test observes the FINAL page's 200, not the
+redirect's own 302. Verified my controller's actual behavior is correct: a scratch diagnostic
+(not committed) confirmed raw `status=302` for both cases when `followRedirects(false)` is set
+first. Fix (for T): add `$client->followRedirects(false);` before each such request. Not edited.
+
+**Found (non-blocking, out of my edit scope):** `.github/workflows/test.yml`'s E2E job explicitly
+enables only `do_tests do_group_extras do_group_language do_group_mission do_group_pin
+do_multigroup do_notifications do_profile_stats do_discovery` via `drush en`, and calls only
+`step_700_demo_data.php` / `step_720_group_types.php` / `step_780_nav_menu.php` by name —
+`do_showcase`/`do_chrome` are NOT in that explicit `drush en` list (though they DO get enabled via
+the earlier `config:import` step, since `assemble-config.sh` patches every `do_*` module into
+`core.extension.yml`), and `step_790_persona_switcher.php` is not yet wired into that job at all.
+The seed script itself is confirmed correct (see Tier-1 self-check below) — this is purely a CI
+workflow-file wiring gap outside `docs/groups/`, flagged for O/T to add a `step_790` invocation
+alongside the existing 3.
+
+**Evidence:** Full verification logs below (Tier 1 self-check section) — 122/123 Kernel (full
+custom-module suite), 31/31 Unit, 18/19 Kernel (do_showcase-scoped), 14/17 Functional
+(do_showcase), all lint-clean except pre-existing debt in `HelpText.php` (append-only, zero lines
+of my diff touch the flagged region) and `DoShowcaseHooks.php`'s existing raw-`t()`/`\Drupal::`
+style (consistent with the untouched `pageTop()` method).

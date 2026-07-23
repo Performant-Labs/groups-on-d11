@@ -191,6 +191,22 @@ final class HelpText {
       // understands what "adapts" means, per the wireframe's own improvement
       // over the brief's vaguer placeholder wording (wireframe.md §3).
       'group_type.homepage_adapts' => 'This page adapts to the group\'s type — it leads with events, discussion, or documentation depending on how the group is categorised.',
+
+      // --- #120 (SC-1): persona switcher — persona.* keys. -----------------
+      // Appended per the append-only HelpText contract. This is the single
+      // copy source for BOTH the header dropdown's per-option native
+      // `title=` attributes AND the widget's one wrapper-level combined ⓘ
+      // tooltip (wireframe.md §1/§4) — `PersonaSwitcher::build()` reads
+      // these same 4 keys for both surfaces so they never drift apart.
+      // Trimmed to <= 140 chars each (brief-amendments.md Amendment 7) so
+      // every value fits cleanly inside a native <option title="..."> hover
+      // attribute. Each is honest about POC scope boundaries (Maria's is
+      // scoped to "a seeded group"; Moderator's explicitly states the limit
+      // of its scope — no user administration, no site configuration).
+      'persona.anonymous' => 'The logged-out visitor view (default). No session, no persona.',
+      'persona.elena' => 'Elena Garcia is an active Member across several groups. Plain-member view: can post and join, cannot manage members.',
+      'persona.maria' => 'Maria Chen holds the Organizer role on a seeded group. Can edit the group and manage its members.',
+      'persona.moderator' => 'Groups-Moderate is site moderation. Reviews the pending-join queue and approves, archives, or restores any group. Nothing else.',
     ];
   }
 
