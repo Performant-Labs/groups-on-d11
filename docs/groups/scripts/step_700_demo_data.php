@@ -394,10 +394,11 @@ if ($follow_user && $ravi && $maria) {
   catch (\Exception $e) {}
 }
 
-// Archive Legacy Infrastructure
-$groups = $group_storage->loadByProperties(["label" => "Legacy Infrastructure"]);
-$g = reset($groups);
-if ($g) { $g->set("status", 0); $g->save(); echo "Legacy Infrastructure archived\n"; }
+// (Removed in #128) The former "Archive Legacy Infrastructure" block set
+// status=0, conflating "archived" with "unpublished". The proper archive
+// semantic -- published + read-only + Archive badge -- is driven entirely by
+// field_group_type = "Archive" tagged in step_720_group_types.php.
+// See docs/planning/handoffs/128-archive-demo/brief.md.
 
 // RSVP for events
 $rsvp_flag = $flag_service->getFlagById("rsvp_event");

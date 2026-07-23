@@ -12,9 +12,9 @@ import { test, expect, Page } from '@playwright/test';
  *       * logged-in non-member -> "Join group" (open groups; wired by CH-F4)
  *       * member               -> "Member" note (no join)
  *
- * Runs against the seeded demo site (8 groups, one archived), so at least the
- * 7 published groups render. All data is read from existing entities — no
- * schema changes (epic #78).
+ * Runs against the seeded demo site (8 groups; all 8 published, one is
+ * Archive-typed -> all 8 cards render). All data is read from existing
+ * entities — no schema changes (epic #78).
  */
 
 const ADMIN_USER = process.env.ADMIN_USER ?? 'admin';
