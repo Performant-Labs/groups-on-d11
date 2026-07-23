@@ -23,20 +23,6 @@ import { test, expect, Page } from '@playwright/test';
  * persona choice absent a dedicated seeded-Organizer login helper.
  *
  * Self-contained: no imports from other specs, own login/lookup helpers.
- *
- * Cross-story fix (2026-07-23, coordinator-approved as part of #140 overnight
- * unblock): the original archived-state assertions were page-wide
- * `getByText(/Archived/i)` matches. That's too loose — it catches ANY page
- * text containing "Archived", including neutral copy like the seeded
- * `field_group_description` value "Archived: Drupal 7 module maintenance
- * coordination..." on Legacy Infrastructure. Any story that legitimately
- * causes descriptions to render on the group page (e.g. #140's Full display)
- * would trip these assertions. Rescoped to the archive BADGE element only
- * (`span.group__archived-badge`) — that's the canonical archived-state
- * marker in the DOM, and it was already present as the primary assertion on
- * each surface. Removed the redundant text-based assertions rather than
- * rescope them (the badge check is both stricter and more meaningful).
- * Handoff §6.7: "fix the defect class, not the cited instance."
  */
 
 const ADMIN_USER = process.env.ADMIN_USER ?? 'admin';
@@ -97,9 +83,18 @@ test.describe('Group archiving RESTORE action (#143 MC-5)', () => {
     await login(page);
 
     // --- Step 1: preconditions (Archive-typed) ---------------------------
-    // Archived-state is observable via the BADGE element and the Restore tab.
-    // Do NOT assert on page-wide text — see file-header note on the
-    // cross-story fix (2026-07-23).
+    // NOTE (T-green #128, 2026-07-23): the free-text `getByText(/Archived/i)`
+    // assertion that used to sit here has been REMOVED. Legacy Infrastructure's
+    // own seeded `field_group_description` ("Archived: Drupal 7 module
+    // maintenance coordination...", step_700_demo_data.php:75) permanently
+    // contains the literal word "Archived" regardless of archive/restore
+    // state, so any unscoped `getByText(/Archived/i)` match against this
+    // group's canonical page is ambiguous between that static description
+    // copy and the real `span.group__archived-badge`. The badge locator
+    // below is the correct, unambiguous signal for this precondition; the
+    // free-text check added nothing beyond it and is dropped rather than
+    // reworded, per test-quality guidance against duplicate assertions of
+    // the same behavior.
     await page.goto(`/group/${gid}`, { waitUntil: 'domcontentloaded' });
     await expect(page.locator('span.group__archived-badge')).toBeVisible();
     await expect(
@@ -130,9 +125,17 @@ test.describe('Group archiving RESTORE action (#143 MC-5)', () => {
     await page.getByRole('button', { name: /Restore group/i }).click();
 
     // --- Step 3: post-restore assertions ---------------------------------
-    // Badge gone + Restore tab gone is the canonical archived-cleared signal.
-    // (Previously also asserted page-wide getByText(/Archived/i).toHaveCount(0)
-    // — removed as fragile per file-header note.)
+    // NOTE (T-green #128, 2026-07-23): same fix as Step 1 — the free-text
+    // `getByText(/Archived/i)).toHaveCount(0)` assertion that used to sit
+    // here was a FALSE assertion, not a flake: this group's
+    // `field_group_description` always renders the word "Archived" on its
+    // canonical page regardless of archive/restore state (see Step 1's
+    // note), so `toHaveCount(0)` could never legitimately pass and the test
+    // failed deterministically every run at this line, aborting before
+    // Step 4 ever re-archived the group (leaving the seed in a corrupted
+    // "Working group" state for the next run — a compounding failure).
+    // The badge-scoped assertion below is the correct, sufficient check
+    // that the archived state is gone post-restore.
     await page.waitForURL(new RegExp(`/group/${gid}$`));
     await expect(page.locator('.messages--status')).toBeVisible();
     await expect(page.locator('.messages--status')).toContainText(/restored/i);

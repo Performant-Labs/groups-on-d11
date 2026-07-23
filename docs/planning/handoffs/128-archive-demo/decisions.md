@@ -163,3 +163,112 @@
   connection" INFO line matching the client-aborted `ERR_ABORTED`, not a
   server error); `drush php:eval` confirming gid=8's final state
   (`field_group_type` = Archive, `published` = yes) after the full suite.
+
+## Phase 6 (T): verify (GREEN) + Tier 2 — GREEN, one latent test bug fixed
+
+- **Decided (test fix, T owns test authorship):**
+  `tests/e2e/group-restore.spec.ts` had a real, pre-existing, reproducible
+  defect — inherited unchanged from #143's original T-green (`6ad4469`), not
+  introduced or touched by #128's T-RED (`1a54114`, which only edited the
+  lookup helper) — at three call sites using an unscoped
+  `page.getByText(/Archived/i)` locator. Legacy Infrastructure's own seeded
+  `field_group_description` ("Archived: Drupal 7 module maintenance
+  coordination. This group is no longer active.",
+  `step_700_demo_data.php:75`) permanently contains the literal word
+  "Archived" on the group's canonical page REGARDLESS of archive/restore
+  state (confirmed live via `curl http://.../group/8` both before and after
+  restore). The Step-3 assertion `expect(page.getByText(/Archived/i))
+  .toHaveCount(0)` could therefore never legitimately pass — it deterministically
+  failed on every run, aborting the test mid-sequence (after Step 2's restore
+  but before Step 4's re-archive), which left gid=8 stuck in a "Working
+  group"-typed state and corrupted the fixture for the NEXT run too (a
+  compounding failure). This bug was masked before #128 because the
+  pre-#128 seed (`status=0`) made `findLegacyInfrastructureGid()` fail at
+  the very first step (element not found on `/all-groups`), so the suite
+  never reached line 120 to expose it. #128 is what first makes this test
+  run to completion — and in doing so, surfaces a defect #128 did not cause.
+  **Fix:** removed the two redundant `getByText(/Archived/i)` assertions at
+  Step 1 and Step 5 (each already followed by the correct, unambiguous
+  `span.group__archived-badge` locator — the free-text check added nothing
+  and duplicated an assertion, so it is deleted rather than reworded, per
+  test-quality guidance against redundant assertions of the same behavior),
+  and replaced the Step-3 `toHaveCount(0)` target with the same
+  badge-scoped locator. Re-ran from a clean gid=8 state (Archive-typed,
+  published): passes deterministically, 3 consecutive times. Spot-checked
+  test validity: `ArchivePinHooks::preprocessGroup`
+  (`do_chrome/src/Hook/ArchivePinHooks.php`) is real production logic that
+  conditionally emits the badge based on `field_group_type` — the badge
+  locator is a genuine behavior signal (it would fail if restore/re-archive
+  logic broke), not a vacuous check.
+- **Decided (environment hygiene, not code):** two full-suite Playwright runs
+  during this verification session accumulated 32–34 unclosed e2e-fixture
+  groups apiece (created as real side effects by unrelated specs —
+  `phase1/2/3/4.spec.ts`, `manage-members.spec.ts`, etc. — none of which
+  clean up after themselves; a pre-existing, cross-story characteristic of
+  this suite, confirmed via `git log` showing these specs predate #128).
+  Once total group count exceeded the `all_groups` View's 25-item pager,
+  Legacy Infrastructure (gid=8, an early/low id) was pushed to page 2,
+  making `demonstrator-seeds.spec.ts`/`directory-cards.spec.ts`/
+  `group-restore.spec.ts` fail with "element not found" on `/all-groups` —
+  NOT a #128 regression, but a session-local side effect of repeatedly
+  re-running the full suite against one persistent DDEV DB without a reset
+  between runs (a fresh CI checkout, which installs once per job, would not
+  exhibit this). Deleted the accumulated fixture groups (gid > 8) each time
+  this was hit, restoring the environment to the same 8-group state F/T-RED
+  left it in. Also encountered, diagnosed, and cleaned two similarly
+  session-local side effects: (1) the DDEV container stopped unexpectedly
+  mid-session (Docker/DDEV resource event, unrelated to #128) — restarted
+  cleanly, DB state intact, no code impact; (2) `membership-models.spec.ts`
+  (#121, authored and finalized before #128, confirmed via `git log`) is
+  itself NOT idempotent — its own assertions are "user joins group
+  instantly" / "user requests to join", i.e., one-way state changes — so
+  running the full suite twice in a row without a DB reset between runs
+  will always show these 2 tests fail on the second pass, by design,
+  regardless of #128. Removed the resulting leftover memberships
+  (`sophie_mueller`→Drupal France, `ravi_patel`→Leadership Council) to
+  restore a clean starting state. None of these three findings required a
+  test or production-code change — advisory-only, noted in the handoff for
+  awareness (repeated manual full-suite runs against one long-lived DDEV
+  instance is not representative of CI, which seeds once per job).
+- **Decided (Kernel + Functional smoke, env repair required):**
+  `do_group_extras`/`do_chrome` Functional (`BrowserTestBase`) suites
+  initially errored with "You must provide a SIMPLETEST_BASE_URL environment
+  variable" — not a code or test defect, but a missing test-harness
+  precondition never before exercised in this worktree's DDEV container
+  (`.github/workflows/test.yml`'s Functional job runs on a SEPARATE
+  throwaway MySQL DB + a bare `php -S` "test router" webserver on
+  `127.0.0.1:8080`, distinct from the live `gm128-archive-demo.ddev.site`
+  install). Reproduced the CI recipe inside the container: created a
+  `drupal_functest` MySQL DB, appended a `hash_salt` override to the
+  (gitignored, per-environment) `web/sites/default/settings.php` so the test
+  router could bootstrap, and started
+  `php -S 127.0.0.1:8080 -t web "$PWD/web/.ht.router.php"` — using an
+  ABSOLUTE router path per the CI comment's explicit warning (a relative
+  path resolves to the wrong `web/web/...` location and 500s every request,
+  which is what my first attempt did, diagnosed via the router's own PHP
+  error log rather than accepted as "env-blocked"). With
+  `SIMPLETEST_DB`/`SIMPLETEST_BASE_URL`/`BROWSERTEST_OUTPUT_DIRECTORY`/
+  `SYMFONY_DEPRECATIONS_HELPER` set to match CI exactly, all 38 tests across
+  `do_group_extras` (Kernel: 12, Functional: 10) and `do_chrome` (Unit: 15,
+  Functional: 1) passed — 0 failures, 0 errors; the only "issues" PHPUnit
+  reported were 16 pre-existing Drupal-core deprecation notices
+  (`cache.static`, `getOriginal()`, `plugin.manager.archiver`, etc.),
+  identical in kind to what CI's own `SYMFONY_DEPRECATIONS_HELPER: disabled`
+  exists to silence — unrelated to #128's 4-line seed-script diff. Stopped
+  the router and reverted the `hash_salt` append after verification
+  (gitignored file — never staged, live DDEV site unaffected, confirmed
+  `curl` 200 on `/all-groups` post-revert).
+- **Evidence:** final clean Tier-1 run (post-fix, post-cleanup, single pass):
+  `demonstrator-seeds.spec.ts` (4) + `group-restore.spec.ts` (1) +
+  `directory-cards.spec.ts` (3) = 8/8 passed, 21.5s. Full-suite run
+  immediately after a fixture-group cleanup: 68/71 passed, 1 pre-existing
+  skip (`manage-members.spec.ts`'s pending-request test, self-documented gap
+  predating #128, confirmed via its own `test.skip()` message), 2 failures
+  fully traced to #121's `membership-models.spec.ts` non-idempotency (not
+  #128). Kernel+Functional: `Tests: 38, Assertions: 681, Failures: 0,
+  Errors: 0` (`OK, but there were issues!` — 16 deprecations only).
+  AC-3: `grep -n 'set("status", 0)' step_700_demo_data.php` → no match
+  (exit 1). AC-4: re-ran `step_700_demo_data.php` on the already-seeded
+  site — completed without error; gid=8 confirmed
+  `status=1 type=Archive` both immediately before and immediately after the
+  re-run (idempotent).
