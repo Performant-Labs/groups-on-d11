@@ -59,3 +59,23 @@
   the persona banner across all 4 personas.
 - **Evidence**: `docs/handoffs/132-showcase-help/handoff-T-green.md` — full GREEN output, spot-
   check output, and per-file diff cross-checks.
+
+## Phase 8 (U) — UI walkthrough (PASS)
+
+- **Decided**: Stood up a dedicated DDEV project (`gm132-showcase-help`, renamed from
+  `pl-groups-on-d11` in `.ddev/config.yaml` to avoid colliding with the primary checkout's
+  already-running project) since no `gm132-*` container existed yet; full assemble ->
+  site:install -> config_sync_directory fix + system.site UUID match -> cim -> module enable ->
+  4-step seed (`step_700`/`step_720`/`step_780`/`step_790`) -> cache:rebuild, mirroring
+  `.github/workflows/test.yml` exactly (this worktree's copy of the workflow already includes
+  the persona seed step).
+- **Decided**: This closes the coverage hole T flagged — ran the real
+  `tests/e2e/showcase-help.spec.ts` live (6/6 PASS) plus regression
+  `showcase.spec.ts` + `persona-switcher.spec.ts` (24/24 PASS), 30/30 total, 0 console errors.
+  Supplemented with manual Playwright-driven DOM/hover/keyboard checks confirming: DOM child
+  order `glyph, text, switch_back, help` (A1), explicit tippy tooltip actually renders on hover
+  for all 9 ⓘ triggers (A2), anonymous session has no banner, switch-back removes it, and all 3
+  personas (Elena, Maria, Groups-Moderate) show correct copy.
+- **Assumed**: Per the project override (Drupal/DDEV, not HTMX/SPA), the `u-drive.mjs` canonical
+  helper does not apply — drove standard Playwright directly against the seeded DDEV site.
+- **Evidence**: `docs/planning/handoffs/132-showcase-help/handoff-U.md`.
