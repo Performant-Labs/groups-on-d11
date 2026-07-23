@@ -142,3 +142,19 @@ D-Q2 (aria-describedby wiring point) → A r1 NIT-6 answered GO (post-`parent::b
 - `docs/planning/handoffs/143-archive-restore/handoff-A-plan.md` — full A r1 findings.
 - `docs/groups/config/group.role.community_group-organizer.yml` (perm list — confirms BLOCK).
 - Existing brief §Design outline (now revised).
+
+## A — Phase 3 round 2 (2026-07-22)
+
+**Decided.** Verdict: **PASS**. Handoff: `handoff-A-plan-r2.md`.
+
+Targeted verify only (delta-review, plan already PASSED substantively r1):
+- r1 BLOCK #1 fixed: group-scope perm now `'edit group'` (matches Organizer role config).
+- Site-admin escape hatch `'administer group'` preserved (valid site-wide perm).
+- NITs #4 (task key `do_group_extras.restore`), #5 (DI note), #6 (aria-describedby id mechanism, both paths spec'd) folded cleanly.
+- No new BLOCKs introduced by the amendment.
+
+**Advance to T (Phase 4 test authoring).**
+
+**Evidence.**
+- `docs/planning/handoffs/143-archive-restore/brief.md` §Design outline / Access (revised).
+- `docs/groups/config/group.role.community_group-organizer.yml` (perm grant verified).
