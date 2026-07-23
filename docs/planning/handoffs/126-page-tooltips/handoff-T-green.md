@@ -59,3 +59,24 @@ None. F's implementation is correct; the 404s and initial 4 e2e failures were bo
 
 - **Router conflict** (`ddev-router` serving the wrong project's `*.ddev.site` hostname) is a recurring cross-story DDEV environment issue already flagged by both T-red and F's handoffs — worth a standing fix (e.g. a documented `ddev start` re-run step in the per-story runbook) so future T/U/S phases don't lose time rediscovering it.
 - **Cache staleness after assemble** is a second recurring trap: any time new hook classes/services are added between an earlier `assemble-config.sh` + `site:install` and a later verification pass, a `drush cr` is required before e2e/UI checks are trustworthy — plain `assemble-config.sh` does not itself rebuild Drupal's compiled container. Recommend adding `drush cr` as a standard step immediately after `assemble-config.sh` in the T-green runbook.
+
+---
+
+## Rework re-verification (Phase 6b, 2026-07-23)
+
+**Trigger:** U (Phase 6a walkthrough) flagged that `page.group.members`'s target route, `view.group_members.page_1`, is superseded by #138's `do_group_membership.manage_members` controller (the members-tab UI story that landed after this story's original T-green). F repointed `PageHelp.php`'s route map (commit `80325ba`); T updated the pinned kernel test's expected route-name string to match (commit `c82eb6c`).
+
+**Re-ran the full verification ladder against both commits landed:**
+
+1. `bash scripts/ci/assemble-config.sh` (in-container, `ddev-gm126-page-tooltips-web`) — clean copy, 95 config files + 13 custom modules, no errors.
+2. `drush cr` (in-container) — cache rebuild complete. Required per the standing trap noted above: the route-map change is read at hook-dispatch/routing time, not re-evaluated until Drupal's compiled container is rebuilt.
+3. Pinned suite — `HelpTextPageKeysTest.php` + `PageHelpRouteMapTest.php`: **8/8 GREEN**, 42 assertions (1 framework-wide `RunTestsInSeparateProcesses` deprecation notice, pre-existing/unrelated). Matches pre-rework baseline exactly.
+4. Full `do_chrome` dir: **23/24**, same pre-existing failure — `PermissionMatrixPanelTest::testPermissionMatrixPanelRenders` (missing `SIMPLETEST_BASE_URL` for `BrowserTestBase`, an environment-config gap, not a code regression; zero diff on that test's target classes). No new regressions introduced by the route-name change.
+5. Confirmed the new target route is real and resolves: `drush ev` against `router.route_provider` returns `/group/{group}/members` for `do_group_membership.manage_members` — the pinned test string is not just internally consistent but points at a live route.
+6. E2E — `BASE_URL="https://127.0.0.1:53099" npx playwright test tests/e2e/page-help.spec.ts --reporter=list`: **6/6 GREEN**. This spec does not exercise `page.group.members` specifically (no test navigates the members tab), so the route swap carried no direct e2e risk, but the full spec was re-run end-to-end per the runbook rather than assumed unaffected.
+
+**Verdict:** Rework is correct and minimal (2 files, 1 line each). No new blocking issues. Suite remains proportionate — no new test was needed for this rework since the existing kernel test already pins the route-map contract; T only updated the expected string, matching its earlier assessment that `testRouteMapContainsExactlyTenEntries`-adjacent tests fail immediately if any map entry changes.
+
+## Updated ready-for status
+
+T-green (rework) complete, no blocking issues. Ready for S (no UI surface change beyond the already-walked #138 members route; U's Phase 6a rework flag is resolved).
