@@ -51,3 +51,40 @@ Append-only. Every phase adds an entry.
 
 **Evidence**
 - `docs/planning/handoffs/140-links/handoff-A-plan.md`
+
+---
+
+## Phase 4 — T (author tests, RED)
+
+**Decided**
+- Kernel test `GroupLinksFieldTest` authored at
+  `docs/groups/modules/do_group_extras/tests/src/Kernel/GroupLinksFieldTest.php`, 7 tests covering
+  storage, instance, view-display, form-display, external-link rel/target (observable HTML per A's
+  warn #5), internal-link rendering, and empty-state suppression (per A's warn #6).
+- `rel="noopener"`/`target="_blank"` and empty-state assertions target rendered HTML via
+  `EntityTypeManager::getViewBuilder('group')->view()` + `Renderer::renderRoot()`, never formatter
+  config shape — F is free to choose formatter settings or a preprocess fallback.
+- E2E `tests/e2e/group-links.spec.ts` authored (2 tests) against the `DrupalCon Portland 2026`
+  seeded group, found via `/all-groups` directory (not a hardcoded gid).
+- Canonical seed titles/URLs picked and recorded in handoff-T-red.md — F must seed exactly these
+  6 (2 per group x 3 groups: DrupalCon Portland 2026, Core Committers, Thunder Distribution).
+- Added `#[RunTestsInSeparateProcesses]` (current Drupal 11.3+ kernel-test convention, deprecation
+  otherwise).
+
+**Assumed**
+- DDEV is the correct local stand-in for CI's native-PHP runner; used `ddev exec` for all
+  `php`/`composer` invocations since this worktree had no host-PATH `php` and no vendor/ checked
+  out yet.
+- The empty-state test (`testEmptyStateRendersNothing`) is a valid RED even though it currently
+  PASSES (there's no field yet, so "renders nothing" is trivially true) — it is not vacuous
+  because the acceptance criterion is about the POST-implementation empty-state behavior, and
+  T-green will re-verify it still holds once the field exists and hide-empty-field logic is
+  actually exercised.
+
+**Hedged**
+- E2E RED was not executed this session (no node_modules, no seeded/running site) — recorded as
+  a non-gating gap per task instructions; kernel RED is the gate for this phase.
+
+**Evidence**
+- `docs/planning/handoffs/140-links/handoff-T-red.md`
+- RED run: `ddev exec 'SIMPLETEST_DB="mysql://db:db@db:3306/db" php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox web/modules/custom/do_group_extras/tests/src/Kernel/GroupLinksFieldTest.php'` — 6/7 FAIL for the right reason (missing config), 1 passes correctly (empty state, pre-feature).
