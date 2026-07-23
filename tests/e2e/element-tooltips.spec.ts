@@ -26,6 +26,15 @@ import { test, expect, Locator, Page } from '@playwright/test';
  * docs/groups/modules/do_chrome/src/HelpText.php (append-only, so this
  * string is stable) rather than invoking drush, to keep the spec fast and
  * dependency-free.
+ *
+ * Directory-card locator note (T CI-fix, Phase 6b): the type badge is
+ * conditionally rendered by views-view-fields--all-groups.html.twig
+ * (`{% if gc_directory.type_label %}`), and
+ * groups_chrome_preprocess_views_view_fields__all_groups() does not fall
+ * back to a bundle label when `field_group_type` is empty on a group. So
+ * not every seeded card carries a type badge / type tooltip trigger.
+ * Tests that need all 3 triggers present must filter to a card that
+ * actually has all 3 elements, rather than assuming `.first()` does.
  */
 
 /** Verbatim from HelpText::all()['visibility.open'] (do_chrome/src/HelpText.php). */
@@ -52,6 +61,23 @@ async function expectTippyOnHover(page: Page, trigger: Locator): Promise<void> {
   await expect(tippyPopup).toBeVisible();
 }
 
+/**
+ * Returns the first `.gc-directory-card` on the current page that carries
+ * all 3 badge/stat elements (type, visibility, member-count) — i.e. a card
+ * where `field_group_type` is populated, so the type badge (and its
+ * tooltip trigger) actually render. Not every seeded card qualifies (see
+ * module doc comment above), so `.first()` alone is not safe for
+ * assertions that require all 3 triggers.
+ */
+function fullDirectoryCard(page: Page): Locator {
+  return page
+    .locator('.gc-directory-card')
+    .filter({ has: page.locator('.gc-directory-card__type') })
+    .filter({ has: page.locator('.gc-directory-card__visibility') })
+    .filter({ has: page.locator('.gc-directory-card__stat--members') })
+    .first();
+}
+
 test.describe('SD-2 — Directory card ⓘ tooltips on /all-groups (#127)', () => {
   test('type, visibility, and member-count triggers carry the full tooltip contract', async ({
     page,
@@ -59,9 +85,11 @@ test.describe('SD-2 — Directory card ⓘ tooltips on /all-groups (#127)', () =
     const res = await page.goto('/all-groups');
     expect(res?.status()).toBe(200);
 
-    const cards = page.locator('.gc-directory-card');
-    expect(await cards.count()).toBeGreaterThan(0);
-    const card = cards.first();
+    // Pin to a card that actually carries all 3 badge/stat elements — the
+    // type badge is conditionally rendered (see module doc comment), so
+    // plain `.first()` risks landing on a card with no type badge/trigger.
+    const card = fullDirectoryCard(page);
+    await expect(card).toHaveCount(1);
 
     // Type badge -> adjacent trigger, scoped inside the card (no double-
     // tooltip: card triggers are inside .gc-card, distinct from #126's
@@ -122,9 +150,14 @@ test.describe('SD-2 — Directory card ⓘ tooltips on /all-groups (#127)', () =
     page,
   }) => {
     await page.goto('/all-groups');
-    const card = page.locator('.gc-directory-card').first();
-    // Exactly 3 triggers per card (type, visibility, members) — no stray
-    // extra trigger firing on the same badge/stat twice.
+    // Pin to a card carrying all 3 elements — this test asserts that WHEN a
+    // card has type + visibility + member-count badges, none of them is
+    // double-wired with more than one trigger each. A card missing the
+    // (conditionally-rendered) type badge would only ever have 2 triggers,
+    // which would make `.toBe(3)` fail for the wrong reason (missing badge,
+    // not a double-tooltip regression).
+    const card = fullDirectoryCard(page);
+    await expect(card).toHaveCount(1);
     const triggersInCard = card.locator('[data-do-tooltip]');
     expect(await triggersInCard.count()).toBe(3);
   });
