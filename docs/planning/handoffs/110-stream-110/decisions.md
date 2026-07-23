@@ -58,3 +58,6 @@
   `do_streams.info.yml`, `do_streams.module`, brief + survey + handoff-D. Verified module
   file layout under `docs/groups/modules/do_streams/` and the assemble script's copy-wholesale
   behavior for new module files.
+
+## PAUSED (overnight coordinator decision, morning triage)
+- **Paused** end of T-red drafting: 3 PHPUnit test files drafted (`do_chrome/tests/src/Unit/MyFeedHelpTextTest.php`, `do_streams/tests/src/Functional/MyFeedNavLinkTest.php`, `do_streams/tests/src/Functional/MyFeedRouteTest.php`) + 1 Playwright spec (`tests/e2e/my-feed.spec.ts`). T did not write `handoff-T-red.md` — RED-verification runs were not completed. Morning triage: (1) read these 4 test files, decide whether they need refinement or are ready; (2) run assemble + phpunit against the assembled layout to confirm RED-for-the-right-reason; (3) write handoff-T-red.md then launch F.
