@@ -103,3 +103,10 @@
 - **Fix**: Add `'node'` to `$modules` in `ShowcaseControllerHelpTest`; leave `PersonaBannerTest` unchanged (it hits `<front>`, which anonymous can reach even without `node`). Tester-authoring correction, made by O per role note ("you may edit the test if it's obviously wrong per the brief").
 - **Evidence**: `gh run 30002392033 --log-failed`; full log at `~/.claude/projects/.../full-log.txt` lines 1092–1120 (four `✘` markers, three `Current response status code is 403, but 200 expected`, one dependent selector-not-found on the 403 body).
 - **Non-blocking noise in same log**: 1 pre-existing error in `CreateGroupWizardOrganizerTest` (`link` field-type plugin missing — belongs to another module, out of #132 scope); 15 Drupal 11.2 deprecation warnings (all `⚠`, not failures).
+
+## Phase 11 (O) — CI cycle 2 verification
+
+- **Result**: `Tests: 70, Errors: 1, Failures: 0` — my node-module fix (986ea46) cleared all 4 `ShowcaseControllerHelpTest` failures. Assertion count rose 491→527 (my tests running to completion).
+- **Only remaining failure**: `CreateGroupWizardOrganizerTest::testWizardCreateGrantsOrganizerAndRedirectsToPreview` — `PluginNotFoundException: Unable to determine class for field type 'link' found in field.storage.group.field_group_links`. This is a `do_tests` module test, not #132; the `link` field-type module (`drupal/link`, Drupal core module) isn't enabled by the test class. Inherited from main; coordinator has opened hotfix PR#160.
+- **Status**: PARKED awaiting PR#160 merge to main. When it merges, this branch either rebases onto new main or is retriggered via empty commit, then auto-merges on green.
+- **Kernel + E2E**: still GREEN through both cycles.
