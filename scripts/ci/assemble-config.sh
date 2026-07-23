@@ -119,14 +119,20 @@ if [[ -f "${CORE_EXT}" ]]; then
   # which now includes do_chrome — the CH-F1 community-chrome/tooltip module,
   # #79) plus their non-custom hard dependencies that the assembled config
   # references but the baseline core.extension omits:
-  #   - flag:     required by composer.json and the assembled flag.* config.
-  #   - language: hard dependency of do_group_language (do_group_language.info:
-  #               `drupal:language`); the assembled language.types.yml config
-  #               depends on it, so a clean-room `config:import` fails to install
-  #               do_group_language unless `language` is also enabled here.
+  #   - flag:             required by composer.json and the assembled flag.* config.
+  #   - language:         hard dependency of do_group_language (do_group_language.info:
+  #                       `drupal:language`); the assembled language.types.yml config
+  #                       depends on it, so a clean-room `config:import` fails to install
+  #                       do_group_language unless `language` is also enabled here.
+  #   - message,
+  #     message_notify:   hard dependencies of do_activity (#116); the assembled
+  #                       do_activity config now references Message / Message Notify
+  #                       templates, so a clean-room `config:import` fails to install
+  #                       do_activity ("requires Message, Message Notify modules")
+  #                       unless both are also enabled here.
   # `pathauto` is intentionally NOT added: its one config entry is in the
   # excluded env-specific set (§3.6).
-  ENABLE_MODULES="$(printf '%s\n' "${MODULE_NAMES[@]}" flag language)"
+  ENABLE_MODULES="$(printf '%s\n' "${MODULE_NAMES[@]}" flag language message message_notify)"
   export ENABLE_MODULES
   AUTOLOAD="${REPO_ROOT}/vendor/autoload.php"
   if [[ ! -f "${AUTOLOAD}" ]]; then
