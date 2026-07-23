@@ -40,6 +40,9 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     container:
       image: harbor.performantlabs.com/performantlabs/pl-runner:1.64.0
+      credentials:
+        username: ${{ secrets.HARBOR_USERNAME }}
+        password: ${{ secrets.HARBOR_PASSWORD }}
       options: --user root
 
     services:
@@ -165,6 +168,9 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     container:
       image: harbor.performantlabs.com/performantlabs/pl-runner:1.64.0
+      credentials:
+        username: ${{ secrets.HARBOR_USERNAME }}
+        password: ${{ secrets.HARBOR_PASSWORD }}
       options: --user root
 
     services:
@@ -373,6 +379,9 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     container:
       image: harbor.performantlabs.com/performantlabs/pl-runner:1.64.0
+      credentials:
+        username: ${{ secrets.HARBOR_USERNAME }}
+        password: ${{ secrets.HARBOR_PASSWORD }}
       options: --user root
 
     services:
