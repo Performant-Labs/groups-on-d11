@@ -40,9 +40,22 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  *    deltas) — this test proves that observable behavior regardless of
  *    mechanism.
  *
- * None of `field_group_links` config, the view/form display components, or
- * any rendering support exists yet, so every test here is expected to
- * ERROR/FAIL until F lands the config + (if needed) the preprocess fallback.
+ * `setUp()` builds `field_group_links`'s storage, bundle instance, and both
+ * displays PROGRAMMATICALLY, mirroring the exact convention this module's two
+ * sibling kernel tests (`GroupExtrasBehaviorTest`, `GroupRestoreTest`) already
+ * use for their own config-only field (`field_group_type`): kernel tests never
+ * auto-install a listed module's `config/install/` directory or invoke
+ * `hook_install()` for modules named in `static::$modules` (confirmed by
+ * reading `KernelTestBase::bootKernel()` / `DrupalKernel::updateModules()`),
+ * so `installConfig(['field'])` alone (redundant with the grandparent
+ * `EntityKernelTestBase::setUp()`, which already calls it) can never produce
+ * `do_group_extras`'s own field config. The values below are copied verbatim
+ * from the shipped YAML so the kernel fixture never drifts from real config:
+ * `docs/groups/config/field.storage.group.field_group_links.yml`,
+ * `field.field.group.community_group.field_group_links.yml`,
+ * `core.entity_view_display.group.community_group.default.yml` (the
+ * `field_group_links` component only), and
+ * `core.entity_form_display.group.community_group.default.yml` (ditto).
  *
  * @group do_group_extras
  * @group do_tests
@@ -74,6 +87,74 @@ class GroupLinksFieldTest extends GroupsKernelTestBase {
   protected function setUp(): void {
     parent::setUp();
     $this->installConfig(['field']);
+
+    // Programmatically build field_group_links storage + instance + both
+    // displays — the same shape GroupExtrasBehaviorTest/GroupRestoreTest use
+    // for field_group_type. Settings mirror the shipped YAML exactly (see
+    // class docblock for the file list) so this fixture never drifts from
+    // real config.
+    FieldStorageConfig::create([
+      'field_name' => 'field_group_links',
+      'entity_type' => 'group',
+      'type' => 'link',
+      'cardinality' => -1,
+      'translatable' => TRUE,
+    ])->save();
+
+    FieldConfig::create([
+      'field_name' => 'field_group_links',
+      'entity_type' => 'group',
+      'bundle' => static::GROUP_TYPE_ID,
+      'label' => 'Links & Resources',
+      'required' => FALSE,
+      'translatable' => TRUE,
+      'settings' => [
+        // LinkItemInterface::LINK_GENERIC (internal + external).
+        'link_type' => 17,
+        // LinkTitleVisibility::Required.
+        'title' => 2,
+      ],
+    ])->save();
+
+    $view_display = EntityViewDisplay::create([
+      'targetEntityType' => 'group',
+      'bundle' => static::GROUP_TYPE_ID,
+      'mode' => 'default',
+      'status' => TRUE,
+    ]);
+    $view_display->setComponent('field_group_links', [
+      'label' => 'above',
+      'type' => 'link',
+      'weight' => 20,
+      'region' => 'content',
+      'settings' => [
+        'trim_length' => 80,
+        'url_only' => FALSE,
+        'url_plain' => FALSE,
+        'rel' => 'noopener',
+        'target' => '_blank',
+      ],
+      'third_party_settings' => [],
+    ]);
+    $view_display->save();
+
+    $form_display = EntityFormDisplay::create([
+      'targetEntityType' => 'group',
+      'bundle' => static::GROUP_TYPE_ID,
+      'mode' => 'default',
+      'status' => TRUE,
+    ]);
+    $form_display->setComponent('field_group_links', [
+      'type' => 'link_default',
+      'weight' => 4,
+      'region' => 'content',
+      'settings' => [
+        'placeholder_url' => '',
+        'placeholder_title' => '',
+      ],
+      'third_party_settings' => [],
+    ]);
+    $form_display->save();
   }
 
   /**

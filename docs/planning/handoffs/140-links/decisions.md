@@ -161,3 +161,53 @@ Append-only. Every phase adds an entry.
   warnings are all on pre-existing lines F did not touch (confirmed via `git diff --stat`).
 - `bash scripts/ci/assemble-config.sh`: exits 0; all 4 new/edited config files present in the
   assembled `config/sync/`.
+
+---
+
+## Phase 6 — T (verify, GREEN + Tier 2)
+
+**Decided**
+- Fixed the test-authorship bug F flagged (not F's to fix): added programmatic
+  `FieldStorageConfig`/`FieldConfig`/`EntityViewDisplay`/`EntityFormDisplay` construction to
+  `GroupLinksFieldTest::setUp()`, mirroring `GroupExtrasBehaviorTest`/`GroupRestoreTest`'s
+  established convention for this module's config-only fields. Every setting value copied verbatim
+  from F's shipped YAML so the kernel fixture cannot drift from real config.
+- Found and fixed a SECOND test-authorship bug during E2E verification:
+  `tests/e2e/group-links.spec.ts`'s rel="noopener" test swept every `a[href^="http"]` on the whole
+  page and failed against Olivero's own unrelated "Powered by Drupal" footer link. Rescoped the
+  locator to `.field--name-field-group-links a[href^="http"]` — the feature's own field wrapper —
+  so the test only asserts on links this story's field renders.
+- Ran the FULL E2E path this session (not deferred to CI-only): installed the site
+  (`drush site:install`), imported assembled config, seeded all 3 demo-data scripts (mirroring
+  `.github/workflows/test.yml`'s exact sequence), `npm install` + `playwright install chromium`,
+  and ran `tests/e2e/group-links.spec.ts` against the live seeded DDEV site — both tests GREEN.
+- Ran a mutation-sensitivity spot-check on the kernel suite (mutated `rel: noopener` ->
+  `rel: mutated-none` in the test's own fixture, confirmed FAIL, reverted, confirmed GREEN again)
+  to prove the test pins real behavior, not vacuous config presence.
+
+**Assumed**
+- `config/sync/` churn from `site:install`/`config:import` in this session is expected
+  build-pipeline noise (mirrors what CI's e2e job does in its own ephemeral runner) and is NOT part
+  of this story's diff — not staged, flagged to O not to stage it.
+
+**Hedged**
+- None — both RED->GREEN transitions for the two test-authorship bugs found were fully resolved
+  and re-verified in this session, not deferred.
+
+**Evidence**
+- `docs/planning/handoffs/140-links/handoff-T-green.md`
+- Kernel (story): 7/7 GREEN, 165 assertions, identical shape to F's diagnostic run.
+- Kernel (no-regression, 11 modules, exact task command): `Tests: 118, Assertions: 3258,
+  Deprecations: 28` — zero `Failures:` line (F's Phase 5 run on the same command showed
+  `Failures: 6`, all in `GroupLinksFieldTest`; those 6 are now gone).
+- E2E (`group-links.spec.ts`): 2/2 GREEN against a live, fully seeded DDEV site.
+- E2E full-suite sweep: 63 passed, 1 unrelated pre-existing failure in `group-restore.spec.ts`
+  (#143's own story — confirmed via `git diff --stat` that neither `RestoreGroupForm.php` nor
+  `group-restore.spec.ts` were touched by #140's diff), 1 skipped.
+- phpcs on the edited test file: 8 pre-existing doc-comment-style findings, confirmed identical on
+  the original committed version — zero NEW issues from the `setUp()` edit.
+- YAML parse: all 4 config files parse cleanly via `Symfony\Component\Yaml\Yaml::parseFile()`.
+- `assemble-config.sh`: exits 0; all 4 config files present in assembled `config/sync/`.
+
+**Verdict:** T-green complete, no blocking issues. Ready for U (UI surface — group Full display
+page).
