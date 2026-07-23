@@ -7,6 +7,7 @@ namespace Drupal\do_showcase\Persona;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
+use Drupal\Core\Url;
 use Drupal\do_chrome\HelpText;
 use Drupal\do_showcase\ShowcaseCatalog;
 
@@ -46,6 +47,20 @@ use Drupal\do_showcase\ShowcaseCatalog;
  * submits the form to its last-rendered `action` — a real, focusable,
  * Enter-activatable `<button>`, never `#type => submit`.
  *
+ * Phase 6.5 (diff-gate B-1 repair): both the form's initial `action` and the
+ * `onchange` handler's rewritten `action` are built from
+ * `Url::fromRoute('do_showcase.persona_switch', [...])`, never a hand-
+ * written `/persona-switch/` literal — a multisite/subdirectory/language-
+ * prefix/path-alias install can legitimately generate a different base path,
+ * and a hard-coded literal would silently point at the wrong path there. The
+ * JS-usable "base path the value gets appended to" is derived by generating
+ * the URL for a sentinel persona id (`self::PERSONA_ID_SENTINEL`, a string
+ * that cannot collide with any real allowlisted persona id or with anything
+ * `rawurlencode()` would alter) and stripping that sentinel back off the
+ * generated string — the same URL generator produces both the initial
+ * action and the JS prefix, so there is exactly one source of truth for the
+ * route's path shape.
+ *
  * Current selection is resolved from REAL session state (never a hardcoded
  * default): if the current user is authenticated and their account name
  * matches one of the 4 personas() `uname` values, that option is selected;
@@ -67,6 +82,18 @@ use Drupal\do_showcase\ShowcaseCatalog;
 final class PersonaSwitcher {
 
   use StringTranslationTrait;
+
+  /**
+   * A sentinel persona-id value used only to derive the switch-URL prefix.
+   *
+   * Phase 6.5 (diff-gate B-1 repair): all-uppercase + underscores, so it can
+   * never collide with a real persona id (`anonymous`, `elena-garcia`,
+   * `maria-chen`, `moderator` — all lowercase/hyphenated) and contains no
+   * character `rawurlencode()`/the route generator would alter, so it
+   * survives URL generation intact and can be reliably located and stripped
+   * back out of the generated string.
+   */
+  private const PERSONA_ID_SENTINEL = '__PERSONA_ID_SENTINEL__';
 
   public function __construct(
     private readonly ShowcaseCatalog $showcaseCatalog,
@@ -111,13 +138,29 @@ final class PersonaSwitcher {
     // The form action always starts pointing at the CURRENTLY-selected
     // persona's own switch path — a safe, self-consistent default (never a
     // dead/placeholder path) that the inline onchange handler below
-    // rewrites the moment a different option is chosen.
-    $initial_action = '/persona-switch/' . rawurlencode($selected_id);
+    // rewrites the moment a different option is chosen. Generated via the
+    // route's own URL generator (Phase 6.5 / diff-gate B-1), never a
+    // hand-written `/persona-switch/` literal.
+    $initial_action = Url::fromRoute('do_showcase.persona_switch', ['persona' => $selected_id])->toString();
+
+    // The JS-usable prefix: generate the same route's URL for the sentinel
+    // id, then strip the sentinel back off — whatever base path the URL
+    // generator produced (accounting for a subdirectory install, a language
+    // prefix, or a path alias) is preserved; only the sentinel itself is
+    // removed, leaving a prefix the onchange handler can safely concatenate
+    // `encodeURIComponent(this.value)` onto.
+    $sentinel_action = Url::fromRoute('do_showcase.persona_switch', ['persona' => self::PERSONA_ID_SENTINEL])->toString();
+    $action_prefix = str_replace(self::PERSONA_ID_SENTINEL, '', $sentinel_action);
+    $action_prefix_js = htmlspecialchars(
+      json_encode($action_prefix, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+      ENT_QUOTES,
+      'UTF-8'
+    );
 
     $markup = '<form method="post" action="' . htmlspecialchars($initial_action, ENT_QUOTES, 'UTF-8') . '" class="do-showcase-persona-switcher-form">'
       . '<label for="persona-switcher-select">' . htmlspecialchars((string) $this->t('Browse as'), ENT_QUOTES, 'UTF-8') . '</label> '
       . '<span class="do-showcase-info" tabindex="0" role="note" aria-label="' . $wrapper_tooltip_attr . '" data-do-tooltip="' . $wrapper_tooltip_attr . '">ⓘ</span> '
-      . '<select id="persona-switcher-select" name="persona" onchange="this.form.action=\'/persona-switch/\'+encodeURIComponent(this.value);this.form.submit();">'
+      . '<select id="persona-switcher-select" name="persona" onchange="this.form.action=' . $action_prefix_js . '+encodeURIComponent(this.value);this.form.submit();">'
       . $options_markup
       . '</select> '
       . '<button type="submit" class="do-showcase-persona-switcher-go">' . htmlspecialchars((string) $this->t('Go'), ENT_QUOTES, 'UTF-8') . '</button>'

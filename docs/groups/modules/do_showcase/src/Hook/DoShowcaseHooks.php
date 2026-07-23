@@ -58,11 +58,22 @@ use Drupal\do_showcase\ShowcaseCatalog;
  * All three hooks assign disjoint keys into the same `$page_top` array
  * (`do_showcase_ribbon` / `do_showcase_persona_switcher` /
  * `do_showcase_persona_banner`), which `page_top` natively supports.
+ *
+ * Phase 6.5 (diff-gate B-3 repair): `personaBanner()` used to `new
+ * ShowcaseCatalog()` its own throwaway instance instead of using the shared
+ * `do_showcase.showcase_catalog` service — bypassing the DI container and
+ * risking divergence from every other consumer of that service (e.g.
+ * `PersonaSwitcher`, which is constructor-injected with the SAME instance).
+ * `ShowcaseCatalog` is now constructor-injected here too (as `$catalog`),
+ * matching how `$personaSwitcher` is already injected, and
+ * `do_showcase.services.yml`'s `do_showcase.hooks` entry now passes
+ * `@do_showcase.showcase_catalog` as a second argument.
  */
 class DoShowcaseHooks {
 
   public function __construct(
     private readonly PersonaSwitcher $personaSwitcher,
+    private readonly ShowcaseCatalog $catalog,
   ) {}
 
   /**
@@ -190,6 +201,14 @@ class DoShowcaseHooks {
    * (`ShowcaseCatalog::personas()`), consumed identically by the switcher's
    * `<option>` text and this banner.
    *
+   * Phase 6.5 (diff-gate B-3 repair): this method used to `new
+   * ShowcaseCatalog()` its own instance rather than using the shared
+   * `do_showcase.showcase_catalog` service already injected everywhere else
+   * that reads persona data (`PersonaSwitcher`). Now reads
+   * `$this->catalog->personas()` — the constructor-injected instance — so
+   * there is exactly one `ShowcaseCatalog` instance in play across the
+   * request, matching how `PersonaSwitcher` is already injected.
+   *
    * The visible "switch back" text is carried by the real `<a>` link itself
    * (not baked into the preceding text span), so the banner's rendered text
    * concatenates to the exact issue phrasing with no duplicated phrase:
@@ -232,11 +251,10 @@ class DoShowcaseHooks {
       return;
     }
 
-    $catalog = new ShowcaseCatalog();
     $account_name = $current_user->getAccountName();
 
     $active_persona = NULL;
-    foreach ($catalog->personas() as $persona) {
+    foreach ($this->catalog->personas() as $persona) {
       if ($persona['uname'] !== NULL && $persona['uname'] === $account_name) {
         $active_persona = $persona;
         break;

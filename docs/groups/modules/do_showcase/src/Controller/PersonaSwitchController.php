@@ -43,6 +43,13 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * the personas' access is mostly additive relative to each other, so a
  * destination 403 is the rare case).
  *
+ * Phase 6.5 (diff-gate B-2 repair): the raw Referer header is
+ * attacker-controlled (a request can carry any `Referer:` value it likes),
+ * so redirecting to it unconditionally is an open redirect. `redirectBack()`
+ * now only trusts the Referer when its scheme+host+port matches the CURRENT
+ * request's own scheme+host+port — an external Referer falls back to
+ * `<front>` instead of being followed.
+ *
  * The constructor-injected entity type manager is stored on
  * `$personaEntityTypeManager`, NOT `$entityTypeManager` — `ControllerBase`
  * already declares a NON-readonly protected `$entityTypeManager` property
@@ -127,6 +134,13 @@ final class PersonaSwitchController extends ControllerBase {
   /**
    * Redirects to the referring page, falling back to `<front>`.
    *
+   * Phase 6.5 (diff-gate B-2 repair): the Referer header is
+   * attacker-controlled, so it is only trusted when it is same-origin with
+   * the current request (see {@see self::isSameOriginReferer()}) — an
+   * off-site (or malformed) Referer falls back to `<front>` rather than
+   * being followed, closing the open-redirect vector a raw
+   * `new RedirectResponse($referer)` would otherwise expose.
+   *
    * @param \Symfony\Component\HttpFoundation\Request|null $request
    *   The current request, or NULL if unavailable.
    *
@@ -135,10 +149,55 @@ final class PersonaSwitchController extends ControllerBase {
    */
   private function redirectBack(?Request $request): RedirectResponse {
     $referer = $request?->headers->get('referer');
-    if (!empty($referer)) {
+    if ($request !== NULL && !empty($referer) && $this->isSameOriginReferer($referer, $request)) {
       return new RedirectResponse($referer);
     }
     return $this->redirect('<front>');
+  }
+
+  /**
+   * Determines whether $referer is same-origin with the current $request.
+   *
+   * Compares scheme, host, and port as separate parsed components against
+   * the current request's own `getScheme()`/`getHost()`/`getPort()` — never
+   * a raw string prefix/substring check, so a Referer that merely happens to
+   * start with the site's domain as a substring (e.g.
+   * `https://example.com.attacker.test/`) is correctly rejected, and default
+   * ports (80 for http, 443 for https) compare equal to an implicit/absent
+   * port on either side.
+   *
+   * @param string $referer
+   *   The raw `Referer` header value.
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The current request.
+   *
+   * @return bool
+   *   TRUE if $referer is same-origin with the current request.
+   */
+  private function isSameOriginReferer(string $referer, Request $request): bool {
+    $referer_scheme = parse_url($referer, PHP_URL_SCHEME);
+    $referer_host = parse_url($referer, PHP_URL_HOST);
+
+    if (!is_string($referer_scheme) || $referer_scheme === '' || !is_string($referer_host) || $referer_host === '') {
+      // No scheme/host at all (e.g. a relative Referer, or an unparsable
+      // value) — never trust it; the caller falls back to `<front>`.
+      return FALSE;
+    }
+
+    if (strtolower($referer_scheme) !== strtolower($request->getScheme())) {
+      return FALSE;
+    }
+
+    if (strtolower($referer_host) !== strtolower($request->getHost())) {
+      return FALSE;
+    }
+
+    $referer_port = parse_url($referer, PHP_URL_PORT);
+    $default_port = ($referer_scheme === 'https') ? 443 : 80;
+    $referer_effective_port = $referer_port ?? $default_port;
+    $request_effective_port = $request->getPort() ?? $default_port;
+
+    return (int) $referer_effective_port === (int) $request_effective_port;
   }
 
 }

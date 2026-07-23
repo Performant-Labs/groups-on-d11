@@ -344,3 +344,44 @@ confirms the production defect is resolved and no collateral regression in the o
 **Evidence:** `handoff-T-green.md` § "Phase 6-followup: post F-fix re-verify (2026-07-23)" —
 assemble output, full PHPUnit testdox output, and the 4-row E2E pass table with per-test
 browser/OS/duration.
+
+## F — Phase 6.5 (2026-07-23)
+
+**Decided:** Fixed all 3 of o4-mini's diff-review BLOCK findings, none else. B-1
+(`PersonaSwitcher.php`): replaced both hardcoded `/persona-switch/` literals with
+`Url::fromRoute('do_showcase.persona_switch', [...])`-derived values — the initial `<form action>`
+directly, and the JS-usable base-path prefix via a sentinel-persona-id-then-`str_replace()`
+technique (`__PERSONA_ID_SENTINEL__`, chosen because it cannot collide with any real allowlisted
+persona id and survives URL generation/`rawurlencode()` unaltered). B-2
+(`PersonaSwitchController.php`): `redirectBack()` now only follows the `Referer` header when a new
+`isSameOriginReferer()` helper confirms its parsed scheme+host+port matches the current request's
+own (component-by-component, not a string-prefix check, so a substring-matching attacker host like
+`example.com.attacker.test` is correctly rejected) — an off-site Referer falls back to `<front>`.
+B-3 (`DoShowcaseHooks.php` + `do_showcase.services.yml`): constructor-injected `ShowcaseCatalog`
+into `DoShowcaseHooks` (matching how `PersonaSwitcher` is already injected, including the same
+class-name-alias requirement for `#[Hook]` autowiring), and `personaBanner()` now reads
+`$this->catalog->personas()` instead of `new ShowcaseCatalog()`-ing its own instance.
+`personaSwitcherWidget()` was inspected per the task's instruction and already had no `new`
+anywhere — no change needed there.
+
+**Decided:** Left all 3 WARN findings (W-1 inline-onchange/CSP, W-2 deprecated `user_logout()`,
+W-3 `\Drupal::service`/`\Drupal::currentUser()` statics in `personaBanner()`) untouched, per the
+task's explicit "do NOT fix in this pass" instruction — W-3 in particular matches the pre-existing,
+untouched `pageTop()` method's own established convention in the same class (confirmed via a
+before/after lint diff: identical 9 warnings before and after this pass).
+
+**Found:** None (no test-authorship bugs surfaced by this pass — all pre-existing tests continued
+to pass unmodified once the 3 BLOCK fixes were applied; none of the story's tests assert the exact
+`<form action>` string or the exact redirect `Location`, only status codes and the (already
+`Url::fromRoute`-generated, unchanged-by-this-pass) banner switch-back `href`, so none needed
+updating for the new URL-generation/referer-validation mechanism).
+
+**Evidence:** Re-ran the full story-scoped PHPUnit suite (50/50 Kernel+Unit, 17/17 Functional) and
+the full custom-module Kernel regression (123/123) — all three unchanged from the pre-Phase-6.5
+baseline, zero failures/errors (confirmed via grep for "Failed asserting"/"FAILURES!"/"ERRORS!" —
+0 occurrences in any run). `phpcs` on all 3 touched files: 0 errors; `DoShowcaseHooks.php`'s 9
+pre-existing warnings confirmed unchanged via a before/after lint comparison (linted a temporary
+renamed copy of the pre-Phase-6.5 file, then deleted it). A scratch `drush php:script` (deleted
+after use) confirmed the sentinel-strip URL-generation technique produces byte-identical real
+URLs to the old hardcoded literal on this site's config; `curl` against the live DDEV front page
+confirmed the rendered `<form action>`/`onchange` markup is shape-identical to the pre-fix version.

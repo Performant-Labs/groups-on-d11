@@ -416,3 +416,115 @@ exactly).
 `docs/groups/modules/do_showcase/src/Hook/DoShowcaseHooks.php`,
 `docs/groups/modules/do_showcase/src/Persona/PersonaSwitcher.php`. Not committed (F does not
 commit/push/PR).
+
+## Phase 6.5 (2026-07-23): diff-gate BLOCK repair
+
+o4-mini's diff review (`docs/planning/handoffs/120-persona-switcher/diff-review-o4mini.md`)
+returned 3 BLOCK findings. All 3 fixed; all 3 WARN findings (W-1 inline-onchange/CSP, W-2
+`user_logout()` deprecation, W-3 `\Drupal::service` statics) deliberately left as-is per the task's
+own explicit "do NOT fix in this pass" instruction.
+
+- **B-1 (hardcoded `/persona-switch/` URLs)** — `src/Persona/PersonaSwitcher.php`. Both the
+  form's initial `action` and the JS-usable base path the `onchange` handler concatenates onto are
+  now generated from `Url::fromRoute('do_showcase.persona_switch', [...])`, never a hand-written
+  literal. The initial `action` is a direct per-selection `Url::fromRoute(...)->toString()` call.
+  The JS-usable **prefix** is derived by generating the SAME route's URL for a sentinel persona id
+  (`self::PERSONA_ID_SENTINEL = '__PERSONA_ID_SENTINEL__'` — all-uppercase/underscores, so it can
+  never collide with a real allowlisted persona id, and contains no character the URL generator or
+  `rawurlencode()` would alter) and stripping the sentinel back out of the generated string via
+  `str_replace()`. Manually verified via a `drush php:script` scratch check (not committed) that
+  this produces the exact same real-world URLs as the old hardcoded literal on this site's config
+  (`/persona-switch/elena-garcia`, prefix `/persona-switch/`), while now correctly adapting on a
+  subdirectory/language-prefix/path-alias install where the hardcoded literal would have silently
+  pointed at the wrong path. Confirmed the actual rendered `<form>`/`onchange` markup via `curl`
+  against the live DDEV front page — byte-identical shape to the pre-fix hardcoded version.
+
+- **B-2 (open redirect in `redirectBack()`)** — `src/Controller/PersonaSwitchController.php`.
+  `redirectBack()` no longer trusts the raw `Referer` header unconditionally. Added a private
+  `isSameOriginReferer(string $referer, Request $request): bool` helper that parses the Referer's
+  scheme/host/port via `parse_url()` and compares each component against the CURRENT request's own
+  `getScheme()`/`getHost()`/`getPort()` (with default-port normalization — 80 for http, 443 for
+  https — so an implicit vs. explicit default port on either side still compares equal). An
+  off-site, malformed, or scheme/host-mismatched Referer now falls back to `<front>` instead of
+  being followed, closing the open-redirect vector. Compared by parsed components rather than a
+  string-prefix/`str_starts_with()` check specifically so a Referer like
+  `https://example.com.attacker.test/` (which merely starts with the real host as a substring)
+  is correctly rejected, not accidentally trusted.
+
+- **B-3 (`personaBanner()` does `new ShowcaseCatalog()`)** — `src/Hook/DoShowcaseHooks.php` +
+  `do_showcase.services.yml`. Added `ShowcaseCatalog $catalog` as a second constructor-promoted
+  parameter on `DoShowcaseHooks`, threaded the same way `PersonaSwitcher $personaSwitcher` already
+  is. `personaBanner()` now reads `$this->catalog->personas()` instead of instantiating its own
+  throwaway `ShowcaseCatalog`. Inspected the sibling `personaSwitcherWidget()` method per the
+  task's instruction — it already delegates entirely to `$this->personaSwitcher->build()` with no
+  `new` anywhere, so no further change was needed there. `do_showcase.services.yml`'s
+  `do_showcase.hooks` entry gained a second argument (`@do_showcase.showcase_catalog`). Because
+  `DoShowcaseHooks` is auto-registered as an AUTOWIRED service by Drupal's `#[Hook]` attribute
+  discovery (which resolves constructor args by CLASS NAME, not by this file's `arguments:` list —
+  the exact issue the pre-existing `PersonaSwitcher` class-name alias already documents), a second
+  class-name alias (`Drupal\do_showcase\ShowcaseCatalog: '@do_showcase.showcase_catalog'`) was
+  added alongside the existing `PersonaSwitcher` one, for the identical reason.
+
+**Verify:**
+
+Kernel + Unit (do_showcase-scoped):
+```
+SIMPLETEST_DB='mysql://root:root@db:3306/db' php vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+  --testdox web/modules/custom/do_showcase/tests/src/Kernel web/modules/custom/do_showcase/tests/src/Unit
+```
+Result: **50/50 pass** (19/19 Kernel + 31/31 Unit) — exit code 0, "OK, but there were issues!" (2
+pre-existing deprecation notices only, unchanged from every prior phase's baseline). Zero failures.
+
+Functional:
+```
+SIMPLETEST_DB='mysql://root:root@db:3306/db' \
+  SIMPLETEST_BASE_URL='http://gm120-groups-on-d11.ddev.site' \
+  php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox \
+  web/modules/custom/do_showcase/tests/src/Functional
+```
+Result: **17/17 pass** — exit code 0. Confirmed via full-output grep that zero "Failed asserting" /
+"FAILURES!" / "ERRORS!" strings appear anywhere in the run; the progress line reads
+`17 / 17 (100%)`. `PersonaBannerTest` (asserts `a[href="/persona-switch/anonymous"]` for the
+switch-back link) and the three redirect-status tests
+(`PersonaSwitchControllerMethodTest`/`PersonaUidOneGuardTest`) all still pass unchanged — none of
+them assert the exact `<form action>` string or the exact redirect Location, only status codes and
+the (already-`Url::fromRoute`-generated, untouched-by-this-pass) banner switch-back `href`.
+
+Full custom-module Kernel regression:
+```
+SIMPLETEST_DB='mysql://root:root@db:3306/db' php vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+  $(find web/modules/custom -type d -path '*/tests/src/Kernel')
+```
+Result: **123/123 pass**, zero failures/errors (confirmed via grep — 0 occurrences of "Failed
+asserting"/"FAILURES!"/"ERRORS!"; progress line `123 / 123 (100%)`, all markers `D` (deprecation)
+or `.` (pass), none `F`/`E`).
+
+Lint:
+```
+php vendor/bin/phpcs --standard=Drupal,DrupalPractice \
+  docs/groups/modules/do_showcase/src/Persona/PersonaSwitcher.php \
+  docs/groups/modules/do_showcase/src/Controller/PersonaSwitchController.php \
+  docs/groups/modules/do_showcase/src/Hook/DoShowcaseHooks.php
+```
+Result: **0 errors** on all 3 files. `PersonaSwitcher.php` and `PersonaSwitchController.php`:
+exit code 0, zero output — 0 errors, 0 warnings. `DoShowcaseHooks.php`: 0 errors, 9
+`DrupalPractice` warnings (raw `t()`/`\Drupal::` calls) — confirmed via a before/after lint
+comparison (linted a temporary renamed copy of the pre-Phase-6.5 file inside DDEV, then deleted it)
+that these are the SAME 9 pre-existing warnings at the same lines, present before this pass;
+Phase 6.5 added zero new lint findings to this file. Matches the task's own W-3 deferral note
+("matches pre-existing pageTop() convention; deferred").
+
+**Manual URL-generation spot check** (via a scratch, uncommitted `drush php:script`, deleted after
+use): confirmed `Url::fromRoute('do_showcase.persona_switch', ['persona' => 'elena-garcia'])` →
+`/persona-switch/elena-garcia`; the sentinel-strip prefix technique → `/persona-switch/`; and
+`curl`-ing the live front page confirmed the rendered `<form action="/persona-switch/anonymous">`
+and `onchange="this.form.action='/persona-switch/'+encodeURIComponent(this.value);this.form.submit();"`
+are byte-identical in shape to the pre-fix hardcoded version (only the *mechanism* generating that
+string changed, not its value on this site's config).
+
+**Staged** (by explicit path, no test files, no `git add .`):
+`docs/groups/modules/do_showcase/src/Persona/PersonaSwitcher.php`,
+`docs/groups/modules/do_showcase/src/Controller/PersonaSwitchController.php`,
+`docs/groups/modules/do_showcase/src/Hook/DoShowcaseHooks.php`,
+`docs/groups/modules/do_showcase/do_showcase.services.yml`. Not committed (F does not
+commit/push/PR).

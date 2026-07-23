@@ -40,6 +40,17 @@ services:
   # in core.services.yml).
   Drupal\do_showcase\Persona\PersonaSwitcher: '@do_showcase.persona_switcher'
 
+  # Phase 6.5 (diff-gate B-3 repair): the SAME class-name-alias need as
+  # PersonaSwitcher directly above, now that DoShowcaseHooks also
+  # constructor-injects ShowcaseCatalog (so personaBanner() can read
+  # $this->catalog->personas() instead of `new ShowcaseCatalog()`-ing its
+  # own throwaway instance). Without this alias, autowiring
+  # DoShowcaseHooks's $catalog parameter would throw the identical
+  # "Cannot autowire service ... references class
+  # Drupal\do_showcase\ShowcaseCatalog ... but no such service exists" error
+  # PersonaSwitcher's alias above already documents.
+  Drupal\do_showcase\ShowcaseCatalog: '@do_showcase.showcase_catalog'
+
   # #120 SC-1 (brief-amendments.md Amendment 3/4): route-level access check
   # for do_showcase.persona_switch — the uid-1 guard + persona-allowlist
   # enforcement, checked BEFORE PersonaSwitchController ever runs. Matches
@@ -63,9 +74,15 @@ services:
   # explicit entry is kept for documentation/consistency with
   # do_notifications.hooks' own precedent, though the autowired registration
   # is what the hook system actually uses at runtime.
+  #
+  # Phase 6.5 (diff-gate B-3 repair): a second argument, the
+  # do_showcase.showcase_catalog service, was added so personaBanner() can
+  # read the shared ShowcaseCatalog instance instead of `new`-ing its own
+  # (see the Drupal\do_showcase\ShowcaseCatalog class-name alias above for
+  # why the autowired registration needs it too).
   do_showcase.hooks:
     class: Drupal\do_showcase\Hook\DoShowcaseHooks
     autowire: false
-    arguments: ['@do_showcase.persona_switcher']
+    arguments: ['@do_showcase.persona_switcher', '@do_showcase.showcase_catalog']
     tags:
       - { name: 'hook_implementations' }
