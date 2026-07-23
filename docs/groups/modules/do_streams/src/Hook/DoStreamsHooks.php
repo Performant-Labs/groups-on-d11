@@ -46,11 +46,20 @@ class DoStreamsHooks {
   public const FOLLOWING_FEED_VIEW_ID = 'following_feed';
 
   /**
-   * Builds the per-viewing-user stream cache tag ([A-W2]).
+   * The block plugin id of ST-5's shipped "Recent posts" block (#114).
    *
-   * Membership/following scope is per-viewing-user (not per-group like
-   * do_group_pin's own tag), so invalidation is scoped per user viewing
-   * their own stream.
+   * The exact `plugin:` value block.block.do_streams_user_activity.yml
+   * carries (`views_block:<view id>-<display id>`) — used by
+   * self::preprocessBlock() to scope the `.do-streams-profile-activity`
+   * wrapper class + `do_streams/profile_activity` library attachment to
+   * exactly this block, mirroring self::preprocessViewsView()'s existing
+   * view-id-guarded convention (guard on a specific, meaningful identifier,
+   * return immediately otherwise).
+   */
+  public const USER_ACTIVITY_BLOCK_PLUGIN_ID = 'views_block:user_activity-block_1';
+
+  /**
+   * Builds the per-viewing-user stream cache tag ([A-W2]).
    *
    * @param int|string $uid
    *   The viewing user's id.
@@ -403,6 +412,39 @@ class DoStreamsHooks {
       return;
     }
     $variables['#attached']['library'][] = 'do_streams/following';
+  }
+
+  /**
+   * Wraps the "Recent posts" profile-activity block with its own class.
+   *
+   * Issue #114 ST-5. Mirrors self::preprocessViewsView()'s existing
+   * view/block-id-guarded convention exactly (guard on a specific,
+   * meaningful identifier, return immediately otherwise) rather than
+   * introducing a new attachment mechanism.
+   *
+   * Uses `hook_preprocess_block` (not `preprocess_views_view`) deliberately:
+   * `block.html.twig` renders the block's own `<h2>{{ label }}</h2>` title
+   * and `{{ content }}` (the view's rendered output) as SIBLINGS inside one
+   * outer `<div{{ attributes }}>` — attaching the wrapper class at the
+   * block level, not the inner views level, gives the wireframe's single
+   * coherent "Recent posts" section (heading + rows together under one
+   * selector), matching wireframe.md's depiction of one bordered block
+   * rather than a class that would only wrap the rows, sibling to the
+   * heading.
+   *
+   * The CSS itself (`css/profile-activity.css`) only carries small
+   * container-rhythm tweaks — card visuals are inherited from the shared
+   * theme stylesheet, exactly as `css/following.css` already established
+   * for #111 ST-2.
+   */
+  #[Hook('preprocess_block')]
+  public function preprocessBlock(array &$variables): void {
+    $plugin_id = $variables['plugin_id'] ?? NULL;
+    if ($plugin_id !== self::USER_ACTIVITY_BLOCK_PLUGIN_ID) {
+      return;
+    }
+    $variables['attributes']['class'][] = 'do-streams-profile-activity';
+    $variables['#attached']['library'][] = 'do_streams/profile_activity';
   }
 
   /**
