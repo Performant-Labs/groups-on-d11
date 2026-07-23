@@ -37,7 +37,7 @@ jobs:
   # ---------------------------------------------------------------------------
   kernel:
     name: Kernel tests (do_tests)
-    runs-on: self-hosted-linux
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
 
     services:
       mysql:
@@ -159,7 +159,7 @@ jobs:
   # ---------------------------------------------------------------------------
   functional:
     name: Functional tests (BrowserTestBase)
-    runs-on: self-hosted-linux
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
 
     services:
       mysql:
@@ -364,7 +364,7 @@ jobs:
   # ---------------------------------------------------------------------------
   e2e:
     name: E2E (Playwright)
-    runs-on: self-hosted-linux
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
 
     services:
       mysql:
