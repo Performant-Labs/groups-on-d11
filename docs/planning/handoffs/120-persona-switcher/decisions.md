@@ -137,3 +137,31 @@ exists with `permissions: {}` + `admin: true`; `ShowcaseCatalog::personas()` lin
 **Evidence:** A1 adds group role edit with enumerated perms; A2 drops PersonaRegistry and extends `ShowcaseCatalog::personas()` (no field-name collision with existing `{id,name,description}`); A3 drops masquerade dep and routes uid-1/allowlist enforcement through A4's route-level `PersonaAccessCheck` (tagged `access_check`, POST-only for state-change); A5 splits banner into a sibling `#[Hook('page_top')]`; A6 pins `#cache[contexts]=>[user]`; A7 trims HelpText to ≤135 chars; A8 uses `STATUS_PENDING` const.
 
 **Non-blocking note for F:** `RestoreGroupAccess::access` only checks `edit group` (group) or `administer group` (user); no separate archive-only group perm exists in `do_group_extras`. The "archive perm" third bullet in A1 will collapse to just `edit group` on inspection — harmless if kept, cleaner if dropped with a one-liner.
+
+## T — Phase 4 (RED)
+
+**Decided:** Added one Unit test beyond the harness's original file list —
+`GroupsModerateRoleConfigShapeTest.php` — reading the REAL on-disk
+`group.role.community_group-groups_moderate.yml`, matching this repo's own
+`do_group_membership/tests/src/Unit/GroupRoleConfigShapeTest.php` precedent. This is because
+`PersonaAccessPositiveTest`/`PersonaAccessNegativeTest` (Functional, as originally scoped)
+reconstruct group roles via the storage API with the AMENDED target shape, which made them pass
+today (the underlying `do_group_membership` access-check code already exists and is correct) —
+an invalid RED if left as the only Amendment-1 coverage. The Unit test reading the real shipped
+YAML is the genuine RED anchor for Amendment 1's config edit.
+
+**Decided:** Kept 2/19 Kernel assertions, 1/3 Unit assertions, and 8/17 Functional assertions as
+explicit pre-existing-true regression guards (not RED) rather than deleting them — each is
+individually documented in its test file's doc comment as to why it is expected to pass before F's
+code exists, distinguishing "correctly asserting a pre-existing invariant" from "silently green
+for the wrong reason."
+
+**Assumed:** BrowserTestBase's install-time uid-1 account has SOME resolvable
+`getAccountName()` value usable as a route parameter in `PersonaUidOneGuardTest`; flagged to F as
+a design recommendation (compare by uid, not uname string, in `PersonaAccessCheck`) since a blank
+uid-1 uname would be fragile either way.
+
+**Evidence:** Full RED run logs in `handoff-T-red.md` — 17/19 Kernel, 2/3 Unit, 9/17 Functional
+tests fail for the right reason (missing class/service/method/field/route/markup); E2E spec
+`--list`s cleanly (4 tests); existing `do_showcase` Unit suite (29 pre-existing tests) stays green
+with zero collateral breakage.
