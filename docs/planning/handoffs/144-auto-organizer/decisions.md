@@ -246,3 +246,160 @@ Format per entry: **Decided / Assumed / Hedged / Evidence**.
 - Staging: 5 test files + all handoff files (survey, brief, wireframe, handoff-D, handoff-A,
   handoff-T-red, decisions.md itself). NO `config/sync/*.yml` (reverted), NO `web/modules/custom/`,
   NO `web/sites/simpletest/`. Explicit-path staging, no `git add .`.
+
+## F — Phase 5 (implementation)
+
+- **Decided:** Implemented in the order specified — (1) `GroupMembershipManager::ensureRole()`,
+  (2) `CreateGroupOrganizerHook` (insert hook + form_alter), (3)
+  `GroupCreatedPreviewController` + route + library + CSS, (4) optional messenger status message
+  (included), (5) the T-red-flagged `CreateGroupWizardOrganizerTest` fixture-helper fix (delegated
+  to F per the issue's task text — ONLY the helper method, no assertion touched).
+- **Environment:** This worktree's `.ddev/config.yaml` was a stale copy of the main checkout's,
+  still named `pl-groups-on-d11` (would have collided with the running main project). Renamed to
+  `gm144-auto-organizer` via `ddev config --project-name=gm144-auto-organizer` before starting —
+  per the task's namespacing instruction. Also removed one stale `#ddev-generated`
+  `.ddev/traefik/config/pl-groups-on-d11.yaml` file inside THIS worktree's own `.ddev/` (unrelated
+  to the main checkout's or sibling worktrees' `.ddev/` directories — those were never touched) —
+  its presence was blocking `ddev-router`'s health check; PHPUnit itself needs no router (`ddev
+  exec` reaches the web container directly), so this was a pure convenience cleanup, not required
+  for the tests themselves. `vendor/`, `web/core`, `web/modules/contrib` were ALREADY present in
+  this worktree (unlike T-red's phase, which needed to copy them in) — no environment bootstrap
+  needed beyond `ddev start`. Stopped `gm144-auto-organizer` (removed containers/network) at the
+  end of this phase; `pl-groups-on-d11`, `gm139-multilang-rtl`, `gm140-groups-links` were never
+  touched (confirmed via `ddev list` before/after).
+- **Empirically confirmed (Q3, form_id):** Real form_id is `group_community_group_add_form` —
+  derived from reading core's `EntityForm::getFormId()` source directly
+  (`{entity_type}_{bundle}_{operation}_form`, no per-bundle form-class override on `Group.php`'s
+  entity annotation for `add`/`edit`), NOT a guess and NOT requiring a running site to confirm.
+- **Empirically confirmed (Q3, wizard shape):** `creator_wizard: true` does NOT produce a
+  multi-step Form-API wizard — confirmed by reading `GroupForm::form()` and
+  `CreateFormEnhancer::enhanceGroupForm()` directly: the wizard flag gates whether the SAME single
+  form gets enhanced with extra creator-membership fields, not a separate wizard controller with
+  distinct form_ids/URLs. This confirms T-red's own hedged empirical finding
+  (`handoff-T-red.md` "Ambiguity for O" #1) architecturally, resolving the tension with A's own
+  hedge (A could not verify vendor internals; F could, since `web/modules/contrib/group` IS
+  present in this worktree). `advanceThroughWizard()`'s defensive multi-step walk needed no
+  changes and resolves correctly in exactly one iteration.
+- **Empirically confirmed (Q3, plain-append vs OrderAfter):** Plain appending is sufficient — NO
+  `OrderAfter` fallback needed. Confirmed by reading `GroupForm::save()` directly: its
+  `setRedirect('entity.group.canonical', ...)` call is already part of the BASE `#submit` array
+  (`['::submitForm', '::save']`, populated at form-BUILD time by `EntityForm::actions()`, i.e.
+  BEFORE `hook_form_alter()` ever runs) — so my hook's `form_alter` appending to this
+  already-populated array means my `redirectToPreview()` handler runs strictly AFTER `save()`.
+  `FormState::setRedirectUrl()`'s implementation (`$this->redirect = $url`, plain overwrite, no
+  accumulation) means my later `setRedirect()` call wins. Empirically confirmed end-to-end via
+  `CreateGroupWizardOrganizerTest`'s AC-3 assertion (lands on `/group/{group}/created`, not
+  canonical) passing — matches A's best-effort prediction exactly.
+- **Decided (deviation from literal brief text):** Route uses `_title_callback` instead of the
+  brief/survey's literal `_title: 'Your group is ready'` string. Discovered via a throwaway
+  Functional probe (deleted before handoff) that a static/dynamic `_title` PLUS an in-content
+  `<h1>` in the controller's render array produces TWO `<h1>` elements (the theme's page-title
+  block renders `_title` independently of content) — violating AC-5's "exactly one h1." Judgment:
+  this is a refinement, not a brief defect — the wireframe's own heading copy
+  (`Your group "{Group Name}" is ready!`) is MORE specific than the brief's generic placeholder
+  title anyway, and `_title_callback` lets the controller supply that exact wireframe-specified
+  heading text as the page's sole h1 via the theme's own title-rendering mechanism (no JS
+  focus-forcing, DOM order preserved). Not an operator escalation trigger (implementation detail,
+  not a scope/behavior change).
+- **Decided (T-red fixture-helper fix, delegated per issue task text):** FIXED, but needed 6
+  sequential rounds of empirical correction beyond T-red's own flagged gap and recommended option
+  (a). Full multi-gap story:
+  1. (T-red's own gap) `field.storage.*` config written via raw `config.storage->write()` doesn't
+     create the dedicated field DB table.
+  2. T-red's recommended fix (full `FieldStorageConfig::create($data)->save()`) itself triggers
+     `Config::save()`'s schema-VALIDATION path, which threw an UNRELATED
+     `InvalidArgumentException` on `list_string` fields' `allowed_values` shape in this minimal
+     test environment (reproduced in isolation via a throwaway Kernel diagnostic probe — deleted
+     before handoff — confirming this is a config-schema-resolution quirk, not a data-shape bug in
+     the YAML itself). Judgment: rather than chase this further, use the officially-supported
+     `field_storage_definition.listener` service's `onFieldStorageDefinitionCreate()` directly
+     (the SAME method `FieldStorageConfig::postSave()` itself calls) after a plain
+     `config.storage->write()` — isolates the ONE side effect needed (table creation) without the
+     validation path.
+  3. `entity_type.bundle.info`'s cached `group_relationship` bundle list was stale (separate cache
+     from entity_type.manager/entity_field.manager) — `PluginNotFoundException` on the
+     `entity:group_relationship:community_group-group_membership` typed-data plugin. Fixed via
+     `clearCachedBundles()`.
+  4. PHP8.1+ `hash(): Passing null` deprecation escalated to a hard error —
+     `FieldStorageConfig::getUniqueStorageIdentifier()` returns `$this->uuid()`, which was NULL
+     because every OTHER config type in this helper strips `uuid` before writing (matching `drush
+     cim`'s UUID-regeneration convention) — but `FieldStorageConfig` uniquely depends on a real
+     UUID for long-field-name table-name hashing. Fixed: field-storage files (ONLY) keep their
+     `uuid` key; every other config type unaffected.
+  5. Group's OWN `GroupRelationTypeManager` caches its group-type-to-relation-plugin map in
+     `cache.discovery`, independent of every core cache cleared above —
+     `Group::getRelationshipsByEntity()` silently returned empty even though the relationship row
+     genuinely existed with the correct owner uid (confirmed via a throwaway diagnostic probe —
+     deleted before handoff — dumping the raw `group_relationship` storage query result). Fixed
+     via the officially-supported `clearCachedPluginMaps()` method on the
+     `group_relation_type.manager` service.
+  `testWizardCreateGrantsOrganizerAndRedirectsToPreview` (the ONLY test in this file) is now 1/1
+  GREEN — independently proving AC-1/AC-2/AC-3 end-to-end against the REAL assembled
+  `community_group` config through the real form submission. ONLY
+  `importRealCommunityGroupConfig()` was changed; no assertion touched.
+- **Flagged for T-green (not fixed by F, different defect class):**
+  `GroupCreatedPreviewControllerTest.php` (T-authored) is missing `do_group_membership` from its
+  own `protected static $modules` array (inherits only `GroupBrowserTestBase::$modules =
+  ['group']`), so its two tests genuinely 404 in that test's own environment — independently of
+  whether the route/controller are correct (verified correct via a throwaway probe copy of this
+  exact test with `'do_group_membership'` added to `$modules`, which passed 2/2 cleanly, then
+  deleted before this handoff). This is a different file and a different defect (a missing
+  `$modules` entry, not a config-import-mechanism bug) than the `CreateGroupWizardOrganizerTest`
+  fixture-helper fix explicitly delegated to F — F did not edit this file, per the "F does not
+  write/edit tests" constraint (only the ONE explicitly-delegated fixture-mechanism edit was made
+  elsewhere).
+- **Verified:** Full regression — 43/43 `do_group_membership` Unit+Kernel tests pass;
+  `CreatorMembershipFormTest` + `CreatorMembershipApiTest` (#36, must-not-touch) both pass;
+  `CreateGroupWizardOrganizerTest` (AC-1/AC-2/AC-3 end-to-end) passes. Combined: 47/47 GREEN,
+  deprecation warnings only, zero failures/errors.
+- **Verified (lint):** `phpcs --standard=Drupal,DrupalPractice` on all 3 changed production PHP
+  files: 0 errors, 0 warnings. (Bare `phpcs docs/groups/modules/do_group_membership` with no
+  `--standard` flag falls back to a non-project default ruleset and reports thousands of
+  false-positive-style errors across every file in the module, including untouched pre-existing
+  ones — flagged in handoff-F.md so this isn't mistaken for a real regression.)
+- **Evidence:** Full command outputs and per-file confirmation in `handoff-F.md`.
+- Proceeding: F hands off to T-green (Phase 6) — independent Tier 1-GREEN + Tier 2 re-verification,
+  plus the two flagged test-authorship items (`GroupCreatedPreviewControllerTest.php`'s missing
+  `$modules`, and running the E2E spec against a seeded site).
+
+---
+
+## T — Phase 6 (GREEN + Tier 2)
+
+- **Decided:** Fixed `GroupCreatedPreviewControllerTest.php`'s missing-`$modules` bug as F flagged
+  (T's remit, not F's) — added `protected static $modules = ['group', 'do_group_membership'];`.
+  No assertion touched; this test builds its own minimal `createGroupType()` fixture (not the real
+  assembled config), so unlike `CreateGroupWizardOrganizerTest`, no extra field-type modules
+  (image/taxonomy/node) were needed — only the module providing the route/controller under test.
+- **Verified GREEN, independently re-run (not just trusting F's numbers):** Unit `EnsureRoleTest`
+  2/2 (Assertions: 12); Kernel `CreateGroupOrganizerHookTest` 4/4 (Assertions: 100); full combined
+  `do_group_membership` + `do_tests` suite 82/82 (Assertions: 1271); the T-fixed
+  `GroupCreatedPreviewControllerTest.php` 2/2 (Assertions: 40, was 404/403-instead-of-200/403 RED
+  before the fix); `CreateGroupWizardOrganizerTest.php` 1/1 (Assertions: 17, matches F's number
+  exactly); `#36` regression pair 3/3 (Assertions: 54, matches F's number exactly). All
+  deprecation-notice-only, zero failures/errors across all runs.
+- **Verified (lint):** `phpcs --standard=Drupal,DrupalPractice` on the 3 production PHP files + 3
+  YAML files: exit 0, zero errors/warnings — confirms F's report independently.
+- **Verified (Tier 2):** wireframe DOM order (h1 via `_title_callback` -> p -> h2 -> ul>li>a x3)
+  matches the controller exactly; cache metadata present (group cache tags + `user.permissions`
+  context); hook service registration FQCN-keyed/`autowire: false`/explicit manager arg matches
+  `GroupAccessHook` precedent exactly; `git diff --stat HEAD -- docs/groups/modules/*/tests/`
+  against the T-red commit shows exactly the two expected test files changed (F's delegated
+  fixture-only fix + T's one-line `$modules` fix), confirmed via `git diff | grep assert` that
+  zero `assert*()` call lines changed in `CreateGroupWizardOrganizerTest.php`.
+- **Flagged (not fixed — E2E review only, not run per task instructions):**
+  `tests/e2e/create-group.spec.ts` never fills `field_group_description` before calling
+  `completeWizard()`, unlike `manage-members.spec.ts`'s own `createGroup()` helper and unlike the
+  real assembled `community_group` type's actual requirement (empirically discovered by both
+  T-red and F in the Functional suite). Likely to stall at step 1 on a real seeded site run.
+  Flagged for whoever runs this spec next (U or CI) rather than silently left as a surprise
+  failure.
+- **Housekeeping:** reverted this phase's own `assemble-config.sh`-produced `config/sync/*.yml`
+  changes, removed `web/modules/custom/`, `web/sites/simpletest/`, and the stray top-level
+  `sites/simpletest/` PHPUnit artifact (all untracked build artifacts), and reverted
+  `.ddev/config.yaml`'s session-local `gm144-auto-organizer` rename back to its tracked
+  `pl-groups-on-d11` value before finishing — final `git status --porcelain` shows only the
+  expected source/doc changes.
+- **Evidence:** Full command outputs in `handoff-T-green.md`.
+- **Verdict: GREEN, no blocking issues.** UI surface present (guided-preview page + wizard flow) —
+  ready for U (UI Walkthrough).

@@ -45,6 +45,12 @@ use Drupal\user\UserInterface;
  * createMembership() helper so the blocked/duplicate guards and the
  * `Group::addMember()` call shape cannot drift apart between the two
  * verbs.
+ *
+ * #144 MC-6 adds ensureRole() — an additive, idempotent role grant on an
+ * EXISTING relationship (e.g. adding Organizer to the creator's
+ * already-form-created, Admin-carrying membership), deliberately distinct
+ * from changeRole()'s replace-the-whole-set semantics (see ensureRole()'s
+ * own docblock for why the two must not be conflated).
  */
 class GroupMembershipManager {
 
@@ -192,6 +198,45 @@ class GroupMembershipManager {
     }
 
     $relationship->get('group_roles')->setValue(array_values($roles));
+    $relationship->save();
+  }
+
+  /**
+   * Additively grants a group role to an existing membership, if missing.
+   *
+   * #144 MC-6: the creator's form-created membership already carries
+   * `community_group-admin` (via the group type's `creator_roles` setting)
+   * by the time `CreateGroupOrganizerHook::groupRelationshipInsert()` calls
+   * this. Deliberately NOT a reuse of {@see self::changeRole()}: that
+   * method does `->setValue(array_values($roles))`, a wholesale REPLACE of
+   * `group_roles` that would erase the Admin role just granted, and it
+   * also runs the last-Organizer guard, which is irrelevant to a purely
+   * additive grant (per handoff-A.md Q1). This method instead READS the
+   * existing `group_roles` values and APPENDS $role_id — never a
+   * `set`/replace — and is idempotent: calling it when $role_id is already
+   * present is a no-op (no `setValue()` call, no `save()`).
+   *
+   * @param \Drupal\group\Entity\GroupRelationshipInterface $relationship
+   *   The membership relationship to grant the role to.
+   * @param string $role_id
+   *   The group role id to ensure is present (e.g.
+   *   {@see self::ORGANIZER_ROLE_ID}).
+   */
+  public function ensureRole(GroupRelationshipInterface $relationship, string $role_id): void {
+    if ($this->hasRole($relationship, $role_id)) {
+      return;
+    }
+
+    $existing_values = $relationship->hasField('group_roles')
+      ? $relationship->get('group_roles')->getValue()
+      : [];
+    $existing_ids = array_map(
+      static fn ($item) => is_array($item) ? ($item['target_id'] ?? $item) : $item,
+      $existing_values,
+    );
+    $existing_ids[] = $role_id;
+
+    $relationship->get('group_roles')->setValue(array_values($existing_ids));
     $relationship->save();
   }
 

@@ -107,6 +107,18 @@ test.describe('Create-group flow (#144 MC-6)', () => {
     await page.goto('/group/add/community_group');
     await page.getByLabel('Title', { exact: false }).fill(groupName);
 
+    // field_group_description is a REQUIRED plain-text field on the real
+    // assembled community_group type (empirically confirmed by
+    // CreateGroupWizardOrganizerTest.php line 385 — the wizard's HTML5
+    // validation blocks submit until it's filled). Fill defensively via the
+    // raw form-field selector (getByLabel would need to know the exact label
+    // string and would strict-mode-collide on a text-format-select field
+    // pattern; the textarea's `name` attribute is stable).
+    const descriptionTextarea = page.locator('textarea[name="field_group_description[0][value]"]');
+    if (await descriptionTextarea.isVisible({ timeout: 500 }).catch(() => false)) {
+      await descriptionTextarea.fill('An E2E-created group for #144 verification.');
+    }
+
     await completeWizard(page);
 
     // AC-3: the final wizard step redirects to /group/{group}/created, NOT

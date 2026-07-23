@@ -37,6 +37,22 @@ class GroupCreatedPreviewControllerTest extends GroupBrowserTestBase {
 
   /**
    * {@inheritdoc}
+   *
+   * T-green fix: this suite hits the NEW
+   * do_group_membership.group_created_preview route/controller directly, so
+   * the module providing it must be enabled — GroupBrowserTestBase's own
+   * $modules is only ['group'], which is why the route genuinely 404s
+   * without this override (confirmed by F via a throwaway probe; F did not
+   * edit this file — see handoff-F.md). This test constructs its OWN
+   * minimal community_group-alike type via createGroupType()/
+   * createRoleForGroupType() (not the real assembled config), so no
+   * additional field-type modules (image/taxonomy/node) are needed here,
+   * unlike CreateGroupWizardOrganizerTest's real-config-import suite.
+   */
+  protected static $modules = ['group', 'do_group_membership'];
+
+  /**
+   * {@inheritdoc}
    */
   protected $defaultTheme = 'stark';
 

@@ -2,3 +2,8 @@ manage_members:
   css:
     theme:
       css/manage-members.css: {}
+
+group_created_preview:
+  css:
+    theme:
+      css/create-group.css: {}

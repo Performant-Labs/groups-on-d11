@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\do_tests\Functional;
 
+use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\node\Entity\NodeType;
 use Drupal\Tests\group\Functional\GroupBrowserTestBase;
 use Drupal\user\RoleInterface;
@@ -53,6 +54,21 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  * instructions ("fine if this test's exact step-by-step submission needs
  * one round of empirical correction once F/T-green runs it against a real
  * environment").
+ *
+ * F EMPIRICAL FINDING (#144, confirmed against core source +
+ * `web/modules/contrib/group` in this worktree): `creator_wizard: true`
+ * does NOT produce multiple wizard-step form_ids/URLs — `GroupForm` (the
+ * `group.add`/`group.edit` form handler; see `Group.php`'s entity
+ * annotation) has no per-bundle form-class override, so
+ * `\Drupal\Core\Entity\EntityForm::getFormId()` derives exactly ONE form_id
+ * for this bundle/operation: `group_community_group_add_form`. Group's own
+ * `CreateFormEnhancer::enhanceGroupForm()` only enhances the SAME single
+ * form (adds the creator-membership fields to it); it is not a Form-API
+ * multi-step wizard controller. `advanceThroughWizard()`'s max_steps=6 walk
+ * genuinely resolves in a single step in this environment — consistent
+ * with T-red's own hedged empirical finding (`handoff-T-red.md`
+ * "Ambiguity for O" #1), now confirmed architecturally rather than only
+ * observationally.
  *
  * @group do_tests
  */
@@ -138,12 +154,11 @@ class CreateGroupWizardOrganizerTest extends GroupBrowserTestBase {
    * name in its own filename, so it is not caught by the bundle-scoped glob
    * alone — the field INSTANCE config that DOES reference
    * `community_group` in its name depends on the storage config existing
-   * first). Writes them via the active config storage, mirroring
-   * `drush cim`'s effect for the real assembled `community_group` config.
+   * first).
    *
    * A short hand-picked file list is NOT used here: earlier versions of
-   * this helper hit two real gaps in turn, both left as comments for
-   * future maintainers:
+   * this helper hit real gaps in turn, all left as comments for future
+   * maintainers:
    *   1. Importing only the group type + two roles threw
    *      `AssertionError: assert($group_relationship_type instanceof
    *      GroupRelationshipTypeInterface)` — the real `community_group`
@@ -156,6 +171,112 @@ class CreateGroupWizardOrganizerTest extends GroupBrowserTestBase {
    * Importing the union of both globs, plus enabling `image` (see
    * `self::$modules`), resolves both.
    *
+   * F's fix (#144, per handoff-T-red.md's flagged option (a), REVISED
+   * across several rounds as further gaps surfaced): `field.storage.*`
+   * files still need their dedicated DB table created (see gap #3 below),
+   * but going through the full entity-API
+   * `FieldStorageConfig::create($data)->save()` turned out to trigger
+   * `Config::save()`'s schema-VALIDATION path too, which threw
+   * `InvalidArgumentException: The configuration property
+   * settings.allowed_values.0.label.0 doesn't exist` for the `list_string`
+   * fields (`field_group_visibility`, `field_membership_status`) in this
+   * minimal test environment — a config-schema-resolution quirk unrelated
+   * to this story's own feature code (reproduced in isolation against a
+   * bare Kernel bootstrap; not a data-shape bug in the YAML itself, whose
+   * `allowed_values` structure matches `options.schema.yml`'s
+   * `field.storage_settings.list_string` definition exactly). Rather than
+   * chase that core validation path further, this helper now:
+   *   (a) writes `field.storage.*` config the SAME unvalidated way as every
+   *       other config type (`config.storage->write()`, mirroring
+   *       `drush cim`'s on-disk effect only — this always worked, since raw
+   *       storage writes skip schema validation entirely) — CRITICALLY
+   *       keeping the `uuid` key for field-storage files ONLY (see gap #5
+   *       below; every other config type here still strips it), then
+   *   (b) loads the resulting `FieldStorageConfig` entity back and manually
+   *       invokes the officially-supported
+   *       `field_storage_definition.listener` service's
+   *       `onFieldStorageDefinitionCreate()` — the SAME method
+   *       `FieldStorageConfig::postSave()` itself calls — to trigger just
+   *       the schema/table-creation side effect, with none of
+   *       `Config::save()`'s validation path involved.
+   * This is more surgical than the originally-recommended option (a) (full
+   * entity-API save): it isolates the ONE side effect actually needed
+   * (table creation) without dragging in schema validation this ad-hoc
+   * config-import fixture was never designed to satisfy.
+   *
+   * Gap #3 (this fix): `field.storage.*` config written via raw
+   * `config.storage->write()` alone (the pre-existing approach for every
+   * OTHER config type here) does not create the dedicated field DB table —
+   * a real `group` entity save that populates
+   * `field_group_description`/`field_group_visibility` then throws
+   * `EntityStorageException: Base table or view not found`, one step later
+   * than the intended Organizer-role assertion (see this file's git history
+   * / handoff-T-red.md for the original RED text). Group TYPE config, group
+   * ROLES, relationship TYPES, field INSTANCE config, and entity form/view
+   * displays have no such side effect to replicate, so those still go
+   * through the plain `config.storage->write()` path unchanged.
+   *
+   * Gap #4 (surfaced once gap #3's fix was in place): after the field
+   * tables exist, validating the group_membership relationship entity
+   * Group's own `CreateFormEnhancer` builds in memory threw
+   * `PluginNotFoundException: The "entity:group_relationship:
+   * community_group-group_membership" plugin does not exist`. Root cause:
+   * `\Drupal\Core\Entity\Plugin\DataType\Deriver\EntityDeriver` derives an
+   * `entity:group_relationship:<bundle>` typed-data plugin from the
+   * `entity_type.bundle.info` service's `getBundleInfo('group_relationship')`
+   * — a DIFFERENT cache than `entity_type.manager`'s own definitions (both
+   * already cleared below) or the typed-data manager's own plugin-instance
+   * cache. `entity_type.bundle.info` kept serving a stale (pre-import)
+   * bundle list that did not yet include the freshly-imported
+   * `community_group-group_membership` relationship type, because Group
+   * derives `group_relationship` bundle info from `group_relationship_type`
+   * config entities dynamically. Clearing
+   * `\Drupal::service('entity_type.bundle.info')->clearCachedBundles()`
+   * (plus the typed-data manager's own definition cache, for good measure)
+   * resolves it.
+   *
+   * Gap #5 (surfaced once gap #4's fix was in place): saving the group
+   * itself then threw a PHP8.1+ null-coercion deprecation escalated to a
+   * hard error by this test suite's strict-deprecation handling: `hash():
+   * Passing null to parameter #2 ($data) of type string is deprecated`,
+   * from `DefaultTableMapping::generateFieldTableName()`, which calls
+   * `hash('sha256', $storage_definition->getUniqueStorageIdentifier())`
+   * for any field whose default table name exceeds 48 characters (true for
+   * the longer `community_group`-prefixed field names).
+   * `FieldStorageConfig::getUniqueStorageIdentifier()` simply returns
+   * `$this->uuid()` — every OTHER config type imported by this helper has
+   * its `uuid` key intentionally stripped before writing (matching
+   * `drush cim`'s convention of regenerating UUIDs on import, and because no
+   * other config type here depends on a stable UUID for anything
+   * functional), but `FieldStorageConfig` uniquely DOES depend on it for
+   * table-name generation. Fix: field-storage files keep their `uuid` key
+   * intact when written (only `_core` is stripped for them); every other
+   * config type is unaffected.
+   *
+   * Gap #6 (surfaced once gap #5's fix was in place — the LAST gap;
+   * `testWizardCreateGrantsOrganizerAndRedirectsToPreview()` genuinely
+   * passes after this): with the group/membership rows correctly saved
+   * (confirmed via a direct `group_relationship` storage query during F's
+   * diagnosis — the row existed with the correct `gid`/`entity_id`),
+   * `Group::getRelationshipsByEntity($creator, 'group_membership')` STILL
+   * returned empty. Root cause: `GroupRelationTypeManager::
+   * getGroupTypePluginMap()`/`getAllInstalledIds()` — used internally by
+   * `GroupRelationshipStorage::loadByEntityAndGroup()` to resolve which
+   * plugin ids to query — caches its group-type-to-plugin-id map in a
+   * PERSISTENT cache bin (`cache.discovery`, keyed by
+   * `$this->groupTypePluginMapCacheKey`), populated from
+   * `group_relationship_type` config entities the FIRST time it's read
+   * (i.e., BEFORE this helper's config import ran, during
+   * `GroupBrowserTestBase::setUp()`'s own bootstrap) — a FIFTH cache,
+   * unrelated to entity_type.manager/entity_field.manager/
+   * entity_type.bundle.info/typed_data_manager (all already cleared above).
+   * Group's OWN `GroupRelationTypeManager` ships the officially-supported
+   * `clearCachedPluginMaps()` method for exactly this purpose (it deletes
+   * both plugin-map cache keys it owns) — no need to reach into private
+   * properties or reflect. Calling
+   * `\Drupal::service('group_relation_type.manager')->clearCachedPluginMaps()`
+   * resolves it.
+   *
    * Falls back silently if the directory does not exist in this checkout
    * (protects against an assembled-vs-source path mismatch failing setUp()
    * itself rather than the test body, which would produce a confusing RED).
@@ -165,28 +286,47 @@ class CreateGroupWizardOrganizerTest extends GroupBrowserTestBase {
    */
   protected function importRealCommunityGroupConfig(string $dir): void {
     $storage = \Drupal::service('config.storage');
-    $files = array_unique(array_merge(
-      glob($dir . '/*community_group*.yml') ?: [],
+
+    $field_storage_files = array_unique(array_merge(
       glob($dir . '/field.storage.group.*.yml') ?: [],
       glob($dir . '/field.storage.group_relationship.*.yml') ?: [],
     ));
-    // Config entities must be written in an order core dependency-resolution
-    // would tolerate: field STORAGE first (referenced by field instances),
-    // then the group.type.* (referenced by roles/relationship types), then
-    // everything else. A simple three-tier sort is sufficient here since
-    // this is a flat, non-recursive dependency fan-out for this one
-    // bundle's config.
+    $other_files = array_diff(
+      glob($dir . '/*community_group*.yml') ?: [],
+      $field_storage_files,
+    );
+
+    // Field STORAGE first (referenced by field instances): write it the
+    // same unvalidated way as everything else, then manually trigger just
+    // the table-creation side effect (see this method's docblock for why
+    // going through the full entity-API save() is avoided here). The
+    // `uuid` key is DELIBERATELY KEPT for these files only (gap #5) —
+    // FieldStorageConfig::getUniqueStorageIdentifier() depends on it for
+    // table-name generation on long field names.
+    $listener = \Drupal::service('field_storage_definition.listener');
+    foreach ($field_storage_files as $path) {
+      $data = \Drupal\Component\Serialization\Yaml::decode(file_get_contents($path));
+      if (!is_array($data)) {
+        continue;
+      }
+      unset($data['_core']);
+      $name = 'field.storage.' . $data['entity_type'] . '.' . $data['field_name'];
+      $storage->write($name, $data);
+
+      \Drupal::service('config.factory')->reset();
+      $field_storage = FieldStorageConfig::loadByName($data['entity_type'], $data['field_name']);
+      if ($field_storage !== NULL) {
+        $listener->onFieldStorageDefinitionCreate($field_storage);
+      }
+    }
+
+    // Everything else: group.type.community_group.* BEFORE the rest (roles/
+    // relationship types reference it), then the remainder — same
+    // three-tier-by-rank ordering the original helper used, minus the
+    // field-storage tier now handled above.
+    $files = array_values($other_files);
     usort($files, static function (string $a, string $b): int {
-      $rank = static function (string $path): int {
-        $name = basename($path);
-        if (str_starts_with($name, 'field.storage.')) {
-          return 0;
-        }
-        if (str_contains($name, 'group.type.community_group')) {
-          return 1;
-        }
-        return 2;
-      };
+      $rank = static fn (string $path): int => str_contains(basename($path), 'group.type.community_group') ? 0 : 1;
       return $rank($a) <=> $rank($b);
     });
     foreach ($files as $path) {
@@ -198,12 +338,27 @@ class CreateGroupWizardOrganizerTest extends GroupBrowserTestBase {
       $name = basename($path, '.yml');
       $storage->write($name, $data);
     }
+
     \Drupal::service('config.factory')->reset();
     $this->entityTypeManager()->getStorage('group_type')->resetCache();
     $this->entityTypeManager()->getStorage('group_role')->resetCache();
     $this->entityTypeManager()->getStorage('group_relationship_type')->resetCache();
     $this->entityTypeManager()->clearCachedDefinitions();
     \Drupal::service('entity_field.manager')->clearCachedFieldDefinitions();
+    // Gap #4 (see docblock): the `group_relationship` entity type's bundle
+    // list (derived from `group_relationship_type` config entities) is
+    // cached by entity_type.bundle.info independently of every cache
+    // cleared above — the entity:group_relationship:<bundle> typed-data
+    // plugin derivative is keyed off THIS service, not entity_type.manager.
+    \Drupal::service('entity_type.bundle.info')->clearCachedBundles();
+    \Drupal::typedDataManager()->clearCachedDefinitions();
+    // Gap #6 (see docblock): Group's OWN group-type-to-relation-plugin map
+    // is cached persistently (cache.discovery) by GroupRelationTypeManager,
+    // independent of every core cache cleared above — without this,
+    // Group::getRelationshipsByEntity() cannot resolve the freshly-imported
+    // `community_group-group_membership` relationship type and silently
+    // returns no results.
+    \Drupal::service('group_relation_type.manager')->clearCachedPluginMaps();
   }
 
   /**
