@@ -277,6 +277,39 @@ final class HelpTextTest extends TestCase {
   }
 
   /**
+   * #134 SC-7 — the four privacy-axis tooltip keys exist, are non-empty
+   * plain text of at least 40 chars each (wireframe §3's copy deck: all four
+   * strings run well past a trivial placeholder length — 152-191 chars per
+   * the wireframe's own char counts), and the teaching key
+   * (`privacy.vs_invite_only`) explicitly contrasts Private vs Invite Only so
+   * a reader does not conflate the view axis with the join axis.
+   *
+   * RED reason: F has not yet appended these keys to `HelpText::all()`, so
+   * `HelpText::get()` returns the unknown-key default `''` and every
+   * assertion below fails (`assertNotSame('', ...)` and the length check).
+   *
+   * @covers ::get
+   */
+  public function testPrivacyKeys(): void {
+    foreach (['privacy.public', 'privacy.unlisted', 'privacy.private', 'privacy.vs_invite_only'] as $key) {
+      $copy = HelpText::get($key);
+      $this->assertNotSame('', $copy, sprintf('Tooltip copy for "%s" must exist.', $key));
+      $this->assertStringNotContainsString('<', $copy, 'Copy must be plain text (allowHTML is disabled).');
+      $this->assertGreaterThanOrEqual(40, strlen($copy), sprintf('"%s" copy must be a real sentence (>= 40 chars), not a placeholder.', $key));
+    }
+
+    // AC-8's teaching key must explicitly name BOTH axes it contrasts.
+    $teaching_copy = HelpText::get('privacy.vs_invite_only');
+    $this->assertStringContainsString('Private', $teaching_copy, 'The teaching key must name "Private".');
+    $this->assertMatchesRegularExpression('/Invite Only/i', $teaching_copy, 'The teaching key must name "Invite Only".');
+
+    // Honesty guard (wireframe §3 notes): privacy.unlisted must NOT claim
+    // directory-hiding is enforced — only `private` is enforced this story.
+    $unlisted_copy = HelpText::get('privacy.unlisted');
+    $this->assertMatchesRegularExpression('/not.*enforced|isn.t enforced/i', $unlisted_copy, 'privacy.unlisted must honestly flag that it is not enforced by this build.');
+  }
+
+  /**
    * @covers ::all
    */
   public function testAllReturnsStringMap(): void {
