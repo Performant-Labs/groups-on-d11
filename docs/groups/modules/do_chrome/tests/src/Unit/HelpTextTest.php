@@ -150,6 +150,34 @@ final class HelpTextTest extends TestCase {
   }
 
   /**
+   * #122 (SC-3): the group-type-homepage tooltip copy names all three
+   * lead-section variants (events / discussion / documentation) truthfully.
+   *
+   * `HelpText::all()` is a fixed literal array — the suite does NOT auto-cover
+   * a freshly-appended key (unlike e.g. a config-driven copy source), so this
+   * is a TARGETED assertion for the new `group_type.homepage_adapts` key,
+   * mirroring the existing per-surface test pattern in this file (e.g.
+   * `testGroupTypeFieldCopyNamesAllTypes`). RED reason: F has not yet
+   * appended this key to `HelpText::all()`, so `HelpText::get()` returns the
+   * unknown-key default `''` and every assertion below fails.
+   *
+   * @covers ::get
+   */
+  public function testGroupTypeHomepageAdaptsCopyIsPresentAndNamesVariants(): void {
+    $copy = HelpText::get('group_type.homepage_adapts');
+    $this->assertNotSame('', $copy, 'The group_type.homepage_adapts tooltip copy must exist.');
+    $this->assertStringNotContainsString('<', $copy, 'Copy must be plain text (allowHTML is disabled).');
+    // Wireframe §3: the copy must name the three concrete lead-section
+    // variants so a first-time reader understands what "adapts" means.
+    foreach (['events', 'discussion', 'documentation'] as $variant) {
+      $this->assertStringContainsString($variant, $copy, "Copy must name the '$variant' variant.");
+    }
+    // The key must actually be present in the literal array (not merely
+    // resolvable via some other fallback path).
+    $this->assertArrayHasKey('group_type.homepage_adapts', HelpText::all());
+  }
+
+  /**
    * @covers ::all
    */
   public function testAllReturnsStringMap(): void {

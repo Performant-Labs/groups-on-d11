@@ -132,3 +132,58 @@ Append-only. One entry per phase. O writes the closing Chain Summary.
 - Recently-merged waves inspected: no `do_streams`/`do_showcase`/`do_group_membership` primitive for a "group lead section" exists — no duplication risk.
 
 ---
+
+## T — Phase 4 (RED)
+
+**Decided:**
+- Authored `tests/e2e/group-type-homepage.spec.ts` (10 tests, 5 describe blocks) as the primary
+  suite — this is a UI-surface story, so E2E carries the acceptance-criteria weight per A's own
+  "Test-writability" section (which lists only E2E-level assertions as the coverage plan).
+- Extended `docs/groups/modules/do_chrome/tests/src/Unit/HelpTextTest.php` with ONE targeted
+  test (`testGroupTypeHomepageAdaptsCopyIsPresentAndNamesVariants`) after VERIFYING the task's
+  "HelpTextTest auto-covers the appended key" claim is FALSE — `HelpText::all()` is a fixed
+  literal array and the only "all-keys" test only checks value *types*, not key *presence*.
+  Every other key gets its own named test in this file; the new key needed the same treatment.
+- No Kernel test authored for `groups_chrome_preprocess_group()` — no existing Kernel harness
+  targets any `groups_chrome.theme` procedural function, and A's own "Test-writability" section
+  names only E2E assertions as sufficient. Building fresh theme-preprocess Kernel infrastructure
+  would duplicate what the E2E suite already pins. Documented per the brief's own hedge.
+- Stood up a real seeded DDEV site (`gm122-groups-on-d11`, namespaced per this story's own
+  container guardrail) to get genuine RED evidence rather than reasoning about expected
+  failures — no `vendor`/`php`/`composer` were available on the host shell.
+- Left the `gm122-groups-on-d11` DDEV project running/installed/seeded for F/T-green to reuse.
+
+**Assumed (needs verification in F/T-green):**
+- "See all" query-string form asserted permissively (`type=forum` OR `type[]=forum`) per A's own
+  hedge that F should verify the exact form Views emits.
+- Item link target asserted generically (`/node/\d+`), not a specific node id — the sort/top-N
+  selection is F's implementation detail per A's guidance.
+
+**Hedged:**
+- The Thunder Distribution (Distribution-type) exemplar test is a KNOWN WEAK RED: no
+  documentation-type node exists anywhere in the current seed data
+  (`docs/groups/scripts/step_700_demo_data.php` seeds forum/event nodes only), so per the
+  wireframe's own empty-state contract, this exemplar's page is indistinguishable from the
+  fallback case both before AND after F implements correctly. This test currently passes
+  vacuously and will continue to pass at GREEN — it does not independently prove the docs-first
+  rendering path ever works end-to-end. Flagged for F/U; not silently claimed as full coverage.
+  Fixing this properly requires adding seed content, which is outside this story's file-
+  ownership list.
+- Full `@axe-core/playwright` WCAG scan NOT automated — dependency absent from `package.json`,
+  same documented gap `manage-members.spec.ts` already established. A stub test pins the gap
+  itself (self-flags for replacement if the dependency is ever added) plus a keyboard/focus/
+  aria-label test covers what a headless browser can prove without axe. The standalone
+  `axe-check.cjs` tool remains available for a manual U pass.
+
+**Evidence:**
+- E2E RED: `BASE_URL="http://gm122-groups-on-d11.ddev.site" npx playwright test tests/e2e/group-type-homepage.spec.ts`
+  → 7 passed, 3 failed (the 3 genuine feature-dependent failures on `.gc-group-lead` not
+  existing; see `handoff-T-red.md` for full output).
+- PHPUnit RED: `ddev exec php vendor/bin/phpunit -c web/core/phpunit.xml.dist --testdox web/modules/custom/do_chrome/tests/src/Unit/HelpTextTest.php`
+  → 10 passed (pre-existing), 1 failed (new test, correct assertion: unknown-key default `''`).
+- Sanity checks: `directory-cards.spec.ts` (existing suite) 3/3 green against the same seed;
+  `curl .../all-groups` confirms all four exemplar labels render.
+- `docs/groups/scripts/step_700_demo_data.php` (verified: no `"type" => "documentation"` node
+  create call anywhere — the Thunder Distribution coverage gap above).
+
+---
