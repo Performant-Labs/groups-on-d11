@@ -760,3 +760,44 @@ Same class as prior nav note.
 - Advance to S (final spec audit).
 
 ---
+
+## Phase 9 — S (spec audit): PASS
+
+**Verdict**: PASS. All 7 acceptance criteria backed by tests, verified
+against shipped (CI/prod-equivalent) state.
+
+**Deviation ledger**: every departure from the issue's literal "Owns"
+list is justified and journalled:
+- Reuse of `field_group_language` (per issue's own extend/align clause).
+- `hook_entity_view` (`full` view mode) + Views field + theme preprocess
+  for the directory (per A-r1 BLOCK — teaser hook can't reach a
+  row:fields view; per Bug 2 — custom row template ignores raw fields).
+- CSS co-located in module (not subtheme) — better scoping.
+- Additions beyond original list (system.logging.yml, step_640 fix,
+  groups_chrome preprocess+template): all load-bearing on acceptance.
+
+**Test quality**: PASS. `GroupLanguageIndicatorTest` has one test per
+suppression branch with fixture-sanity guards. Playwright has one test
+per acceptance surface (RTL / LTR / directory column). No smells.
+
+**Non-goals verified**: extend-rather-than-duplicate satisfied. Grep
+confirms zero re-implementations of the 4 suppression branches outside
+`resolveDisplayLanguage()`.
+
+**Documentation quality**: PASS. One pre-existing docblock typo noted
+in `step_640.php` (path in usage comment is stale — was never touched
+by #139). Non-blocking.
+
+**Follow-ups recorded (non-blocking, in decisions.md)**
+1. Promote `resolveDisplayLanguage()` to `LanguageNegotiationGroup`.
+2. Cache-context hardening on Views badge.
+3. `seed-site.sh` admin-wrap gap.
+4. 360px + RTL horizontal overflow (theme).
+5. DDEV settings.local.php (per coordinator ruling A — not required for #139).
+6. Batched-kernel + SIMPLETEST_DB inline as project convention.
+
+**Actions (O)**
+- Push branch and open PR per overnight authorization with S's PR body
+  draft (contains the mandated local-dev-caveat paragraph verbatim).
+
+---
