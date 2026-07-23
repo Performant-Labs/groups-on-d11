@@ -80,4 +80,44 @@ class PinTogglePinTest extends ActivityKernelTestBase {
     );
   }
 
+  /**
+   * Unpinning a node must not delete the node's own post-created Message.
+   *
+   * Regression pin for the diff-gate "bonus catch": flaggingDelete()
+   * previously deleted every Message referencing the flaggable entity's
+   * (entity_type, entity_id) pair — for a pinned `post` node, that pair is
+   * IDENTICAL to the one activity_post_created's own Message uses, so
+   * unpinning a node silently deleted its unrelated activity_post_created
+   * Message too. PinTogglePinTest::testUnpinRemovesTheMessage() only asserted
+   * the pin-template count, so this was latent. Fixed at 582ea59 by scoping
+   * flaggingDelete()'s delete to the SAME template its matching insert used
+   * (mirrors flaggingInsert()'s own flag-id branch).
+   */
+  public function testUnpinDoesNotDeletePostCreatedMessage(): void {
+    $group = $this->createGroup();
+    $actor = $this->createUser();
+    $this->setCurrentUser($actor);
+    $node = $this->addNode($group, 'post', ['title' => 'Pin then unpin, keep the post', 'uid' => $actor->id()]);
+
+    $flagService = $this->container->get('flag');
+    $pinFlag = $this->loadFlag('pin_in_group');
+    $flagService->flag($pinFlag, $node, $actor);
+
+    $this->assertCount(1, $this->messagesByTemplate('activity_post_created'), 'Sanity: the post-created Message exists before unpinning.');
+    $this->assertCount(1, $this->messagesByTemplate('activity_pin_toggled'), 'Sanity: the pin Message exists before unpinning.');
+
+    $flagService->unflag($pinFlag, $node, $actor);
+
+    $this->assertCount(
+      0,
+      $this->messagesByTemplate('activity_pin_toggled'),
+      'Unpinning removes its own activity_pin_toggled Message.'
+    );
+    $this->assertCount(
+      1,
+      $this->messagesByTemplate('activity_post_created'),
+      'Unpinning must NOT delete the node\'s unrelated activity_post_created Message.'
+    );
+  }
+
 }

@@ -352,3 +352,53 @@
   baseline), peer smoke run on `do_notifications`/`do_streams` (`Tests: 13, Failures: 0, Errors: 0`,
   exit 0); `git status --porcelain` (confirmed exactly 5 modified test files + this decisions.md
   entry + new handoff-T-green.md, no drift from any disposable verification patch).
+
+## T — Round 2 (post diff-gate BLOCK, regression tests) — 2026-07-23
+
+- **Decided:** Added `FlaggingDeleteTest.php` as a new file rather than extending
+  `FlaggingInsertTest.php` — insert and delete are distinct lifecycle events with distinct hooks
+  (`flagging_insert` vs `flagging_delete`), and the existing suite already separates insert/delete
+  concerns into different files elsewhere (`NodeInGroupInsertTest` + `DeletionHygieneTest` for
+  node lifecycle). Keeps each file's `@group`/class docblock scoped to one hook.
+- **Decided:** `testUnflagFollowUserRemovesFlaggingMessage` (W-1 coverage-gap test) passes BOTH
+  with and without F's `582ea59` scoping fix — verified directly during the revert-and-run sanity
+  check. This is expected and correct: the coverage gap it closes is "nothing asserted unflag
+  removes the Message at all", not a scoping ambiguity (a lone `follow_user` flagging's
+  `(user, uid)` referenced-entity pair is not shared with any OTHER template in that specific
+  test's fixture, so the unscoped pre-fix delete also happens to satisfy this assertion). The two
+  REGRESSION tests (`testMembershipDeleteDoesNotDeleteUnrelatedFollowMessages`,
+  `testUnpinDoesNotDeletePostCreatedMessage`) are the ones that construct the actual ambiguous
+  shared-key scenario and DO fail without the fix — confirmed below.
+- **Decided:** Added `testMembershipDeleteDoesNotDeleteUnrelatedFollowMessages` to
+  `DeletionHygieneTest.php` (not a new file) — it is a deletion-hygiene test for the same
+  `group_relationship_delete` hook `testMembershipRelationshipDeleteRemovesMembershipMessage`
+  already covers in that file, just asserting the negative-space (unrelated Message survives)
+  half diff-gate's B-1 finding said was missing.
+- **Decided:** Added `testUnpinDoesNotDeletePostCreatedMessage` to `PinTogglePinTest.php` (not
+  `DeletionHygieneTest.php`) — pin/unpin's deletion hygiene is already established in that file as
+  living alongside the pin/unpin insert tests (`testUnpinRemovesTheMessage` is already there), per
+  that file's own docblock explicitly carving pin/unpin out of `DeletionHygieneTest`'s scope.
+- **Evidence:** `bash scripts/ci/assemble-config.sh` via `ddev exec` — exit 0, 103 config files /
+  14 modules copied, core.extension patched. Full kernel suite post-assemble:
+  `Tests: 23, Assertions: 757, Deprecations: 14, PHPUnit Deprecations: 32, Risky: 2` — `OK, but
+  there were issues!` (no Failures/Errors line; the 2 "Risky" markers are `BackfillIdempotencyTest`'s
+  pre-existing expected-stdout flags, unrelated to this round). `--testdox` output confirmed all
+  three new methods print `✔`.
+- **Evidence — revert-and-run sanity check:** patched ONLY the disposable, gitignored
+  `web/modules/custom/do_activity/src/Hook/DoActivityHooks.php` (never `docs/groups/...`) to strip
+  the `$template` argument from `flaggingDelete()`'s and `groupRelationshipDelete()`'s
+  `deleteMessagesReferencing()` calls (restoring the exact pre-`582ea59` unscoped behavior), then
+  reran the three new methods filtered: `Tests: 3, Assertions: 102, Failures: 2` —
+  `testMembershipDeleteDoesNotDeleteUnrelatedFollowMessages` and
+  `testUnpinDoesNotDeletePostCreatedMessage` both failed exactly as designed ("Failed asserting
+  that actual size 0 matches expected size 1" on the unrelated-Message-survives assertion);
+  `testUnflagFollowUserRemovesFlaggingMessage` passed (expected — see decision above, it pins the
+  coverage gap, not a scoping regression). Restored via a fresh `bash scripts/ci/assemble-config.sh`
+  run (never a manual patch-revert) — confirmed via a second full-suite run:
+  `Tests: 23, Assertions: 757` restored, no Failures/Errors. `git status --porcelain` against
+  `docs/groups/modules/do_activity/` throughout: only the three intended test-file changes
+  (`FlaggingDeleteTest.php` new, `DeletionHygieneTest.php` + `PinTogglePinTest.php` modified) —
+  `src/Hook/DoActivityHooks.php` under `docs/groups/...` was never touched, only its disposable
+  assembled copy under `web/modules/custom/...` (gitignored).
+- **Evidence:** `phpcs --standard=Drupal,DrupalPractice` on all three new/modified test files —
+  0 errors, 0 warnings, exit 0. `php -l` clean on all three.

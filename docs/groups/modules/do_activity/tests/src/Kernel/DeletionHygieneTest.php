@@ -128,4 +128,66 @@ class DeletionHygieneTest extends ActivityKernelTestBase {
     );
   }
 
+  /**
+   * Leaving a group must not delete an unrelated follow_user Message.
+   *
+   * Regression pin for diff-gate B-1: groupRelationshipDelete()'s
+   * `group_membership` branch previously deleted EVERY Message referencing
+   * the departing user's uid, keyed only on (user, uid) — which also matched
+   * an unrelated `activity_flagging_created` Message from a `follow_user`
+   * flag where this same user happens to be the FOLLOWEE. Fixed at 582ea59
+   * by additionally scoping that delete to `template =
+   * activity_membership_created`. Without that scoping, deleting the
+   * membership relationship would ALSO silently delete the follow Message
+   * asserted here.
+   */
+  public function testMembershipDeleteDoesNotDeleteUnrelatedFollowMessages(): void {
+    $group = $this->createGroup();
+    $member = $this->createUser();
+    $this->addMember($group, $member);
+
+    $follower = $this->createUser();
+    $flagService = $this->container->get('flag');
+    $flagService->flag($this->loadFlag('follow_user'), $member, $follower);
+
+    $membershipMessages = array_filter(
+      $this->messagesByTemplate('activity_membership_created'),
+      fn ($m) => (int) $m->get('field_referenced_entity_id')->value === (int) $member->id()
+        && (int) $m->get('field_group_id')->target_id === (int) $group->id(),
+    );
+    $this->assertCount(1, $membershipMessages, 'Sanity: the membership Message exists before removal.');
+
+    $followMessages = array_filter(
+      $this->messagesByTemplate('activity_flagging_created'),
+      fn ($m) => $m->get('field_referenced_entity_type')->value === 'user'
+        && (int) $m->get('field_referenced_entity_id')->value === (int) $member->id(),
+    );
+    $this->assertCount(1, $followMessages, 'Sanity: the unrelated follow_user Message exists before removal.');
+
+    $membership = $group->getMember($member);
+    $membership->delete();
+
+    $remainingMembershipMessages = array_filter(
+      $this->messagesByTemplate('activity_membership_created'),
+      fn ($m) => (int) $m->get('field_referenced_entity_id')->value === (int) $member->id()
+        && (int) $m->get('field_group_id')->target_id === (int) $group->id(),
+    );
+    $this->assertCount(
+      0,
+      $remainingMembershipMessages,
+      'Deleting the membership relationship removes its own activity_membership_created Message.'
+    );
+
+    $remainingFollowMessages = array_filter(
+      $this->messagesByTemplate('activity_flagging_created'),
+      fn ($m) => $m->get('field_referenced_entity_type')->value === 'user'
+        && (int) $m->get('field_referenced_entity_id')->value === (int) $member->id(),
+    );
+    $this->assertCount(
+      1,
+      $remainingFollowMessages,
+      'Deleting the membership relationship must NOT delete the unrelated activity_flagging_created (follow_user) Message referencing the same user.'
+    );
+  }
+
 }
