@@ -40,31 +40,41 @@ class MembershipCreateTest extends ActivityKernelTestBase {
     );
     $this->assertSame('user', $message->get('field_referenced_entity_type')->value);
     $this->assertSame((int) $newMember->id(), (int) $message->get('field_referenced_entity_id')->value);
-    $this->assertSame((int) $group->id(), (int) $message->get('field_group_id')->value);
+    $this->assertSame((int) $group->id(), (int) $message->get('field_group_id')->target_id);
   }
 
   /**
-   * The group creator's own creator-membership relationship is out of scope
-   * scope-wise, but if it fires it must record the CREATOR as actor, not an
-   * unrelated user — proving the hook reads the relationship's own entity,
-   * not e.g. the currently logged-in test-runner default user.
+   * Adding the group OWNER as a member still attributes to that owner.
+   *
+   * Originally this test relied on `community_group`'s `creator_membership`
+   * setting firing automatically off a bare `Group::create()->save()` — but
+   * that setting is consumed EXCLUSIVELY inside `GroupForm::form()`/
+   * `GroupForm::actions()` (`creatorGetsMembership()`), the add-FORM's own
+   * submit-handler enhancement. Nothing in `Group`'s entity-storage layer
+   * (nor `GroupsKernelTestBase::createGroup()`, a bare `$storage->save()`)
+   * ever creates a creator-membership relationship outside an actual
+   * `/group/add` form submission, so that relationship never exists at the
+   * kernel tier (confirmed by F during Phase 5 self-check; fixed T-green).
+   * Rewritten to construct the membership via the mechanism that DOES fire
+   * `group_relationship_insert` at this tier — `Group::addMember()` — so the
+   * same acceptance intent (membership creation logs an activity Message
+   * attributing to the correct actor, even when that actor is the group
+   * owner) stays covered without asserting a form-only side effect.
    */
-  public function testGroupCreatorMembershipRecordsCreatorAsActor(): void {
+  public function testOwnerAddedAsMemberRecordsOwnerAsActor(): void {
     $owner = $this->createUser();
     $this->setCurrentUser($owner);
 
     $group = $this->createGroup(['uid' => $owner->id()]);
+    $this->addMember($group, $owner);
 
     $messages = $this->messagesByTemplate('activity_membership_created');
-    // The community_group type has creator_membership => TRUE (base setUp()),
-    // so creating the group also creates the creator's own membership
-    // relationship — this must attribute to the owner, not silently to no one.
-    $this->assertNotEmpty($messages, 'The creator membership relationship also records a membership Message.');
+    $this->assertNotEmpty($messages, 'Adding the owner as a member records a membership Message.');
     foreach ($messages as $message) {
       $this->assertSame(
         (int) $owner->id(),
         (int) $message->getOwnerId(),
-        'Every membership Message for the creator relationship attributes to the group owner.'
+        'The membership Message for the owner-as-member attributes to the owner, not the current user incidentally.'
       );
     }
   }

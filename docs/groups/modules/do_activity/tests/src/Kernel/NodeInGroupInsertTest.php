@@ -58,7 +58,7 @@ class NodeInGroupInsertTest extends ActivityKernelTestBase {
     );
     $this->assertSame(
       (int) $group->id(),
-      (int) $message->get('field_group_id')->value,
+      (int) $message->get('field_group_id')->target_id,
       'The Message carries the group the node was added to.'
     );
   }
@@ -100,7 +100,7 @@ class NodeInGroupInsertTest extends ActivityKernelTestBase {
     );
     $message = reset($messages);
     $this->assertSame((int) $node->id(), (int) $message->get('field_referenced_entity_id')->value);
-    $this->assertSame((int) $group->id(), (int) $message->get('field_group_id')->value);
+    $this->assertSame((int) $group->id(), (int) $message->get('field_group_id')->target_id);
   }
 
   /**

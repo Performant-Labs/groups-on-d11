@@ -67,6 +67,13 @@ abstract class ActivityKernelTestBase extends GroupsKernelTestBase {
     $this->installSchema('flag', ['flag_counts']);
     $this->installSchema('node', ['node_access']);
     $this->installConfig(['filter', 'field']);
+    // do_activity's own config/install/ (six message.template.*.yml + the
+    // shared/attached field.storage.*/field.field.* config) is never
+    // auto-installed by enableModules() — only a real ModuleInstaller::
+    // install() on a bootstrapped site does that. Without this, every test
+    // errors on `Drupal\message\MessageException: No valid template found.`
+    // before reaching its real assertion (test-authoring gap, fixed T-green).
+    $this->installConfig(['do_activity']);
 
     // A comment type + a comment-type field attached to the `post` bundle
     // (already created by GroupsKernelTestBase::setUp() via NODE_BUNDLES), so

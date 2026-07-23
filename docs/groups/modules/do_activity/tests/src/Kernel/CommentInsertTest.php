@@ -57,7 +57,7 @@ class CommentInsertTest extends ActivityKernelTestBase {
     $this->assertSame((int) $comment->id(), (int) $message->get('field_referenced_entity_id')->value);
     $this->assertSame(
       (int) $group->id(),
-      (int) $message->get('field_group_id')->value,
+      (int) $message->get('field_group_id')->target_id,
       'The comment message carries the group of the commented-on node.'
     );
   }

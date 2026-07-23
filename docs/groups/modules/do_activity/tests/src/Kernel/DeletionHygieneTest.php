@@ -76,8 +76,9 @@ class DeletionHygieneTest extends ActivityKernelTestBase {
   }
 
   /**
-   * Removing a member (deleting the group_membership relationship) removes
-   * its membership-created Message.
+   * Removing a member removes its membership-created Message.
+   *
+   * "Removing a member" means deleting the group_membership relationship.
    */
   public function testMembershipRelationshipDeleteRemovesMembershipMessage(): void {
     $group = $this->createGroup();
@@ -89,13 +90,17 @@ class DeletionHygieneTest extends ActivityKernelTestBase {
       'Sanity: a membership Message exists before removal.'
     );
 
-    $membership = $group->getMember($member)->getGroupRelationship();
+    // GroupInterface::getMember() already returns the GroupMembership
+    // relationship entity directly (GroupMembershipInterface extends
+    // GroupRelationshipInterface) — there is no ->getGroupRelationship()
+    // unwrapping method to call (test-authoring bug, fixed T-green).
+    $membership = $group->getMember($member);
     $membership->delete();
 
     $remaining = array_filter(
       $this->messagesByTemplate('activity_membership_created'),
       fn ($m) => (int) $m->get('field_referenced_entity_id')->value === (int) $member->id()
-        && (int) $m->get('field_group_id')->value === (int) $group->id(),
+        && (int) $m->get('field_group_id')->target_id === (int) $group->id(),
     );
     $this->assertCount(
       0,
