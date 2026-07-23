@@ -23,6 +23,20 @@ import { test, expect, Page } from '@playwright/test';
  * persona choice absent a dedicated seeded-Organizer login helper.
  *
  * Self-contained: no imports from other specs, own login/lookup helpers.
+ *
+ * Cross-story fix (2026-07-23, coordinator-approved as part of #140 overnight
+ * unblock): the original archived-state assertions were page-wide
+ * `getByText(/Archived/i)` matches. That's too loose — it catches ANY page
+ * text containing "Archived", including neutral copy like the seeded
+ * `field_group_description` value "Archived: Drupal 7 module maintenance
+ * coordination..." on Legacy Infrastructure. Any story that legitimately
+ * causes descriptions to render on the group page (e.g. #140's Full display)
+ * would trip these assertions. Rescoped to the archive BADGE element only
+ * (`span.group__archived-badge`) — that's the canonical archived-state
+ * marker in the DOM, and it was already present as the primary assertion on
+ * each surface. Removed the redundant text-based assertions rather than
+ * rescope them (the badge check is both stricter and more meaningful).
+ * Handoff §6.7: "fix the defect class, not the cited instance."
  */
 
 const ADMIN_USER = process.env.ADMIN_USER ?? 'admin';
@@ -76,8 +90,10 @@ test.describe('Group archiving RESTORE action (#143 MC-5)', () => {
     const gid = await findLegacyInfrastructureGid(page);
 
     // --- Step 1: preconditions (Archive-typed) ---------------------------
+    // Archived-state is observable via the BADGE element and the Restore tab.
+    // Do NOT assert on page-wide text — see file-header note on the
+    // cross-story fix (2026-07-23).
     await page.goto(`/group/${gid}`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText(/Archived/i).first()).toBeVisible();
     await expect(page.locator('span.group__archived-badge')).toBeVisible();
     await expect(
       page.getByRole('link', { name: /Restore group/i }),
@@ -97,10 +113,12 @@ test.describe('Group archiving RESTORE action (#143 MC-5)', () => {
     await page.getByRole('button', { name: /Restore group/i }).click();
 
     // --- Step 3: post-restore assertions ---------------------------------
+    // Badge gone + Restore tab gone is the canonical archived-cleared signal.
+    // (Previously also asserted page-wide getByText(/Archived/i).toHaveCount(0)
+    // — removed as fragile per file-header note.)
     await page.waitForURL(new RegExp(`/group/${gid}$`));
     await expect(page.locator('.messages--status')).toBeVisible();
     await expect(page.locator('.messages--status')).toContainText(/restored/i);
-    await expect(page.getByText(/Archived/i)).toHaveCount(0);
     await expect(page.locator('span.group__archived-badge')).toHaveCount(0);
     await expect(
       page.getByRole('link', { name: /Restore group/i }),
@@ -113,7 +131,6 @@ test.describe('Group archiving RESTORE action (#143 MC-5)', () => {
 
     // --- Step 5: badge + tab return (observable-swap mirror, see Step 1) ---
     await page.goto(`/group/${gid}`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText(/Archived/i).first()).toBeVisible();
     await expect(page.locator('span.group__archived-badge')).toBeVisible();
     await expect(
       page.getByRole('link', { name: /Restore group/i }),
