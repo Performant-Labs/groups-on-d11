@@ -40,3 +40,22 @@
 - **Evidence**: `docs/handoffs/132-showcase-help/handoff-T-red.md` — full RED output, per-tier
   execution mode, and source cross-checks (`DoShowcaseHooks.php`, `ShowcaseController.php`,
   `do_chrome.libraries.yml`).
+
+## Phase 6 (T) — verify tests (GREEN) + Tier 2
+
+- **Decided**: Unit tier (10 target + 11 do_chrome regression = 21 tests) real-executed via the
+  primary-checkout-as-external-tool method (identical to T-red), all GREEN. Spot-checked suite
+  validity by deleting `showcase_help.map` from a scratch copy — 3 tests correctly turned RED,
+  confirming behavior-pinning not tautology.
+- **Decided**: Functional (10 tests, 2 files) and E2E (6 tests, 1 file) remain env-blocked in this
+  worktree (no `vendor/`, no `node_modules` — unchanged since T-red). Verified instead by line-for-
+  line cross-check of every assertion against F's actual diff (`git show cce8d7f`) — no
+  discrepancy found; all 7 catalog ids, the DOM child order (`glyph, text, switch_back, help`), the
+  explicit `do_chrome/tooltips` attach, and the empty-copy guard match exactly.
+- **Assumed**: No `handoff-F.md` existed on disk in the worktree at the expected path; F's summary
+  (quoted in the T-green task prompt) was treated as authoritative alongside the commit diff.
+- **Hedged**: Functional/E2E GREEN is inferred from source cross-check, not live execution — this
+  is a coverage hole flagged explicitly for **U** to close via live walkthrough of `/showcase` and
+  the persona banner across all 4 personas.
+- **Evidence**: `docs/handoffs/132-showcase-help/handoff-T-green.md` — full GREEN output, spot-
+  check output, and per-file diff cross-checks.
