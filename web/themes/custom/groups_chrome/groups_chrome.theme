@@ -63,6 +63,13 @@
  * `do_group_extras` (hook_group_access / node_access / views_query_alter);
  * this theme layer only renders the READ-ONLY indicator for a session that
  * was already granted access.
+ * Issue #139 (MC-4, Amendment v4 Bug #2): groups_chrome_preprocess_views_view_fields__all_groups()
+ * additionally exposes the group's primary language on the directory card (see
+ * that function's own doc comment) by calling
+ * \Drupal\do_group_language\Hook\GroupLanguageIndicatorHooks::resolveDisplayLanguage()
+ * — the SAME resolve-and-suppress logic the group Full-page indicator hook
+ * uses, so the two renderings of "does this group have a primary language
+ * worth showing" can never drift apart.
  *
  * Demo-only, NO schema changes: all data is READ from existing entities and the
  * comment statistics table — no fields or config are added.
@@ -75,6 +82,7 @@ use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Template\Attribute;
 use Drupal\Core\Url;
 use Drupal\do_chrome\HelpText;
+use Drupal\do_group_language\Hook\GroupLanguageIndicatorHooks;
 use Drupal\group\Entity\GroupInterface;
 use Drupal\node\NodeInterface;
 
@@ -782,6 +790,8 @@ function groups_chrome_preprocess_group(array &$variables): void {
  *   - a TYPE badge (field_group_type taxonomy term label)
  *   - a VISIBILITY badge (field_group_visibility allowed-value label)
  *   - a PRIVATE badge (#134, SC-7 — field_group_privacy == 'private' only)
+ *   - a LANGUAGE badge (field_group_language, issue #139 / MC-4 Amendment v4
+ *     Bug #2 — see below)
  *   - MEMBER COUNT — number of group_membership relationships on the group
  *   - LAST ACTIVITY — MAX(node.created) across the group's group_node relations
  *   - a JOIN affordance state for the current user (member / can-join / closed)
@@ -803,6 +813,17 @@ function groups_chrome_preprocess_group(array &$variables): void {
  * the badge computed here only ever needs to answer "is THIS (already
  * visible) group private", never "should this row be hidden" — that
  * decision is made before Views even builds the row.
+ * Issue #139 (MC-4) Amendment v4, Bug #2: this template is a custom row
+ * override that never loops over the view's raw Views `fields` array (see
+ * the template's own doc comment), so merely adding `field_group_language`
+ * to the view's field list (views.view.all_groups.yml) has zero visible
+ * effect on the rendered card. The language badge is instead resolved here,
+ * directly from the row's group entity, via
+ * \Drupal\do_group_language\Hook\GroupLanguageIndicatorHooks::resolveDisplayLanguage()
+ * — the SAME method the group Full-page indicator hook calls — so both
+ * renderings apply the identical four suppression branches (empty / und /
+ * zxx / uninstalled langcode / site-default langcode) and can never drift
+ * out of sync with each other.
  */
 function groups_chrome_preprocess_views_view_fields__all_groups(array &$variables): void {
   // Attach the isolated directory-card component CSS to these rows only.
@@ -828,6 +849,9 @@ function groups_chrome_preprocess_views_view_fields__all_groups(array &$variable
     // --- #134 (SC-7) privacy-badge defaults ---------------------------------
     'privacy_label' => NULL,
     'privacy_help_copy' => NULL,
+    'language_code' => NULL,
+    'language_label' => NULL,
+    'language_direction' => NULL,
     'member_count' => 0,
     'last_activity' => NULL,
     'last_activity_display' => NULL,
@@ -888,6 +912,18 @@ function groups_chrome_preprocess_views_view_fields__all_groups(array &$variable
     $gc['privacy_help_copy'] = class_exists(HelpText::class)
       ? HelpText::get('privacy.private')
       : '';
+  }
+
+  // --- Language badge (field_group_language, issue #139 Bug #2) -----------
+  // Delegates the resolve-and-suppress decision to GroupLanguageIndicatorHooks
+  // so this directory card and the group Full-page indicator can never apply
+  // different rules. A NULL result leaves all three keys NULL, which the
+  // template's `{% if gc_directory.language_label %}` guard skips cleanly.
+  $language = GroupLanguageIndicatorHooks::resolveDisplayLanguage($group);
+  if ($language !== NULL) {
+    $gc['language_code'] = $language->getId();
+    $gc['language_label'] = $language->getName();
+    $gc['language_direction'] = $language->getDirection();
   }
 
   // --- Member count (group_membership relationships) ---------------------

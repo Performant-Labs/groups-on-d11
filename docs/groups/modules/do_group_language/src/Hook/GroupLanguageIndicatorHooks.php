@@ -7,6 +7,7 @@ namespace Drupal\do_group_language\Hook;
 use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Hook\Attribute\Hook;
+use Drupal\Core\Language\LanguageInterface;
 use Drupal\group\Entity\GroupInterface;
 
 /**
@@ -35,6 +36,16 @@ use Drupal\group\Entity\GroupInterface;
  * as a Views field (see views.view.all_groups.yml). This hook only ever
  * targets view_mode `full`.
  *
+ * The directory CARD's actual rendering (Amendment v4, Bug #2) is a custom
+ * row template that never loops over the raw Views `fields` array — see
+ * `groups_chrome_preprocess_views_view_fields__all_groups()` in
+ * `web/themes/custom/groups_chrome/groups_chrome.theme`. That preprocess
+ * function calls {@see self::resolveDisplayLanguage()} below — the SAME
+ * resolve-and-suppress method this hook calls — so the entity-view
+ * indicator and the directory-card badge are provably two renderings of
+ * one decision, not two independent (and possibly drifting) copies of the
+ * four suppression branches.
+ *
  * @see \Drupal\do_group_language\Plugin\LanguageNegotiation\LanguageNegotiationGroup
  */
 class GroupLanguageIndicatorHooks {
@@ -48,11 +59,19 @@ class GroupLanguageIndicatorHooks {
   private const NO_LANGUAGE_SENTINELS = ['und', 'zxx', ''];
 
   /**
-   * Injects the group-language indicator into the group's full view.
+   * Resolves the group's primary language, or NULL to suppress it.
    *
-   * No indicator is emitted when:
-   * - the entity is not a group, or the view mode is not `full`;
-   * - the entity has no `field_group_language` field;
+   * This is the SINGLE point of decision for "does this group have a
+   * primary language worth displaying, and if so, what is it" — both
+   * {@see self::entityView()} (the group Full-page indicator) and
+   * `groups_chrome_preprocess_views_view_fields__all_groups()` (the
+   * `/all-groups` directory-card badge, Amendment v4 Bug #2) call this one
+   * method rather than each re-implementing the four suppression branches,
+   * so the two renderings can never drift out of sync with each other.
+   *
+   * Returns NULL when:
+   * - the entity has no `field_group_language` field, or the field is
+   *   empty (zero field-item-list values);
    * - the langcode is one of the `und` / `zxx` / empty-string sentinels;
    * - `\Drupal::languageManager()->getLanguage($langcode)` returns NULL
    *   (a bogus/uninstalled langcode) — the null-language guard A's
@@ -85,6 +104,42 @@ class GroupLanguageIndicatorHooks {
    * language back to users already viewing the site in that language
    * carries no information either way.
    */
+  public static function resolveDisplayLanguage(GroupInterface $group): ?LanguageInterface {
+    if (!$group->hasField('field_group_language') || $group->get('field_group_language')->isEmpty()) {
+      return NULL;
+    }
+
+    $langcode = $group->get('field_group_language')->value;
+    if (in_array($langcode, self::NO_LANGUAGE_SENTINELS, TRUE)) {
+      return NULL;
+    }
+
+    $language_manager = \Drupal::languageManager();
+
+    $language = $language_manager->getLanguage($langcode);
+    if ($language === NULL) {
+      // Bogus/uninstalled langcode — suppress rather than emit a broken
+      // lang="" / dir="" attribute or fatal.
+      return NULL;
+    }
+
+    if ($langcode === $language_manager->getDefaultLanguage()->getId()) {
+      // See the method-level doc comment: the site default is the
+      // unavoidable auto-populated value for a never-explicitly-set
+      // language field, so it is never worth flagging as a "primary
+      // language" on its own.
+      return NULL;
+    }
+
+    return $language;
+  }
+
+  /**
+   * Injects the group-language indicator into the group's full view.
+   *
+   * All suppression logic lives in {@see self::resolveDisplayLanguage()};
+   * this method only turns a resolved language into the render array.
+   */
   #[Hook('entity_view')]
   public function entityView(
     array &$build,
@@ -95,29 +150,9 @@ class GroupLanguageIndicatorHooks {
     if (!$entity instanceof GroupInterface || $view_mode !== 'full') {
       return;
     }
-    if (!$entity->hasField('field_group_language') || $entity->get('field_group_language')->isEmpty()) {
-      return;
-    }
 
-    $langcode = $entity->get('field_group_language')->value;
-    if (in_array($langcode, self::NO_LANGUAGE_SENTINELS, TRUE)) {
-      return;
-    }
-
-    $language_manager = \Drupal::languageManager();
-
-    $language = $language_manager->getLanguage($langcode);
+    $language = self::resolveDisplayLanguage($entity);
     if ($language === NULL) {
-      // Bogus/uninstalled langcode — suppress rather than emit a broken
-      // lang="" / dir="" attribute or fatal.
-      return;
-    }
-
-    if ($langcode === $language_manager->getDefaultLanguage()->getId()) {
-      // See the class-level doc comment: the site default is the
-      // unavoidable auto-populated value for a never-explicitly-set
-      // language field, so it is never worth flagging as a "primary
-      // language" on its own.
       return;
     }
 

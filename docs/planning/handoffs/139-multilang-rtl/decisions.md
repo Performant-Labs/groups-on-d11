@@ -332,3 +332,113 @@ render as intended once language metadata is right).
 - `docs/planning/handoffs/139-multilang-rtl/handoff-T-green.md`
 
 ---
+
+## Phase 6 — F (three-bug fix, round 2)
+
+**Verdict**: GREEN (Tier 1). All three bugs fixed and verified against a live fresh reseed. 107/107
+kernel, lint clean on all touched code, config:import repro succeeds, Bug 2 badge + Bug 3 direction
+both confirmed via live curl/drush.
+
+**Bug 1 fix** — `docs/groups/config/views.view.all_groups.yml`: `dependencies.config` entry
+corrected from `group__field_group_language` (Views table name) to
+`field.storage.group.field_group_language` (real config entity ID). `table:` key at line 51 left
+untouched (`group__field_group_language` is correct there). One-line diff.
+
+**Bug 2 fix** — extracted the four-branch suppression logic out of
+`GroupLanguageIndicatorHooks::entityView()` into a new public static method,
+`GroupLanguageIndicatorHooks::resolveDisplayLanguage(GroupInterface $group): ?LanguageInterface`,
+per the brief's "Preferred" option (chosen over a separate service class — a `.theme` file has no
+DI container access without a `\Drupal::service()` lookup, so a static method callable directly is
+the lower-machinery fit for this project's existing `#[Hook]`-attribute / zero-`services.yml`
+convention). `entityView()` now calls the shared helper and only builds the render array from its
+result — behaviorally identical to the pre-refactor version (same four early-return conditions, same
+order). `groups_chrome_preprocess_views_view_fields__all_groups()` (in
+`web/themes/custom/groups_chrome/groups_chrome.theme`) calls the SAME helper and sets three new
+`gc_directory` keys (`language_code`/`language_label`/`language_direction`), all `NULL` when the
+helper returns `NULL`. The Twig template
+(`views-view-fields--all-groups.html.twig`) emits `<span class="do-group-language gc-badge"
+lang="{{ code }}" dir="{{ direction }}">{{ label }}</span>` guarded by
+`{% if gc_directory.language_label %}`, exactly per the brief's markup spec, positioned after the
+type/visibility badges.
+
+**Bug 3 fix** — `docs/groups/scripts/step_640.php`: replaced
+`$storage->create(["id" => $langcode])->save();` with
+`\Drupal\language\Entity\ConfigurableLanguage::createFromLangcode($langcode)->save();` (added the
+`use` import). Idempotency guard (`if (!$storage->load($langcode))`) unchanged.
+
+**Assumed**
+- The brief's Bug 1 verify step ("fresh reseed... `config:import -y` should succeed cleanly")
+  meant a genuinely fresh `site:install`, not the long-lived, already-drifted live container T-green
+  left behind (confirmed via `drush config:status` showing ~30 pre-existing `Different`/`Only in
+  sync dir` entries unrelated to this story before I reseeded). Did a full fresh
+  `drush site:install` + reseed via the container's own `seed-site.sh` to get a clean baseline for
+  both the config:import repro and the Bug 2/3 live-site checks.
+- `docs/groups/scripts/step_640.php` is NOT part of `seed-site.sh`'s own sequence (confirmed —
+  `seed-site.sh`/`seed-step2.sh`/`seed-step3.sh` never call it), so a bare fresh reseed leaves `ar`
+  as an uninstalled langcode (correctly suppressed by the null-language guard, not a crash). Ran
+  `step_640.php` explicitly via `drush php:script` afterward, per the task's own instruction #6, to
+  produce the RTL-verifiable state.
+
+**Hedged / worked around (not a fix to any of the 3 assigned bugs — flagged for O)**
+- The untracked `seed-site.sh` (not part of `docs/groups/`, not one of my assigned files, git-status
+  shows it as `??` — an artifact from an earlier phase, not authored by me) does not wrap the
+  runbook scripts in the "seed-as-admin" pattern `.github/workflows/test.yml` uses (`$admin =
+  User::load(1); \Drupal::currentUser()->setAccount($admin);` before each `require`). Without that
+  wrap, `do_group_extras`' `entity_presave` hook sees the *anonymous* user during
+  `drush php:script`, not uid 1, and unpublishes every freshly-seeded group (`status = 0`) —
+  `/all-groups` rendered its empty state ("No groups yet") until I directly `UPDATE
+  groups_field_data SET status = 1` on the 9 already-created groups (a verification-session-only
+  DB write, not a code change, not committed, not touching any of my 5 assigned files). This is
+  pre-existing environment-harness drift unrelated to any of the three bugs I was asked to fix —
+  `seed-site.sh` simply never adopted the admin-wrapper pattern CI already documents at
+  `.github/workflows/test.yml:486-488`. Flagging for O/T awareness in case a future fresh reseed of
+  this container repeats the same "No groups yet" symptom; the fix (if wanted) is updating
+  `seed-site.sh` to match CI's wrapper, which is out of my edit scope this round.
+
+**Verification (Tier 1)**
+- `assemble-config.sh`: exit 0, 95 config files, 13 custom modules registered.
+- Kernel, do_group_language (both classes): 13/13 (7 `GroupLanguageIndicatorTest` + 6
+  `GroupLanguageNegotiationTest`), 0 failures — confirmed the `resolveDisplayLanguage()` extraction
+  did not change `GroupLanguageIndicatorTest`'s 7/7 result.
+- Full kernel suite, batched (matching T-green's exact groupings): batch 1 (do_tests, do_streams,
+  do_notifications, do_group_pin) 48/48; batch 2 (do_profile_stats, do_group_mission,
+  do_group_extras, do_discovery) 28/28; batch 3 (do_group_membership, do_multigroup) 18/18. Plus
+  do_group_language's 13. **Total 107/107, 0 failures**, matching T-green's baseline exactly (same
+  Tests/Assertions counts per batch).
+- Lint (`phpcs --standard=Drupal,DrupalPractice`) on all three touched PHP files: `GroupLanguageIndicatorHooks.php`
+  and `groups_chrome.theme` fully clean (exit 0, zero output). `step_640.php` reports 21
+  pre-existing errors + 1 warning — confirmed via git-diff against HEAD that these are 100%
+  pre-existing (same error count/type as the untouched baseline, only shifted by the +7 lines my
+  `use` statement + comment added); my added lines introduce zero new violations.
+- `drush config:import -y` on the fresh reseed: `[success] The configuration was imported
+  successfully.` — `views.view.all_groups` synchronized without the prior dependency error.
+- Live site: `ar` language entity `direction: rtl`, `label: Arabic` (both `drush config:get
+  language.entity.ar` and `getLanguage('ar')->getDirection()`/`getName()` confirm). `/all-groups`
+  directory card for "Drupal العربية" (gid=9) shows `<span class="do-group-language gc-badge"
+  lang="ar" dir="rtl">Arabic</span>`; "Drupal France" shows `lang="fr" dir="ltr">French</span>`;
+  "Drupal Deutschland" shows `lang="de" dir="ltr">German</span>`. The group's own canonical page
+  (`/group/9`) independently confirms the entity-view indicator renders identically
+  (`lang="ar" dir="rtl">Arabic</span>`) and `<html lang="ar" dir="rtl">`, proving both call sites of
+  the shared helper agree.
+
+**Files changed**
+- `docs/groups/config/views.view.all_groups.yml`
+- `docs/groups/modules/do_group_language/src/Hook/GroupLanguageIndicatorHooks.php`
+- `docs/groups/scripts/step_640.php`
+- `web/themes/custom/groups_chrome/groups_chrome.theme` (outside `docs/groups/`)
+- `web/themes/custom/groups_chrome/templates/content/views-view-fields--all-groups.html.twig`
+  (outside `docs/groups/`)
+
+**Evidence**
+- Live curl/drush transcripts in this handoff's Tier 1 verification section above.
+- `docs/planning/handoffs/139-multilang-rtl/handoff-F-fix-round2.md` (this phase's full handoff, if
+  written to disk by O) — otherwise see the F agent's final chat response for the complete
+  transcript.
+
+**Action (routed to O / next: T green-2)**
+- Ready for T(green-2): re-run kernel (should stay 107/107) + Playwright (should now be 3/3, since
+  Bug 2's badge markup is live) + re-confirm the config:import repro + RTL acceptance end-to-end.
+  Then A-dup (verify `resolveDisplayLanguage()` is the single point of decision, no copy-paste
+  duplication between the hook and the theme preprocess) → U → S → PR (hold for human).
+
+---
