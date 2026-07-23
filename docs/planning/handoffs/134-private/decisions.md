@@ -50,3 +50,15 @@ Append-only. One entry per phase.
 **Evidence:** `docs/planning/handoffs/134-private/wireframe.md` (D output, 240 lines).
 
 **Approval:** Auto-approved by O per overnight autonomous mode authorization (aangelinsf, 2026-07-22).
+
+## Phase 3 — A (up-front plan review) — PASS w/ advisories
+
+**Verdict:** PASS. All load-bearing decisions approved (new field, hook placement, deferred cleanup, AC coverage).
+
+**Advisories folded into brief for F to consume:**
+1. **Views SQL rewrite verify.** F to grep `views.view.all_groups.yml` at Tier 1 for `disable_sql_rewrite`; if `true` or bare SQL, add `hook_views_query_alter` on the `all_groups` view (still in `do_group_extras`), NOT a generic `hook_query_TAG_alter`.
+2. **Cache invalidation on join/leave.** T to add one kernel assertion in `PrivacyAccessTest`: after `$group->addMember($account, ...)`, a fresh `access('view')` call returns allowed (no stale-cache leak). F to attach `group_content_list:{gid}` cache tag or `user` cache context alongside the existing `cachePerUser()`.
+3. **Title-leak breadth.** T's `PrivacyDirectoryTest` asserts the literal string "Security Team" absent from anonymous /all-groups response body (not just `.gc-group-card` selector).
+4. **`step_700` L91 admin-role reference — LEAVE ALONE.** Do not drive-by-fix; that touches deferred vestigial-role cleanup scope. F ships privacy without editing the seed's existing `community_group-admin` addMember() call.
+
+**Evidence:** A subagent transcript (acb539569fb768d33).
