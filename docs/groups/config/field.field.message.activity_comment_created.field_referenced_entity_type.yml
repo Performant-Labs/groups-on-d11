@@ -1,0 +1,20 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.message.field_referenced_entity_type
+    - message.template.activity_comment_created
+  module:
+    - message
+id: message.activity_comment_created.field_referenced_entity_type
+field_name: field_referenced_entity_type
+entity_type: message
+bundle: activity_comment_created
+label: 'Referenced entity type'
+description: 'The entity type of the primary referenced entity (e.g. comment).'
+required: true
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string

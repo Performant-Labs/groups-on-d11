@@ -1,0 +1,16 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - message
+template: activity_pin_toggled
+label: 'Activity: pin toggled'
+description: 'Recorded when content is pinned within a group via the pin_in_group flag (log point 6, #116). The Message is deleted on unpin (deletion hygiene).'
+text:
+  -
+    value: '[message:uid] pinned [message:field_referenced_entity_type] [message:field_referenced_entity_id].'
+    format: plain_text
+settings:
+  'token options':
+    clear: false
+    'token replace': false

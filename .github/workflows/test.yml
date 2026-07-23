@@ -555,6 +555,24 @@ jobs:
           require '${PERSONA_SCRIPT}';
           PHP
           php vendor/drush/drush/drush.php php:script /tmp/seed-persona.php
+          # --- do_activity step_7xx BEGIN ---
+          # Marker convention (established by #116): all activity-layer backfills
+          # live between BEGIN/END markers so a later story (#113) can rebase
+          # against them. Runs LAST in the seed sequence (after groups,
+          # memberships, content, nav, and personas all exist above) so the
+          # backfill has everything to catch up on — its idempotency key
+          # (template + field_referenced_entity_type + field_referenced_entity_id
+          # + created) is what keeps it a true no-op against the Messages
+          # do_activity's own live hooks already logged as steps 1-4 ran.
+          ACTIVITY_BACKFILL_SCRIPT="$PWD/docs/groups/scripts/step_7xx_backfill_activity.php"
+          cat > /tmp/backfill-activity.php <<PHP
+          <?php
+          \$admin = \Drupal\user\Entity\User::load(1);
+          if (\$admin) { \Drupal::currentUser()->setAccount(\$admin); }
+          require '${ACTIVITY_BACKFILL_SCRIPT}';
+          PHP
+          php vendor/drush/drush/drush.php php:script /tmp/backfill-activity.php
+          # --- do_activity step_7xx END ---
           php vendor/drush/drush/drush.php cache:rebuild -y
 
       - name: Serve the site

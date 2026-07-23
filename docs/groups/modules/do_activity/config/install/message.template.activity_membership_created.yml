@@ -1,0 +1,16 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - message
+template: activity_membership_created
+label: 'Activity: membership created'
+description: 'Recorded when a user becomes a group member (log point 3, #116). Actor is the new member, not the group owner.'
+text:
+  -
+    value: '[message:uid] joined group [message:field_group_id].'
+    format: plain_text
+settings:
+  'token options':
+    clear: false
+    'token replace': false

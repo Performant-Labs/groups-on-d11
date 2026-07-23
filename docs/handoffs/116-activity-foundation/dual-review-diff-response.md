@@ -1,0 +1,49 @@
+# Round-1 diff-gate response
+
+## [B-1] Over-broad deletion in groupRelationshipDelete for group_membership — ADDRESSED
+
+Fixed in commit `582ea59` (F round-2). `deleteMessagesReferencing()` gained an optional `?string $template` param; `groupRelationshipDelete` now:
+- membership branch: passes `activity_membership_created`, scoped to (user, group).
+- new `group_node:*` branch: passes `activity_post_created`, scoped to (node, group).
+
+Bonus fix: `flaggingDelete` had the same latent scoping bug (unpin was silently also deleting the node's own `activity_post_created` Message). Fixed with same helper.
+
+Locked in by tests at commit `2973096`:
+- `DeletionHygieneTest::testMembershipDeleteDoesNotDeleteUnrelatedFollowMessages` — regression pin for B-1.
+- `PinTogglePinTest::testUnpinDoesNotDeletePostCreatedMessage` — regression pin for bonus catch.
+
+Revert-verify (F fix stripped, tests rerun on assembled copy): both fail as expected. With F fix restored: both pass. Full suite 23/23 GREEN, 757 assertions.
+
+## [B-2] service tag `hook_implementations` — DISPROVEN
+
+The tag matches `do_notifications.services.yml` **byte for byte** — same production-shipped analog module. Additionally, T-GREEN's 20 kernel tests (now 23) all exercise hooks that only fire if the tag registration works; empirical proof the tag is correct. No change.
+
+## [W-1] follow_user unflag hygiene coverage gap — ADDRESSED
+
+New test `FlaggingDeleteTest::testUnflagFollowUserRemovesFlaggingMessage` at `2973096`. Closes the gap; verifies unflagging removes the `activity_flagging_created` Message.
+
+Note (from T's report): this specific test is not itself a scoping-bug regression pin (single-flag scenario has no key ambiguity, so passes either way) — the B-1/bonus regression pins live in the other two new tests. That's expected: W-1 was a coverage-existence gap, B-1 was a scoping gap. Both closed.
+
+## [W-2] PIN_FLAG_ID defined twice — ADDRESSED
+
+Consolidated in `582ea59`. `DoActivityHooks::PIN_FLAG_ID` promoted to `public const`; backfill script uses `use Drupal\do_activity\Hook\DoActivityHooks;` and references `DoActivityHooks::PIN_FLAG_ID`. Single source of truth.
+
+## [NIT-1] YAML quoting — NOT ADDRESSED (per POC lean-pipeline policy)
+
+Skipped per project's POC lean-pipeline convention (NITs on config YAML quoting are not blockers).
+
+## [NIT-2] step_7xx @file docblock + inline FQCN — NOT ADDRESSED (per POC lean-pipeline policy)
+
+Script-tier files are documented as exempt from the normal lint gate (reviewer noted this themselves). Skipped.
+
+## Verdict-relevant state
+
+- Branch: `116-activity-foundation`.
+- HEAD: `2973096`.
+- Kernel suite: 23/23 GREEN, 757 assertions, 0 failures, 0 errors.
+- phpcs: 0 errors in module + new tests; baseline warnings only (unchanged from pre-story).
+- Both BLOCK findings resolved (one by fix + regression test, one by evidence-based rebuttal).
+- Both WARN findings resolved.
+- Both NITs deliberately deferred per project policy.
+
+Ready for round-2 re-evaluation.
