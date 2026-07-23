@@ -56,6 +56,17 @@ import { test, expect, Page } from '@playwright/test';
  * here (already exercised by following.spec.ts) purely as a login vehicle for
  * the /hot and /following regression checks — no following-specific behavior
  * is asserted in this spec.
+ *
+ * AJAX timing note (T repair round 1, post-CI): this view has `use_ajax:
+ * true` (same as following_feed), so the initial page response's HTML does
+ * NOT yet contain the card rows or the library-attached CSS <link> — both
+ * arrive once the AJAX view-refresh cycle settles client-side. Any assertion
+ * that reads the DOM/HTML synchronously right after `page.goto()` (a bare
+ * `page.content()` read, or a `.toHaveCount()` check with no prior
+ * visibility wait) races that AJAX cycle and is flaky on a loaded CI runner.
+ * The fix, consistent with following.spec.ts's existing pattern: wait for a
+ * `.toBeVisible()` locator (auto-polls up to its timeout) BEFORE any
+ * synchronous read or count assertion.
  */
 
 const SEEDED_PASSWORD = process.env.SEEDED_PASSWORD ?? 'demo_password_2026';
@@ -94,19 +105,23 @@ test.describe('ST-4 — Trending (/trending) — #113', () => {
     const res = await page.goto('/trending');
     expect(res?.status()).toBe(200);
 
+    // The view is use_ajax: true — wait for the first card to be VISIBLE
+    // (auto-polls up to 30s) before reading counts/text synchronously. This
+    // is the same pattern following.spec.ts relies on throughout; a bare
+    // `.toHaveCount()` right after goto() only polls ~5s and races the AJAX
+    // settle on a loaded CI runner.
+    const allCards = page.locator('.view-content .stream-card-wrapper');
+    await expect(allCards.first()).toBeVisible();
+
     // Scope to the top-10 card region so this is a positive "both titles are
     // ranked in the visible window" check, not a whole-page substring probe
     // that would pass even if the titles rendered on a later page (A's watch
     // #1). items_per_page is 10 per brief Step 1, so the entire page_1
-    // response IS the top-10 window; we still scope the locator explicitly
-    // via :nth-of-type(-n+10) so the assertion is pinned to "first 10 cards"
-    // rather than relying implicitly on the pager's page size.
-    const allCards = page.locator('.view-content .stream-card-wrapper');
-    await expect(allCards).not.toHaveCount(0);
-
-    const firstTenCards = page.locator(
-      '.view-content .stream-card-wrapper:nth-of-type(-n+10)',
-    );
+    // response IS the top-10 window — everything inside `.view-content` IS
+    // the top-10 window, so no further nth-of-type scoping is needed (and
+    // `:nth-of-type` is unreliable here since it counts same-tag siblings,
+    // not "the Nth .stream-card-wrapper match").
+    const firstTenCards = allCards;
 
     await expect(
       firstTenCards.getByRole('link', {
@@ -121,7 +136,9 @@ test.describe('ST-4 — Trending (/trending) — #113', () => {
       }),
     ).not.toHaveCount(0);
 
-    // Empty-state safety: mutually exclusive with cards rendering. Do not
+    // Empty-state safety: mutually exclusive with cards rendering. Checked
+    // AFTER the visibility wait above, so the AJAX cycle has settled and the
+    // empty-state region (if any) has had its chance to render. Do not
     // attempt to force an empty state (seeded site is non-empty) — the
     // presence-of-cards branch above is sufficient in CI (brief instruction).
     await expect(page.locator('body')).not.toContainText(
@@ -149,13 +166,27 @@ test.describe('ST-4 — Trending (/trending) — #113', () => {
     page,
   }) => {
     await page.goto('/trending');
+
+    // Same AJAX-timing consideration as the ordering test above: the library
+    // attach's <link rel="stylesheet"> lands in the DOM only after the AJAX
+    // view-refresh settles. Wait for a card to be visible first, THEN read
+    // page.content() — reading synchronously right after goto() would
+    // snapshot the pre-AJAX HTML and miss the attached CSS link.
+    await expect(
+      page.locator('.view-content .stream-card-wrapper').first(),
+    ).toBeVisible();
     const trendingHtml = await page.content();
     expect(trendingHtml).toContain('trending.css');
 
     // Regression guard: the shared preprocess (however F wires the new
     // trending id() guard) must not clobber the existing following attach.
+    // /following is also use_ajax: true, so apply the same visibility wait
+    // before the synchronous content() read.
     await login(page, 'elena_garcia', SEEDED_PASSWORD);
     await page.goto('/following');
+    await expect(
+      page.locator('.view-content .stream-card-wrapper').first(),
+    ).toBeVisible();
     const followingHtml = await page.content();
     expect(followingHtml).toContain('following.css');
   });

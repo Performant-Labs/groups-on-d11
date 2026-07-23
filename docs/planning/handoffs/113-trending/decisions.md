@@ -351,3 +351,97 @@ _Pending_
 
 ## Chain Summary
 _Written at post-merge sweep._
+
+## T repair — CI round 1
+
+**Context:** CI (PR #177) ran the full e2e suite against a real seeded,
+served site with `use_ajax: true` on `views.view.trending.yml` (matching
+`following_feed`'s existing pattern). 2 of `trending.spec.ts`'s 6 tests
+failed: test 2 (score-ordering top-10 window) and test 5 (library-attach
+mechanism-agnostic). Kernel + functional suites were GREEN; the failures were
+isolated to these two e2e tests. F's implementation was independently
+confirmed correct by the OTHER 4 e2e tests passing in the same CI run (test 1:
+H1 renders; test 3: a `.stream-card-wrapper` becomes visible; test 4: `/hot`
+regression unaffected; test 6: H1 + pager) plus the error-context DOM capture
+in CI's failure artifact showing `view-trending`, `.trending-page`, and card
+rows all present in the eventual DOM — just not at the instant the two failed
+assertions read the page.
+
+**Decided:**
+- Root cause is a test-authorship bug, not a code bug: both failing
+  assertions read the DOM/HTML **synchronously** right after `page.goto()`
+  (a bare `.toHaveCount()` check in test 2, a bare `page.content()` snapshot
+  in test 5) on a view with `use_ajax: true`. The initial HTML response for
+  an AJAX-rendered Views page does not yet contain the card rows or the
+  library-attached CSS `<link>` — those arrive once Drupal's AJAX
+  view-refresh cycle completes client-side. `following.spec.ts` (the spec
+  this suite was explicitly modeled on) never makes this mistake — every one
+  of its assertions on rendered content uses a `.toBeVisible()` locator
+  (which auto-polls up to its timeout) before reading further, and this
+  suite's test 3 already did the same (`'.stream-card-wrapper'... .toBeVisible()`
+  — which is why test 3 passed in CI while tests 2 and 5 did not).
+- Fix for test 2: added `await expect(allCards.first()).toBeVisible();`
+  immediately after `page.goto('/trending')`/status check, before any
+  `.toHaveCount()` read. Also removed the `:nth-of-type(-n+10)` scoping
+  (already flagged as an advisory risk in handoff-T-green.md's Advisory
+  note #1) and simplified to the unscoped `.view-content
+  .stream-card-wrapper` locator — `items_per_page: 10` on `trending.yml`
+  already caps the page at 10 rows, so "inside `.view-content`" already IS
+  "in the top 10"; `nth-of-type` counts same-tag siblings rather than the
+  Nth `.stream-card-wrapper` match and was redundant at best, a latent
+  false-negative risk at worst depending on Views' exact sibling markup.
+  Moved the empty-state mutual-exclusivity check to after the visibility
+  wait too, so it also reads post-AJAX-settle DOM.
+- Fix for test 5: added the same `.toBeVisible()` wait (on
+  `.view-content .stream-card-wrapper`) before each of the two
+  `page.content()` reads (once for `/trending`, once for `/following` after
+  login) — the `/following` regression half of this test has the identical
+  AJAX-timing bug for the same reason (`following_feed.yml` is also
+  `use_ajax: true`).
+- Went with fix option (a) from the repair brief (wait-then-content-string-
+  match) rather than option (b) (asserting a `<link rel="stylesheet"
+  href*="trending.css">` locator) or the aggregation-proof computed-style
+  fallback. No project config (`config/sync/`, `.github/workflows/*.yml`,
+  `deploy/entrypoint.sh`) sets `preprocess_css`/CSS aggregation on for the
+  CI-installed site, and Drupal's default dev/fresh-install posture is
+  `preprocess_css: false` (unaggregated `<link>` tags with real filenames) —
+  consistent with F's own handoff citing byte-identical, individually-served
+  CSS files. If CI's next run still fails this test with `trending.css`/
+  `following.css` absent from `page.content()` even after the visibility
+  wait, that would indicate aggregation IS on for this site profile, and the
+  fallback (assert computed `text-align: center` on `.trending-page
+  .gc-empty`, per the repair brief's option (b)/aggregation-fallback note)
+  should be applied then — flagging this explicitly rather than silently
+  assuming zero risk.
+- Made NO changes to tests 1, 3, 4, or 6, and NO changes to any production
+  file — the task's repair brief explicitly scoped this to spec-only fixes,
+  and independent evidence (4/6 tests green, error-context DOM capture) rules
+  out a code defect.
+
+**Assumed:**
+- CI's fresh `site:install` + `cim` for this PR's e2e job does not enable CSS
+  aggregation — not independently re-verified by booting the CI environment
+  locally (no local DDEV/PHP toolchain in this worktree, matching every prior
+  phase's environment constraint); inferred from the absence of any
+  aggregation-enabling config in the repo and Drupal's own default posture.
+
+**Evidence:**
+- CI failure output for PR #177 (2 failed / 4 passed on `trending.spec.ts`;
+  kernel + functional suites green) — as summarized in this repair task's
+  brief, including the error-context DOM capture showing cards present in
+  `.view-content .stream-card-wrapper` after AJAX settle.
+- `tests/e2e/following.spec.ts` (re-read in full) — confirms every rendered-
+  content assertion in that spec uses `.toBeVisible()` before any further
+  read; zero bare `.toHaveCount()`/`page.content()` synchronous reads
+  immediately after `page.goto()`.
+- `docs/planning/handoffs/113-trending/handoff-T-green.md` Advisory note #1
+  (pre-existing, written before CI ran) — had already flagged the
+  `nth-of-type(-n+10)` locator as a CI-DOM-shape risk; this repair resolves
+  it by removing the reliance entirely rather than waiting to see if it
+  surprised anyone.
+- `git diff tests/e2e/trending.spec.ts` (this repair round) — confirms only
+  tests 2 and 5 (plus the file's top doc-comment) changed; tests 1, 3, 4, 6
+  byte-identical to the pre-repair version.
+- Repo-wide `grep` for `aggregat`/`preprocess_css` across `config/sync`,
+  `.github/workflows/*.yml`, `deploy/entrypoint.sh` — no matches, supporting
+  the "aggregation is off" assumption above.

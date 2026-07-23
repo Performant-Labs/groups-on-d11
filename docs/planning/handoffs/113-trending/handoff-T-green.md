@@ -136,3 +136,120 @@ required**, not N/A. Recommend O route this to U for a live-browser
 walkthrough of `/trending` (anonymous + authenticated), `/hot` regression,
 and `/following` regression, then to S for spec compliance, gated on CI
 reporting all 6 new tests + the existing suite green.
+
+## Repair round 1 (post-CI, PR #177)
+
+**Trigger:** CI ran the full e2e suite against a real seeded, served site
+(the execution-level GREEN this handoff's original verdict deferred to). 4 of
+6 `trending.spec.ts` tests passed (test 1: H1; test 3: card visible; test 4:
+`/hot` regression; test 6: H1 + pager). 2 failed: test 2 (score-ordering
+top-10 window) and test 5 (library-attach mechanism-agnostic). Kernel and
+functional suites reported GREEN in the same CI run.
+
+### Root cause: AJAX-timing bug in the test suite, not F's implementation
+
+`views.view.trending.yml` has `use_ajax: true` — same as `following_feed`, per
+the brief's clone-source and D's wireframe. On a view with AJAX enabled, the
+HTML returned by the initial `page.goto()` navigation does NOT yet contain
+the rendered card rows or the library-attached `<link rel="stylesheet">` —
+Drupal's Views AJAX behavior swaps those in once the AJAX cycle completes
+client-side. Both failing assertions read the DOM/HTML **synchronously**,
+immediately after `page.goto()`, with no wait for that cycle to settle:
+
+- Test 2, old code: `await expect(allCards).not.toHaveCount(0);` —
+  `.toHaveCount()` auto-polls, but only for ~5s by default, which was not
+  reliably enough time on the CI runner for the AJAX response to land.
+- Test 5, old code: `const trendingHtml = await page.content();` — this is a
+  one-shot synchronous snapshot with **no polling at all**; it captures
+  whatever HTML exists at that exact instant, which on an AJAX view is the
+  pre-swap markup.
+
+This is confirmed as a test bug, not an implementation bug, by:
+1. Test 3 in this same file already does this correctly
+   (`page.locator('.stream-card-wrapper').first()).toBeVisible()` — a
+   locator assertion that polls up to its full default timeout, ~30s) and it
+   passed in CI.
+2. `tests/e2e/following.spec.ts` — the spec this suite was explicitly modeled
+   on, and which exercises the same `use_ajax: true` `following_feed` view —
+   uses `.toBeVisible()` for every rendered-content assertion, never a bare
+   `.toHaveCount()` or `page.content()` read straight after navigation.
+3. CI's error-context capture for the failing tests shows the cards
+   present in `.view-content .stream-card-wrapper` in the DOM — just
+   arriving after Playwright had already read/counted.
+
+### Fixes applied (spec-only; production code untouched)
+
+**Test 2** (`tests/e2e/trending.spec.ts`):
+- Added `await expect(allCards.first()).toBeVisible();` immediately after the
+  status check, before any count/text assertion — waits (auto-polling up to
+  30s) for the AJAX cycle to settle.
+- Removed the `:nth-of-type(-n+10)` locator scoping. This was already
+  flagged as a risk in this handoff's original Advisory note #1
+  (`nth-of-type` counts same-tag siblings, not "the Nth `.stream-card-wrapper`
+  match," and depends on Views' exact sibling markup shape). Since
+  `items_per_page: 10` already caps the page at 10 rows, "inside
+  `.view-content`" already IS "the top-10 window" — the extra CSS scoping
+  was redundant and a latent flakiness source, not a needed guarantee.
+  Simplified to the unscoped `.view-content .stream-card-wrapper` locator.
+- Moved the empty-state mutual-exclusivity check
+  (`not.toContainText('Nothing trending yet.')`) to after the visibility
+  wait, so it also reads post-AJAX-settle DOM.
+
+**Test 5** (`tests/e2e/trending.spec.ts`):
+- Added `await expect(page.locator('.view-content .stream-card-wrapper')
+  .first()).toBeVisible();` before each of the two `page.content()` reads —
+  once for `/trending`, once for `/following` (post-login) — since
+  `following_feed` is also `use_ajax: true` and has the identical
+  timing risk on its half of this regression-guard test.
+- Kept the assertion shape (`expect(html).toContain('trending.css' /
+  'following.css')`) unchanged — chose repair-brief option (a) over option
+  (b) (asserting a `link[href*=...]` locator) or the CSS-aggregation-proof
+  computed-style fallback.
+
+**Why option (a), and the residual CSS-aggregation risk:** no config in this
+repo (`config/sync/`, `.github/workflows/*.yml`, `deploy/entrypoint.sh`) sets
+CSS aggregation on for the CI-installed site, and Drupal's default
+fresh-install posture is `preprocess_css: false` (individual, unaggregated
+`<link>` tags with real filenames in their `href`) — consistent with F's own
+handoff describing byte-identical, individually-served CSS files, and with
+the fact that test 5 previously failed on a *timing* signature (empty/stale
+snapshot) rather than a *missing-filename* signature (aggregated bundle URL
+with no `trending.css` substring at all). If CI's next run still fails this
+test with `trending.css`/`following.css` absent from `page.content()` **even
+after** the visibility wait, that would point to aggregation actually being
+on for this site profile — the fallback in that case is to switch to
+asserting an effective computed style unique to `trending.css` (e.g.
+`text-align: center` on `.trending-page .gc-empty`), which survives
+aggregation because it's a behavior check rather than a string-match on the
+asset URL. Flagging this now rather than silently assuming zero risk.
+
+**Not touched:** tests 1, 3, 4, 6 (byte-identical to pre-repair); no
+production file (views config, CSS, PHP hook, library YAML, cron markers) —
+F's implementation is independently confirmed correct by the passing subset
+of this same CI run plus the error-context DOM capture.
+
+### Verification in this environment
+
+`node_modules` is still not installed in this worktree (`npx playwright test
+tests/e2e/trending.spec.ts --list` → `Cannot find module '@playwright/test'`
+resolving `playwright.config.ts` — the same pre-existing environment gap
+noted in this handoff's original Tier 1 table and in F's handoff). Verified
+statically instead:
+- `git diff --stat tests/e2e/trending.spec.ts` → 41 insertions / 10 deletions,
+  scoped entirely to test 2, test 5, and the file's top doc-comment (new AJAX-
+  timing note). Confirmed via full diff read that tests 1, 3, 4, 6 are
+  byte-unchanged.
+- Balanced-braces/parens check on the rewritten file (23/23 braces, 142/142
+  parens) and a `test count: 6` regex check — file still declares exactly 6
+  tests, all syntactically closed.
+- No assembled/module-local duplicate of `trending.spec.ts` exists elsewhere
+  in the tree (`tests/e2e/` is the sole location; e2e specs are not part of
+  the `assemble-config.sh` module-copy step) — nothing else needed updating.
+
+**Verdict: repair round 1 complete.** CI re-run is the authoritative
+execution-level confirmation (per this environment's standing constraint);
+static verification here gives no reason to expect either fixed test to fail
+for a NEW reason. Flag to whoever reads the next CI run: if test 5 fails
+again with the SAME `trending.css`-absent-from-`page.content()` signature
+after this fix, escalate to the aggregation-fallback approach described
+above rather than re-attempting the wait-only fix a third time.
