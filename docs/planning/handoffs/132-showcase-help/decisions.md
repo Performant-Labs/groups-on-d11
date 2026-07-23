@@ -17,3 +17,26 @@
 - **A2 (soft)**: `do_chrome/tooltips` must be attached explicitly on `personaBanner()` `#attached['library']`.
 - **A confirmed**: Namespace disjoint, no parallel-path, scope guardrail honored on both compensations.
 - **Evidence**: A review output; `brief-amendments.md`.
+
+## Phase 4 (T) — author tests (RED)
+
+- **Decided**: 4 test surfaces authored — Unit (`ShowcaseHelpTextTest.php` extended, 6 new methods),
+  Functional (`PersonaBannerTest.php` extended, 4 new methods; new `ShowcaseControllerHelpTest.php`,
+  6 methods), E2E (`tests/e2e/showcase-help.spec.ts`, new, 6 tests). 26 test methods total mapped to
+  the brief's acceptance criteria + both amendments (A1 DOM order, A2 explicit library attach).
+- **Decided**: `ShowcaseControllerHelpTest` is a NEW file, not an extension of an existing one — no
+  prior controller-level test existed (`ShowcaseCatalogTest`/`VariantSwitcherTest` are Unit-only,
+  data/render-array shape, not the live HTTP response).
+- **Assumed**: the unknown-entry-id guard is validated via a direct `HelpText::get()` probe (task's
+  explicitly-acceptable alternative) rather than wiring a fake catalog entry into `ShowcaseCatalog`
+  — avoids a framework change the brief's scope guardrail forbids.
+- **Hedged**: E2E spec validated statically only (no `node_modules` in this worktree or the
+  reference checkout) — selectors cross-checked against `ShowcaseController::page()`'s real DOM
+  contract and against `persona-switcher.spec.ts`'s proven selector conventions, not executed.
+  Functional tests also RED-by-static-validation (no `vendor/` in this worktree; Kernel/Functional
+  process-isolation limitation per the `0138` precedent) — Unit tier was real-executed via the
+  primary checkout's DDEV container as an external tool, then that checkout was fully restored
+  (`git checkout --`, `git clean -fd`, `rm -rf web/modules/custom`) to its pre-session state.
+- **Evidence**: `docs/handoffs/132-showcase-help/handoff-T-red.md` — full RED output, per-tier
+  execution mode, and source cross-checks (`DoShowcaseHooks.php`, `ShowcaseController.php`,
+  `do_chrome.libraries.yml`).
