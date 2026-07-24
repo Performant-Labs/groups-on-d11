@@ -1,0 +1,131 @@
+name: Stuck-check (external safety net)
+
+# Runs every 2 hours on free GitHub-hosted runners (does NOT compete
+# with Uranus self-hosted). Purpose: catch orchestrator silent-stops
+# and fleet-idle-with-work states when the main Claude session is dropped
+# or blocked. Merges fully-green stuck PRs and files incident issues for
+# stuck-red PRs. Does NOT spawn new orchestrators or push code.
+
+on:
+  schedule:
+    - cron: '13 */2 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Snapshot open PRs + recent merges
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          echo "=== Open PRs ==="
+          gh pr list --repo Performant-Labs/groups-on-d11 --state open \
+            --json number,headRefName,statusCheckRollup,mergeable,updatedAt,isDraft \
+            > /tmp/open.json
+          jq -r '.[] | "#\(.number)\t\(.headRefName)\tdraft=\(.isDraft)\tmergeable=\(.mergeable)\tchecks=[\([.statusCheckRollup[]?.conclusion // .statusCheckRollup[]?.status] | join(","))]\tupdated=\(.updatedAt)"' /tmp/open.json
+          echo ""
+          echo "=== Last merge ==="
+          LAST_MERGE=$(gh pr list --repo Performant-Labs/groups-on-d11 --state merged --limit 1 --json mergedAt --jq '.[0].mergedAt')
+          echo "$LAST_MERGE"
+          echo "LAST_MERGE=$LAST_MERGE" >> "$GITHUB_ENV"
+
+      - name: Merge stuck-green PRs (all checks SUCCESS, no activity >30 min)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          NOW=$(date -u +%s)
+          jq -c '.[]' /tmp/open.json | while read -r pr; do
+            n=$(echo "$pr" | jq -r .number)
+            draft=$(echo "$pr" | jq -r .isDraft)
+            mergeable=$(echo "$pr" | jq -r .mergeable)
+            checks=$(echo "$pr" | jq -r '[.statusCheckRollup[]?.conclusion] | join(",")')
+            updated=$(echo "$pr" | jq -r .updatedAt)
+            updated_epoch=$(date -u -d "$updated" +%s)
+            age_min=$(( (NOW - updated_epoch) / 60 ))
+
+            if [ "$draft" = "true" ]; then continue; fi
+            if [ "$mergeable" != "MERGEABLE" ]; then continue; fi
+            if [ "$checks" != "SUCCESS,SUCCESS,SUCCESS" ]; then continue; fi
+            if [ "$age_min" -lt 30 ]; then continue; fi
+
+            echo "PR #$n: all-green + mergeable + silent ${age_min}m — merging"
+            if gh pr merge "$n" --repo Performant-Labs/groups-on-d11 --merge --delete-branch; then
+              echo "MERGED #$n"
+            else
+              echo "MERGE FAILED for #$n — leaving alone"
+            fi
+          done
+
+      - name: File incident issue for stuck-red PRs (red >2h, no incident yet)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          NOW=$(date -u +%s)
+          jq -c '.[]' /tmp/open.json | while read -r pr; do
+            n=$(echo "$pr" | jq -r .number)
+            draft=$(echo "$pr" | jq -r .isDraft)
+            checks=$(echo "$pr" | jq -r '[.statusCheckRollup[]?.conclusion] | join(",")')
+            updated=$(echo "$pr" | jq -r .updatedAt)
+            updated_epoch=$(date -u -d "$updated" +%s)
+            age_hr=$(( (NOW - updated_epoch) / 3600 ))
+
+            if [ "$draft" = "true" ]; then continue; fi
+            case "$checks" in
+              *FAILURE*) ;;
+              *) continue ;;
+            esac
+            if [ "$age_hr" -lt 2 ]; then continue; fi
+
+            # Check if an incident issue already exists for this PR
+            existing=$(gh issue list --repo Performant-Labs/groups-on-d11 --state open --search "in:title Incident PR #$n" --json number --jq 'length')
+            if [ "$existing" -gt 0 ]; then continue; fi
+
+            echo "PR #$n: red $checks, silent ${age_hr}h — filing incident"
+            gh issue create --repo Performant-Labs/groups-on-d11 \
+              --title "Incident: PR #$n stuck red — orchestrator silent (external check-in $(date -u +%Y-%m-%dT%H:%MZ))" \
+              --body "PR #$n has been red with checks=[$checks] and no activity in ${age_hr} hours as of $(date -u +%Y-%m-%dT%H:%MZ). Filed by the stuck-check workflow. Main Claude session should investigate on next resume; if session is dead, this issue captures the state." \
+              --label bug
+          done
+
+      - name: File dead-session issue if no merges + no PRs >4h
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          NOW=$(date -u +%s)
+          LAST_EPOCH=$(date -u -d "$LAST_MERGE" +%s)
+          AGE_HR=$(( (NOW - LAST_EPOCH) / 3600 ))
+          OPEN_COUNT=$(jq 'length' /tmp/open.json)
+
+          if [ "$AGE_HR" -lt 4 ] || [ "$OPEN_COUNT" -gt 0 ]; then
+            echo "Queue is active (open=$OPEN_COUNT, last-merge ${AGE_HR}h ago) — no dead-session issue"
+            exit 0
+          fi
+
+          existing=$(gh issue list --repo Performant-Labs/groups-on-d11 --state open --search "in:title Weekend check: main session may be dead" --json number --jq 'length')
+          if [ "$existing" -gt 0 ]; then
+            echo "Dead-session incident already open — not duplicating"
+            exit 0
+          fi
+
+          gh issue create --repo Performant-Labs/groups-on-d11 \
+            --title "Weekend check: main session may be dead — queue idle for ${AGE_HR}h" \
+            --body "As of $(date -u +%Y-%m-%dT%H:%MZ), no PRs merged in ${AGE_HR} hours and zero open PRs. Either the weekend queue is genuinely drained OR the main Claude session died before draining it. Investigate on Monday: check issue #187 for the queue state, open a fresh Claude session on the repo, verify open work is complete." \
+            --label bug
+
+      - name: Comment status on issue #187
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          OPEN_COUNT=$(jq 'length' /tmp/open.json)
+          gh issue comment 187 --repo Performant-Labs/groups-on-d11 \
+            --body "Stuck-check at $(date -u +%Y-%m-%dT%H:%MZ): open PRs = $OPEN_COUNT, last merge = $LAST_MERGE. See workflow run for details."
