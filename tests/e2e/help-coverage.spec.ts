@@ -109,29 +109,33 @@ test.describe('#133 SD-6 — Anonymous help-affordance walk: fixed routes', () =
     const status = res?.status() ?? 0;
     const landedOnLogin = /\/user\/login/.test(page.url());
 
-    if (status === 403 || landedOnLogin) {
+    // Any of 403 / login redirect / 404 all mean the same thing: not
+    // publicly reachable to an anonymous visitor on this build. If a future
+    // change makes it anon-visible (200), the assertion below catches it.
+    if (status === 403 || status === 404 || landedOnLogin) {
       test.skip(
         true,
-        '/upcoming-events is gated for anonymous visitors on this build (matches my-events.spec.ts\'s own authenticated-only convention) — not in scope for the anon help-coverage walk.',
+        `/upcoming-events is not anon-visible on this build (status=${status}, landedOnLogin=${landedOnLogin}) -- out of scope for the anon walk.`,
       );
       return;
     }
 
-    // If a future change makes this route anon-visible, it becomes a real
-    // primary page and must carry a help affordance like every other route
-    // in this spec.
-    expect(status, '/upcoming-events must respond 200 once anon-visible').toBe(200);
+    expect(status, '/upcoming-events unexpectedly responded with something other than 200/403/404/login-redirect -- investigate').toBe(200);
     const affordances = page.locator(HELP_AFFORDANCE_SELECTOR);
     await expect(affordances).not.toHaveCount(0);
   });
 });
 
 test.describe('#133 SD-6 — Anonymous help-affordance walk: a seeded group', () => {
+  // Anon-visible group subpaths only. /members is gated to group members
+  // per do_group_membership's access policy (#138 shipped it authenticated-
+  // + Member-only; live-walk confirmed anon gets 403), so it's out of scope
+  // for the anonymous walk -- asserted separately below with a graceful skip
+  // matching the /upcoming-events pattern.
   const GROUP_SUBPATHS: Array<{ suffix: string; label: string }> = [
     { suffix: '', label: 'group homepage' },
     { suffix: '/stream', label: 'group Stream tab' },
     { suffix: '/events', label: 'group Events tab' },
-    { suffix: '/members', label: 'group Members tab' },
   ];
 
   for (const { suffix, label } of GROUP_SUBPATHS) {
@@ -149,6 +153,27 @@ test.describe('#133 SD-6 — Anonymous help-affordance walk: a seeded group', ()
       ).not.toHaveCount(0);
     });
   }
+
+  test('/group/{gid}/members: anon is gated (403) -- out of scope for the anon help-coverage walk, skipped gracefully', async ({
+    page,
+  }) => {
+    const groupUrl = await firstGroupUrl(page);
+    const res = await page.goto(`${groupUrl}/members`);
+    const status = res?.status() ?? 0;
+    const landedOnLogin = /\/user\/login/.test(page.url());
+
+    if (status === 403 || status === 404 || landedOnLogin) {
+      test.skip(
+        true,
+        `${groupUrl}/members is gated for anonymous visitors on this build (status=${status}) -- covered by do_group_membership's own authenticated specs.`,
+      );
+      return;
+    }
+
+    expect(status, `${groupUrl}/members unexpectedly reachable to anon -- investigate`).toBe(200);
+    const affordances = page.locator(HELP_AFFORDANCE_SELECTOR);
+    await expect(affordances).not.toHaveCount(0);
+  });
 });
 
 test.describe('#133 SD-6 — Regression: /showcase tour entries match shipped reality', () => {

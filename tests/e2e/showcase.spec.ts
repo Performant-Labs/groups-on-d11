@@ -364,13 +364,19 @@ test.describe('SC-F1 — /showcase tour page (#119)', () => {
     expect(res?.status()).toBe(200);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
-    const entries: Array<[string, 'live' | 'coming']> = [
+    // #133 SD-6 (capstone) flipped every remaining `coming` entry to
+    // `live`: directory-presentation, membership-models, group-type-homepages,
+    // stream-model, and private-group-reveal all shipped in earlier waves.
+    // Only `[ live ]` badges exist now; the `[ coming ]` badge is
+    // deliberately absent, guarded by
+    // ShowcaseCatalogTest::testNoEntriesAreComing at the unit level.
+    const entries: Array<[string, 'live']> = [
       ['Discovery ranking', 'live'],
-      ['Directory presentation', 'coming'],
-      ['Membership models', 'coming'],
-      ['Group-type homepages', 'coming'],
-      ['Stream model', 'coming'],
-      ['Private-group reveal', 'coming'],
+      ['Directory presentation', 'live'],
+      ['Membership models', 'live'],
+      ['Group-type homepages', 'live'],
+      ['Stream model', 'live'],
+      ['Private-group reveal', 'live'],
     ];
 
     // Scope the title search to the tour catalog container
@@ -396,16 +402,29 @@ test.describe('SC-F1 — /showcase tour page (#119)', () => {
     await expect(page.getByText(/#134/)).toBeVisible();
   });
 
-  test('"coming" entries have no dead link to an unbuilt page', async ({
+  test('every showcase entry carries a "View this comparison" deep-link (no [ coming ] entries remain post-#133)', async ({
     page,
   }) => {
     await page.goto('/showcase');
-    // None of the "coming" comparison titles should be wrapped in a link
-    // pointing at a route this story does not build (SC-4/5/6's real pages).
-    const comingLinks = page.locator(
-      'a[href*="directory-presentation"], a[href*="membership-models"], a[href*="group-type-homepages"], a[href*="stream-model"], a[href*="private-group-reveal"]',
-    );
-    await expect(comingLinks).toHaveCount(0);
+    // #133 flipped every remaining `coming` entry to `live`; the truthful-
+    // copy invariant is now the inverse: every entry must expose a
+    // "View this comparison" link (ShowcaseController::page() only renders
+    // that link for live entries). If a future story reintroduces a
+    // `coming` entry, this fails loud because that entry will lack the link.
+    const entryIds = [
+      'discovery-ranking',
+      'directory-presentation',
+      'membership-models',
+      'group-type-homepages',
+      'stream-model',
+      'private-group-reveal',
+    ];
+    for (const id of entryIds) {
+      const entry = page.locator(`[data-do-showcase-entry="${id}"]`);
+      await expect(entry).toBeVisible();
+      const link = entry.getByRole('link', { name: 'View this comparison' });
+      await expect(link, `entry "${id}" must render a "View this comparison" deep-link -- no [ coming ] entries remain post-#133`).toHaveCount(1);
+    }
   });
 
   test('a live entry (Discovery ranking) renders its deep-link to /showcase', async ({
@@ -452,7 +471,10 @@ test.describe('SC-F1 — /showcase tour page (#119)', () => {
       'Anonymous',
       'Elena Garcia',
       'Maria Chen',
-      'Moderator',
+      // #133 SD-6 renamed the persona display `name` from 'Moderator' to
+      // 'Groups-Moderate' to match the canonical persona vocabulary
+      // (Anonymous / Member / Organizer / Groups-Moderate).
+      'Groups-Moderate',
     ]) {
       await expect(
         personaList.getByText(persona, { exact: false }),
