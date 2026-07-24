@@ -126,13 +126,21 @@ test.describe('ST-4 — Trending (/trending) — #113', () => {
     await expect(page.locator('.stream-card-wrapper').first()).toBeVisible();
   });
 
-  test('regression guard: /hot still 200s with the "Hot Content" label (views.view.hot_content.yml untouched)', async ({
+  test('regression guard: /hot redirects to /trending (post-#115) and hot_content.yml is untouched', async ({
     page,
   }) => {
+    // Post-#115 (ST-6 stream switcher), HotRedirectSubscriber 302s /hot to
+    // /trending whenever the /trending route exists. It exists now (this PR
+    // registers it), so /hot no longer serves views.view.hot_content. The
+    // narrower assertion that hot_content.yml itself remains unmodified is
+    // verified at the source level by `git diff` on that file and enforced
+    // by S in Phase 9; the runtime behavior is now that of #115's redirect
+    // layer, not of hot_content directly.
     await login(page, 'elena_garcia', SEEDED_PASSWORD);
     const res = await page.goto('/hot');
     expect(res?.status()).toBe(200);
-    await expect(page.locator('body')).toContainText('Hot Content');
+    // Follow-final URL: the redirect resolves in-browser before page.goto returns.
+    expect(page.url()).toMatch(/\/trending$/);
   });
 
   test('library attach is mechanism-agnostic: trending.css referenced on /trending, following.css still referenced on /following', async ({
