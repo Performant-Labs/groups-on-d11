@@ -39,3 +39,12 @@ trending:
   css:
     theme:
       css/trending.css: {}
+
+# ST-3 (#112): CSS for the /my-feed/events page — RSVP chip + section
+# spacing. Attached by MyEventsController::build() via the outer render
+# array's #attached.library.
+events:
+  version: 1.x
+  css:
+    theme:
+      css/events.css: {}

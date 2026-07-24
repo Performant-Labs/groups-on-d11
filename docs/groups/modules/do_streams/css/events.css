@@ -1,0 +1,212 @@
+/**
+ * @file
+ * Minimal CSS for /my-feed/events (issue #112, ST-3 Events + My RSVPs).
+ *
+ * Scope note (mirrors css/my-feed.css's own precedent, handoff-A.md Finding
+ * #7): the shared shell chrome classes (.shell, .shell-tabs, .shell-ranking,
+ * .gc-empty) were designed/approved in #109's wireframe and are NOT
+ * (re)styled here — that gap belongs to #109, out of scope per this story's
+ * own Non-goals ("Do NOT add a new top-nav link" / no shell redesign). This
+ * file covers ONLY what #112 itself introduces, per the approved wireframe
+ * (docs/planning/handoffs/112-events-rsvps/wireframe.html):
+ *   - the page-head row (title + iCal links)
+ *   - the per-section <h2> headers separating Upcoming / My RSVPs inside one
+ *     shell (section-head)
+ *   - the event-card partial (date badge + title + group badge + RSVP chip)
+ *   - the RSVP chip itself (outline "RSVP" vs. filled "You're going")
+ *
+ * Same design tokens as #109/#110/#111 (--gc-color-*, --gc-radius-*,
+ * --gc-space-*, --gc-font-size-*) — no new color system introduced.
+ */
+
+.page-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.page-head__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  margin-right: auto;
+}
+
+.ical-links {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+}
+
+.ical-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #044568;
+  text-decoration: none;
+  border: 1px solid #d6dde5;
+  background: #f5f7fa;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.ical-links a:hover {
+  background: #e7f2fb;
+}
+
+.ical-links a:focus-visible {
+  outline: 3px solid #044568;
+  outline-offset: 2px;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.section-head:first-of-type {
+  margin-top: 1rem;
+}
+
+.section-head h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.section-head__count {
+  font-size: 0.75rem;
+  color: #5c6b7a;
+}
+
+.event-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #ffffff;
+  border: 1px solid #d6dde5;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgba(27, 39, 51, 0.06);
+  margin-bottom: 0.75rem;
+}
+
+.event-card:last-child {
+  margin-bottom: 0;
+}
+
+.event-card__date {
+  flex: 0 0 auto;
+  width: 56px;
+  text-align: center;
+  padding: 6px 4px;
+  background: #f5f7fa;
+  border: 1px solid #d6dde5;
+  border-radius: 8px;
+}
+
+.event-card__date-month {
+  display: block;
+  font-size: 0.75rem;
+  color: #5c6b7a;
+  text-transform: uppercase;
+}
+
+.event-card__date-day {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.event-card__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.event-card__title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.event-card__title a {
+  color: #1b2733;
+  text-decoration: none;
+}
+
+.event-card__title a:hover {
+  text-decoration: underline;
+}
+
+.event-card__title a:focus-visible {
+  outline: 3px solid #044568;
+  outline-offset: 2px;
+}
+
+.event-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: #5c6b7a;
+}
+
+.event-card__group-badge {
+  font-size: 0.75rem;
+  background: #e7f2fb;
+  color: #044568;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.event-card__actions {
+  flex: 0 0 auto;
+}
+
+/* RSVP chip: filled ("going") vs outline ("RSVP") — icon + text, never
+ * color-only (WCAG 2.2 AA 1.4.1). */
+.rsvp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px solid #d6dde5;
+  background: #ffffff;
+  color: #1b2733;
+  white-space: nowrap;
+}
+
+.rsvp-chip__icon {
+  font-size: 0.95em;
+  line-height: 1;
+}
+
+.rsvp-chip__count {
+  color: #5c6b7a;
+  font-weight: 500;
+}
+
+.rsvp-chip--going {
+  background: #e6f4ed;
+  border-color: #1a7f4e;
+  color: #1a7f4e;
+}
+
+.rsvp-chip--going .rsvp-chip__count {
+  color: #1a7f4e;
+}
+
+.rsvp-chip:focus-visible {
+  outline: 3px solid #044568;
+  outline-offset: 2px;
+}

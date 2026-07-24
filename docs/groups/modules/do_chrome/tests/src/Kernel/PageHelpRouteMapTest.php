@@ -38,8 +38,11 @@ final class PageHelpRouteMapTest extends KernelTestBase {
   protected static $modules = ['system', 'do_chrome'];
 
   /**
-   * The 10-entry route => HelpText-key map brief.md §Scope requires: 5 LIVE
-   * + 5 W2 pre-registered, exactly — no more, no fewer.
+   * The route => HelpText-key map brief.md §Scope requires: 5 LIVE + 5 W2
+   * pre-registered. #112 (ST-3) adds one hand-authored controller-route
+   * entry (do_streams.my_events) whose W2 sibling entry
+   * (view.my_feed_events.page_1) also remains for backward-compat with any
+   * future Views-page-display route naming — 11 entries total.
    */
   private const EXPECTED_MAP = [
     'view.activity_stream.page_1' => 'page.stream',
@@ -51,6 +54,10 @@ final class PageHelpRouteMapTest extends KernelTestBase {
     'view.following_feed.page_1' => 'page.following',
     'view.trending.page_1' => 'page.trending',
     'view.my_feed_events.page_1' => 'page.my_feed_events',
+    // #112 (ST-3): hand-authored controller route added when /my-feed/events
+    // shipped as MyEventsController rather than a Views page display — the
+    // map now has 11 entries; test name preserved for stable identification.
+    'do_streams.my_events' => 'page.my_feed_events',
     'view.profile_stream.page_1' => 'page.profile_stream',
   ];
 
