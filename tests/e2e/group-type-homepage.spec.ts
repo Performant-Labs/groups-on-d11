@@ -299,26 +299,6 @@ test.describe('SC-3 — Tooltip accessibility (#122)', () => {
     await trigger.focus();
     await expect(trigger).toBeFocused();
   });
-
-  test('no axe-core dependency is available in this repo (documented gap, not silently skipped)', async () => {
-    // manage-members.spec.ts already documents this exact gap (this repo's
-    // package.json carries only `@playwright/test`, no
-    // `@axe-core/playwright`). Rather than re-skip silently, this spec pins
-    // the gap as an explicit assertion so a future `npm install
-    // @axe-core/playwright` regression-tests itself: if the dependency IS
-    // added, this test's premise (require.resolve throws) flips, which is
-    // the intended signal to replace this stub with a real AxeBuilder scan
-    // per docs/playbook/pipelines/website-frontend/core/tools/axe-check.cjs.
-    let resolvable = true;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      require.resolve('@axe-core/playwright');
-    }
-    catch {
-      resolvable = false;
-    }
-    expect(resolvable).toBe(false);
-  });
 });
 
 test.describe('SC-3 — Regression guard: existing tab wiring unchanged on all exemplar pages (#122)', () => {

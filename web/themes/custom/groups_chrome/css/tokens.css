@@ -34,13 +34,21 @@
   --gc-color-text-inverse:   #ffffff; /* text on brand / dark surfaces */
 
   /* --- Colour: semantic (status badges) ----------------------------------- */
-  --gc-color-success:        #218d5b;
+  /* #145 WCAG audit: success/warning/info were darkened from their original
+   * values (kept their hue family) so foreground-on-`-050` wash AND
+   * foreground-on-white (.gc-directory-card__member-note) both clear 4.5:1
+   * (WCAG 2.2 AA 1.4.3), with margin for renderer rounding. `--gc-color-info`
+   * is no longer aliased to `--gc-color-primary` (which itself is 4.17:1 on
+   * its own -050 wash and would still fail) -- it now has its own compliant
+   * value so `--gc-color-primary` (used elsewhere as a background/border
+   * color, which passes the *non-text* contrast rule already) is untouched. */
+  --gc-color-success:        #0e7a48; /* was #218d5b -- 3.68:1 on -050 wash, failed AA */
   --gc-color-success-050:    #e6f4ec;
-  --gc-color-warning:        #b3730a;
+  --gc-color-warning:        #9c5c00; /* was #b3730a -- 3.49:1 on -050 wash, failed AA */
   --gc-color-warning-050:    #fbf1e0;
   --gc-color-danger:         #c0392b;
   --gc-color-danger-050:     #fbeae8;
-  --gc-color-info:           var(--gc-color-primary);
+  --gc-color-info:           #006eb4; /* was var(--gc-color-primary) = #0678be -- 4.16:1 on -050 wash, failed AA */
   --gc-color-info-050:       var(--gc-color-primary-050);
 
   /* --- Spacing scale (4px base, multiplicative) --------------------------- */

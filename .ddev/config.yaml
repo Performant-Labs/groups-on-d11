@@ -1,4 +1,4 @@
-name: gm129-activity
+name: gm145-wcag
 type: drupal10
 docroot: web
 php_version: "8.4"
