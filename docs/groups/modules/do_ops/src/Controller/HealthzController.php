@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Drupal\do_ops\Controller;
 
 use Drupal\Core\Cache\CacheBackendInterface;
-use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -30,14 +30,20 @@ use Symfony\Component\HttpFoundation\JsonResponse;
  * body carries per-check detail for Grafana.
  *
  * DI: constructor-inject the three services (@database, @cache.default,
- * @module_handler) via ::create() — the ControllerBase + services-container
- * pattern already established by do_showcase's PersonaSwitchController /
- * do_notifications' controllers, so nothing new is introduced.
+ * @module_handler) via ::create(). NOTE: this controller intentionally does
+ * NOT extend ControllerBase — ControllerBase already declares a
+ * (non-readonly) `$moduleHandler` property, so a promoted `readonly
+ * ModuleHandlerInterface $moduleHandler` here would fatal at class load with
+ * "Cannot redeclare non-readonly property … as readonly". Implementing
+ * `ContainerInjectionInterface` directly gives the same ::create()
+ * container-injection contract without the property collision, and this class
+ * has no need for ControllerBase's helper methods (`t()`, `currentUser()`,
+ * etc.) — it emits a plain JsonResponse.
  *
  * The route is opted out of the page cache (routing.yml: no_cache: TRUE) so a
  * stale healthy response can never be served after a subsystem degrades.
  */
-final class HealthzController extends ControllerBase {
+final class HealthzController implements ContainerInjectionInterface {
 
   public function __construct(
     private readonly Connection $database,
