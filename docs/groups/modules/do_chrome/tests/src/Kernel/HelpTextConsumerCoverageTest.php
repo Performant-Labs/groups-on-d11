@@ -307,6 +307,13 @@ final class HelpTextConsumerCoverageTest extends KernelTestBase {
       // explicitly deferred to SD-6 (#133) per HelpText.php's own docblock
       // (lines 424-430) — not this story.
       'page.activity',
+      // #133 (SD-6 capstone): page.showcase was added by the honesty sweep
+      // but is DELIBERATELY not wired into PageHelp::getRouteMap() — the
+      // /showcase tour already carries per-entry [data-do-tooltip] via the
+      // pre-existing showcase_help.* keys (#132 SD-5), and adding it would
+      // break PageHelpRouteMapTest::testRouteMapContainsExactlyTenEntries().
+      // See PageHelp::getRouteMap() docblock (lines 65-77). Not this story.
+      'page.showcase',
     ];
   }
 
