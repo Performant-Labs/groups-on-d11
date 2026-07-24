@@ -19,15 +19,18 @@ use Drupal\do_chrome\HelpText;
  * inline `#description`, so a group creator sees what each option means at the
  * point of decision.
  *
- * Honesty (reconciled with the #81 copy deck + its CH-F4/#95 update comment):
- *  - Open is NOW ENFORCED. #95 grants `join group` to the authenticated
+ * Honesty (#133 SD-6 sweep — all three visibility values are enforced live):
+ *  - Open is ENFORCED (#95) — grants `join group` to the authenticated
  *    `community_group-outsider_view` role, so a logged-in non-member can join
- *    an Open group instantly. The Open copy is presented as live.
- *  - Moderated and Invite Only remain UNENFORCED labels — no request/approval
- *    flow exists, and Invite Only groups are still publicly viewable. Their
- *    copy plainly says "not yet enforced on this demo" so the surface never
- *    over-claims. The field-level intro likewise notes only *joining* (not
- *    *viewing*) is gated today.
+ *    an Open group instantly.
+ *  - Moderated is ENFORCED (#121) — a non-member sees "Request to join";
+ *    submitting creates a pending `group_membership` relationship that an
+ *    Organizer approves or denies from the Manage-members page.
+ *  - Invite Only is ENFORCED (#121) — the group stays fully visible, but no
+ *    direct join or request path exists; only an Organizer can add members.
+ *  - The separate Privacy field (#134, `field_group_privacy`) controls who
+ *    can VIEW the group at all — a distinct axis from the join-policy values
+ *    above. The field-level intro names both axes explicitly.
  *
  * Kept as its own small #[Hook] class (rather than editing the shared
  * DoChromeHooks) so the #78 B-story surfaces stay parallel-safe — no two

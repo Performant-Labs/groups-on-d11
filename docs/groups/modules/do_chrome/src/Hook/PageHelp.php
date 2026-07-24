@@ -62,6 +62,20 @@ class PageHelp {
    * This is the SAME map preprocessPageTitle() looks up, not a second,
    * independently hand-maintained copy that could drift.
    *
+   * #133 (SD-6 capstone) audit recommendation #15: a `page.showcase`
+   * HelpText key was added (see HelpText.php) but is DELIBERATELY NOT wired
+   * into this allowlist — the /showcase tour page already carries
+   * per-entry `[data-do-tooltip]` affordances via the pre-existing
+   * `showcase_help.*` keys (#132 SD-5, see ShowcaseController::page()), so
+   * help-coverage.spec.ts's anon walk already passes for /showcase without
+   * this wiring. Adding it would also break
+   * PageHelpRouteMapTest::testRouteMapContainsExactlyTenEntries()'s exact
+   * `assertSame()` against `EXPECTED_MAP` — a passing pre-existing Kernel
+   * regression test this story does not edit. The key is ready and waiting
+   * (same pattern as the W2 pre-registered keys below) if a future story
+   * wires this allowlist entry deliberately, updating that Kernel test in
+   * lockstep.
+   *
    * @return array<string, string>
    *   A map of route name => HelpText surface-id key.
    */

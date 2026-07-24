@@ -186,6 +186,33 @@ final class HelpTextTest extends TestCase {
   }
 
   /**
+   * #133 (SD-6 capstone, honesty sweep): the permission-matrix panel copy
+   * must call the admin actor "Organizer" (the MVP-correct, user-visible
+   * role name — brief.md scope item 3's "Group-module-foundation honesty":
+   * "personas are Anonymous/Member/Organizer/Groups-Moderate"), NOT the
+   * stale "Group admin" / "group admin" phrasing the #91 copy deck
+   * originally shipped.
+   *
+   * RED reason: `permissions.panel.intro` / `permissions.panel.footnote`
+   * still read "A group admin holds every management capability." etc. at
+   * RED time — F has not yet applied the 13-item audit work-list (#3).
+   *
+   * @covers ::get
+   */
+  public function testPermissionMatrixPanelCopyNamesOrganizerNotGroupAdmin(): void {
+    foreach (['permissions.panel.intro', 'permissions.panel.footnote'] as $key) {
+      $copy = HelpText::get($key);
+      $this->assertStringNotContainsString('Group admin', $copy, sprintf('"%s" must not use the stale "Group admin" phrasing — the user-visible role is "Organizer" (#133 honesty sweep).', $key));
+      $this->assertStringNotContainsString('group admin', $copy, sprintf('"%s" must not use the stale "group admin" phrasing (any case) — the user-visible role is "Organizer" (#133 honesty sweep).', $key));
+    }
+
+    // The footnote is the one that actually names the admin actor's
+    // capability in prose — it must say "Organizer" explicitly.
+    $footnote = HelpText::get('permissions.panel.footnote');
+    $this->assertStringContainsString('Organizer', $footnote, 'permissions.panel.footnote must name the admin actor as "Organizer" (#133 honesty sweep).');
+  }
+
+  /**
    * #122 (SC-3): the group-type-homepage tooltip copy names all three
    * lead-section variants (events / discussion / documentation) truthfully.
    *
@@ -307,6 +334,73 @@ final class HelpTextTest extends TestCase {
     // directory-hiding is enforced — only `private` is enforced this story.
     $unlisted_copy = HelpText::get('privacy.unlisted');
     $this->assertMatchesRegularExpression('/not.*enforced|isn.t enforced/i', $unlisted_copy, 'privacy.unlisted must honestly flag that it is not enforced by this build.');
+  }
+
+  /**
+   * #133 (SD-6 capstone, honesty sweep — work-list #1): `visibility.field`
+   * must name BOTH axes explicitly (privacy/visibility AND join policy), not
+   * just the vaguer "who can join" framing the original #88 copy shipped.
+   * Brief scope item 3 ("two-axis-model honesty"): visibility
+   * (public/unlisted/private) and join policy (open/moderated/invite_only)
+   * must read as two distinct axes everywhere they appear, including this
+   * field-level intro.
+   *
+   * RED reason: `visibility.field` currently reads "Sets who can join this
+   * group and how..." — it does not name the "Privacy"/"privacy" axis
+   * word at all, so the assertion below fails until F rewrites it (13-item
+   * work-list #1).
+   *
+   * @covers ::get
+   */
+  public function testVisibilityFieldNamesBothAxesExplicitly(): void {
+    $field_copy = HelpText::get('visibility.field');
+    $this->assertMatchesRegularExpression('/\bprivacy\b/i', $field_copy, 'visibility.field must explicitly name the "Privacy" axis (#133 two-axis honesty).');
+    $this->assertMatchesRegularExpression('/\bjoin\b/i', $field_copy, 'visibility.field must explicitly name the "join" axis (#133 two-axis honesty).');
+  }
+
+  /**
+   * #133 (SD-6 capstone, honesty sweep — work-list #2): `visibility.invite_only`
+   * must keep the existing AC-7 "visible" guarantee (regression-guarded by
+   * `testVisibilityCopyIsPresentPlainTextAndHonest` above) AND add wording
+   * that clarifies visibility is controlled SEPARATELY from this join-policy
+   * value — otherwise a reader can still conflate "Invite Only" (a join-policy
+   * value) with a visibility/privacy setting, exactly the confusion #134's
+   * two-axis model exists to prevent (brief.md scope item 3).
+   *
+   * RED reason: the current copy ("the group stays visible to everyone, but
+   * only an organizer can add members...") never says visibility is a
+   * SEPARATE setting/axis — it implies visibility as a side-effect of THIS
+   * value rather than naming it as independently controlled. Fails until F's
+   * rewrite (13-item work-list #2).
+   *
+   * @covers ::get
+   */
+  public function testVisibilityInviteOnlyClarifiesVisibilityIsSeparatelyControlled(): void {
+    $copy = HelpText::get('visibility.invite_only');
+    $this->assertMatchesRegularExpression('/\bvisible\b/i', $copy, 'visibility.invite_only must still contain "visible" (AC-7 regression guard).');
+    $this->assertStringNotContainsString('hidden', $copy, 'visibility.invite_only must still NOT contain "hidden" (AC-7 regression guard).');
+    $this->assertMatchesRegularExpression('/privacy setting|separately|separate (?:axis|setting|control)/i', $copy, 'visibility.invite_only must clarify that visibility is controlled by a SEPARATE privacy setting, not this join-policy value (#133 two-axis honesty).');
+  }
+
+  /**
+   * #133 (SD-6 capstone) audit recommendation #15: a `page.showcase`
+   * HelpText key + PageHelp route-map entry, so the /showcase tour page
+   * itself carries the same SD-1 page-level ⓘ pattern every other primary
+   * page does (this spec's sibling, help-coverage.spec.ts, walks /showcase
+   * as part of its anon walk and expects a help affordance there).
+   *
+   * This is the OPTIONAL item in the audit work-list — included here as a
+   * targeted assertion so F has a concrete contract to implement against if
+   * the recommendation is adopted. If `page.showcase` is intentionally NOT
+   * adopted, T must delete this test at GREEN rather than leave it
+   * permanently red (see handoff-T-red.md).
+   *
+   * @covers ::get
+   */
+  public function testPageShowcaseKeyExistsAndIsNonEmpty(): void {
+    $copy = HelpText::get('page.showcase');
+    $this->assertNotSame('', $copy, 'The page.showcase tooltip copy must exist (audit rec #15) if the recommendation is adopted.');
+    $this->assertStringNotContainsString('<', $copy, 'Copy must be plain text (allowHTML is disabled).');
   }
 
   /**
