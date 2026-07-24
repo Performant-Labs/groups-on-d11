@@ -84,6 +84,19 @@ class PageHelp {
       // 'view.<id>.page_1' convention above, so it needs its own entry to
       // resolve to the same page.my_feed_events HelpText copy.
       'do_streams.my_events' => 'page.my_feed_events',
+      // #110 (ST-1): identical shape to the #112 my_events aliasing above —
+      // /my-feed is a hand-authored controller route (do_streams.my_feed,
+      // see do_streams/do_streams.routing.yml), not the Views-page-display
+      // route name the 'view.my_feed.page_1' W2 entry above anticipates.
+      // Without this alias the page-level ⓘ never renders on /my-feed (the
+      // pre-registered 'view.my_feed.page_1' key stays inert exactly as
+      // that entry's own docblock says an unresolved pre-registered route
+      // should) — SD-4's streams-help.spec.ts:69 asserts the ⓘ is present
+      // on /my-feed regardless of ROUTE NAME, so we alias the actual route
+      // to the SAME 'page.my_feed' HelpText copy, mirroring the my_events
+      // pattern above rather than editing the W2 entry itself (which stays
+      // a documented placeholder for a possible future Views-page display).
+      'do_streams.my_feed' => 'page.my_feed',
       'view.profile_stream.page_1' => 'page.profile_stream',
     ];
   }

@@ -42,7 +42,11 @@ final class PageHelpRouteMapTest extends KernelTestBase {
    * pre-registered. #112 (ST-3) adds one hand-authored controller-route
    * entry (do_streams.my_events) whose W2 sibling entry
    * (view.my_feed_events.page_1) also remains for backward-compat with any
-   * future Views-page-display route naming — 11 entries total.
+   * future Views-page-display route naming. #110 (ST-1) adds a second
+   * hand-authored controller-route entry (do_streams.my_feed) for the SAME
+   * reason — /my-feed shipped as MyFeedController, not a Views page display,
+   * so the W2-anticipated view.my_feed.page_1 entry alone would never
+   * resolve — 12 entries total.
    */
   private const EXPECTED_MAP = [
     'view.activity_stream.page_1' => 'page.stream',
@@ -58,6 +62,10 @@ final class PageHelpRouteMapTest extends KernelTestBase {
     // shipped as MyEventsController rather than a Views page display — the
     // map now has 11 entries; test name preserved for stable identification.
     'do_streams.my_events' => 'page.my_feed_events',
+    // #110 (ST-1): hand-authored controller route added when /my-feed
+    // shipped as MyFeedController rather than a Views page display —
+    // parallels #112's my_events aliasing above.
+    'do_streams.my_feed' => 'page.my_feed',
     'view.profile_stream.page_1' => 'page.profile_stream',
   ];
 
@@ -70,8 +78,10 @@ final class PageHelpRouteMapTest extends KernelTestBase {
    * NOTE: if F's implementation does not expose a public `getRouteMap()`,
    * this specific test method is the one to adjust (per T's fix-the-test
    * authority) — the contract this test pins is "the map has exactly these
-   * 10 entries," not the accessor's exact name. At RED time the class does
-   * not exist at all, so this fails on instantiation regardless.
+   * entries," not the accessor's exact name or the count in the method
+   * name. Post-#112 + #110 the map has 12 entries; the historical
+   * "TenEntries" name is preserved for stable identification of the test
+   * across CI history, matching the same rationale #112 recorded above.
    */
   public function testRouteMapContainsExactlyTenEntries(): void {
     $page_help = new PageHelp(\Drupal::routeMatch());

@@ -188,13 +188,18 @@ class StreamSwitcherHooksTest extends GroupsKernelTestBase {
   /**
    * Tab-list builder omits scopes whose route does not exist on this branch.
    *
-   * On THIS branch, only /stream, /following, /hot exist — /my-feed and
-   * /trending do not (siblings #112/#113 not yet merged). Per brief.md's
-   * route-tolerance rule, the tab list for an AUTHENTICATED user must
-   * therefore contain ONLY Global + Following (the two scopes whose mapped
-   * route currently resolves), never a disabled/greyed entry for the other
-   * two. This is the acceptance criterion's own worked example: "Under the
-   * plan the switcher would then render only Global + Following."
+   * Post-merge #110 (ST-1) landed, so /my-feed's route
+   * (do_streams.my_feed) now resolves in this kernel's route provider
+   * exactly like /following (#111 ST-2) already did — the tab list for an
+   * AUTHENTICATED user therefore now contains Global + My Feed + Following.
+   * /trending is still absent because it is a Views page display
+   * (view.trending.page_1) whose config is NOT imported by this suite's
+   * minimal setUp (see the module list above — no views:config import), so
+   * the route-existence check omits it, exactly as it would have omitted
+   * my_feed pre-#110. The route-tolerance rule still holds: a scope with
+   * no resolvable route is OMITTED, never rendered disabled — the OUTCOME
+   * shifts as sibling stories land, but the RULE and the omission
+   * MECHANISM do not, which is what this test pins.
    */
   public function testTabListOmitsScopesWithoutAnExistingRouteForAuthenticatedUser(): void {
     $user = $this->createUser();
@@ -204,9 +209,9 @@ class StreamSwitcherHooksTest extends GroupsKernelTestBase {
 
     $ids = array_column($tabs, 'id');
     $this->assertSame(
-      ['global', 'following'],
+      ['global', 'my_feed', 'following'],
       $ids,
-      'An authenticated user sees only Global + Following on this branch, because /my-feed and /trending routes do not exist yet — the tab list omits them entirely rather than rendering them disabled.'
+      'An authenticated user sees Global + My Feed + Following on this branch (post-#110 merge: /my-feed route now resolves; /trending remains absent because its Views page-display config is not imported by this suite\'s minimal setUp) — the tab list omits the missing scopes entirely rather than rendering them disabled.'
     );
   }
 
