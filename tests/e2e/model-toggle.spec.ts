@@ -111,28 +111,37 @@ test.describe('ST-8 (#130) — Content/Activity model toggle (/stream)', () => {
     await expect(activity).toContainText('●');
   });
 
-  test('clicking Content view is a no-op (disabled, no navigation, no attribute change)', async ({ page }) => {
-    await page.goto('/stream');
-    const switcher = switcherLocator(page);
-    const wrapper = streamWrapperLocator(page);
-    const urlBefore = page.url();
-
-    // Force-click since the option is aria-disabled and may not receive
-    // pointer events under normal actionability checks.
-    await switcher.getByRole('radio', { name: /Content view/i }).click({ force: true });
-
-    expect(page.url()).toBe(urlBefore);
-    await expect(wrapper).toHaveAttribute('data-do-stream-model', 'activity');
-  });
+  // NOTE: The former "clicking Content view is a no-op (disabled, no navigation,
+  // no attribute change)" test was dropped in the post-CI fix pass. The design
+  // intentionally allows the browser's native <a href="?variant=content">
+  // fallback link to fire when the JS skips disabled options
+  // (do_showcase/js/do_showcase.switcher.js lines 166-168 return early on
+  // aria-disabled === 'true', attaching no click handler — the anchor navigates
+  // normally). The URL DOES change to /stream?variant=content and the server
+  // then resolves the unavailable 'content' variant back to 'activity' via
+  // VariantSwitcher::resolveCurrent(); the URL-doesn't-change assertion was
+  // wrong on its own terms. The merged precedent in showcase.spec.ts
+  // ("an unavailable option is present, marked, and not a dead click", line
+  // 185) asserts ONLY the disabled-marking contract (aria-disabled, tabindex,
+  // "(soon)" copy) — which is already covered by the aria-disabled test
+  // above — and the server-side fallback is already covered by the
+  // "?variant=content deep link" test below (AC-3). No new assertion needed.
 
   test('/showcase catalog lists the stream-model entry as live, linking through to /stream', async ({ page }) => {
     await page.goto('/showcase');
 
-    const entry = page.locator('text=Stream model').locator('..');
+    // Entry container is uniquely keyed by data-do-showcase-entry (see
+    // ShowcaseController::page() line ~172). "Stream model" is the entry's
+    // <h3> title; the actual link inside is titled "View this comparison"
+    // (ShowcaseController::page() line 229) — so we scope by the entry
+    // container, then click its inner link, matching the merged precedent
+    // for live-catalog-entry click-through.
+    const entry = page.locator('[data-do-showcase-entry="stream-model"]');
     await expect(entry).toBeVisible();
+    await expect(entry).toContainText(/Stream model/);
     await expect(entry).not.toContainText(/coming/i);
 
-    await page.getByRole('link', { name: /Stream model/i }).click();
+    await entry.getByRole('link', { name: /View this comparison/i }).click();
     await page.waitForURL(/\/stream/);
 
     await expect(switcherLocator(page)).toBeVisible();
