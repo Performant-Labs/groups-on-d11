@@ -50,11 +50,11 @@ class DoMultigroupHooks {
    * so no `content_plugin`/`relation_type` code change is required.
    */
   public static function relationshipTypeId(string $bundle): string {
-    // TODO(group4-VERIFY): confirm the '<group_type>-group_node-<bundle>' relationship
-    // type IDs (and the 'community_group-group_membership' ID below) still resolve on
-    // the installed Group 4.x — relationship type IDs are generated per group type, so
-    // verify against the site's actual group.relationship_type.* config after the
-    // updatedb runs (they should be identical to 3.x; the rename was property-only).
+    // Verified on Group 4.0.x-dev: the '<group_type>-group_node-<bundle>'
+    // relationship type IDs (and the 'community_group-group_membership' ID below)
+    // resolve on the installed Group 4.x — the site's group.relationship_type.*
+    // config after updatedb is identical to 3.x, since the 4.x rename was
+    // property-only.
     return 'community_group-group_node-' . ($bundle === 'documentation' ? 'doc' : $bundle);
   }
 
