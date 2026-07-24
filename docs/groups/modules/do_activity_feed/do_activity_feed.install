@@ -1,0 +1,70 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the DO Activity Feed module.
+ */
+
+declare(strict_types=1);
+
+/**
+ * Implements hook_install().
+ *
+ * Defensive safety net for issue #129 ST-7's Defect 1 (U's Phase 8 rework
+ * report): `views.view.activity_feed` — this module's own
+ * `config/install/views.view.activity_feed.yml` — is REQUIRED default
+ * config, so `ModuleInstaller::install()`'s own `installDefaultConfig()`
+ * call already creates it unconditionally as part of a normal
+ * `drush en do_activity_feed` (confirmed via a `module_installer->install()`
+ * kernel-level reproduction — see
+ * `tests/src/Kernel/ActivityFeedViewInstallTest.php`, mirroring do_streams'
+ * own `StreamsInstallTest` pattern). No config validity defect was found.
+ *
+ * U nonetheless observed `Views::getView('activity_feed')` return NULL live
+ * against a seeded site. Since the failure did not reproduce under
+ * controlled conditions, this belt-and-suspenders guard — force-creating
+ * the view from this module's own shipped install config if it is ever
+ * found missing post-install — closes the gap regardless of root cause
+ * (e.g. a stale `web/modules/custom/do_activity_feed/config/install/` copy
+ * at the moment a real `drush en` ran; assemble-config.sh's own
+ * rm-then-copy is not atomic). Mirrors
+ * `do_group_membership_install()`'s own idempotent, guarded,
+ * `$is_syncing`-respecting self-heal pattern
+ * (docs/groups/modules/do_group_membership/do_group_membership.install).
+ *
+ * @param bool $is_syncing
+ *   TRUE if the module install is part of a config synchronization — in
+ *   that case a deliberate config import is already in control of the
+ *   site's config state, so this hook does nothing (matching the
+ *   do_group_membership precedent's own reasoning: fighting an in-progress
+ *   sync would be wrong, not merely redundant).
+ */
+function do_activity_feed_install(bool $is_syncing): void {
+  if ($is_syncing) {
+    return;
+  }
+
+  /** @var \Drupal\views\ViewEntityInterface|null $view */
+  $view = \Drupal::entityTypeManager()->getStorage('view')->load('activity_feed');
+  if ($view !== NULL) {
+    // Already installed via the normal installDefaultConfig() path — no
+    // action needed (the expected, common case).
+    return;
+  }
+
+  // Force-create the view directly from this module's own shipped
+  // config/install/views.view.activity_feed.yml, bypassing whatever
+  // prevented the normal default-config-install step from doing so.
+  \Drupal::service('config.installer')->installDefaultConfig('module', 'do_activity_feed');
+
+  // If the force-install actually created the view (it may still be NULL if
+  // e.g. the shipped YAML file itself were ever removed from disk — this
+  // guard must never fatal), rebuild the router so a request in THIS SAME
+  // install cycle sees consistent state, mirroring
+  // do_group_membership_install()'s own same-request router rebuild after a
+  // views config mutation.
+  \Drupal::entityTypeManager()->getStorage('view')->resetCache(['activity_feed']);
+  if (\Drupal::entityTypeManager()->getStorage('view')->load('activity_feed') !== NULL) {
+    \Drupal::service('router.builder')->rebuild();
+  }
+}

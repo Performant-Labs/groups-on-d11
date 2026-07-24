@@ -1,0 +1,77 @@
+{#
+/**
+ * @file
+ * Aggregated row (#129 ST-7) — a collapsible native `<details>/<summary>`
+ * disclosure summarizing a run of same-actor/template/group Messages folded
+ * by ActivityAggregator within the 6h window.
+ *
+ * Per the approved wireframe
+ * (docs/planning/handoffs/129-activity-feed/wireframe.html): the
+ * `<summary>` IS the aggregated sentence (actor + verb + textual count +
+ * group + timestamp — "3 topics" is a non-color status signal, WCAG 2.2 AA
+ * requirement); expanding reveals the underlying titles as links. Native
+ * `<details>/<summary>` is keyboard-operable with zero JS (Tab to focus,
+ * Enter/Space to toggle) — no custom disclosure widget is built.
+ *
+ * Available variables:
+ * - row: the row-model array from ActivityFeedController::renderFeed(),
+ *   with keys:
+ *   - actor: \Drupal\user\UserInterface|null.
+ *   - actor_url: string|null, the actor's precomputed canonical URL (a
+ *     plain string — see ActivityRowBuilder::buildRow()'s docblock, Defect
+ *     2: Twig's magic `row.actor.id` getter returns a FieldItemList, not a
+ *     scalar, so the URL is ALWAYS resolved in PHP, never via Twig's
+ *     `path()`).
+ *   - group: \Drupal\group\Entity\GroupInterface|null. NOTE: always call
+ *     `row.group.label()` WITH explicit method-call parens, never
+ *     `row.group.label` — Group entities carry a real `label` BASE FIELD,
+ *     so the bare magic-attribute form hits the identical FieldItemList
+ *     trap Defect 2 already fixed for `.id` (confirmed empirically: `$group
+ *     ->label` returns a FieldItemList; only `$group->label()` returns the
+ *     scalar string).
+ *   - group_url: string|null, the group's precomputed canonical URL (same
+ *     reasoning as actor_url).
+ *   - created: int, the newest folded Message's created timestamp.
+ *   - count: int, the number of folded Messages (always >=2 for this row
+ *     type — a count===1 bucket renders as its own underlying row type
+ *     instead, per ActivityFeedController::buildAggregableRows()).
+ *   - template: string, the aggregable template id ('activity_post_created'
+ *     or 'activity_comment_created') — selects the verb below.
+ *   - children: list of {title, url} for the bucket's underlying Messages,
+ *     newest first (url is already a plain string or NULL — see
+ *     ActivityFeedController::memberUrl()).
+ */
+#}
+<li class="row activity-row--aggregated" data-testid="activity-row-aggregated">
+  <span class="row__avatar" aria-hidden="true">{{ row.actor ? row.actor.getDisplayName()|first|upper : '?' }}</span>
+  <div class="row__body">
+    <details>
+      <summary>
+        {% set actor_name = row.actor ? row.actor.getDisplayName() : 'Someone'|t %}
+        <strong>
+          {% if row.actor %}<a href="{{ row.actor_url }}">{{ actor_name }}</a>{% else %}{{ actor_name }}{% endif %}
+        </strong>
+        {% if row.template == 'activity_comment_created' %}
+          {{ 'commented'|t }} <span class="row__count">{{ '@count times'|t({'@count': row.count}) }}</span>
+        {% else %}
+          {{ 'posted'|t }} <span class="row__count">{{ '@count topics'|t({'@count': row.count}) }}</span>
+        {% endif %}
+        {% if row.group %}
+          {{ 'in'|t }} <a href="{{ row.group_url }}">{{ row.group.label() }}</a>
+        {% endif %}
+        <span class="row__time">&middot; <time datetime="{{ row.created|date('c') }}">{{ row.created|format_date('short') }}</time></span>
+      </summary>
+      <ul class="activity-row--aggregated__children">
+        {% for child in row.children %}
+          <li>
+            {% if child.url %}
+              <a href="{{ child.url }}">{{ child.title }}</a>
+            {% else %}
+              {{ child.title }}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </details>
+  </div>
+</li>

@@ -1,0 +1,77 @@
+{#
+/**
+ * @file
+ * Social row (#129 ST-7) — a compact one-line sentence row shared by every
+ * non-content row type: join, RSVP, comment, group-created, pin.
+ *
+ * Per the approved wireframe
+ * (docs/planning/handoffs/129-activity-feed/wireframe.html): actor avatar +
+ * one-line sentence + trailing timestamp; comment rows additionally show a
+ * truncated, italic quote line beneath the sentence (AC-5).
+ *
+ * Available variables:
+ * - row: the row-model array from ActivityFeedController::renderFeed(),
+ *   with keys:
+ *   - type: string, one of 'social_join' | 'social_rsvp' | 'social_comment'
+ *     | 'social_group_created' | 'social_pin' — selects the sentence
+ *     wording below (this story's POC scope only ever produces
+ *     'social_join' and 'social_comment' — see brief §"Which templates
+ *     surface on /activity" — the other three are handled here for
+ *     forward-compatibility with a later story, per survey.md's row-model
+ *     vocabulary, but are never emitted by ActivityFeedController today).
+ *   - actor: \Drupal\user\UserInterface|null.
+ *   - actor_url: string|null, the actor's precomputed canonical URL (a
+ *     plain string — see ActivityRowBuilder::buildRow()'s docblock, Defect
+ *     2: Twig's magic `row.actor.id` getter returns a FieldItemList, not a
+ *     scalar, so the URL is ALWAYS resolved in PHP, never via Twig's
+ *     `path()`).
+ *   - group: \Drupal\group\Entity\GroupInterface|null. NOTE: always call
+ *     `row.group.label()` WITH explicit method-call parens, never
+ *     `row.group.label` — Group entities carry a real `label` BASE FIELD,
+ *     so the bare magic-attribute form hits the identical FieldItemList
+ *     trap Defect 2 already fixed for `.id` (confirmed empirically: `$group
+ *     ->label` returns a FieldItemList; only `$group->label()` returns the
+ *     scalar string).
+ *   - group_url: string|null, the group's precomputed canonical URL (same
+ *     reasoning as actor_url).
+ *   - created: int, the Message's created timestamp.
+ *   - snippet: string|null, the truncated comment quote (social_comment
+ *     only).
+ *   - referenced_entity_type / referenced_entity_id: the referenced
+ *     entity's identity (used to link a commented node for social_comment).
+ */
+#}
+<li class="row activity-row--social" data-testid="activity-row-social">
+  <span class="row__avatar" aria-hidden="true">{{ row.actor ? row.actor.getDisplayName()|first|upper : '?' }}</span>
+  <div class="row__body">
+    <p class="row__sentence">
+      {% set actor_name = row.actor ? row.actor.getDisplayName() : 'Someone'|t %}
+      {% set actor_link %}
+        {% if row.actor %}<a href="{{ row.actor_url }}">{{ actor_name }}</a>{% else %}{{ actor_name }}{% endif %}
+      {% endset %}
+      {% set group_link %}
+        {% if row.group %}<a href="{{ row.group_url }}">{{ row.group.label() }}</a>{% endif %}
+      {% endset %}
+
+      <strong>{{ actor_link }}</strong>
+
+      {% if row.type == 'social_join' %}
+        {{ 'joined'|t }} {{ group_link }}
+      {% elseif row.type == 'social_rsvp' %}
+        {{ "RSVP'd to"|t }} {{ group_link }}
+      {% elseif row.type == 'social_comment' %}
+        {{ 'commented'|t }} {% if row.group %}{{ 'in'|t }} {{ group_link }}{% endif %}
+      {% elseif row.type == 'social_group_created' %}
+        {{ 'created group'|t }} {{ group_link }}
+      {% elseif row.type == 'social_pin' %}
+        {{ 'pinned a post in'|t }} {{ group_link }}
+      {% endif %}
+
+      <span class="row__time">&middot; <time datetime="{{ row.created|date('c') }}">{{ row.created|format_date('short') }}</time></span>
+    </p>
+
+    {% if row.type == 'social_comment' and row.snippet %}
+      <span class="row__snippet-quote">&ldquo;{{ row.snippet }}&rdquo;</span>
+    {% endif %}
+  </div>
+</li>

@@ -1,0 +1,14 @@
+name: DO Activity Feed
+type: module
+description: 'Renders the do_activity log as a feed: interleaved social rows + stream_card content rows, with render-time (actor, template, group) aggregation over a 6h window (#129, ST-7).'
+core_version_requirement: ^11.2
+package: Custom
+dependencies:
+  - drupal:do_activity
+  - drupal:do_streams
+  - drupal:views
+  - drupal:message
+  - drupal:group
+  - drupal:node
+  - drupal:comment
+  - drupal:user
