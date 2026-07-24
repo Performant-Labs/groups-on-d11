@@ -52,6 +52,12 @@ use Drupal\Tests\UnitTestCase;
  * $query_key) must remain fully BC — every existing assertion above (which
  * calls build() with exactly 3 args) must keep passing unchanged.
  *
+ * #125 SC-6 (Phase 4, T-RED): extends this file with coverage that the
+ * `map` entry in `directoryLayoutOptions()`'s returned shape is now a LIVE
+ * option (no `available` key, or `available: TRUE`) — the same shape
+ * `compact`/`cards` already carry. See
+ * `testDirectoryLayoutOptionsMapEntryIsNowAvailable()` below.
+ *
  * @coversDefaultClass \Drupal\do_showcase\VariantSwitcher
  * @group do_showcase
  */
@@ -68,8 +74,7 @@ final class VariantSwitcherTest extends UnitTestCase {
   protected function setUp(): void {
     parent::setUp();
     // VariantSwitcher is expected to use StringTranslationTrait ($this->t()),
-    // matching PermissionMatrix's shape; UnitTestCase supplies a translation
-    // stub that returns the raw string, same as PermissionMatrixTest does.
+    // matching PermissionMatrixTest does.
     $this->switcher = new VariantSwitcher();
     $this->switcher->setStringTranslation($this->getStringTranslationStub());
   }
@@ -557,6 +562,34 @@ final class VariantSwitcherTest extends UnitTestCase {
       ],
       $options,
       'streamModelOptions() must return exactly two entries, in order: content (unavailable) then activity (available), matching directoryLayoutOptions() own shape.'
+    );
+  }
+
+  /**
+   * #125 SC-6 (Phase 4, T-RED): `directoryLayoutOptions()`'s `map` entry is
+   * now a LIVE option — either no `available` key at all (defaults TRUE via
+   * `normalizeOptions()`), or an explicit `available: TRUE` — the same shape
+   * `compact` and `cards` already carry (neither of THOSE two entries sets
+   * `available` at all in `directoryLayoutOptionIds()`, per
+   * VariantSwitcher.php lines 82-86).
+   *
+   * RED reason: `directoryLayoutOptionIds()` (VariantSwitcher.php line 85)
+   * currently hardcodes `['id' => 'map', 'available' => FALSE]` — this
+   * assertion fails against that unchanged source because the map entry's
+   * `available` key is FALSE, not absent/TRUE. #125 (SC-6) flips this flag
+   * in exactly one place (this method's own docblock at line 67 names this
+   * story as the one that performs the flip).
+   *
+   * @covers ::directoryLayoutOptions
+   */
+  public function testDirectoryLayoutOptionsMapEntryIsNowAvailable(): void {
+    $options = $this->switcher->directoryLayoutOptions();
+    $map = current(array_filter($options, static fn (array $option): bool => $option['id'] === 'map'));
+
+    $this->assertNotFalse($map, 'The map option must still be present in directoryLayoutOptions().');
+    $this->assertTrue(
+      $map['available'] ?? TRUE,
+      '#125 (SC-6): the map option must now be a LIVE option — "available" must be TRUE or the key must be absent entirely (defaulting TRUE), matching the shape compact/cards already carry. Currently VariantSwitcher.php line 85 hardcodes available => FALSE, so this assertion must fail against unchanged source.',
     );
   }
 

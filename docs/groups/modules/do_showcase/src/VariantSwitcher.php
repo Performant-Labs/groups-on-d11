@@ -63,9 +63,15 @@ final class VariantSwitcher {
    * #124 SC-5 (A-advisory #7): both `ShowcaseController::page()`'s
    * `/showcase` stub instance and `DoShowcaseHooks::viewsPreRender()`'s
    * `/all-groups` instance render the EXACT same three options, in the same
-   * order, with `map` unavailable — hoisted here as one source of truth so
-   * #125 (SC-6) flips `map`'s `available` flag to `TRUE` in exactly one
-   * place instead of two call sites silently drifting apart.
+   * order — hoisted here as one source of truth so #125 (SC-6) could flip
+   * `map`'s `available` flag to `TRUE` in exactly one place instead of two
+   * call sites silently drifting apart.
+   *
+   * #125 (SC-6) DID flip `map`'s availability: the entry below no longer
+   * carries `'available' => FALSE` — `map` is now a LIVE, selectable third
+   * variant on both `/all-groups` and `/showcase`, plotting groups with a
+   * `field_group_location` on a locally-vendored Leaflet map (see
+   * `docs/handoffs/0125-directory-map/`).
    *
    * Deliberately carries NO label — {@see self::directoryLayoutOptions()} is
    * the caller-facing method that pairs each id with its TRANSLATED label
@@ -82,7 +88,7 @@ final class VariantSwitcher {
     return [
       ['id' => 'compact'],
       ['id' => 'cards'],
-      ['id' => 'map', 'available' => FALSE],
+      ['id' => 'map'],
     ];
   }
 

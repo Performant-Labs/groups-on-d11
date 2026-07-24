@@ -1,0 +1,21 @@
+uuid: 66b6eb09-fb1c-43cd-86fb-b59bd2bbd5c6
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.group.field_group_location
+    - group.type.community_group
+  module:
+    - geofield
+id: group.community_group.field_group_location
+field_name: field_group_location
+entity_type: group
+bundle: community_group
+label: 'Geographic location'
+description: 'Optional latitude/longitude used to plot this group on the directory Map view (#125 SC-6). Not required — groups without a location simply do not appear on the map.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: geofield

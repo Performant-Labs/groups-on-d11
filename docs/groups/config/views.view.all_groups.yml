@@ -4,8 +4,10 @@ status: true
 dependencies:
   config:
     - field.storage.group.field_group_language
+    - field.storage.group.field_group_location
     - field.storage.group.field_group_location_text
   module:
+    - geofield
     - group
 id: all_groups
 label: 'All Groups'
@@ -47,6 +49,23 @@ display:
           type: text_trimmed
           settings:
             trim_length: 200
+        field_group_location:
+          id: field_group_location
+          table: group__field_group_location
+          field: field_group_location
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: group
+          entity_field: field_group_location
+          plugin_id: field
+          label: Location
+          exclude: true
+          type: geofield_default
+          settings:
+            data: lat_lon
+            trim_lat: '6'
+            trim_lon: '6'
         created:
           id: created
           table: groups_field_data

@@ -74,3 +74,41 @@ discovery-compare:
       css/discovery-compare.css: {}
   dependencies:
     - do_showcase/switcher
+
+# #125 SC-6: Leaflet 1.9.4, vendored locally (no CDN — epic #78's no-CDN
+# posture). Source lives under docs/groups/libraries/leaflet/ (tracked in
+# git); scripts/ci/assemble-libraries.sh copies it into the gitignored
+# web/libraries/leaflet/ at build/CI time (handoff-A-plan.md Finding #1
+# resolution — mirrors the docs/groups/config/ -> config/sync/ and
+# docs/groups/modules/ -> web/modules/custom/ source-then-assemble
+# discipline this repo already establishes for config/modules). A BARE
+# vendor entry (no directory-map-specific JS/CSS here) so any future map
+# consumer (e.g. an admin geocoding UI) can depend on it directly without a
+# second vendored copy (A-plan resolution #2).
+leaflet:
+  version: '1.9.4'
+  js:
+    /libraries/leaflet/leaflet.js: {}
+  css:
+    theme:
+      /libraries/leaflet/leaflet.css: {}
+
+# #125 SC-6: the Map variant for /all-groups — attached by
+# DoShowcaseHooks::viewsPreRender() alongside `do_showcase/switcher` and
+# `do_showcase/directory-compact` whenever the all_groups.page_1 view
+# renders (unconditional attach, same precedent as directory-compact — the
+# JS itself no-ops when the wrapper's data-do-directory-variant isn't
+# "map"). Depends on `do_showcase/leaflet` (the vendored map engine) and
+# `do_showcase/switcher` (the wrapper-mirror data-* attributes this
+# story's JS does not itself set, but which must be present before any
+# live client-side toggle into map mode can react).
+directory-map:
+  version: '1.0'
+  js:
+    js/do_showcase.directory-map.js: {}
+  css:
+    theme:
+      css/directory-map.css: {}
+  dependencies:
+    - do_showcase/leaflet
+    - do_showcase/switcher

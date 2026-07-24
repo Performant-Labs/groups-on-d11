@@ -130,9 +130,14 @@ if [[ -f "${CORE_EXT}" ]]; then
   #                       templates, so a clean-room `config:import` fails to install
   #                       do_activity ("requires Message, Message Notify modules")
   #                       unless both are also enabled here.
+  #   - geofield:         hard dependency of do_showcase (#125 SC-6); the assembled
+  #                       field.storage.group.field_group_location.yml declares
+  #                       `dependencies.module: [geofield]`, so a clean-room
+  #                       `config:import` fails to install the field storage
+  #                       unless geofield is also enabled here.
   # `pathauto` is intentionally NOT added: its one config entry is in the
   # excluded env-specific set (§3.6).
-  ENABLE_MODULES="$(printf '%s\n' "${MODULE_NAMES[@]}" flag language message message_notify)"
+  ENABLE_MODULES="$(printf '%s\n' "${MODULE_NAMES[@]}" flag geofield language message message_notify)"
   export ENABLE_MODULES
   AUTOLOAD="${REPO_ROOT}/vendor/autoload.php"
   if [[ ! -f "${AUTOLOAD}" ]]; then
@@ -154,7 +159,7 @@ if [[ -f "${CORE_EXT}" ]]; then
     file_put_contents($file, \Symfony\Component\Yaml\Yaml::dump($ext, 4, 2));
   ' "${CORE_EXT}" "${AUTOLOAD}" \
     || { echo "ERROR: failed to patch core.extension.yml" >&2; exit 1; }
-  echo "==> core.extension: registered custom do_* modules + flag as enabled"
+  echo "==> core.extension: registered custom do_* modules + flag/geofield/language/message/message_notify as enabled"
 else
   echo "WARNING: ${CORE_EXT} not found; skipping module registration" >&2
 fi

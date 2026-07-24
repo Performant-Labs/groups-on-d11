@@ -97,6 +97,9 @@ jobs:
       - name: Assemble config/sync + custom modules (shared with RUNBOOK)
         run: bash scripts/ci/assemble-config.sh
 
+      - name: Assemble libraries (Leaflet 1.9.4, #125 SC-6 — shared with RUNBOOK)
+        run: bash scripts/ci/assemble-libraries.sh
+
       - name: Prepare Drupal sites/default for kernel bootstrap
         run: |
           set -euxo pipefail
@@ -228,6 +231,9 @@ jobs:
 
       - name: Assemble config/sync + custom modules (shared with RUNBOOK)
         run: bash scripts/ci/assemble-config.sh
+
+      - name: Assemble libraries (Leaflet 1.9.4, #125 SC-6 — shared with RUNBOOK)
+        run: bash scripts/ci/assemble-libraries.sh
 
       - name: Prepare Drupal sites/default for the test router
         run: |
@@ -439,6 +445,9 @@ jobs:
 
       - name: Assemble config/sync + custom modules (shared with RUNBOOK)
         run: bash scripts/ci/assemble-config.sh
+
+      - name: Assemble libraries (Leaflet 1.9.4, #125 SC-6 — shared with RUNBOOK)
+        run: bash scripts/ci/assemble-libraries.sh
 
       - name: Wait for MySQL
         run: |

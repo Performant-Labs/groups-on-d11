@@ -730,4 +730,80 @@ foreach ($directory_filter_groups as [$label, $location, $langcode]) {
   echo "Created gid=" . $group->id() . " $label (location=$location, language=$langcode)\n";
 }
 
+
+// ===== Step 738: Directory map coordinates (#125 SC-6) =====
+// Append-only, idempotent (skip a group whose field_group_location is
+// already set, matching every other block in this file's idiom). Seeds
+// lat/lng for the four groups tests/e2e/directory-map.spec.ts and
+// docs/planning/handoffs/0125-directory-map/brief.md pin by name: Drupal
+// France (Paris), Drupal Deutschland (Berlin), Camp Organizers EMEA
+// (Brussels), DrupalCon Portland 2026 (Portland, OR) -- all four already
+// created in Step 730 above, so this block only sets fields on each,
+// never creates a new group.
+//
+// Deviation from survey.md (recorded in handoff-F.md): survey.md's
+// assumption that "field_group_location_text ... already exists and is
+// set for all four seed groups" is factually wrong against this file's
+// OWN prior content -- Step 730 (group creation) never sets
+// field_group_location_text at all; only Step 737's THREE
+// "Filter Test ..." groups (a disjoint set from these four) get it. The
+// SR-only fallback list's "Name -- City" copy and each marker's native
+// title attribute both read field_group_location_text (DoShowcaseHooks::
+// groupLocationAttributes()), so this block ALSO seeds the city text
+// here (idempotent: only when currently empty), not just the
+// coordinates -- otherwise every plotted group's city would render as an
+// empty string, failing directory-map.spec.ts's "reading Group Name --
+// City" assertion for a reason unrelated to this story's own map/marker
+// code.
+//
+// Guarded by moduleExists('geofield') since this is an append-only script
+// and other run orders may execute it without geofield enabled -- the
+// field.storage.group.field_group_location.yml config (which declares
+// dependencies.module: [geofield]) is what actually gates whether the
+// field exists on the group entity at all; this guard just avoids a fatal
+// on an install that has not imported that config yet. The
+// field_group_location_text city backfill below does NOT depend on
+// geofield (it is the pre-existing string field), so it runs
+// unconditionally.
+echo "\n=== Step 738: Directory map coordinates (#125 SC-6) ===\n";
+$group_map_locations = [
+  "Drupal France" => ["city" => "Paris", "lat" => 48.8566, "lng" => 2.3522],
+  "Drupal Deutschland" => ["city" => "Berlin", "lat" => 52.5200, "lng" => 13.4050],
+  "Camp Organizers EMEA" => ["city" => "Brussels", "lat" => 50.8503, "lng" => 4.3517],
+  "DrupalCon Portland 2026" => ["city" => "Portland, OR", "lat" => 45.5152, "lng" => -122.6784],
+];
+
+foreach ($group_map_locations as $group_label => $data) {
+  $groups = $group_storage->loadByProperties(["label" => $group_label]);
+  $group = reset($groups);
+  if (!$group) { echo "SKIP: Group not found: $group_label\n"; continue; }
+
+  if ($group->hasField("field_group_location_text") && $group->get("field_group_location_text")->isEmpty()) {
+    $group->set("field_group_location_text", $data["city"]);
+    $group->save();
+    echo "Set $group_label field_group_location_text -> {$data['city']}\n";
+  }
+
+  if (!\Drupal::moduleHandler()->moduleExists("geofield")) {
+    continue;
+  }
+  if (!$group->hasField("field_group_location")) { echo "SKIP: field_group_location missing on $group_label\n"; continue; }
+  if (!$group->get("field_group_location")->isEmpty()) {
+    echo "$group_label already has a geofield location; skipping\n";
+    continue;
+  }
+  // Geofield's storage expects a WKT geometry string in its `value`
+  // column; the field type's own item class derives lat/lon (and the
+  // geometry's other computed columns) from parsing that string on save
+  // -- WKT POINT order is (longitude latitude), NOT (latitude longitude).
+  $lat = $data["lat"];
+  $lng = $data["lng"];
+  $group->set("field_group_location", ["value" => "POINT($lng $lat)"]);
+  $group->save();
+  echo "Set $group_label field_group_location -> lat=$lat, lng=$lng\n";
+}
+if (!\Drupal::moduleHandler()->moduleExists("geofield")) {
+  echo "SKIP: geofield module not enabled -- coordinate portion of Step 738 skipped (city text still seeded above)\n";
+}
+
 echo "\n=== Demo data complete ===\n";
