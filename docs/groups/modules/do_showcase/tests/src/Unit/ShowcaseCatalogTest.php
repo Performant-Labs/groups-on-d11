@@ -12,11 +12,13 @@ use Drupal\Tests\UnitTestCase;
  *
  * Brief-gate B-4 (ACCEPTED): the comparison list and persona list are typed
  * PHP-array code constants (`{id, title, decision_sentence, status, route}`),
- * NOT config/content — this test pins that contract plus the specific seven
+ * NOT config/content — this test pins that contract plus the required
  * entries the brief's acceptance criteria name explicitly:
  *   discovery ranking, directory presentation, membership models,
  *   group-type homepages, stream model, private-group reveal (#134),
- *   and the persona switcher (#120, naming all four public personas).
+ *   the persona switcher (#120, naming all four public personas), and
+ *   public-browse (#217, REL-3 parity — upstream feature-tour item #1,
+ *   "Anonymous read access").
  *
  * @coversDefaultClass \Drupal\do_showcase\ShowcaseCatalog
  * @group do_showcase
@@ -38,14 +40,14 @@ final class ShowcaseCatalogTest extends UnitTestCase {
   }
 
   /**
-   * All seven required entries are present (six comparisons + persona
-   * switcher), each a complete, typed shape.
+   * All required entries are present (six comparisons + persona switcher +
+   * public-browse, #217 REL-3 parity), each a complete, typed shape.
    *
    * @covers ::entries
    */
-  public function testAllSevenRequiredEntriesArePresent(): void {
+  public function testAllRequiredEntriesArePresent(): void {
     $entries = $this->catalog->entries();
-    $this->assertCount(7, $entries, 'Exactly seven entries: six comparisons + the persona switcher.');
+    $this->assertCount(8, $entries, 'Every required catalog entry is present.');
 
     $ids = array_column($entries, 'id');
     $expected = [
@@ -56,10 +58,11 @@ final class ShowcaseCatalogTest extends UnitTestCase {
       'stream-model',
       'private-group-reveal',
       'persona-switcher',
+      'public-browse',
     ];
     sort($ids);
     sort($expected);
-    $this->assertSame($expected, $ids, 'All seven required comparison/persona entries must be present by id.');
+    $this->assertSame($expected, $ids, 'All required comparison/persona entries must be present by id.');
   }
 
   /**
@@ -230,21 +233,28 @@ final class ShowcaseCatalogTest extends UnitTestCase {
 
   /**
    * #133 (SD-6 capstone, honesty sweep — work-list #11): Maria Chen's persona
-   * description must read "A group Organizer." — the MVP-correct role name
+   * description must name "Organizer" — the MVP-correct role name
    * (brief.md scope item 3), not the stale hedge "A group admin/organizer."
    * the description originally shipped.
    *
-   * RED reason: `personas()`'s 'maria-chen' entry currently returns
-   * `$this->t('A group admin/organizer.')` — this assertion fails until F
-   * rewrites it (13-item work-list #11).
+   * #220 (REL-3 parity, persona-name drift): the description is later
+   * extended (see testMariaChenDescriptionCrossReferencesUpstreamGroupAdmin
+   * below) to also cross-reference the upstream "Group Admin" role name.
+   * This test is deliberately loosened from the post-#133 `assertSame(
+   * 'A group Organizer.', ...)` to `assertStringContainsString('Organizer',
+   * ...)` — the exact-match assertion pinned a stricter invariant (the FULL
+   * string) than the property that actually matters (the honesty-sweep
+   * intent: name Organizer, not the old admin/organizer hedge). Loosening
+   * to a substring check lets #220's additive cross-reference text coexist
+   * without re-litigating #133's already-settled outcome.
    *
    * @covers ::personas
    */
-  public function testMariaChenPersonaDescriptionNamesOrganizerOnly(): void {
+  public function testMariaChenPersonaDescriptionNamesOrganizer(): void {
     $maria = $this->catalog->personaSpec('maria-chen');
     $this->assertNotNull($maria, 'The maria-chen persona must exist.');
     $description = (string) $maria['description'];
-    $this->assertSame('A group Organizer.', $description, "Maria Chen's persona description must read exactly 'A group Organizer.' (#133 honesty sweep) — not the stale 'A group admin/organizer.' hedge.");
+    $this->assertStringContainsString('Organizer', $description, "Maria Chen's persona description must name 'Organizer' (#133 honesty sweep) — not the stale 'A group admin/organizer.' hedge.");
   }
 
   /**
@@ -310,6 +320,97 @@ final class ShowcaseCatalogTest extends UnitTestCase {
     $decision_sentence = (string) $entry['decision_sentence'];
     $this->assertStringContainsString('Map', $decision_sentence, 'The directory-presentation decision_sentence must name Map as the third variant (#125 SC-6 shipped it live; #198 docs parity).');
     $this->assertStringContainsString('geograph', $decision_sentence, "The directory-presentation decision_sentence must mention the geographic/plotting axis Map introduces (mirrors HelpText.php:169's 'geographically' wording).");
+  }
+
+  /**
+   * #217 (REL-3, docs-parity reconciliation): a new explicit `public-browse`
+   * catalog entry mirrors upstream feature-tour item #1 ("Anonymous read
+   * access") — today this is only IMPLICIT via the Anonymous persona on the
+   * persona-switcher entry, with no dedicated catalog entry naming anonymous
+   * read access as its own comparison.
+   *
+   * RED reason: `ShowcaseCatalog::entries()` at RED time contains no
+   * `public-browse` entry — this fails until F adds it (#217 REL-3 parity
+   * reconciliation).
+   *
+   * @covers ::entries
+   */
+  public function testPublicBrowseEntryIsLive(): void {
+    $entries = $this->catalog->entries();
+    $entry = current(array_filter($entries, static fn (array $e): bool => $e['id'] === 'public-browse'));
+    $this->assertNotFalse($entry, 'A public-browse catalog entry must exist (#217 REL-3 parity — upstream feature-tour item #1, "Anonymous read access").');
+    $this->assertSame('live', $entry['status'], 'public-browse must be live — anonymous read access already works today.');
+    $this->assertNotNull($entry['route'], 'public-browse must carry a real route (no dead link).');
+    $this->assertArrayHasKey('upstream_ref', $entry, 'public-browse must carry an upstream_ref pointing at the upstream feature-tour item it mirrors.');
+    $this->assertNotEmpty((string) $entry['upstream_ref'], "public-browse's upstream_ref must be non-empty.");
+  }
+
+  /**
+   * #218 (REL-3, docs-parity reconciliation): the group-type-homepages
+   * entry's `decision_sentence` is currently abstract ("a generic group page
+   * vs. a type-tailored homepage") while the upstream feature tour, AND this
+   * repo's own `HelpText.php:321` copy ("Events lead with the event
+   * calendar, Discussion leads with the stream, Documentation leads with the
+   * reference index"), both name three concrete variants. This test pins
+   * that the catalog's user-visible copy names the same three variants
+   * HelpText.php already does, closing the drift.
+   *
+   * RED reason: at RED time the entry's decision_sentence is abstract
+   * ('generic group page vs. a type-tailored homepage') and does not name
+   * the three variants — fails until F rewrites the copy (#218 REL-3
+   * parity, mirrors HelpText.php:321 which already names them).
+   *
+   * @covers ::entries
+   */
+  public function testGroupTypeHomepagesEntryNamesThreeVariants(): void {
+    $entries = $this->catalog->entries();
+    $entry = current(array_filter($entries, static fn (array $e): bool => $e['id'] === 'group-type-homepages'));
+    $this->assertNotFalse($entry);
+
+    $decision_sentence = (string) $entry['decision_sentence'];
+    foreach (['events-first', 'discussion-first', 'docs-first'] as $variant) {
+      $this->assertStringContainsString($variant, $decision_sentence, sprintf('group-type-homepages decision_sentence must name the "%s" variant (#218 REL-3 parity, mirrors HelpText.php:321).', $variant));
+    }
+  }
+
+  /**
+   * #220 (REL-3, docs-parity reconciliation, part 1 of 2): persona-name
+   * drift — upstream names this role "Group Admin"; this repo names it
+   * "Organizer". Rather than renaming (a much larger, riskier change), the
+   * chosen reconciliation is a cross-reference: maria-chen's persona
+   * `description` is extended to also name the upstream role, so a reader
+   * comparing the two docs sets can see the correspondence explicitly.
+   *
+   * RED reason: at RED time maria-chen's description is exactly "A group
+   * Organizer." (post-#133) — fails until F extends it with an upstream
+   * cross-reference (#220 REL-3 parity).
+   *
+   * @covers ::personas
+   */
+  public function testMariaChenDescriptionCrossReferencesUpstreamGroupAdmin(): void {
+    $maria = $this->catalog->personaSpec('maria-chen');
+    $this->assertNotNull($maria, 'The maria-chen persona must exist.');
+    $description = (string) $maria['description'];
+    $this->assertStringContainsString('Group Admin', $description, "maria-chen's persona description must cross-reference the upstream 'Group Admin' role name (#220 REL-3 parity, persona-name drift).");
+  }
+
+  /**
+   * #220 (REL-3, docs-parity reconciliation, part 2 of 2): the same
+   * cross-reference treatment for the moderator persona — upstream names
+   * this role "Moderator"; this repo names it "Groups-Moderate". The
+   * persona `description` is extended to name the upstream role.
+   *
+   * RED reason: at RED time the description is exactly "A site-wide
+   * moderation role." — fails until F extends it with an upstream
+   * cross-reference.
+   *
+   * @covers ::personas
+   */
+  public function testGroupsModeratePersonaDescriptionCrossReferencesUpstreamModerator(): void {
+    $moderator = $this->catalog->personaSpec('moderator');
+    $this->assertNotNull($moderator, 'The moderator persona must exist.');
+    $description = (string) $moderator['description'];
+    $this->assertStringContainsString('Moderator', $description, 'The moderator persona description must cross-reference the upstream "Moderator" role name (#220 REL-3 parity, persona-name drift).');
   }
 
 }

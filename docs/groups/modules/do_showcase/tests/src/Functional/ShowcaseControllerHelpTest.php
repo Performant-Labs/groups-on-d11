@@ -68,8 +68,9 @@ final class ShowcaseControllerHelpTest extends BrowserTestBase {
 
   /**
    * Every catalog entry id that currently has a matching `showcase_help.*`
-   * HelpText key (per brief.md's "New keys to add" — all seven of the
-   * current `ShowcaseCatalog::entries()` ids have one).
+   * HelpText key (per brief.md's "New keys to add" — all of the current
+   * `ShowcaseCatalog::entries()` ids have one, including public-browse,
+   * #217 REL-3 parity reconciliation).
    *
    * @return array<int, string>
    */
@@ -82,6 +83,7 @@ final class ShowcaseControllerHelpTest extends BrowserTestBase {
       'stream-model',
       'private-group-reveal',
       'persona-switcher',
+      'public-browse',
     ];
   }
 

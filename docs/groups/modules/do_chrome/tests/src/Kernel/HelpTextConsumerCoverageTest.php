@@ -246,7 +246,8 @@ final class HelpTextConsumerCoverageTest extends KernelTestBase {
       // separate literal in ShowcaseCatalog::all() (ShowcaseCatalog.php):
       // 'discovery-ranking', 'directory-presentation',
       // 'membership-models', 'group-type-homepages', 'stream-model',
-      // 'private-group-reveal', 'persona-switcher'. (showcase_help.map and
+      // 'private-group-reveal', 'persona-switcher', 'public-browse' (#217
+      // REL-3 parity reconciliation). (showcase_help.map and
       // showcase_help.persona_banner are direct `HelpText::get()` call
       // sites elsewhere and are already detected without whitelisting.)
       'showcase_help.discovery-ranking',
@@ -256,6 +257,7 @@ final class HelpTextConsumerCoverageTest extends KernelTestBase {
       'showcase_help.stream-model',
       'showcase_help.private-group-reveal',
       'showcase_help.persona-switcher',
+      'showcase_help.public-browse',
       //
       // --- Category 2: genuinely NOT wired, pre-existing, out of scope --
       //

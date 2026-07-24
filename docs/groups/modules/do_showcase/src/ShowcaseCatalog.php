@@ -35,13 +35,26 @@ use Drupal\Core\StringTranslation\StringTranslationTrait;
  * invariant so any future entry that omits both fails loud. The upstream
  * feature-tour source of record is
  * https://git.drupalcode.org/project/groupsdrupalorg/-/issues/3578797.
+ *
+ * #217/#218/#219/#220 (REL-3 docs-parity reconciliation, 2026-07-24): the
+ * #212 sweep's findings were closed out in a follow-up batch —
+ *  - #217 added the `public-browse` entry below (upstream item #1 was
+ *    previously only implicit via the Anonymous persona).
+ *  - #218 rewrote `group-type-homepages`'s decision_sentence to name the
+ *    three concrete variants, closing a copy-abstraction drift.
+ *  - #219 is a NO-CODE-CHANGE resolution — see
+ *    `docs/planning/decisions/0003-archive-semantics-no-catalog-entry.md`;
+ *    archive semantics ship (via moderation) but deliberately get no
+ *    standalone /showcase catalog entry.
+ *  - #220 extended two persona `description` fields (see personas() below)
+ *    with an in-copy cross-reference to the upstream role names.
  */
 final class ShowcaseCatalog {
 
   use StringTranslationTrait;
 
   /**
-   * The seven required catalog entries (six comparisons + persona switcher).
+   * The catalog entries — every planned comparison plus the persona switcher.
    *
    * @return array<int, array{id: string, title: \Drupal\Core\StringTranslation\TranslatableMarkup, decision_sentence: \Drupal\Core\StringTranslation\TranslatableMarkup, status: string, route: string|null, upstream_ref?: string, local_only?: bool}>
    *   The catalog entries, in display order.
@@ -52,6 +65,19 @@ final class ShowcaseCatalog {
     // the same source-of-record page.
     $upstream_tour = 'https://git.drupalcode.org/project/groupsdrupalorg/-/issues/3578797';
     return [
+      [
+        'id' => 'public-browse',
+        'title' => $this->t('Public Browse'),
+        'decision_sentence' => $this->t('Anyone can browse the demo without an account — every catalog entry, group directory, and stream is reachable to an anonymous visitor by default. The decision: openness by default; auth-gated features are the exception, not the norm.'),
+        'status' => 'live',
+        'route' => 'do_showcase.showcase',
+        // #212 / #217: mirrors upstream feature-tour item #1 (Public
+        // Browse, "Anonymous read access enables visitors to explore the
+        // demo without authentication"). Prior to #217 this was implicit
+        // via the Anonymous persona in the persona-switcher; now surfaced
+        // as its own catalog entry per the REL-3 docs-repo parity sweep.
+        'upstream_ref' => $upstream_tour,
+      ],
       [
         'id' => 'discovery-ranking',
         'title' => $this->t('Discovery ranking'),
@@ -104,7 +130,15 @@ final class ShowcaseCatalog {
       [
         'id' => 'group-type-homepages',
         'title' => $this->t('Group-type homepages'),
-        'decision_sentence' => $this->t('Compares a generic group page vs. a type-tailored homepage — the decision: general-purpose UI vs. per-type customization.'),
+        // #218 (REL-3 docs-parity reconciliation): rewritten to name the
+        // three concrete variants — upstream's feature-tour item #5 and this
+        // repo's own HelpText.php:321 copy ("Events lead with the event
+        // calendar, Discussion leads with the stream, Documentation leads
+        // with the reference index") both already named events-first /
+        // discussion-first / docs-first; this decision_sentence was the one
+        // remaining abstract copy surface ("a generic group page vs. a
+        // type-tailored homepage") that didn't.
+        'decision_sentence' => $this->t("Compares three per-type homepage variants: events-first (calendar lead), discussion-first (stream lead), and docs-first (reference-index lead) — the decision: general-purpose UI vs. per-type customization tuned to the group's primary purpose."),
         // #133 (SD-6 honesty sweep): #122 (SC-3) shipped the type-adapted
         // group lead section — flip live. Routes to the directory, where a
         // visitor can pick a group of any type and see its adapted homepage.
@@ -112,7 +146,10 @@ final class ShowcaseCatalog {
         'route' => 'view.all_groups.page_1',
         // #212: mirrors upstream feature-tour item #5 (Group-Type Homepages,
         // "homepages adapt by group type: events-first, discussion-first, or
-        // docs-first layouts").
+        // docs-first layouts"). #218 REL-3 parity: decision_sentence now
+        // names the three concrete variants (events-first / discussion-first
+        // / docs-first) matching upstream's framing and HelpText.php:321's
+        // already-aligned help copy.
         'upstream_ref' => $upstream_tour,
       ],
       [
@@ -207,6 +244,14 @@ final class ShowcaseCatalog {
    * `@name — @description` line), per brief.md scope item 3 ("personas are
    * Anonymous/Member/Organizer/Groups-Moderate").
    *
+   * #212 / #220 (REL-3 docs-repo parity): the local persona names
+   * "Organizer" (maria-chen) and "Groups-Moderate" (moderator) deliberately
+   * diverge from the upstream feature tour's "Group Admin" and "Moderator" —
+   * established by #133 SD-6. The cross-reference lives in the user-visible
+   * `description` field (where a /showcase visitor experiences the drift) so
+   * anyone comparing surfaces can map local↔upstream without having to hunt
+   * the docblock.
+   *
    * @return array<int, array{id: string, name: string, label: string, description: \Drupal\Core\StringTranslation\TranslatableMarkup, uname: string|null, tooltip_key: string}>
    *   The persona list, in display order.
    */
@@ -232,7 +277,9 @@ final class ShowcaseCatalog {
         'id' => 'maria-chen',
         'name' => 'Maria Chen',
         'label' => (string) $this->t('Maria Chen — Organizer'),
-        'description' => $this->t('A group Organizer.'),
+        // #220 (REL-3 parity, persona-name drift): extended with an in-copy
+        // cross-reference to the upstream "Group Admin" role name.
+        'description' => $this->t('A group Organizer (called "Group Admin" in the upstream docs).'),
         'uname' => 'maria_chen',
         'tooltip_key' => 'persona.maria',
       ],
@@ -240,7 +287,9 @@ final class ShowcaseCatalog {
         'id' => 'moderator',
         'name' => 'Groups-Moderate',
         'label' => (string) $this->t('Groups-Moderate'),
-        'description' => $this->t('A site-wide moderation role.'),
+        // #220 (REL-3 parity, persona-name drift): extended with an in-copy
+        // cross-reference to the upstream "Moderator" role name.
+        'description' => $this->t('A site-wide moderation role (called "Moderator" in the upstream docs).'),
         'uname' => 'groups_moderate_demo',
         'tooltip_key' => 'persona.moderator',
       ],

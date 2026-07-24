@@ -330,6 +330,13 @@ final class HelpText {
       'showcase_help.private-group-reveal' => 'Switch personas and watch a private group appear: it is hidden from the anonymous directory and reveals itself only to a member of that group.',
       'showcase_help.persona-switcher' => 'Four public personas — Anonymous, Elena (Member), Maria (Organizer), Groups-Moderate. Each meets a different slice of the demo.',
       'showcase_help.map' => 'Map view plots groups with a geographic home. Only Geographical groups appear; pan and zoom to explore. Each marker\'s hover shows the group\'s name and type.',
+      // #217 (REL-3 docs-parity reconciliation): mirrors upstream
+      // feature-tour item #1 (Public Browse, "Anonymous read access") -
+      // consumed the same way as every other showcase_help.<id> key, via
+      // ShowcaseController::page()'s per-entry `HelpText::get('showcase_help.'
+      // . $entry['id'])` lookup (whitelisted in
+      // HelpTextConsumerCoverageTest::whitelistedKeys()).
+      'showcase_help.public-browse' => 'Anonymous visitors can browse everything on the demo by default — the catalog, group directory, group pages, and streams. Signed-in features (creating a group, joining, posting) are gated; reading is not.',
 
       // --- #110 (ST-1): My Feed shell-tab tooltip. --------------------------
       // Appended per the append-only HelpText contract. A DIFFERENT namespace
