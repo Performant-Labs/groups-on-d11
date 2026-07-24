@@ -5,6 +5,7 @@
  */
 
 use Drupal\language\Entity\ConfigurableLanguage;
+use Drupal\language\Entity\ContentLanguageSettings;
 
 // Ensure the language module is enabled before creating ConfigurableLanguage
 // entities. Without it, ConfigurableLanguage::save() invokes
@@ -13,6 +14,11 @@ use Drupal\language\Entity\ConfigurableLanguage;
 $module_installer = \Drupal::service('module_installer');
 if (!\Drupal::moduleHandler()->moduleExists('language')) {
   $module_installer->install(['language']);
+}
+// content_translation is a dependency of the enable-translation-per-bundle
+// block below; install it if not already.
+if (!\Drupal::moduleHandler()->moduleExists('content_translation')) {
+  $module_installer->install(['content_translation']);
 }
 
 // Ensure the locked language entities (und, zxx) exist. In CI the language
@@ -74,11 +80,21 @@ $config->set("negotiation.language_interface.method_weights", [
 $config->save();
 echo "Language negotiation configured\n";
 
-// Enable content translation for group-postable types
+// Enable content translation for group-postable node bundles.
+//
+// Use the ContentLanguageSettings entity API rather than writing the config
+// object directly. Writing bare `third_party_settings.content_translation
+// .enabled=TRUE` on `language.content_settings.node.$type` produces a config
+// record without `target_entity_type_id` or `target_bundle`, which entity load
+// then rejects with:
+//   "Attempt to create content language settings without a target_entity_type_id."
+// (Drupal\language\Entity\ContentLanguageSettings::__construct, line 108).
+// That exception surfaces at the first later save touching a translatable
+// bundle — e.g. step_795 creating group_content_message rows.
 echo "\n=== Enabling content translation ===\n";
 foreach (["forum", "documentation", "event", "post", "page"] as $type) {
-  $config = \Drupal::configFactory()->getEditable("language.content_settings.node." . $type);
-  $config->set("third_party_settings.content_translation.enabled", TRUE);
-  $config->save();
+  $settings = ContentLanguageSettings::loadByEntityTypeBundle("node", $type);
+  $settings->setThirdPartySetting("content_translation", "enabled", TRUE);
+  $settings->save();
   echo "Enabled content translation for: $type\n";
 }
