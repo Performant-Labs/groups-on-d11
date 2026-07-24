@@ -115,6 +115,76 @@ final class VariantSwitcher {
   }
 
   /**
+   * The shared "stream.model" two-option MACHINE spec: id + available.
+   *
+   * ST-8 (#130): the `activity_stream:page_1` mount (do_streams'
+   * `ModelToggleHooks::viewsPreRender()`) renders these two options, in
+   * this order, with `content` unavailable — hoisted here (mirroring
+   * {@see self::directoryLayoutOptionIds()}'s own shape 1:1) as one source
+   * of truth so #129 (the real Content view) flips `content`'s `available`
+   * flag to `TRUE` in exactly one place, and so a future `/my-feed` mount
+   * (deferred, blocked on #110) reuses the identical option set without a
+   * second, hand-copied spec.
+   *
+   * Deliberately carries NO label — {@see self::streamModelOptions()} pairs
+   * each id with its TRANSLATED label via a literal `$this->t()` call per
+   * id, for the same phpcs/string-extraction reasons documented on
+   * {@see self::directoryLayoutOptionIds()}.
+   *
+   * @return array<int, array{id: string, available?: bool}>
+   *   The two-option machine spec, in display order.
+   */
+  private static function streamModelOptionIds(): array {
+    return [
+      ['id' => 'content', 'available' => FALSE],
+      ['id' => 'activity'],
+    ];
+  }
+
+  /**
+   * The shared "stream.model" two-option list, labels translated.
+   *
+   * ST-8 (#130). The single call site
+   * `Drupal\do_streams\Hook\ModelToggleHooks` uses to obtain this
+   * instance's option list ready to pass straight to {@see self::build()}
+   * — translation happens HERE, via a literal `$this->t()` call per known
+   * id, matching {@see self::directoryLayoutOptions()}'s own pattern in
+   * spirit.
+   *
+   * Builds each entry explicitly as `['id' => ..., 'label' => ...]` (plus
+   * `'available' => FALSE` only for the `content` entry) rather than
+   * appending `label` onto the machine-spec array via `$spec['label'] =
+   * ...` — {@see self::streamModelOptionIds()}'s `content` entry already
+   * carries `available` as its SECOND key, so a naive append would produce
+   * key order `id, available, label`, which
+   * `VariantSwitcherTest::testStreamModelOptions()` pins as `id, label,
+   * available` (PHPUnit's `assertSame()` on nested arrays is key-order
+   * sensitive). Explicit construction here guarantees the pinned order
+   * regardless of `streamModelOptionIds()`'s own internal key order.
+   *
+   * @return array<int, array{id: string, label: string, available?: bool}>
+   *   The two-option list, labels translated, ready for build().
+   */
+  public function streamModelOptions(): array {
+    $options = [];
+    foreach (self::streamModelOptionIds() as $spec) {
+      $label = match ($spec['id']) {
+        'content' => (string) $this->t('Content view'),
+        'activity' => (string) $this->t('Activity view'),
+      };
+      $option = [
+        'id' => $spec['id'],
+        'label' => $label,
+      ];
+      if (array_key_exists('available', $spec)) {
+        $option['available'] = $spec['available'];
+      }
+      $options[] = $option;
+    }
+    return $options;
+  }
+
+  /**
    * Builds the switcher render array for one instance.
    *
    * @param string $instance_id

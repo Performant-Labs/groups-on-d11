@@ -535,4 +535,29 @@ final class VariantSwitcherTest extends UnitTestCase {
     }
   }
 
+  /**
+   * ST-8 (#130): `streamModelOptions()` returns the two-option `stream.model`
+   * machine spec, matching `directoryLayoutOptions()`'s shape 1:1 — Content
+   * view (unavailable, "(soon)") + Activity view (available), labels
+   * translated via $this->t() (brief.md scope item #5).
+   *
+   * RED reason (Phase 4): `VariantSwitcher::streamModelOptions()` does not
+   * exist yet — this call fails with a fatal \Error ("Call to undefined
+   * method"), not a assertion failure, until F implements it.
+   *
+   * @covers ::streamModelOptions
+   */
+  public function testStreamModelOptions(): void {
+    $options = $this->switcher->streamModelOptions();
+
+    $this->assertSame(
+      [
+        ['id' => 'content', 'label' => 'Content view', 'available' => FALSE],
+        ['id' => 'activity', 'label' => 'Activity view'],
+      ],
+      $options,
+      'streamModelOptions() must return exactly two entries, in order: content (unavailable) then activity (available), matching directoryLayoutOptions() own shape.'
+    );
+  }
+
 }

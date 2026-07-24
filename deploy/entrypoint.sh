@@ -177,6 +177,15 @@ PHP
   # --- do_activity step_7xx END ---
 
   $DRUSH cr
+
+  # --- do_discovery cron BEGIN ---
+  # #113 ST-4: recompute do_discovery_hot_score so /trending is non-empty
+  # after the fresh install + seed. hook_cron in DoDiscoveryHooks recomputes
+  # scores for nodes changed in the last 7 days; the seeded demo dataset
+  # sits entirely within that window. Idempotent.
+  $DRUSH cron || echo "[entrypoint] WARNING: drush cron returned non-zero (continuing)"
+  # --- do_discovery cron END ---
+
   echo "[entrypoint] Install + seed complete"
 fi
 

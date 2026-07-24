@@ -1,0 +1,39 @@
+{#
+/**
+ * @file
+ * Stream switcher chrome: Global | My Feed | Following | Trending tabs.
+ *
+ * Issue #115 (ST-6), brief.md + the approved wireframe
+ * (docs/handoffs/115-stream-switcher/wireframe.html). Renders ABOVE an
+ * already-rendered view's results (via
+ * StreamSwitcherHooks::preprocessViewsView() prepending this to
+ * `$variables['header']`) — it does NOT wrap or restyle the view's own
+ * markup, per the acceptance criterion "/stream cards look unchanged".
+ *
+ * Deliberately NOT a reuse of do-streams-shell.html.twig's `.shell-tabs`
+ * markup: that template's tabs are inert `<span>`s carrying a
+ * `?scope=<id>` query-parameter mapping meant to wrap `results` INSIDE
+ * itself (survey.md). This template's tabs are real `<a>` route links,
+ * rendered as sibling chrome above an independently-rendered view.
+ *
+ * Available variables:
+ * - tabs: a list of {id, label, route, active} — id is the scope id
+ *   ('global'/'my_feed'/'following'/'trending'), label is the translated
+ *   tab text, route is the tab's href (a path, e.g. '/following'), active
+ *   is TRUE when the current route matches this tab (StreamSwitcherHooks::
+ *   buildTabList()). A scope with no route yet, or one the current viewer
+ *   cannot access, is simply ABSENT from this list — never rendered
+ *   disabled (wireframe's single omission rule, Screen 3).
+ */
+#}
+<nav class="stream-switcher" role="navigation" aria-label="{{ 'Stream views'|t }}" data-testid="stream-switcher">
+  {% for tab in tabs %}
+    <a href="{{ tab.route }}"
+       class="stream-switcher__tab{{ tab.active ? ' is-active' : '' }}"
+       data-testid="stream-switcher-tab"
+       data-scope-id="{{ tab.id }}"
+       {% if tab.active %}aria-current="page"{% endif %}>
+      {{ tab.label }}
+    </a>
+  {% endfor %}
+</nav>

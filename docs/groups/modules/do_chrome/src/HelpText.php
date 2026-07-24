@@ -186,6 +186,16 @@ final class HelpText {
       // removed as dead wiring rather than adding an unplanned ⓘ trigger the
       // approved wireframe doesn't call for).
 
+      // ST-8 (#130): the switcher's own ⓘ tooltip for the NEW 'stream.model'
+      // instance mounted over /stream (do_streams' ModelToggleHooks). Copy
+      // is D's approved proposal (handoff-D.md / brief.md Amendment 1):
+      // names Activity view's row types explicitly (posts, comments, flags,
+      // pins, membership changes — matching activity_stream:page_1's actual
+      // stream_card rendering, #116), states the Content-only model is
+      // leaner, and qualifies Content view "(coming soon)" so the tooltip
+      // never contradicts the option label's own "(soon)" suffix.
+      'showcase.switcher.stream.model' => 'Activity view aggregates everything happening in this scope — posts, comments, flags, pins, and membership changes — as one chronological feed of message rows. Content view (coming soon) will show just the posts themselves: a leaner model with no aggregated activity noise.',
+
       // --- #122 (SC-3): group-type-driven homepages --------------------------
       // Appended per the append-only HelpText contract — groups_chrome (a
       // THEME, not a module) reads this key via
@@ -227,7 +237,13 @@ final class HelpText {
       // edit do_chrome to add its ⓘ, only to build the route.
       //
       // 5 LIVE (rendered now, brief.md §Scope "Covered now"):
-      'page.stream' => 'The site-wide activity stream: recent posts, replies, and events from every public group. This is what a signed-out visitor sees to get a sense of the community.',
+      //
+      // #131 (SD-4) enrichment: page.stream now names the honest POC/demo
+      // scoring caveat asked for in brief.md's Copy plan — the site-wide
+      // stream is a straightforward reverse-chronological merge, not a
+      // production-grade relevance ranking, and this says so plainly rather
+      // than implying more engineering than exists.
+      'page.stream' => 'The site-wide activity stream: recent posts, replies, and events from every public group, newest first. This is what a signed-out visitor sees to get a sense of the community. POC note: ordering here is plain reverse-chronological, not a relevance-ranked feed — see Trending for the site\'s one demo-scored ordering.',
       'page.all_groups' => 'Every community group on the site, listed together. Filter by name to find one, or browse to see what topics have working groups. Any signed-in visitor can join an Open group instantly.',
       'page.group.stream' => 'This group\'s activity: posts, replies, and events from members, newest first. This is the default landing view for the group.',
       'page.group.events' => 'Upcoming and past events organised by this group. Members can add events from the Add content menu.',
@@ -235,11 +251,19 @@ final class HelpText {
       // 5 W2 pre-registered (inert — map entry present, route does not exist
       // yet; entries whose route never resolves at request time render
       // nothing, per brief.md):
-      'page.my_feed' => 'A personalised feed of activity from the groups you belong to.',
-      'page.following' => 'Posts and threads you\'ve chosen to follow.',
-      'page.trending' => 'Posts drawing the most engagement across the site right now.',
-      'page.my_feed_events' => 'Upcoming events from the groups you belong to.',
-      'page.profile_stream' => 'This person\'s public activity across all their groups.',
+      //
+      // #131 (SD-4) enrichment: each of the 5 W2 keys below is rewritten in
+      // decision-support voice per brief.md's Copy plan — naming the specific
+      // design choice or mechanism behind the surface, not just restating its
+      // page title. Verified against the actual mechanisms these W2 surfaces
+      // are built on (flag.flag.follow_content / follow_user / follow_term for
+      // Following; views.view.hot_content's documented "comments x 3 + views x
+      // 0.5" formula for Trending) rather than paraphrased from memory.
+      'page.my_feed' => 'Posts from ONLY the groups you\'ve joined, newest first — not the site-wide stream. If a group isn\'t in your feed, joining it is what adds its posts here.',
+      'page.following' => 'Everything you\'ve chosen to follow: content you\'ve followed directly, people whose posts you follow, and topics (tags) you follow. Any one of those three follows is enough for a post to land here.',
+      'page.trending' => 'Posts ranked by recent comment activity via the hot score (comments count far more than views). POC note: this is a straightforward, honestly-scored demo ranking, not a production relevance algorithm.',
+      'page.my_feed_events' => 'Upcoming events from the groups you\'ve joined, plus a My RSVPs view of events you\'ve responded to. Unlike the site-wide event calendar, this is scoped to your own group memberships and responses.',
+      'page.profile_stream' => 'This member\'s public posts — only the ones you\'re allowed to see. Posts in a group you don\'t belong to (or that isn\'t publicly visible) are left out, even though they\'re this person\'s.',
 
       // --- #127 (SD-2): card- and element-level ⓘ tooltips -----------------
       // Appended per the append-only HelpText contract. Directory-card and
@@ -290,10 +314,92 @@ final class HelpText {
       'showcase_help.directory-presentation' => 'Compact list packs many groups per screen for fast scanning; Cards trade density for per-group detail. The switch is around information density, not content.',
       'showcase_help.membership-models' => 'Two axes, kept distinct: visibility (who sees the group) and join policy (how you get in). Open joins instantly; Moderated needs organizer approval; Invite Only is add-by-organizer. Every group here is visible — Private (member-only visibility) is a separate axis.',
       'showcase_help.group-type-homepages' => 'The group homepage adapts to the group\'s type — Events lead with the event calendar, Discussion leads with the stream, Documentation leads with the reference index. Same page contract, different lead section.',
-      'showcase_help.stream-model' => 'One combined activity stream vs. separate streams per content type. The decision is one feed to scan vs. filtered feeds a member picks.',
+      // ST-8 (#130) / brief.md Amendment 1: corrected in step with
+      // ShowcaseCatalog's stream-model decision_sentence — the OLD copy
+      // ("One combined activity stream vs. separate streams per content
+      // type") described a comparison this story does not build. Now names
+      // the ACTUAL comparison (node-content model vs. activity-log model),
+      // matching the corrected decision_sentence and this story's
+      // 'showcase.switcher.stream.model' tooltip above.
+      'showcase_help.stream-model' => 'Compares a node-content model vs. an activity-log model for /stream. The decision: a lean feed of raw posts vs. a richer feed that also surfaces comments, flags, pins, and membership events as their own rows.',
       'showcase_help.private-group-reveal' => 'Switch personas and watch a private group appear: it is hidden from the anonymous directory and reveals itself only to a member of that group.',
       'showcase_help.persona-switcher' => 'Four public personas — Anonymous, Elena (Member), Maria (Organizer), Groups-Moderate. Each meets a different slice of the demo.',
       'showcase_help.map' => 'Map view plots groups with a geographic home. Only Geographical groups appear; pan and zoom to explore. Each marker\'s hover shows the group\'s name and type.',
+
+      // --- #131 (SD-4): Streams help — element tooltip stream.* keys. ------
+      // Appended per the append-only HelpText contract — SD-4 pins ONLY the
+      // copy here; each key is read by the SD-2-pattern `data-do-tooltip`
+      // trigger a sibling wave story (#112-#115, #129, #130) wires into its
+      // own host template (ST-7 activity-row twigs, ST-8 comparison toggle,
+      // the /my-feed empty state, the /my-feed/events RSVP chip) — this story
+      // creates no new twig, hook, or service (brief.md's Reuse map). A
+      // deferred surface renders no tooltip until its sibling story lands the
+      // markup; the key is ready and waiting the moment it does, exactly like
+      // the 5 W2 `page.*` keys above.
+      //
+      //  - stream.my_feed.empty         : the /my-feed empty state (no groups
+      //    joined yet, or no posts in joined groups) — names the fix (join a
+      //    group) rather than just saying "nothing here."
+      //  - stream.my_feed_events.rsvp_chip : the small "your RSVP; N going"
+      //    chip on an events-feed row — explains both halves (your own
+      //    answer, and the running headcount).
+      //  - stream.activity_row.social    : the ST-7 "social" row variant — an
+      //    event that HAPPENED (e.g. someone joined a group), not a post
+      //    someone wrote.
+      //  - stream.activity_row.aggregated : the ST-7 "aggregated" row variant
+      //    — several actions by the same person collapsed into one row so the
+      //    feed doesn't get noisy.
+      //  - stream.activity_row.comment   : the ST-7 "comment" row variant —
+      //    a reply to a post, not the post itself.
+      //  - stream.model_toggle          : the ST-8 content-view vs.
+      //    activity-view comparison toggle — names WHY both exist (a
+      //    platform-architecture choice, not a stray duplicate feature):
+      //    content view treats streams as queries over posts (what was
+      //    written), while activity view is a log of everything that happens
+      //    (joins, follows, comments, posts alike).
+      'stream.my_feed.empty' => 'Nothing here yet. This feed only shows posts from groups you\'ve joined — join a group from All Groups to start seeing its activity here.',
+      'stream.my_feed_events.rsvp_chip' => 'Your RSVP for this event, and how many people are going overall. Change your answer from the event page.',
+      'stream.activity_row.social' => 'A social row: something that HAPPENED (like joining a group), not a post someone wrote. It marks an event, not content.',
+      'stream.activity_row.aggregated' => 'Several actions by the same person, collapsed into one row so the feed stays readable instead of repeating their name over and over.',
+      'stream.activity_row.comment' => 'A reply to a post, not the post itself — click through to see it in context alongside the original post and any other replies.',
+      'stream.model_toggle' => 'Two views of the same activity: Content treats streams as queries over posts (what was written); Activity is a log of everything that happens — joins, follows, comments, and posts. Both exist by design — different questions, not a duplicate feature.',
+      // --- #114 ST-5 (Profile activity stream): profile_activity.* keys. ---
+      // Appended per the append-only HelpText contract — no existing key
+      // from any prior namespace ('page.*', 'card.*', 'showcase_help.*',
+      // etc.) is edited or removed by this entry.
+      //
+      // A distinct namespace from 'page.profile_stream' (#126, above): that
+      // W2 pre-registered key is reserved for a FUTURE, not-yet-built
+      // dedicated profile-stream PAGE route (`view.profile_stream.page_1`)
+      // and is left untouched here. This story ships a BLOCK
+      // ("Recent posts", views.view.user_activity.yml block_1 display)
+      // placed directly on the existing `/user/{uid}` canonical route, not
+      // a new page — a different surface, hence a different key.
+      //
+      // Documents the "Recent posts" block's scope for anyone reading the
+      // copy source directly: an access-scoped, per-author, published-only
+      // stream (view's own `node_access` + `status = 1` filters), so an
+      // outsider viewer only ever sees what THEY can already access, never
+      // an indicator of hidden/inaccessible content existing (matches the
+      // wireframe's access-safe "No posts yet." empty-state framing).
+      'profile_activity.section' => 'This person\'s recent published posts, newest first — scoped to what you can already see. Content in groups you cannot access never appears here.',
+      // --- #115 (ST-6): stream switcher chrome — chrome.* key. -------------
+      // Appended per the append-only HelpText contract. This is CHROME-level
+      // orientation copy (spans all 4 sibling stream pages), disjoint from
+      // the per-PAGE 'page.stream' / 'page.my_feed' / 'page.following' /
+      // 'page.trending' keys above (#126 SD-1) — those describe what a
+      // single page IS; this key describes the switcher CONTROL that sits
+      // above all four of them ("this is one system, one engine with tabs").
+      //
+      // No consuming markup is wired to this key YET — StreamSwitcherHooks
+      // and stream-switcher.html.twig do not currently attach a
+      // `data-do-tooltip` trigger (do_streams has no existing dependency on
+      // do_chrome; introducing one plus a live tooltip trigger is a second
+      // decision beyond this story's own scope). #131 (SD-4) is the
+      // explicit, already-planned backstop that sweeps EVERY #108 surface's
+      // element-level tooltips, including wiring a consumer for this key —
+      // see handoff-F.md for the deferred-wiring note.
+      'chrome.stream_switcher' => 'Global, My Feed, Following, and Trending are views over the same underlying content, switched by scope — one engine, not four separate systems.',
     ];
   }
 

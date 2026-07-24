@@ -186,4 +186,32 @@ final class ShowcaseCatalogTest extends UnitTestCase {
     }
   }
 
+  /**
+   * ST-8 (#130): the stream-model entry flips `coming` -> `live`, with
+   * route `view.activity_stream.page_1` and a decision_sentence naming the
+   * ACTUAL comparison this story builds (node-content model vs.
+   * activity-log model) — replacing the old, factually-wrong "single
+   * combined activity stream vs. per-content-type streams" framing
+   * (brief.md Amendment 1 / D's approved decision-sentence proposal,
+   * handoff-D.md).
+   *
+   * RED reason (Phase 4): `ShowcaseCatalog::entries()` still returns the
+   * OLD `coming`/NULL-route/stale-sentence entry until F flips it — this
+   * assertion fails against that pre-existing code.
+   *
+   * @covers ::entries
+   */
+  public function testStreamModelEntryIsLiveWithActivityStreamRouteAndCorrectedDecisionSentence(): void {
+    $entries = $this->catalog->entries();
+    $entry = current(array_filter($entries, static fn (array $e): bool => $e['id'] === 'stream-model'));
+    $this->assertNotFalse($entry);
+
+    $this->assertSame('live', $entry['status'], 'stream-model must flip to live — the switcher + Activity view are live (Content view is the only unavailable half).');
+    $this->assertSame('view.activity_stream.page_1', $entry['route'], 'stream-model must route to the canonical Views auto-generated route id for /stream.');
+
+    $decision_sentence = (string) $entry['decision_sentence'];
+    $this->assertStringContainsString('node-content model', $decision_sentence, 'The corrected decision_sentence must name the node-content model half of the comparison.');
+    $this->assertStringContainsString('activity-log model', $decision_sentence, 'The corrected decision_sentence must name the activity-log model half of the comparison.');
+  }
+
 }

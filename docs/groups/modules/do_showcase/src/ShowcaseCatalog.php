@@ -75,9 +75,18 @@ final class ShowcaseCatalog {
       [
         'id' => 'stream-model',
         'title' => $this->t('Stream model'),
-        'decision_sentence' => $this->t('Compares a single combined activity stream vs. per-content-type streams — the decision: one feed to scan vs. filtered feeds.'),
-        'status' => 'coming',
-        'route' => NULL,
+        // ST-8 (#130) / brief.md Amendment 1: flips coming -> live. The
+        // OLD decision_sentence ("single combined activity stream vs.
+        // per-content-type streams") described a comparison this story
+        // does not build — corrected to D's approved copy
+        // (handoff-D.md), naming the ACTUAL comparison: the SC-F1
+        // switcher + Activity view (live) vs. the Content view (#129,
+        // not yet built).
+        'decision_sentence' => $this->t('Compares a node-content model vs. an activity-log model for /stream — the decision: a lean feed of raw posts vs. a richer feed that also surfaces comments, flags, pins, and membership events as their own rows.'),
+        'status' => 'live',
+        // The canonical Views auto-generated route id for /stream, same
+        // pattern as 'view.all_groups.page_1' above.
+        'route' => 'view.activity_stream.page_1',
       ],
       [
         'id' => 'private-group-reveal',

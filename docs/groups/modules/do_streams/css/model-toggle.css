@@ -1,0 +1,41 @@
+/**
+ * @file
+ * ST-8 (#130): CSS-only visibility scoping for the /stream Content/Activity
+ * model toggle.
+ *
+ * Attached by `Drupal\do_streams\Hook\ModelToggleHooks::viewsPreRender()`
+ * (alongside `do_showcase/switcher`) whenever the `activity_stream:page_1`
+ * view renders — never site-wide (mirrors do_showcase/directory-compact's
+ * own scoping precedent, #124 SC-5).
+ *
+ * `data-do-stream-model="activity"` is the ONLY value possible in this PR
+ * (Content view is `available: FALSE` — #129 has not shipped a real Content
+ * view yet), so every selector below is a NO-OP today (wireframe.md Surface
+ * 2: "these no-op today ... exist so #129 has a CSS scoping seam ready").
+ * The selector exists now, scoped under the SAME proven mirror selector
+ * #124 uses (`.views-element-container`, confirmed by live-DOM inspection —
+ * see `ModelToggleHooks` class docblock), so #129 does not need to
+ * reintroduce this wiring: it only needs to build the actual Content view
+ * markup and flip `content`'s `available` flag to TRUE in
+ * `VariantSwitcher::streamModelOptionIds()`.
+ *
+ * When #129 ships a real Content view display, this stylesheet is where
+ * that display's markup gets hidden under
+ * `[data-do-stream-model="activity"]` (and vice versa for the existing
+ * activity_stream rows under `[data-do-stream-model="content"]`) — a pure
+ * presentation delta over two coexisting Views displays/rows, no schema
+ * change, following the exact "CSS alone hides/restyles" pattern
+ * directory-compact.css already established for the /all-groups toggle.
+ */
+
+/* Placeholder scoping seam for #129's future Content view — inert today
+   (Content view markup does not exist yet, so nothing in the DOM matches
+   this selector). Kept here rather than added later so the attribute
+   contract (data-do-stream-model) and its consuming stylesheet ship
+   together, in one place, from the first PR that introduces the
+   attribute. */
+.views-element-container[data-do-stream-model="content"] .view-content {
+  /* Reserved for #129: hide the activity_stream rows when a future Content
+     view display is selected. No declaration needed today — the Content
+     option is unavailable, so this attribute value is never reachable. */
+}
