@@ -24,6 +24,18 @@
  *   buildTabList()). A scope with no route yet, or one the current viewer
  *   cannot access, is simply ABSENT from this list — never rendered
  *   disabled (wireframe's single omission rule, Screen 3).
+ * - switcher_help_copy: (#193, SD-4 tooltip consumers) the resolved
+ *   `chrome.stream_switcher` HelpText copy (a plain string, set by
+ *   StreamSwitcherHooks::preprocessViewsView()). Renders a ⓘ info trigger
+ *   after the tab list, using the SAME `do-chrome-info` span shape +
+ *   `data-do-tooltip` attribute
+ *   \Drupal\do_chrome\Hook\PageHelp::infoTrigger() establishes elsewhere in
+ *   do_chrome — the shared `do_chrome/tooltips` behaviour (already attached
+ *   globally by DoChromeHooks::pageAttachments()) binds tippy.js to
+ *   `data-do-tooltip` with no separate library attach needed here. Empty by
+ *   default (StreamSwitcherHooks::theme()'s declared default), so the
+ *   trigger is entirely absent unless the copy actually resolved — no
+ *   empty-but-present affordance.
  */
 #}
 <nav class="stream-switcher" role="navigation" aria-label="{{ 'Stream views'|t }}" data-testid="stream-switcher">
@@ -36,4 +48,12 @@
       {{ tab.label }}
     </a>
   {% endfor %}
+  {% if switcher_help_copy %}
+    <span class="do-chrome-info stream-switcher__help"
+          tabindex="0"
+          role="note"
+          aria-label="{{ switcher_help_copy }}"
+          data-do-tooltip="{{ switcher_help_copy }}"
+          data-testid="stream-switcher-help">ⓘ</span>
+  {% endif %}
 </nav>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\do_streams\Hook;
 
+use Drupal\do_chrome\HelpText;
 use Drupal\views\ViewExecutable;
 
 /**
@@ -62,9 +63,38 @@ use Drupal\views\ViewExecutable;
  * kernel-test regression; see DoStreamsHooks::theme()'s docblock for the
  * full explanation).
  *
+ * #193 (SD-4 tooltip consumers): self::preprocessViewsView() now also
+ * resolves `HelpText::get('chrome.stream_switcher')` and sets it as
+ * `#switcher_help_copy` on the switcher's `#theme => stream_switcher` render
+ * array — DoStreamsHooks::theme()'s `stream_switcher` entry declares the
+ * matching `switcher_help_copy` variable (default `''`) so the property
+ * actually reaches stream-switcher.html.twig (a `#`-prefixed render-array
+ * property only survives ThemeManager::render() if its bare name is
+ * declared in hook_theme()'s own `variables` list). HelpText.php's own
+ * #115 docblock (lines 412-419) explicitly named this class + template as
+ * the deferred consumer this story wires — see the `do_chrome:do_chrome`
+ * dependency added to do_streams.info.yml alongside this change (the
+ * dependency this docblock previously noted as "not currently" existing).
+ * The template itself renders the ⓘ trigger only when this copy is
+ * non-empty, so an unexpectedly-missing/broken HelpText entry degrades to
+ * "no tooltip", never a fatal — matching this class's and
+ * DoStreamsHooks::preprocessNodeEventStreamCard()'s established
+ * fail-safe convention.
+ *
+ * No library attach is needed for the tooltip itself: `do_chrome/tooltips`
+ * (the shared tippy.js binding that reacts to `data-do-tooltip`) is already
+ * attached GLOBALLY on every page via
+ * {@see \Drupal\do_chrome\Hook\DoChromeHooks::pageAttachments()} — attaching
+ * it again here would be redundant, and (per
+ * StreamSwitcherHooksTest::testPreprocessViewsViewIsNoOpForGroupContentStream())
+ * this class's existing "no library attached for a non-switcher view"
+ * contract must stay intact.
+ *
  * @see \Drupal\do_streams\Hook\DoStreamsHooks::getScopeRegistry()
  * @see \Drupal\do_streams\Hook\DoStreamsHooks::preprocessViewsView()
  * @see \Drupal\do_streams\Hook\DoStreamsHooks::theme()
+ * @see \Drupal\do_chrome\HelpText
+ * @see \Drupal\do_chrome\Hook\DoChromeHooks::pageAttachments()
  */
 class StreamSwitcherHooks {
 
@@ -146,7 +176,7 @@ class StreamSwitcherHooks {
    *   The current request's path (e.g. '/following'), used to flag the
    *   active tab. Defaults to '/stream' (Global) — matching the Global
    *   scope's own route, so a caller that omits this argument gets the
-   *   same active-tab result as an actual `/stream` request.
+   *   same active-tab result as an actual '/stream' request.
    *
    * @return array
    *   A list of tabs, each `['id' => string, 'label' =>
@@ -194,6 +224,14 @@ class StreamSwitcherHooks {
    * area, so in practice `$variables['header']` is empty when this hook
    * runs, but the merge is written to be safe regardless).
    *
+   * #193: also resolves `HelpText::get('chrome.stream_switcher')` and sets
+   * it as `#switcher_help_copy` on the switcher render array (see class
+   * docblock). Uses `HelpText::get()`'s own established empty-string
+   * contract for an unknown/missing key — no try/catch needed, since
+   * `HelpText::get()` never throws (a plain static array lookup); the
+   * template's own `{% if switcher_help_copy %}` guard degrades to "no
+   * tooltip" if the copy is ever empty for any reason.
+   *
    * NOT `#[Hook('preprocess_views_view')]`-tagged (see class docblock's
    * REWORK note) — invoked by
    * {@see \Drupal\do_streams\Hook\DoStreamsHooks::preprocessViewsView()},
@@ -212,6 +250,7 @@ class StreamSwitcherHooks {
     $switcher = [
       '#theme' => 'stream_switcher',
       '#tabs' => $tabs,
+      '#switcher_help_copy' => HelpText::get('chrome.stream_switcher'),
     ];
 
     $variables['header'] = ['do_streams_stream_switcher' => $switcher] + ($variables['header'] ?? []);
