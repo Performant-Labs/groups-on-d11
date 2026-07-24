@@ -1,7 +1,13 @@
 services:
+  # ST-8 (#130): DoStreamsHooks now needs the model_toggle_hooks service so
+  # its ONE legal preprocess_views_view listener can delegate to
+  # ModelToggleHooks::preprocessViewsView() for the stream-model switcher
+  # mount (see DoStreamsHooks / ModelToggleHooks class docblocks for why
+  # this delegation exists rather than a second #[Hook] registration).
   do_streams.hooks:
     class: Drupal\do_streams\Hook\DoStreamsHooks
     autowire: false
+    arguments: ['@do_streams.model_toggle_hooks']
     tags:
       - { name: 'hook_implementations' }
 
@@ -19,3 +25,59 @@ services:
     arguments: ['@router.route_provider']
     tags:
       - { name: 'event_subscriber' }
+
+  # ST-8 (#130): mounts the SC-F1 do_showcase.variant_switcher over
+  # /stream (activity_stream:page_1) — mirrors do_showcase.hooks'
+  # own explicit registration (do_showcase.services.yml) for the same
+  # reason: Drupal's #[Hook] attribute discovery (HookCollectorPass)
+  # auto-registers any Hook-namespaced class as its OWN autowired
+  # service, resolving constructor arguments by TYPE using the
+  # class-name aliases do_showcase.services.yml already declares
+  # (Drupal\do_showcase\VariantSwitcher: '@do_showcase.variant_switcher',
+  # Symfony\Component\HttpFoundation\RequestStack: '@request_stack') —
+  # those aliases are global container aliases (Drupal builds ONE
+  # service container across every enabled module), so they resolve
+  # here too without being redeclared. This explicit entry is kept for
+  # documentation/consistency with do_showcase.hooks' own precedent,
+  # though the autowired registration is what the hook system actually
+  # uses at runtime.
+  #
+  # '@?do_showcase.variant_switcher' (leading `?`, the standard Drupal/
+  # Symfony optional-service-reference syntax — e.g. core.services.yml's
+  # own `[setContext, ['@?router.request_context']]`), NOT
+  # '@do_showcase.variant_switcher': do_streams.info.yml declares a hard
+  # `do_showcase:do_showcase` dependency, so on a REAL site both modules
+  # are always enabled together and this resolves to the real service.
+  # The optional marker exists ONLY because several PRE-EXISTING
+  # do_streams Kernel tests (FollowingFeedTest, RankingTest,
+  # MembershipScopeTest, FollowingScopeTest, StreamShellTest — none
+  # authored/touched by this story) enable do_streams via an explicit
+  # `protected static $modules` allowlist WITHOUT do_showcase — a
+  # Kernel-test-harness artifact (an explicit allowlist bypasses
+  # .info.yml dependency-driven auto-enable) that made the WHOLE
+  # do_streams container fail to compile (`ServiceNotFoundException`)
+  # once this entry's `@do_showcase.variant_switcher` reference became
+  # hard/required. See ModelToggleHooks's own class docblock (its
+  # constructor now accepts `?VariantSwitcher`, guarding both hook
+  # methods on NULL) for the full explanation.
+  do_streams.model_toggle_hooks:
+    class: Drupal\do_streams\Hook\ModelToggleHooks
+    autowire: false
+    arguments: ['@?do_showcase.variant_switcher', '@request_stack']
+    tags:
+      - { name: 'hook_implementations' }
+
+  # ST-8 (#130): the SAME class-name-alias need as VariantSwitcher/
+  # RequestStack above — DoStreamsHooks now constructor-injects
+  # ModelToggleHooks (so its preprocess_views_view listener can delegate
+  # to ModelToggleHooks::preprocessViewsView()), and Drupal's #[Hook]
+  # attribute discovery auto-registers DoStreamsHooks as an AUTOWIRED
+  # service that resolves constructor arguments by CLASS NAME, not by
+  # reading this file's explicit `arguments:` list. Without this alias,
+  # autowiring DoStreamsHooks's $modelToggleHooks parameter would throw
+  # "Cannot autowire service ... references class
+  # Drupal\do_streams\Hook\ModelToggleHooks ... but no such service
+  # exists" — the identical problem do_showcase.services.yml's own
+  # PersonaSwitcher/ShowcaseCatalog/VariantSwitcher/RequestStack aliases
+  # already solve.
+  Drupal\do_streams\Hook\ModelToggleHooks: '@do_streams.model_toggle_hooks'

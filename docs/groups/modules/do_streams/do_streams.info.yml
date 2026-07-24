@@ -13,3 +13,4 @@ dependencies:
   - drupal:field
   - do_group_pin:do_group_pin
   - do_discovery:do_discovery
+  - do_showcase:do_showcase

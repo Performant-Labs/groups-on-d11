@@ -22,6 +22,33 @@ use Drupal\views\ViewExecutable;
  * views_query_alter/compiled-query-rewrite/cache-tag pattern (new module,
  * same technique — see survey.md's Reuse map), and the shared stream shell
  * theme hook + preprocess (scope tabs + ranking control).
+ *
+ * ST-8 (#130): constructor-injected with `ModelToggleHooks` so this class's
+ * `preprocessViewsView()` — the module's ONE legal
+ * `#[Hook('preprocess_views_view')]` listener (Drupal's `ModuleHandler
+ * ::invoke()` throws `LogicException` if a single module registers a
+ * second `preprocess_views_view` implementation, even across two classes)
+ * — can delegate to `ModelToggleHooks::preprocessViewsView()` for the
+ * `activity_stream:page_1` stream-model switcher mount, after handling its
+ * own pre-existing `following_feed` library-attach branch. See
+ * `ModelToggleHooks`'s own class docblock for the full explanation of why
+ * that class's `preprocessViewsView()` is deliberately NOT `#[Hook]`-
+ * attributed itself.
+ *
+ * `$modelToggleHooks` carries a NULL default (`?ModelToggleHooks = NULL`),
+ * mirroring `ModelToggleHooks`'s own nullable `$switcher` parameter, for the
+ * identical underlying reason: `StreamsShellTest
+ * ::preprocessShellVariables()` — a PRE-EXISTING test, not authored/touched
+ * by this story — directly `new DoStreamsHooks()`-instantiates this class
+ * (bypassing the service container entirely) to call
+ * `preprocessDoStreamsShell()`, a method that has no relationship
+ * whatsoever to the model-toggle delegation. Requiring a non-defaulted
+ * constructor argument broke that direct-instantiation call site
+ * (`ArgumentCountError`). The real, container-built service
+ * (`do_streams.hooks` in do_streams.services.yml) always supplies a real
+ * `ModelToggleHooks` instance; only a caller that manually `new`s this
+ * class for an unrelated method ever sees the NULL default, and
+ * `preprocessViewsView()` guards on it with the null-safe operator below.
  */
 class DoStreamsHooks {
 
@@ -41,9 +68,13 @@ class DoStreamsHooks {
    * library attachment to exactly this view, per handoff-A.md finding §1's
    * preferred mechanism (a single, view-id-guarded preprocess hook, matching
    * this class's existing lightweight-preprocess convention rather than
-   * introducing a new hook type).
+   * introducing a new attachment mechanism).
    */
   public const FOLLOWING_FEED_VIEW_ID = 'following_feed';
+
+  public function __construct(
+    private readonly ?ModelToggleHooks $modelToggleHooks = NULL,
+  ) {}
 
   /**
    * The block plugin id of ST-5's shipped "Recent posts" block (#114).
@@ -420,52 +451,33 @@ class DoStreamsHooks {
   }
 
   /**
-   * The SOLE `preprocess_views_view` hook implementation in this module.
+   * Do_streams' ONE legal `preprocess_views_view` listener.
    *
-   * Handles TWO independent, view-id-guarded concerns in one method, because
    * Drupal's `ModuleHandler::invoke()` throws `LogicException: "Module
    * do_streams should not implement preprocess_views_view more than once"`
    * the moment TWO classes in this module each carry a
    * `#[Hook('preprocess_views_view')]` method — the exact class of bug this
-   * module already hit (and fixed) for `#[Hook('theme')]` (see self::theme()
-   * for that precedent). REWORK (U's Phase 8 handoff, root cause #2):
-   * `StreamSwitcherHooks::preprocessViewsView()` originally carried its own
-   * `#[Hook('preprocess_views_view')]` attribute, which collided with this
-   * method and 500'd every views-rendering route in production
-   * (`LogicException` at container/module-invoke time) — kernel tests
-   * (StreamSwitcherHooksTest) missed it because they call
-   * `(new StreamSwitcherHooks())->preprocessViewsView($variables)` directly
-   * and never route through `ModuleHandler::invoke()`.
+   * module already hit and fixed for `#[Hook('theme')]`. This ONE method
+   * therefore handles three independently-scoped concerns:
    *
    * 1. Issue #111 ST-2: attaches the `do_streams/following` library on the
-   *    `/following` view only (self::FOLLOWING_FEED_VIEW_ID). Per
-   *    handoff-A.md finding §1 (preferred mechanism) and brief.md §Plan
-   *    step 2: a single, view-id-guarded preprocess hook, matching this
-   *    class's existing lightweight-preprocess convention (see
-   *    self::preprocessDoStreamsShell(), self::viewsQueryAlter(),
-   *    self::viewsPostRender() — all guard on a specific view/display id
-   *    and return immediately otherwise). The CSS itself
-   *    (`css/following.css`) only carries small `.following-feed`
-   *    container/empty-state spacing tweaks — card visuals are inherited
-   *    from the shared theme stylesheet.
+   *    `/following` view only (self::FOLLOWING_FEED_VIEW_ID).
    * 2. Issue #115 ST-6: delegates to
    *    {@see StreamSwitcherHooks::preprocessViewsView()} for any view in
-   *    `StreamSwitcherHooks::ATTACH_VIEW_IDS` (`activity_stream`,
-   *    `following_feed`, `my_feed`, `trending`) — prepends the switcher
-   *    tabs render array to `$variables['header']` and attaches the
-   *    `do_streams/stream-switcher` library. A no-op for
-   *    `group_content_stream` (group stream shows no switcher; brief.md
-   *    acceptance criterion). `StreamSwitcherHooks` keeps its own
-   *    `buildTabList()` / `ROUTE_MAP` / `ATTACH_VIEW_IDS` /
-   *    `ANONYMOUS_ALLOWLIST` as instance/class helpers — it simply no
-   *    longer declares the hook itself, matching the theme() precedent
-   *    exactly (one class holds the hook-tagged method; the sibling class's
-   *    logic is invoked from there).
+   *    `StreamSwitcherHooks::ATTACH_VIEW_IDS` — prepends the switcher tabs
+   *    render array and attaches `do_streams/stream-switcher`.
+   * 3. Issue #130 ST-8: delegates to
+   *    {@see ModelToggleHooks::preprocessViewsView()} for the SC-F1
+   *    Content/Activity variant switcher mount on `activity_stream:page_1`.
+   *    The delegation call uses the null-safe operator (`?->`) because
+   *    `$this->modelToggleHooks` is NULL when this class is directly
+   *    instantiated (bypassing the container) with no constructor argument;
+   *    the real container-built `do_streams.hooks` service always supplies
+   *    a real instance.
    *
-   * Both concerns can fire independently for the SAME `$variables` (e.g. a
-   * future view could be both the following feed AND switcher-attached);
-   * each branch mutates `$variables` independently and neither returns
-   * early out of the whole method, so both can apply to one preprocess call.
+   * All three concerns can fire independently for the SAME `$variables`
+   * (e.g. `activity_stream` is in `ATTACH_VIEW_IDS` AND is the model-toggle
+   * mount target — both branches must run).
    */
   #[Hook('preprocess_views_view')]
   public function preprocessViewsView(array &$variables): void {
@@ -481,6 +493,8 @@ class DoStreamsHooks {
     if (in_array($view->id(), StreamSwitcherHooks::ATTACH_VIEW_IDS, TRUE)) {
       (new StreamSwitcherHooks())->preprocessViewsView($variables);
     }
+
+    $this->modelToggleHooks?->preprocessViewsView($variables);
   }
 
   /**
