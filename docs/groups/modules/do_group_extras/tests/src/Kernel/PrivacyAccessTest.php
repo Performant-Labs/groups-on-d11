@@ -13,6 +13,7 @@ use Drupal\group\Entity\GroupInterface;
 use Drupal\group\PermissionScopeInterface;
 use Drupal\node\NodeInterface;
 use Drupal\Tests\do_tests\Kernel\GroupsKernelTestBase;
+use Drupal\user\RoleInterface;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
@@ -68,16 +69,38 @@ class PrivacyAccessTest extends GroupsKernelTestBase {
 
     // Install the node_access schema; node-access checks (AC-4) query it
     // during $node->access('view', ...) and fail with 'no such table:
-    // node_access' without this. Deliberately do NOT call
-    // node_access_rebuild(): with no grant-realm module installed in this
-    // kernel harness, a rebuild writes a fallback-deny row that makes
-    // even PUBLIC-group nodes forbidden for non-admin accounts, which
-    // breaks the AC-4 negative case
-    // (testNonMemberNotForbiddenFromViewingNodeInPublicGroup). An empty
-    // node_access table lets Drupal fall back to its built-in "no module
-    // implements grants -> allow" path, which is exactly what that
-    // negative-case assertion expects.
+    // node_access' without this. No grant-realm module (hook_node_grants) is
+    // installed in this kernel harness, so the table stays empty and
+    // NodeGrantDatabaseStorage::access() falls back to allowedIf(published)
+    // for the 'view' operation — that part of F's original prediction holds.
     $this->installSchema('node', ['node_access']);
+
+    // #190 Gap-1 (harness, not production): node-level view access ALWAYS
+    // requires the base `access content` permission first —
+    // NodeAccessControlHandler::access() forbids outright before Group's own
+    // hook_entity_access/hook_node_access are even consulted when the account
+    // lacks it (confirmed empirically via a throwaway kernel debug test: with
+    // `access content` ungranted, $node->access('view', $member, TRUE) is
+    // forbidden even though the group-role permission check and
+    // do_group_extras' own node_access hook both independently resolve
+    // allowed/neutral for that same account). Plain createUser() (used
+    // throughout this suite) grants zero permissions, so the two "not
+    // forbidden" node-view assertions
+    // (testMemberNotForbiddenFromViewingNodeInPrivateGroup,
+    // testNonMemberNotForbiddenFromViewingNodeInPublicGroup) failed for this
+    // harness-only reason, not a production-code defect — the two "forbidden"
+    // node-view assertions happened to pass already, but for the wrong
+    // reason (any unauthenticated-for-content account is forbidden
+    // regardless of the group-privacy gate under test). Mirrors the
+    // established project pattern in
+    // {@see \Drupal\Tests\do_activity_feed\Kernel\ActivityFeedKernelTestBase::setUp()}:
+    // `access content` is a PLAIN user permission, entirely independent of
+    // Group's own permission system, and must be granted on the real
+    // `authenticated` Role CONFIG ENTITY via user_role_grant_permissions(),
+    // which requires installConfig(['user']) first (Role::load() is NULL,
+    // and the grant silently no-ops, without it).
+    $this->installConfig(['user']);
+    user_role_grant_permissions(RoleInterface::AUTHENTICATED_ID, ['access content']);
 
     $this->createGroupRole([
       'id' => 'community_group-member',
@@ -266,7 +289,6 @@ class PrivacyAccessTest extends GroupsKernelTestBase {
    * grant access, it only removes it for non-members.
    */
   public function testMemberNotForbiddenFromViewingNodeInPrivateGroup(): void {
-    $this->markTestSkipped('AC-4 negative case requires node_access grants realm setup that this kernel harness omits (see issue #190). Covered by PrivacyDirectoryTest functional suite.');
     $group = $this->createGroupWithPrivacy('private', 'Security Team Node Member');
     $node = $this->addNode($group, 'post', ['title' => 'Q3 advisory review']);
     $member = $this->createUser();
@@ -281,7 +303,6 @@ class PrivacyAccessTest extends GroupsKernelTestBase {
    * non-member/anonymous — the node-hide gate must not over-apply.
    */
   public function testNonMemberNotForbiddenFromViewingNodeInPublicGroup(): void {
-    $this->markTestSkipped('AC-4 negative case requires node_access grants realm setup that this kernel harness omits (see issue #190). Covered by PrivacyDirectoryTest functional suite.');
     $group = $this->createGroupWithPrivacy('public', 'Public Node Group');
     $node = $this->addNode($group, 'post', ['title' => 'Public discussion']);
     $outsider = $this->createUser();
