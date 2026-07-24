@@ -445,3 +445,95 @@ assertions read the page.
 - Repo-wide `grep` for `aggregat`/`preprocess_css` across `config/sync`,
   `.github/workflows/*.yml`, `deploy/entrypoint.sh` — no matches, supporting
   the "aggregation is off" assumption above.
+
+## T repair — CI round 2
+
+**Context:** CI round 2 (post round-1 fix) failed with the SAME two test
+signatures (test 2, test 5). Round 1's diagnosis (AJAX-refresh timing) was
+incomplete/wrong. The orchestrator supplied a corrected diagnosis backed by
+CI's DOM error-context capture (BigPipe ellipsis placeholder markers visible
+in the snapshot) and directed a specific fix; this entry documents both the
+corrected root cause and the fix applied.
+
+**Decided:**
+- Round 1's fix (waiting for `.toBeVisible()`) was directionally right — a
+  wait IS needed — but scoped the waited/asserted locator through
+  `.view-content .stream-card-wrapper`, which does not reliably resolve
+  once Drupal's BigPipe fills its placeholder in (per CI's captured DOM,
+  the placeholder markers sit directly inside `.trending-page`, and the
+  post-fill subtree does not preserve a stable `.view-content` scope within
+  Playwright's polling window). The UNSCOPED `.stream-card-wrapper` locator
+  — already used successfully by test 3 in BOTH CI rounds — is the proven
+  reliable selector. Round-2 fix for test 2: replaced the scoped locator
+  with the unscoped one, keeping the `.toBeVisible()` wait pattern.
+  `items_per_page: 10` still makes "every `.stream-card-wrapper` on this
+  page" equivalent to "in the top 10" — the removed CSS-position scoping
+  the round-1 fix already dropped remains dropped; only the container
+  scoping changes in this round.
+- Round 1's fix for test 5 (wait-then-`page.content()`-substring-match) was
+  addressing the wrong risk entirely: `page.content()` is unreliable for
+  detecting a CSS library attach regardless of timing, because (a) the
+  `<link>` may stream in via BigPipe after any synchronous snapshot, and
+  (b) CSS aggregation (if ever turned on) would bundle the file under a
+  hashed URL with no `trending.css`/`following.css` substring ever present.
+  Round-2 fix: switched to asserting an EFFECTIVE COMPUTED STYLE unique to
+  each page's own CSS file — `window.getComputedStyle(el).marginTop ===
+  '16px'` on `.trending-page` (sourced from `trending.css`'s own
+  `margin-top: 1rem` rule) and on `.following-feed` (sourced from
+  `following.css`'s identical-shape rule). This is the aggregation-proof
+  fallback already flagged as a contingency in round 1's own write-up,
+  applied proactively now that round 1's simpler fix is confirmed
+  insufficient.
+- Verified before hardcoding `16px`: read both `trending.css` and
+  `following.css` directly — both declare `margin-top: 1rem` on their
+  respective wrapper class, byte-identical shape. Verified no `html`/`:root`
+  font-size override exists anywhere in `groups_chrome`'s CSS (`grep -rn
+  "font-size"` across the theme shows only element-scoped
+  `--gc-font-size-*` token usages on badges/titles/headings, never a root
+  em-base redefinition) — so `1rem` reliably computes to the browser
+  default `16px`, making the hardcoded expected value safe rather than a
+  guess.
+- Verified the targeted wrapper elements (`.trending-page`,
+  `.following-feed`) are the views' own `css_class` config values (grepped
+  `views.view.trending.yml`/`views.view.following_feed.yml` directly:
+  `css_class: trending-page` / `css_class: following-feed`) — i.e. present
+  in the view's own Views-config-level markup, not something introduced
+  solely to make this test pass.
+- Made NO changes to tests 1, 3, 4, 6 (confirmed via `git diff
+  --unified=0 tests/e2e/trending.spec.ts | grep 'test('` showing zero
+  added/removed `test(` lines — exactly the same 6 test boundaries as
+  before this round) and no production file.
+
+**Assumed:**
+- CI's fresh `site:install` renders BigPipe placeholders for `use_ajax:
+  true` views the same way regardless of environment nuance not visible
+  from static inspection (not independently re-verified against a booted
+  CI-equivalent instance in this worktree — same standing environment
+  constraint as every prior phase of this story).
+
+**Hedged:**
+- Flagged for whoever reads the next CI run: `getComputedStyle` requires
+  `.trending-page`/`.following-feed` to be present with layout at
+  evaluation time. Reasoned this is safe because the `.toBeVisible()` wait
+  targets a DESCENDANT (`.stream-card-wrapper`) of the queried element, and
+  a descendant cannot be visible while its ancestor wrapper is torn down —
+  but this reasoning is not independently confirmed against CI's actual
+  BigPipe replace mechanics, so it is called out explicitly as a residual,
+  low-probability risk rather than asserted with full confidence.
+
+**Evidence:**
+- CI round 2 failure output for PR #177 (same 2 tests failed, same
+  symptom signatures) as summarized in the orchestrator's round-2 message,
+  including the BigPipe ellipsis-placeholder DOM evidence.
+- `web/modules/custom/do_streams/css/trending.css:15-17` and
+  `web/modules/custom/do_streams/css/following.css:15-17` (direct Read,
+  confirms the exact `margin-top: 1rem` rule each new assertion targets).
+- `grep -n "css_class" config/sync/views.view.trending.yml
+  config/sync/views.view.following_feed.yml` → `trending-page` /
+  `following-feed` respectively (confirms the wrapper class each computed-
+  style check queries is the view's own config-level class).
+- `grep -rn "font-size" web/themes/custom/groups_chrome` (confirms no root
+  em-base override across the entire theme's CSS).
+- `git diff --unified=0 tests/e2e/trending.spec.ts` (round 2) — confirms
+  scope discipline: only test 2 and test 5 bodies + the top doc-comment
+  changed; zero `test(` lines added or removed.

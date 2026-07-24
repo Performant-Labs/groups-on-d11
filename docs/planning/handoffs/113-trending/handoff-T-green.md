@@ -253,3 +253,115 @@ for a NEW reason. Flag to whoever reads the next CI run: if test 5 fails
 again with the SAME `trending.css`-absent-from-`page.content()` signature
 after this fix, escalate to the aggregation-fallback approach described
 above rather than re-attempting the wait-only fix a third time.
+
+## Repair round 2 (post-CI, PR #177, round 2)
+
+**Trigger:** Round 1's fix (waiting for `.toBeVisible()` on a
+`.view-content .stream-card-wrapper` locator, plus a `page.content()`
+substring match for the library-attach check) did NOT resolve CI — the SAME
+two tests (test 2 and test 5) failed again, with the same underlying
+symptoms (card locator resolves to 0, CSS filename absent from
+`page.content()`).
+
+### Round 1's diagnosis was wrong; corrected diagnosis
+
+Round 1 attributed the failure to AJAX-refresh timing (`use_ajax: true`
+swapping in the view body client-side after the initial response). The
+orchestrator's round-2 diagnosis, backed by CI's DOM error-context capture
+showing BigPipe ellipsis placeholder markers (`··············`) immediately
+inside `.trending-page`, is the correct root cause: **Drupal's BigPipe**
+streams the view body into the page as a placeholder-then-replace, and the
+placeholder-fill does not preserve the `.view-content` parent scope reliably
+within Playwright's polling window — the CSS-scoped locator
+(`.view-content .stream-card-wrapper`) kept resolving to 0 matches even
+after a `.toBeVisible()` wait, while the UNSCOPED `.stream-card-wrapper`
+locator (test 3's pattern) resolves correctly once BigPipe settles. Round 1
+fixed the *wait* but kept the wrong *selector scope*, which is why it still
+failed identically.
+
+Separately, and independent of the BigPipe timing question: `page.content()`
+is not a reliable way to detect a CSS library attach at all, regardless of
+when it's read — the `<link>` may be delivered via BigPipe after any given
+snapshot, or the site's CSS may be aggregated (bundled under a hashed URL
+with no `trending.css`/`following.css` substring ever present in the
+served HTML). Round 1's fix (waiting, then still reading `page.content()`)
+could not have worked reliably either way.
+
+### Fixes applied in round 2 (spec-only; production code untouched)
+
+**Test 2:** Replaced the `.view-content .stream-card-wrapper` locator with
+the plain, unscoped `.stream-card-wrapper` locator — the same selector test
+3 already uses and which CI has proven reliable (test 3 passed in BOTH CI
+rounds). `items_per_page: 10` on `trending.yml` still caps the page at 10
+rows, so every `.stream-card-wrapper` matched on `/trending` already IS "in
+the top 10" — no CSS-position scoping is needed to make that claim true, and
+none was reliable against BigPipe-streamed markup regardless.
+
+**Test 5:** Replaced the `page.content()` substring match with an assertion
+on an EFFECTIVE COMPUTED STYLE unique to each page's own scoped CSS file:
+- `/trending`: `window.getComputedStyle(page.locator('.trending-page'))
+  .marginTop` must equal `'16px'` — sourced from `trending.css`'s own
+  `.trending-page { margin-top: 1rem }` rule (verified by direct Read of
+  `web/modules/custom/do_streams/css/trending.css:15-17`).
+- `/following` (regression half): same pattern against `.following-feed`,
+  sourced from `following.css`'s `.following-feed { margin-top: 1rem }`
+  (verified by direct Read of
+  `web/modules/custom/do_streams/css/following.css:15-17`).
+- Verified no `html`/`:root` font-size override exists anywhere in
+  `web/themes/custom/groups_chrome/css/*.css` (`grep -rn "font-size"`
+  across the theme shows only element-scoped `--gc-font-size-*` custom-
+  property usages — badges, card titles, section headings — never a root
+  em-base redefinition), so `1rem` reliably computes to the browser default
+  `16px` for this assertion.
+- This is a behavior check (does the loaded stylesheet's rule take visible
+  effect on the element it targets?), not a string-match on the delivery
+  mechanism, so it holds regardless of BigPipe streaming order or CSS
+  aggregation — directly addressing the concern flagged (but not yet acted
+  on) in round 1's own write-up.
+- Kept the `.toBeVisible()` wait on the unscoped `.stream-card-wrapper`
+  locator before evaluating computed style, so the assertion still only
+  runs once BigPipe has settled and `.trending-page`/`.following-feed` (the
+  view's own outer wrapper, present from the view's `css_class` config) has
+  its CSS applied.
+
+**Not touched:** tests 1, 3, 4, 6 (still byte-identical — confirmed via
+`git diff --unified=0` showing no `test(` line added/removed, i.e. exactly
+the same 6 test boundaries as before); no production file.
+
+### Verification in this environment
+
+Same environment gap as rounds 1 and the original phase (`node_modules` not
+installed in this worktree — cannot execute Playwright locally). Verified
+statically:
+- Balanced braces/parens (26/26, 146/146) and `test count: 6` — file still
+  parses as 6 complete tests.
+- `git diff --unified=0 ... | grep 'test('` shows zero added/removed `test(`
+  lines — confirms only bodies of tests 2 and 5 changed, same as round 1's
+  scope discipline.
+- Direct Read of both `trending.css` and `following.css` confirms the exact
+  `margin-top: 1rem` rule each assertion depends on.
+- Direct Read + grep of `views.view.trending.yml` / `views.view.following_feed.yml`
+  confirms `css_class: trending-page` / `css_class: following-feed`
+  respectively — the wrapper element the computed-style check targets is
+  the view's own outer class, present in the view's Views-config-level
+  markup (not something F added specifically for this test).
+
+**Concern flagged for whoever reads the next CI run:** `getComputedStyle`
+requires the queried element to actually be attached with layout at
+evaluation time — if BigPipe's placeholder-to-content swap ever detaches and
+re-creates `.trending-page` itself (as opposed to only the inner
+`.view-content`/card markup), the `.toBeVisible()` wait on
+`.stream-card-wrapper` (a descendant) should still guarantee `.trending-page`
+is present and stable by the time the computed-style read happens, since a
+descendant can't be visible while its ancestor is torn down. This is
+considered a low-risk, standard-Playwright-idiom concern rather than a
+known failure mode, but is called out explicitly per the task's request
+rather than assumed away.
+
+**Verdict: repair round 2 complete.** CI re-run is the authoritative
+execution-level confirmation. If test 5 fails a third time with a
+computed-style mismatch (not `'16px'`), that would mean either the theme
+introduces a root font-size override this inspection missed, or the CSS
+file genuinely isn't loading — at that point escalate with the actual
+observed computed-style value from CI's error context rather than
+re-guessing.
