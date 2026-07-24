@@ -391,6 +391,17 @@ final class HelpText {
       // element-level tooltips, including wiring a consumer for this key —
       // see handoff-F.md for the deferred-wiring note.
       'chrome.stream_switcher' => 'Global, My Feed, Following, and Trending are views over the same underlying content, switched by scope — one engine, not four separate systems.',
+      // --- #129 ST-7 (Activity feed): page.activity key. -------------------
+      // Appended per the append-only HelpText contract. Follows the SAME
+      // 'page.*' naming/shape #126 established (page.stream, page.all_groups,
+      // etc.) for a page-level "what am I looking at" ⓘ. Wiring this key into
+      // \Drupal\do_chrome\Hook\PageHelp::getRouteMap()'s route-name allowlist
+      // is do_chrome's own file (sole-owned by #126) — out of this story's
+      // owned-files scope (docs/groups/modules/do_activity_feed/** only);
+      // per this story's brief ("do NOT block on SD-6"), the copy key is
+      // appended here now and SD-6 (#133), the named capstone backstop,
+      // wires the allowlist entry during its final coverage sweep.
+      'page.activity' => 'Your activity feed: posts, joins, and comments from the groups you belong to, newest first, with repeated posts by the same person grouped together.',
     ];
   }
 
