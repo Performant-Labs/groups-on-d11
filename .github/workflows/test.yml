@@ -485,6 +485,16 @@ jobs:
             do_tests do_group_extras do_group_language do_group_mission \
             do_group_pin do_multigroup do_notifications do_profile_stats do_discovery
           php vendor/drush/drush/drush.php user:password admin 'admin'
+          # 4b) #129 workaround: config:import does NOT run installDefaultConfig()
+          #     for modules whose ACTIVE core.extension.yml already lists them
+          #     (as this codebase's assembled core.extension.yml does for every
+          #     do_* custom module). do_activity_feed ships views.view.activity_feed
+          #     ONLY under config/install/, not config/sync/ — so its view never
+          #     lands via cim. Force the install-config drop by disabling and
+          #     re-enabling the module, which triggers hook_install() and its
+          #     defensive installDefaultConfig() self-heal (do_activity_feed.install).
+          php vendor/drush/drush/drush.php pmu do_activity_feed -y
+          php vendor/drush/drush/drush.php en do_activity_feed -y
           php vendor/drush/drush/drush.php cache:rebuild -y
           # drush site:install writes a complete $databases block (incl. the mysql
           # driver namespace/autoload keys) into settings.php, which the runserver
