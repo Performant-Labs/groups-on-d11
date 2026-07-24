@@ -66,12 +66,18 @@ class PrivacyAccessTest extends GroupsKernelTestBase {
   protected function setUp(): void {
     parent::setUp();
 
-    // Install node_access schema; node-access checks (AC-4) query it during
-    // $node->access('view', ...) and fail on 'no such table: node_access'
-    // without this. Rebuild grants so records match the (empty-for-kernel)
-    // grant realm before tests exercise access.
+    // Install the node_access schema; node-access checks (AC-4) query it
+    // during $node->access('view', ...) and fail with 'no such table:
+    // node_access' without this. Deliberately do NOT call
+    // node_access_rebuild(): with no grant-realm module installed in this
+    // kernel harness, a rebuild writes a fallback-deny row that makes
+    // even PUBLIC-group nodes forbidden for non-admin accounts, which
+    // breaks the AC-4 negative case
+    // (testNonMemberNotForbiddenFromViewingNodeInPublicGroup). An empty
+    // node_access table lets Drupal fall back to its built-in "no module
+    // implements grants -> allow" path, which is exactly what that
+    // negative-case assertion expects.
     $this->installSchema('node', ['node_access']);
-    node_access_rebuild();
 
     $this->createGroupRole([
       'id' => 'community_group-member',
