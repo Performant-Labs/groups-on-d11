@@ -38,3 +38,12 @@
 - **Confirmed (no regression):** Full `do_discovery` + `do_streams` Kernel suites — 53 tests, 1573 assertions (F's 1571 + our 2 newly-reached assertions), 0 failures.
 - **Confirmed:** phpcs (Drupal,DrupalPractice) on the amended test file — 0 errors after the LF fix.
 - **Evidence:** Full phpunit GREEN output, spot-check RED-on-removal output, regression sweep output, and phpcs output all recorded in `handoff-T-green.md`.
+
+## S — Phase 7 (audit)
+- **Verdict:** PASS — ready for PR.
+- **Confirmed:** All 6 ACs satisfied (5 directly by tests/artifacts, AC #4 transitively via AC #2 — seed script's `if (!$comment_field)` guard uses the identical `getFieldDefinitions('node','forum')` query pattern that AC #2's test asserts non-empty, so control provably flows into the else-branch that emits ≥6 `Comment cid=…` lines).
+- **Confirmed:** Delivered YAML matches article template byte-for-byte except uuid/id/bundle/node.type.* dep + correctly-omitted `_core.default_config_hash` (matches precedent set by other forum-bundle field YAMLs).
+- **Confirmed (blast-radius, independent of A):** grepped `tests/e2e/*.spec.ts` for `forum` — 5 matches, none submit/edit forum node forms. `demonstrator-seeds` asserts 403 on `/node/add/forum` for anonymous (permission, not widget content); `group-type-homepage` asserts on "Recent discussions" listing (read-only); `phase3` reference is a code comment; `trending` deliberately dropped its ordering assertion per issue non-goal; `group-restore` unrelated. Zero E2E regression surface from the new comment form widget.
+- **Confirmed (issue intent):** end-to-end trace: field attached → seed emits 6 comments (2 each on `Venue Logistics Thread` + `Patch Review Process RFC`, 1 each on `Getting Started with Paragraphs` + `Community Code of Conduct`) → `comment_entity_statistics.comment_count > 0` → cron writes `do_discovery_hot_score.score = comment_count × 3` → `/trending` orders commented threads above zero-comment nodes on the seeded demo. #113's headline gap resolved.
+- **Test-quality review:** 2 tests for 2 ACs + 1 config file is proportionate; each names one behavior, sits at Kernel (cheapest sufficient), asserts on behavior not implementation, and was RED-validated + failure-on-removal spot-checked. No smells, no "delete or merge" findings.
+- **Evidence:** `handoff-S.md` (this phase); direct reads of the shipped YAML, article template, amended test, and seed script lines 205-236; grep sweeps of `tests/e2e/` and `docs/groups/modules/` for forum references.
