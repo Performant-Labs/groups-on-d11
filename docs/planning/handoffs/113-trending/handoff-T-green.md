@@ -365,3 +365,25 @@ introduces a root font-size override this inspection missed, or the CSS
 file genuinely isn't loading — at that point escalate with the actual
 observed computed-style value from CI's error context rather than
 re-guessing.
+
+## Repair round 3 — blocker filed, test 2 removed
+
+**CI round 3 (post-rebase, run 30055385475):** test 5 (library attach) now GREEN via the getComputedStyle repair. Test 2 STILL fails, but not for the reason theorized in rounds 1-2. Downloading the error-context artifact and reading the page-snapshot yaml showed the actual top-10 rendered cards on `/trending` are ALL kernel/functional-test fixture nodes (`Followable 1784852052355`, `PinG 1784852033384`, `ZZZ newer`, `AAA older`, `Ctl ZZZ newer`, `Ctl AAA older`, `PinCtl`, all with `link "0 comments"`), not the seeded demo forum threads.
+
+**Root cause is upstream of the test:** the CI seed pipeline itself never creates the comments the assertion depends on. `docs/groups/scripts/step_700_demo_data.php` Step 740c short-circuits on `if (!$comment_field)` because the `forum` bundle has no comment field attached in the assembled config. With zero comments seeded, every node's `do_discovery_hot_score = 0.0` and `/trending` degenerates to the `created DESC` tiebreak — which puts fixture nodes on top.
+
+**Coordinator decision (option 3 of 3 escalated):** file a blocker for the seed gap, remove test 2 in-PR, ship #113. Rationale:
+- (B) "relax to render-anywhere" is redundant with test 3 (`.stream-card-wrapper` visibility) and violates A's watch #1.
+- (A) "fix seed in-PR" needs comment-module + comment_type + field storage + field + form/view display + core.extension change — real cross-cutting surface, out of #113's scope.
+- (C) file + defer keeps this PR small and single-concern.
+
+**Blocker filed:** #182 "Seed pipeline: forum bundle needs comment field so /trending hot-score ordering is credible on demo".
+
+**Change to spec:** test 2 removed from `tests/e2e/trending.spec.ts` (was lines ~110-154). A comment marker replaces it, pointing at #182 and describing the assertion to restore once the seed gap is fixed. Suite drops from 6 tests to 5.
+
+**Post-fix suite (5 tests, all expected to pass on next CI):**
+1. Anonymous GET /trending → 200 + exactly one `<h1>` matching /trending/i.
+2. At least one `.stream-card-wrapper` card renders on /trending.
+3. Regression guard: /hot → 200 + "Hot Content" label (views.view.hot_content.yml untouched).
+4. Library attach mechanism-agnostic (getComputedStyle on `.trending-page` + `.following-feed`).
+5. WCAG-adjacent: exactly one `<h1>`; pager Next link (if present) has accessible name.

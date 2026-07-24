@@ -537,3 +537,24 @@ corrected root cause and the fix applied.
 - `git diff --unified=0 tests/e2e/trending.spec.ts` (round 2) — confirms
   scope discipline: only test 2 and test 5 bodies + the top doc-comment
   changed; zero `test(` lines added or removed.
+
+## O — CI round 3 diagnosis + test 2 removal
+
+**Decided:** Remove test 2 ("two 2-comment threads outrank zero-comment nodes in first 10 cards") from `tests/e2e/trending.spec.ts` entirely; file blocker issue #182 for the root cause; ship #113 with the remaining 5 tests.
+
+**Root cause (confirmed from PR #177 CI run 30055385475 error-context.md dump):** the CI-assembled `forum` bundle has no `comment` field. Step 740c of `docs/groups/scripts/step_700_demo_data.php` short-circuits with `ERROR: No comment field on forum nodes`. No seeded node gets `comment_count > 0`. `do_discovery_hot_score = (comments × 3) + (views × 0.5)` → every seeded node scores 0.0. `/trending` falls back to the `created DESC` tiebreak, so kernel/functional test fixtures (`Followable`, `PinG`, `ZZZ newer`, `AAA older`, `PinCtl 1784852033384`) — created *after* the demo seed via test suites — appear in the top 10 instead of the intended demo threads. This is a **pre-existing environment gap**, not introduced by this story.
+
+**Evidence:** `gh run view 30055385475 --log` shows `=== Step 740c: Comments ===` followed by `ERROR: No comment field on forum nodes`. The downloaded error-context.md lists rendered links: `Followable 1784852052355`, `ZZZ newer 1784852033384`, `AAA older 1784852033384`, `Ctl ZZZ newer`, `Ctl AAA older` — all `0 comments` per the sibling `link "0 comments"` entries — none of them the seeded threads.
+
+**Options considered:**
+- (A) Fix the seed pipeline in-PR by adding comment field infrastructure to the forum bundle — real config surface (`field.storage.node.comment`, `field.field.node.forum.comment`, form/view display attachments, comment_type storage, `comment` module in core.extension). Blast radius across other tests uncertain; would violate #113's "small, single-concern" posture.
+- (B) Relax test 2 to a weaker "renders on the page (any position)" assertion — but that's redundant with the passing test 3 (unscoped `.stream-card-wrapper` visibility), and it violates A's watch #1 ("positive top-N check, not substring probe").
+- (C) File a blocker issue, remove test 2 cleanly, ship #113 with the assertion documented as pending. **Chosen** — coordinator directive; cleanest ownership; other 5 assertions still verify /trending renders + regression-guards /hot + confirms library attachment + WCAG.
+
+**Blocker filed:** #182 "Seed pipeline: forum bundle needs comment field so /trending hot-score ordering is credible on demo". Body describes the gap, the discovery context in #113, and the fix outline. Labeled `bug`.
+
+**In-code marker:** left a rationale comment where test 2 used to be so a future engineer picking up #182 knows exactly what assertion to restore and why.
+
+**Hedged:** the deployed image (running the same seed script) probably has the same forum-comment gap → demo might show fixture-like nid-DESC ordering there too. Out of scope for this PR; #182 is the fix path.
+
+**Evidence path:** `handoff-T-green.md` "Repair round 3 — blocker filed" section, this decisions.md entry, `tests/e2e/trending.spec.ts` diff (test 2 removed + marker), issue #182 filed.
