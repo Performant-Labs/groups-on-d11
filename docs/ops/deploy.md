@@ -29,8 +29,7 @@ Container: rt7xfshm01tvw4locfxb8f6t-<build-number>
 
 The container inside Coolify runs the image's own nginx + php-fpm on port 8080.
 Traefik on the `coolify` docker network fronts it with TLS. There is **no**
-host-nginx or DDEV involved in the Coolify path — the older `docs/INSTALLATION_INSTRUCTIONS.md`
-describes a Spiderman/host-nginx variant that is no longer the live production path.
+host-nginx or DDEV involved in the Coolify path.
 
 ## 2. Coolify app configuration
 
@@ -198,7 +197,3 @@ Full health signals: [`health-checks.md`](health-checks.md).
   manual-redeploy the intended cadence for this POC? (Currently manual.)
 - TODO: verify with operator — the Coolify API host and the 1Password item
   holding the Coolify API token (§5b).
-- The older `docs/INSTALLATION_INSTRUCTIONS.md` describes a Spiderman/host-
-  nginx variant that is not the current production path. It's kept for
-  reference but should not be followed for deploys to
-  `groups.performantlabs.com`.
