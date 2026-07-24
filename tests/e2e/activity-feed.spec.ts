@@ -80,7 +80,7 @@ test.beforeEach(async ({ page }) => {
 async function switchToElena(page: import('@playwright/test').Page): Promise<void> {
   const select = page.locator('select[name="persona"]');
   await expect(select).toBeVisible();
-  await select.selectOption({ label: /Elena Garcia/i });
+  await select.selectOption({ label: 'Elena Garcia — Member' });
 
   const goButton = page.getByRole('button', { name: /go/i });
   if (await goButton.isVisible().catch(() => false)) {
