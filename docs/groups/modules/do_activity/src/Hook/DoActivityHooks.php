@@ -8,6 +8,7 @@ use Drupal\comment\CommentInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Hook\Attribute\Hook;
+use Drupal\do_notifications\Subscription\SubscriptionRouter;
 use Drupal\flag\FlaggingInterface;
 use Drupal\group\Entity\GroupInterface;
 use Drupal\group\Entity\GroupRelationshipInterface;
@@ -72,6 +73,14 @@ use Drupal\node\NodeInterface;
  * `(int)` at its call site below, including getCreatedTime() (only
  * \Drupal::time()->getRequestTime() is already a native int and needs no
  * cast).
+ *
+ * SUBSCRIPTION ROUTING (#230, N-2): after every Message is saved,
+ * createMessage() invokes the injected {@see SubscriptionRouter} (when
+ * present) so the six log points above ALSO fan out to interested
+ * subscribers, without each of the six hook methods needing its own routing
+ * call. The router dependency is OPTIONAL (nullable, `@?` in
+ * do_activity.services.yml) so do_activity keeps recording activity even when
+ * do_notifications is disabled — see the constructor and createMessage().
  */
 class DoActivityHooks {
 
@@ -90,6 +99,7 @@ class DoActivityHooks {
 
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
+    private readonly ?SubscriptionRouter $router = NULL,
   ) {}
 
   /**
@@ -377,6 +387,15 @@ class DoActivityHooks {
   /**
    * Creates and saves one activity Message.
    *
+   * After the Message is saved, invokes the injected {@see SubscriptionRouter}
+   * (when present — the dependency is optional so do_activity keeps working
+   * with do_notifications disabled) so this SINGLE method — the funnel every
+   * one of the six log points above already goes through — is the only place
+   * that needs to know about subscriber routing. Wrapped in try/catch so a
+   * routing failure (e.g. a malformed flag definition) can never prevent the
+   * Message itself from having been recorded, nor propagate up into whichever
+   * core hook triggered this call.
+   *
    * @param string $template
    *   The message_template bundle id.
    * @param int $actor_uid
@@ -425,6 +444,18 @@ class DoActivityHooks {
     $message = Message::create($values);
     $message->setCreatedTime($created);
     $message->save();
+
+    if ($this->router !== NULL) {
+      try {
+        $this->router->route($message);
+      }
+      catch (\Throwable $e) {
+        \Drupal::logger('do_activity')->error(
+          'SubscriptionRouter::route() failed for message @mid: @msg',
+          ['@mid' => $message->id(), '@msg' => $e->getMessage()],
+        );
+      }
+    }
   }
 
   /**

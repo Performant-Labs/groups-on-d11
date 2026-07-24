@@ -4,5 +4,6 @@ services:
     autowire: false
     arguments:
       - '@entity_type.manager'
+      - '@?do_notifications.subscription_router'
     tags:
       - { name: 'hook_implementations' }

@@ -7,3 +7,15 @@ services:
       - '@queue'
     tags:
       - { name: 'hook_implementations' }
+  do_notifications.queue:
+    class: Drupal\do_notifications\Queue\MockQueueBackend
+    # NOTE: N-1 (#229) will swap this class to DatabaseQueueBackend.
+  do_notifications.subscription_router:
+    class: Drupal\do_notifications\Subscription\SubscriptionRouter
+    arguments:
+      - '@entity_type.manager'
+      - '@flag'
+      - '@do_notifications.queue'
+      - '@datetime.time'
+      - '@state'
+      - '@config.factory'
