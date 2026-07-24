@@ -275,4 +275,41 @@ final class ShowcaseCatalogTest extends UnitTestCase {
     $this->assertStringContainsString('activity-log model', $decision_sentence, 'The corrected decision_sentence must name the activity-log model half of the comparison.');
   }
 
+  /**
+   * #198 (docs parity): the directory-presentation entry's decision_sentence
+   * currently frames the comparison as list-vs-cards only, omitting the Map
+   * variant that #125 SC-6 (Directory map view) shipped as live
+   * (VariantSwitcher::directoryLayoutOptionIds() already carries 'map' with
+   * no 'available => FALSE'; HelpText.php:169 already names all three). This
+   * copy string is the one stale reference on the user-visible /showcase
+   * page (brief.md #198).
+   *
+   * Keyword choice: 'geograph' (matches 'geographically'/'geographic') is
+   * used as the authoritative axis-keyword rather than accepting "location"
+   * or "plot" as alternates, because 'geograph' is the one word HelpText.php
+   * :169 already uses for this exact variant ('Map plots groups
+   * geographically') — pinning the same root keeps the two copy surfaces
+   * conceptually aligned instead of letting them drift into different
+   * vocabularies for the same concept. The assertion separately requires
+   * 'Map' by name, so the fix must both name the variant AND describe its
+   * axis.
+   *
+   * RED reason: `ShowcaseCatalog::entries()` still returns the OLD
+   * decision_sentence ('Compares list vs. card layouts for the group
+   * directory — the decision: information density vs. visual
+   * scannability.') at RED time — no 'Map', no 'geograph' — this assertion
+   * fails until F rewrites line 52 to name Map and the geographic axis.
+   *
+   * @covers ::entries
+   */
+  public function testDirectoryPresentationEntryNamesMapVariant(): void {
+    $entries = $this->catalog->entries();
+    $entry = current(array_filter($entries, static fn (array $e): bool => $e['id'] === 'directory-presentation'));
+    $this->assertNotFalse($entry);
+
+    $decision_sentence = (string) $entry['decision_sentence'];
+    $this->assertStringContainsString('Map', $decision_sentence, 'The directory-presentation decision_sentence must name Map as the third variant (#125 SC-6 shipped it live; #198 docs parity).');
+    $this->assertStringContainsString('geograph', $decision_sentence, "The directory-presentation decision_sentence must mention the geographic/plotting axis Map introduces (mirrors HelpText.php:169's 'geographically' wording).");
+  }
+
 }
