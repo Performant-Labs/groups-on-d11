@@ -64,7 +64,7 @@ final class PermissionMatrix {
       ['id' => 'anonymous', 'label' => $this->t('Anonymous')],
       ['id' => 'outsider', 'label' => $this->t('Signed-in visitor')],
       ['id' => 'member', 'label' => $this->t('Member')],
-      ['id' => 'admin', 'label' => $this->t('Group admin')],
+      ['id' => 'admin', 'label' => $this->t('Organizer')],
     ];
   }
 

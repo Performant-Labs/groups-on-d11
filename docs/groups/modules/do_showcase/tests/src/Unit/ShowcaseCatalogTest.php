@@ -82,17 +82,23 @@ final class ShowcaseCatalogTest extends UnitTestCase {
   }
 
   /**
-   * `coming` entries carry NO route (no dead link) — truthful-copy rule
-   * (wireframe.md: "coming entries show no dead link ... never a link to a
-   * page that doesn't exist yet").
+   * #133 (SD-6 capstone, honesty sweep): SD-6 flipped every remaining
+   * `coming` entry (membership-models, group-type homepages,
+   * private-group-reveal, persona-switcher, stream-model) to `live`. The
+   * former `testComingEntriesHaveNoRoute` iterated an always-empty `coming`
+   * subset post-flip and asserted nothing (0-assertion risky test) — this
+   * replaces it with the more valuable inverse invariant: the catalog must
+   * contain NO `coming` entries at all. If a future story reintroduces a
+   * `coming` entry, this fails loud with a useful message rather than
+   * silently passing vacuously.
    *
    * @covers ::entries
    */
-  public function testComingEntriesHaveNoRoute(): void {
-    foreach ($this->catalog->entries() as $entry) {
-      if ($entry['status'] === 'coming') {
-        $this->assertNull($entry['route'], sprintf('"Coming" entry "%s" must not carry a route (no dead link).', $entry['id']));
-      }
+  public function testNoEntriesAreComing(): void {
+    $entries = $this->catalog->entries();
+    $this->assertGreaterThan(0, count($entries), 'The catalog must not be empty (guards against a vacuous pass below).');
+    foreach ($entries as $entry) {
+      $this->assertNotSame('coming', $entry['status'], sprintf('Entry "%s" is still "coming" — SD-6 flipped all to live.', $entry['id']));
     }
   }
 
@@ -110,17 +116,47 @@ final class ShowcaseCatalogTest extends UnitTestCase {
   }
 
   /**
-   * The membership-models entry stays [coming] — O-notes-for-F.md: "request-
-   * to-join is bespoke in #121; grequest is incompatible with group 4.0.x.
-   * Do not imply it's live."
+   * #133 (SD-6 capstone, honesty sweep — work-list #8): the membership-models
+   * entry flips [coming] -> [live]. Request-to-join (Moderated) and the
+   * invite-only create-access gate both shipped and went live under #121
+   * (SC-2) — the entry's OLD [coming] status is now stale/dishonest
+   * (brief.md scope item 3: "/showcase tour page accurately lists all
+   * shipped comparisons ... nothing 'coming' that already shipped").
+   *
+   * RED reason: `ShowcaseCatalog::entries()` still returns
+   * `status: 'coming'` / `route: NULL` for 'membership-models' at RED time —
+   * this assertion fails until F flips it (13-item work-list #8).
    *
    * @covers ::entries
    */
-  public function testMembershipModelsEntryStaysComing(): void {
+  public function testMembershipModelsEntryIsLive(): void {
     $entries = $this->catalog->entries();
     $entry = current(array_filter($entries, static fn (array $e): bool => $e['id'] === 'membership-models'));
     $this->assertNotFalse($entry);
-    $this->assertSame('coming', $entry['status'], 'membership-models must stay [coming] — request-to-join is not yet built (grequest incompatible with group 4.0.x, per #136).');
+    $this->assertSame('live', $entry['status'], 'membership-models must flip to live — request-to-join (Moderated) and the invite-only create-access gate are both live and enforced (#121 SC-2); the old [coming] status is stale (#133 honesty sweep).');
+    $this->assertNotNull($entry['route'], 'membership-models must carry a real route now that it is live (no dead link).');
+  }
+
+  /**
+   * #133 (SD-6 capstone, honesty sweep — work-list #9/#10): group-type-
+   * homepages and private-group-reveal both flip [coming] -> [live] — the
+   * underlying features shipped under #122 (SC-3) and #134 (SC-7)
+   * respectively, so their catalog entries are stale exactly like
+   * membership-models above.
+   *
+   * RED reason: both entries still return `status: 'coming'` / `route: NULL`
+   * at RED time — fails until F flips them (13-item work-list #9, #10).
+   *
+   * @covers ::entries
+   */
+  public function testGroupTypeHomepagesAndPrivateGroupRevealAreLive(): void {
+    $entries = $this->catalog->entries();
+    foreach (['group-type-homepages', 'private-group-reveal'] as $id) {
+      $entry = current(array_filter($entries, static fn (array $e): bool => $e['id'] === $id));
+      $this->assertNotFalse($entry, sprintf('Entry "%s" must exist.', $id));
+      $this->assertSame('live', $entry['status'], sprintf('"%s" must flip to live — the underlying feature is shipped and enforced; the old [coming] status is stale (#133 honesty sweep).', $id));
+      $this->assertNotNull($entry['route'], sprintf('"%s" must carry a real route now that it is live (no dead link).', $id));
+    }
   }
 
   /**
@@ -147,7 +183,13 @@ final class ShowcaseCatalogTest extends UnitTestCase {
     $personas = $this->catalog->personas();
     $names = array_map(static fn (array $p): string => (string) $p['name'], $personas);
     $this->assertCount(4, $personas, 'Exactly four public personas.');
-    foreach (['Anonymous', 'Elena Garcia', 'Maria Chen', 'Moderator'] as $expected) {
+    // #133 (SD-6 capstone, honesty sweep — work-list #12): the fourth
+    // persona's `name` field must read "Groups-Moderate", not the stale
+    // "Moderator" label — brief.md scope item 3 ("personas are
+    // Anonymous/Member/Organizer/Groups-Moderate"). RED reason: `personas()`
+    // still returns `'name' => 'Moderator'` at RED time — this assertion
+    // fails until F flips it (13-item work-list #12).
+    foreach (['Anonymous', 'Elena Garcia', 'Maria Chen', 'Groups-Moderate'] as $expected) {
       $this->assertContains($expected, $names, sprintf('Persona list must name "%s".', $expected));
     }
   }
@@ -184,6 +226,25 @@ final class ShowcaseCatalogTest extends UnitTestCase {
         sprintf('Entry "%s" decision_sentence must be t()-wrapped (TranslatableMarkup), not a raw string.', $entry['id'])
       );
     }
+  }
+
+  /**
+   * #133 (SD-6 capstone, honesty sweep — work-list #11): Maria Chen's persona
+   * description must read "A group Organizer." — the MVP-correct role name
+   * (brief.md scope item 3), not the stale hedge "A group admin/organizer."
+   * the description originally shipped.
+   *
+   * RED reason: `personas()`'s 'maria-chen' entry currently returns
+   * `$this->t('A group admin/organizer.')` — this assertion fails until F
+   * rewrites it (13-item work-list #11).
+   *
+   * @covers ::personas
+   */
+  public function testMariaChenPersonaDescriptionNamesOrganizerOnly(): void {
+    $maria = $this->catalog->personaSpec('maria-chen');
+    $this->assertNotNull($maria, 'The maria-chen persona must exist.');
+    $description = (string) $maria['description'];
+    $this->assertSame('A group Organizer.', $description, "Maria Chen's persona description must read exactly 'A group Organizer.' (#133 honesty sweep) — not the stale 'A group admin/organizer.' hedge.");
   }
 
   /**

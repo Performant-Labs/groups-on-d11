@@ -20,9 +20,12 @@ use Drupal\Core\StringTranslation\StringTranslationTrait;
  * `coming` entries carry a NULL route (truthful-copy rule: never a dead link
  * to a page that does not exist yet). Only `live` entries carry a route.
  *
- * The `membership-models` entry stays `coming` — request-to-join is bespoke
- * in #121; `drupal/grequest` is incompatible with group 4.0.x-dev (per
- * #136). Do not imply it is live.
+ * #133 (SD-6 honesty sweep): `membership-models`, `group-type-homepages`,
+ * and `private-group-reveal` all flip `coming` -> `live` — the underlying
+ * features shipped (#121 request-to-join + invite-only gate; #122 group-type
+ * homepages; #134 private-group reveal). Request-to-join stayed bespoke in
+ * #121 (`drupal/grequest` is incompatible with group 4.0.x-dev, per #136),
+ * but the comparison itself is live and demonstrable, not aspirational.
  */
 final class ShowcaseCatalog {
 
@@ -61,16 +64,27 @@ final class ShowcaseCatalog {
       [
         'id' => 'membership-models',
         'title' => $this->t('Membership models'),
-        'decision_sentence' => $this->t('Compares open-join vs. request-to-join vs. invite-only — the decision: how much friction gates group membership.'),
-        'status' => 'coming',
-        'route' => NULL,
+        // #133 (SD-6 honesty sweep): rewritten to name BOTH axes — join
+        // policy (open / request-to-join / invite-only) and privacy
+        // (public / unlisted / private, #134) — rather than only the
+        // single join-policy axis the original sentence described.
+        'decision_sentence' => $this->t('Compares the JOIN-POLICY axis (open / request-to-join / invite-only) alongside the PRIVACY axis (public / unlisted / private) — the decision: how much friction gates membership, and who can see the group at all.'),
+        // #121 shipped request-to-join (Moderated) + the invite-only
+        // create-access gate — both live and enforced. Visitors can browse
+        // and try joining a Moderated or Invite Only group from the
+        // /all-groups directory.
+        'status' => 'live',
+        'route' => 'view.all_groups.page_1',
       ],
       [
         'id' => 'group-type-homepages',
         'title' => $this->t('Group-type homepages'),
         'decision_sentence' => $this->t('Compares a generic group page vs. a type-tailored homepage — the decision: general-purpose UI vs. per-type customization.'),
-        'status' => 'coming',
-        'route' => NULL,
+        // #133 (SD-6 honesty sweep): #122 (SC-3) shipped the type-adapted
+        // group lead section — flip live. Routes to the directory, where a
+        // visitor can pick a group of any type and see its adapted homepage.
+        'status' => 'live',
+        'route' => 'view.all_groups.page_1',
       ],
       [
         'id' => 'stream-model',
@@ -92,8 +106,11 @@ final class ShowcaseCatalog {
         'id' => 'private-group-reveal',
         'title' => $this->t('Private-group reveal'),
         'decision_sentence' => $this->t('Compares always-visible groups vs. private groups that reveal membership only after joining — the decision: open discovery vs. member-only privacy. (#134)'),
-        'status' => 'coming',
-        'route' => NULL,
+        // #133 (SD-6 honesty sweep): #134 shipped the private-group
+        // view-access gate + directory hide — flip live. Persona-switching
+        // from the directory reveals the private-group difference.
+        'status' => 'live',
+        'route' => 'view.all_groups.page_1',
       ],
       [
         'id' => 'persona-switcher',
@@ -124,10 +141,7 @@ final class ShowcaseCatalog {
    * exact user-visible DISPLAY STRING for this persona ("Anonymous",
    * "Elena Garcia — Member", "Maria Chen — Organizer", "Groups-Moderate").
    * This is deliberately a SEPARATE field from `name` (the persona's plain
-   * name/title, e.g. "Moderator", still used as-is by
-   * `ShowcaseController::build()`'s `/showcase` tour listing, which reads
-   * `@name — @description` and must keep showing "Moderator", not
-   * "Groups-Moderate"). Before this fix, `\Drupal\do_showcase\Persona\
+   * name/title). Before this fix, `\Drupal\do_showcase\Persona\
    * PersonaSwitcher::optionLabel()` independently `match`-hardcoded this same
    * display string for the `<select>` options, while
    * `DoShowcaseHooks::personaBanner()` read `$persona['name']` directly for
@@ -141,6 +155,13 @@ final class ShowcaseCatalog {
    * method's existing `name`/`description` per-field pattern, rather than
    * adding a second method that duplicates the same `match` a second place
    * could silently diverge from again.
+   *
+   * #133 (SD-6 honesty sweep, work-list #12): `name` for the fourth persona
+   * now ALSO reads "Groups-Moderate" (matching `label`) — the stale
+   * "Moderator" name/title is gone everywhere it was user-visible, including
+   * the `/showcase` tour listing (`ShowcaseController::build()`'s
+   * `@name — @description` line), per brief.md scope item 3 ("personas are
+   * Anonymous/Member/Organizer/Groups-Moderate").
    *
    * @return array<int, array{id: string, name: string, label: string, description: \Drupal\Core\StringTranslation\TranslatableMarkup, uname: string|null, tooltip_key: string}>
    *   The persona list, in display order.
@@ -167,13 +188,13 @@ final class ShowcaseCatalog {
         'id' => 'maria-chen',
         'name' => 'Maria Chen',
         'label' => (string) $this->t('Maria Chen — Organizer'),
-        'description' => $this->t('A group admin/organizer.'),
+        'description' => $this->t('A group Organizer.'),
         'uname' => 'maria_chen',
         'tooltip_key' => 'persona.maria',
       ],
       [
         'id' => 'moderator',
-        'name' => 'Moderator',
+        'name' => 'Groups-Moderate',
         'label' => (string) $this->t('Groups-Moderate'),
         'description' => $this->t('A site-wide moderation role.'),
         'uname' => 'groups_moderate_demo',

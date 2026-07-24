@@ -201,8 +201,8 @@ class DoGroupExtrasHooks {
    * `Drupal\Core\Entity\EntityAccessControlHandler::access()`.
    *
    * `public`/`unlisted` groups are untouched (neutral) — only `private`
-   * enforces a view-access gate this story (per the wireframe's honesty
-   * notes: `unlisted` is directory-hide-only, not yet enforced).
+   * enforces a view-access gate this story. `unlisted` is a seeded value
+   * only — this build does not hide unlisted groups from the directory.
    */
   #[Hook('group_access')]
   public function groupAccess(GroupInterface $group, string $op, AccountInterface $account): AccessResult {

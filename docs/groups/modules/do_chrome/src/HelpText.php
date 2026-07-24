@@ -86,14 +86,14 @@ final class HelpText {
       //    VIEWABLE (readable), but direct joining is closed to everyone
       //    except an organizer adding someone via Add member. "Visible but
       //    closed to joining", NOT hidden — hidden/unlisted is Private
-      //    (#134), a distinct, not-yet-built value.
+      //    (#134), a distinct axis (now shipped).
       // The field-level intro stays honest about the view/join distinction:
       // every group is still readable regardless of this value; only
       // *joining* is what this value controls.
-      'visibility.field' => 'Sets who can join this group and how. Every group stays readable (viewable) to anyone; this value controls whether joining is instant, request-based, or invite-only.',
+      'visibility.field' => 'Sets who can join this group and how — instant, request-based, or invite-only. The separate Privacy setting controls who can VIEW the group at all.',
       'visibility.open' => 'Open: anyone signed in can join instantly, no approval needed. This is live on the demo — logged-in visitors can join Open groups now.',
       'visibility.moderated' => 'Moderated: people request to join, and an organizer approves or denies each request. This is live on the demo — a request creates a pending membership until an organizer approves it.',
-      'visibility.invite_only' => 'Invite Only: the group stays visible to everyone, but only an organizer can add members — there is no direct join or request path. This is live on the demo.',
+      'visibility.invite_only' => 'Invite Only: only an organizer can add members — there is no direct join or request path. The group remains visible per its Privacy setting, which controls visibility separately. This is live on the demo.',
 
       'archive.badge' => 'This group is archived: read-only. Everything stays visible for reference, but no new content can be posted here.',
       'pin.badge' => 'Pinned: this post is kept at the top of the group stream so newcomers see it first, regardless of date.',
@@ -148,15 +148,13 @@ final class HelpText {
       // The panel intro + footnote are served from here; per-cell labels live in
       // the render hook / template (they are structural, not prose copy).
       //
-      // #121 SC-2 correction: the footnote previously read "...are planned but
-      // not yet enabled on the demo," which became stale the moment #121
-      // shipped request-to-join (Moderated) + the invite-only create-access
-      // gate — both are now live and enforced, exactly like every other claim
-      // in this file. Updated to name the mechanism (organizer approval /
-      // denial from the existing Manage-members page) instead of describing
-      // it as a future promise.
+      // #133 (SD-6 honesty sweep): the footnote names the admin actor as
+      // "Organizer" — the MVP-correct, user-visible role name (persona set:
+      // Anonymous / Member / Organizer / Groups-Moderate) — not the stale
+      // "group admin" phrasing. Request-to-join (Moderated) and the
+      // invite-only create-access gate are both live and enforced (#121).
       'permissions.panel.intro' => 'What each kind of person can do in this group, based on the roles actually enforced on this demo.',
-      'permissions.panel.footnote' => 'A group admin holds every management capability. Members can read, join, post, and remove their own posts; managing members stays admin-only. Moderated groups add a request-to-join step, reviewed (approved or denied) by an organizer from the Manage-members page — this is live on the demo, not a future plan.',
+      'permissions.panel.footnote' => 'An Organizer holds every management capability. Members can read, join, post, and remove their own posts; managing members stays Organizer-only. Moderated groups add a request-to-join step, reviewed (approved or denied) by an Organizer from the Manage-members page — this is live on the demo, not a future plan.',
 
       // --- do_showcase (SC-F1, #119): variant-switcher framework, the ------
       // /showcase tour page, and the site-wide POC ribbon. Appended here per
@@ -264,6 +262,13 @@ final class HelpText {
       'page.trending' => 'Posts ranked by recent comment activity via the hot score (comments count far more than views). POC note: this is a straightforward, honestly-scored demo ranking, not a production relevance algorithm.',
       'page.my_feed_events' => 'Upcoming events from the groups you\'ve joined, plus a My RSVPs view of events you\'ve responded to. Unlike the site-wide event calendar, this is scoped to your own group memberships and responses.',
       'page.profile_stream' => 'This member\'s public posts — only the ones you\'re allowed to see. Posts in a group you don\'t belong to (or that isn\'t publicly visible) are left out, even though they\'re this person\'s.',
+
+      // #133 (SD-6 capstone) audit recommendation #15, adopted: a page-level
+      // ⓘ for the /showcase tour page itself, so it carries the same SD-1
+      // "what am I looking at" pattern every other primary page does. Wired
+      // into PageHelp::getRouteMap()'s allowlist under the do_showcase.showcase
+      // route id (the do_showcase.routing.yml route name).
+      'page.showcase' => 'The /showcase tour: a guided comparison of the demo\'s design decisions — discovery ranking, directory layout, membership models, group-type homepages, the stream model, private groups, and the persona switcher — each entry explains what changes and why.',
 
       // --- #127 (SD-2): card- and element-level ⓘ tooltips -----------------
       // Appended per the append-only HelpText contract. Directory-card and

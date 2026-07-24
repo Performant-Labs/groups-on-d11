@@ -47,6 +47,26 @@ final class PermissionMatrixTest extends UnitTestCase {
   }
 
   /**
+   * #133 (SD-6 capstone, honesty sweep — work-list #7): the admin actor's
+   * column label must read "Organizer" — the MVP-correct, user-visible role
+   * name (brief.md scope item 3: "personas are
+   * Anonymous/Member/Organizer/Groups-Moderate"), not the stale "Group
+   * admin" label PermissionMatrix::actors() originally shipped.
+   *
+   * RED reason: `actors()` currently returns `$this->t('Group admin')` for
+   * the 'admin' column — this assertion fails until F flips it to
+   * `$this->t('Organizer')` (13-item work-list #7).
+   *
+   * @covers ::actors
+   */
+  public function testAdminColumnLabelReadsOrganizer(): void {
+    $actors = $this->matrix->actors();
+    $admin = current(array_filter($actors, static fn (array $a): bool => $a['id'] === 'admin'));
+    $this->assertNotFalse($admin, 'The admin actor column must exist.');
+    $this->assertSame('Organizer', (string) $admin['label'], 'The admin actor column label must read "Organizer", not "Group admin" (#133 honesty sweep).');
+  }
+
+  /**
    * Every row has exactly one cell per actor, with a known state.
    *
    * @covers ::rows
