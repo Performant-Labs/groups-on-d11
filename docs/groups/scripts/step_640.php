@@ -6,6 +6,17 @@
 
 use Drupal\language\Entity\ConfigurableLanguage;
 
+// Ensure the language module is enabled before creating ConfigurableLanguage
+// entities. Without it, ConfigurableLanguage::save() invokes
+// ConfigurableLanguageManager::updateLockedLanguageWeights(), which loads the
+// locked 'und'/'zxx' language entities — absent when the module isn't installed
+// — and fatals with "Call to a member function setWeight() on null".
+// Idempotent: no-op when language is already enabled.
+$module_installer = \Drupal::service('module_installer');
+if (!\Drupal::moduleHandler()->moduleExists('language')) {
+  $module_installer->install(['language']);
+}
+
 // Add 14 languages
 echo "=== Adding languages ===\n";
 $langs = ["de","es","fr","it","ja","ko","nl","pl","pt-br","ru","tr","uk","zh-hans","ar"];
