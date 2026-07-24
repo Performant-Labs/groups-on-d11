@@ -175,6 +175,24 @@ PHP
     echo "[entrypoint] WARNING: activity backfill script not found at $ACTIVITY_BACKFILL_SCRIPT" >&2
   fi
   # --- do_activity step_7xx END ---
+  # --- do_activity_feed step_795 BEGIN ---
+  # #129 ST-7: activity feed E2E fixture. Same admin-account wrapper as the
+  # backfill above. Seeds Elena a deterministic (social + aggregated + content)
+  # mix on /activity that the E2E spec (tests/e2e/activity-feed.spec.ts)
+  # asserts against.
+  FEED_FIXTURE_SCRIPT="${APP_DIR}/docs/groups/scripts/step_795_activity_feed_e2e_fixture.php"
+  if [ -f "$FEED_FIXTURE_SCRIPT" ]; then
+    cat > /tmp/seed-activity-feed-fixture.php <<PHP
+<?php
+\$admin = \Drupal\user\Entity\User::load(1);
+if (\$admin) { \Drupal::currentUser()->setAccount(\$admin); }
+require '${FEED_FIXTURE_SCRIPT}';
+PHP
+    $DRUSH php:script /tmp/seed-activity-feed-fixture.php || echo "[entrypoint] WARNING: activity-feed fixture returned non-zero (continuing)"
+  else
+    echo "[entrypoint] WARNING: activity-feed fixture script not found at $FEED_FIXTURE_SCRIPT" >&2
+  fi
+  # --- do_activity_feed step_795 END ---
 
   $DRUSH cr
 
