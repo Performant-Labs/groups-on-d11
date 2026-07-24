@@ -78,6 +78,12 @@ class PageHelp {
       'view.following_feed.page_1' => 'page.following',
       'view.trending.page_1' => 'page.trending',
       'view.my_feed_events.page_1' => 'page.my_feed_events',
+      // #112 (ST-3): the /my-feed/events route is a hand-authored controller
+      // route (do_streams.my_events, see do_streams/do_streams.routing.yml),
+      // not a Views page display — its route name differs from the
+      // 'view.<id>.page_1' convention above, so it needs its own entry to
+      // resolve to the same page.my_feed_events HelpText copy.
+      'do_streams.my_events' => 'page.my_feed_events',
       'view.profile_stream.page_1' => 'page.profile_stream',
     ];
   }
