@@ -1,0 +1,33 @@
+{#
+/**
+ * @file
+ * Plain-text wrapper shell for do_notifications activity emails (#232, N-4).
+ *
+ * Loaded directly through the `twig` environment service, NOT through the
+ * theme registry — see \Drupal\do_notifications\Email\EmailRenderer's class
+ * docblock ("DUAL RENDER PATH") for why: Drupal's Twig theme engine
+ * hardcodes the `.html.twig` extension and can never load a `.txt.twig`
+ * file via the normal #theme render pipeline.
+ *
+ * `autoescape false` is required here: TwigEnvironment forces HTML
+ * autoescaping site-wide by default (see
+ * \Drupal\Core\Template\TwigEnvironment::__construct()), which would
+ * HTML-entity-encode plain text (e.g. turning `&` into `&amp;`) if left on.
+ *
+ * Available variables:
+ * - body: the rendered per-event text partial (already a plain string —
+ *   see \Drupal\do_notifications\Email\EmailRenderer::renderTextShell()).
+ * - unsubscribe_url: absolute URL to the recipient's notification settings
+ *   page (\Drupal\do_notifications\Email\EmailRenderer::unsubscribeUrl()).
+ * - timestamp: the Message's `created` time, formatted via
+ *   \Drupal\Core\Datetime\DateFormatterInterface::format() with the
+ *   `medium` format (\Drupal\do_notifications\Email\EmailRenderer::render()).
+ */
+#}
+{% autoescape false %}
+{{ timestamp }}
+{{ body }}
+
+--
+{{ 'Unsubscribe:'|t }} {{ unsubscribe_url }}
+{% endautoescape %}

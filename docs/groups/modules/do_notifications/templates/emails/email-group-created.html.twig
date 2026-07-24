@@ -1,0 +1,14 @@
+{#
+/**
+ * @file
+ * HTML body partial for the activity_group_created event (#232, N-4).
+ *
+ * `body_line` is the already token-replaced (and `(removed)`-substituted —
+ * see \Drupal\do_notifications\Email\EmailRenderer) message text; Twig
+ * performs no token substitution of its own here (brief v2 §3).
+ *
+ * Available variables:
+ * - body_line: the rendered body-line string.
+ */
+#}
+<p>{{ body_line }}</p>
