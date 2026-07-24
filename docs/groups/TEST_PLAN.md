@@ -168,6 +168,26 @@ ddev exec 'SIMPLETEST_DB=mysql://db:db@db/db SIMPLETEST_BASE_URL=https://web \
 npx playwright test tests/e2e/<file>.spec.ts
 ```
 
+**Do not run the full 15-directory kernel aggregate locally** (issue
+[#205](https://github.com/Performant-Labs/groups-on-d11/issues/205)). Handing
+every module's Kernel dir to a single `phpunit` invocation — the way
+`.github/workflows/test.yml` does per-job — reliably exhausts memory on a
+developer workstation and exits 137. CI is unaffected (each module runs in
+its own GitHub Actions job); local runs must be per-module.
+
+Use the developer wrapper:
+
+```bash
+bash scripts/dev/run-kernel.sh                   # print usage + module list
+bash scripts/dev/run-kernel.sh do_streams        # run one module
+bash scripts/dev/run-kernel.sh all               # each module in its own process
+```
+
+The wrapper auto-detects DDEV and injects the `SIMPLETEST_*` env from above;
+set `SKIP_DDEV=1` to bypass, `DRY_RUN=1` to print the phpunit command
+without executing it. Regression test: `scripts/dev/tests/run-kernel-test.sh`.
+
+
 ### 3.3 Kernel base + fixtures (from A3 / #34)
 
 A shared `GroupsKernelTestBase` (in `do_tests`) provides the behavioral foundation that
