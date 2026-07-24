@@ -4,3 +4,18 @@ services:
     autowire: false
     tags:
       - { name: 'hook_implementations' }
+
+  # #115 ST-6: `/hot` -> `/trending` redirect once `/trending` exists.
+  # Keyed by its own FQCN (not a `do_streams.*` alias) purely for
+  # readability/consistency with the project's other FQCN-keyed hook/
+  # subscriber services — Drupal does NOT autowire by default (autowiring is
+  # opt-in per service via `autowire: true`, which no service in this project
+  # uses), so `arguments:` must be explicit regardless of the service's key,
+  # matching the convention every other services.yml in this project follows
+  # (e.g. do_group_membership.services.yml's GroupAccessHook/
+  # CreateGroupOrganizerHook, both FQCN-keyed AND explicit-argument).
+  Drupal\do_streams\EventSubscriber\HotRedirectSubscriber:
+    autowire: false
+    arguments: ['@router.route_provider']
+    tags:
+      - { name: 'event_subscriber' }

@@ -357,6 +357,23 @@ final class HelpText {
       // an indicator of hidden/inaccessible content existing (matches the
       // wireframe's access-safe "No posts yet." empty-state framing).
       'profile_activity.section' => 'This person\'s recent published posts, newest first — scoped to what you can already see. Content in groups you cannot access never appears here.',
+      // --- #115 (ST-6): stream switcher chrome — chrome.* key. -------------
+      // Appended per the append-only HelpText contract. This is CHROME-level
+      // orientation copy (spans all 4 sibling stream pages), disjoint from
+      // the per-PAGE 'page.stream' / 'page.my_feed' / 'page.following' /
+      // 'page.trending' keys above (#126 SD-1) — those describe what a
+      // single page IS; this key describes the switcher CONTROL that sits
+      // above all four of them ("this is one system, one engine with tabs").
+      //
+      // No consuming markup is wired to this key YET — StreamSwitcherHooks
+      // and stream-switcher.html.twig do not currently attach a
+      // `data-do-tooltip` trigger (do_streams has no existing dependency on
+      // do_chrome; introducing one plus a live tooltip trigger is a second
+      // decision beyond this story's own scope). #131 (SD-4) is the
+      // explicit, already-planned backstop that sweeps EVERY #108 surface's
+      // element-level tooltips, including wiring a consumer for this key —
+      // see handoff-F.md for the deferred-wiring note.
+      'chrome.stream_switcher' => 'Global, My Feed, Following, and Trending are views over the same underlying content, switched by scope — one engine, not four separate systems.',
     ];
   }
 

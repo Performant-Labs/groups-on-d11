@@ -3,8 +3,15 @@ following:
   css:
     theme:
       css/following.css: {}
+
 profile_activity:
   version: 1.x
   css:
     theme:
       css/profile-activity.css: {}
+
+stream-switcher:
+  version: 1.x
+  css:
+    theme:
+      css/stream-switcher.css: {}
