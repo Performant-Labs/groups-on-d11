@@ -16,6 +16,7 @@
   left: 0;
   right: 0;
   z-index: 1000;
+  pointer-events: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -29,6 +30,15 @@
 .do-showcase-ribbon a {
   color: #ffffff;
   text-decoration: underline;
+}
+
+/* #167: container has pointer-events: none so it never intercepts
+ * clicks on controls beneath it. Interactive descendants opt back in
+ * here so the ribbon's own link + dismiss button remain clickable. */
+.do-showcase-ribbon a,
+.do-showcase-ribbon button,
+.do-showcase-ribbon-dismiss {
+  pointer-events: auto;
 }
 
 .do-showcase-ribbon-dismiss {
