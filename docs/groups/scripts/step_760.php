@@ -96,9 +96,79 @@ if ($deutschland) {
   }
 }
 
+// Arabic-primary group (#139 MC-4): a NEW pattern for this file — step_760
+// previously only SET language on pre-existing groups; this creates one.
+// Idempotency contract (brief.md v3): loadByProperties(label) skip-if-exists,
+// create + save, add admin membership (copying step_700_demo_data.php:77-93's
+// pattern, wrapped in try/catch for re-run safety like the fr/de
+// addRelationship calls above), then unconditionally set + save the language
+// field (idempotent on every run).
+echo "\n=== Arabic-primary group ===\n";
+$groups = $group_storage->loadByProperties(["label" => "Drupal العربية"]);
+$arabic_group = reset($groups);
+if (!$arabic_group) {
+  $arabic_group = $group_storage->create([
+    "type" => "community_group",
+    "uid" => 1,
+    "status" => 1,
+    "label" => "Drupal العربية",
+    "field_group_description" => [
+      "value" => "مجتمع Drupal الناطق بالعربية. شارك مشاريعك وتواصل مع أعضاء المجتمع.",
+      "format" => "basic_html",
+    ],
+  ]);
+  $arabic_group->save();
+  echo "Created gid=" . $arabic_group->id() . " Drupal العربية\n";
+}
+else {
+  echo "Exists: Drupal العربية\n";
+}
+
+// Admin membership, mirroring step_700_demo_data.php:77-93 (community_group
+// creation + admin-membership pattern), guarded like this file's own fr/de
+// addRelationship calls for idempotent re-runs.
+try {
+  $admin_user = \Drupal\user\Entity\User::load(1);
+  if ($admin_user && !$arabic_group->getMember($admin_user)) {
+    $arabic_group->addMember($admin_user, ["group_roles" => ["community_group-admin"]]);
+    echo "Added admin membership to Drupal العربية\n";
+  }
+}
+catch (\Exception $e) {
+  echo "NOTE: admin membership on Drupal العربية skipped: " . $e->getMessage() . "\n";
+}
+
+// Unconditional set + save — idempotent regardless of the create-vs-reuse
+// branch above.
+$arabic_group->set("field_group_language", "ar");
+$arabic_group->save();
+echo "Set Drupal العربية language to ar\n";
+
+// Arabic content
+echo "\n=== Arabic content ===\n";
+$arabic_topics = [
+  ["مرحبًا بكم في مجتمع Drupal العربية", 1,
+   "مرحبًا بكم في مجتمعنا الناطق بالعربية! قدّموا أنفسكم وشاركوا مشاريعكم في Drupal."],
+  ["ترجمة Drupal 11 إلى اللغة العربية", 1,
+   "تنسيق جهود ترجمة Drupal 11. انضموا إلى فريق الترجمة على localize.drupal.org."],
+];
+foreach ($arabic_topics as [$title, $uid, $body]) {
+  $existing = $node_storage->loadByProperties(["title" => $title]);
+  if ($existing) { echo "Exists: $title\n"; continue; }
+  $node = $node_storage->create([
+    "type" => "forum", "title" => $title, "uid" => $uid, "status" => 1,
+    "langcode" => "ar",
+    "body" => ["value" => $body, "format" => "basic_html"],
+    "taxonomy_forums" => $forum_tid,
+  ]);
+  $node->save();
+  try { $arabic_group->addRelationship($node, "group_node:forum"); } catch (\Exception $e) {}
+  echo "Arabic topic: nid=" . $node->id() . " $title\n";
+}
+
 // Verify
 echo "\n=== Verification ===\n";
-foreach (["Drupal France" => "fr", "Drupal Deutschland" => "de"] as $label => $expected) {
+foreach (["Drupal France" => "fr", "Drupal Deutschland" => "de", "Drupal العربية" => "ar"] as $label => $expected) {
   $groups = $group_storage->loadByProperties(["label" => $label]);
   $group = reset($groups);
   if ($group && $group->hasField("field_group_language")) {
@@ -106,7 +176,7 @@ foreach (["Drupal France" => "fr", "Drupal Deutschland" => "de"] as $label => $e
     echo "$label language: $actual " . ($actual === $expected ? "OK" : "MISMATCH") . "\n";
   }
 }
-foreach (["fr", "de"] as $lang) {
+foreach (["fr", "de", "ar"] as $lang) {
   $count = \Drupal::entityQuery("node")->condition("langcode", $lang)->accessCheck(FALSE)->count()->execute();
   echo "$lang-language nodes: $count\n";
 }

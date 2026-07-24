@@ -66,6 +66,18 @@ display:
             data: lat_lon
             trim_lat: '6'
             trim_lon: '6'
+        field_group_language:
+          id: field_group_language
+          table: group__field_group_language
+          field: field_group_language
+          relationship: none
+          group_type: group
+          entity_type: group
+          plugin_id: field
+          label: Language
+          type: language
+          settings:
+            link_to_entity: false
         created:
           id: created
           table: groups_field_data

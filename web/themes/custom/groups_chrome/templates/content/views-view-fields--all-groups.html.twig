@@ -6,7 +6,7 @@
  * Overrides the `all_groups` view's row (fields) output — turning the bare
  * list into a rich card showing the group name + link, a description snippet,
  * a type badge (field_group_type term), a visibility badge, a privacy badge
- * (#134, SC-7), member count, last-activity, and a Join affordance.
+ * (#134, SC-7), a language badge (issue #139), member count, last-activity, and a Join affordance.
  *
  * The `gc_directory` metadata is assembled in
  * groups_chrome_preprocess_views_view_fields__all_groups() (groups_chrome.theme)
@@ -19,6 +19,9 @@
  * - gc_directory.type_label
  * - gc_directory.visibility_label / visibility_variant
  * - gc_directory.privacy_label / privacy_help_copy   (#134, SC-7 — 'Private' or NULL)
+ * - gc_directory.language_code / language_label / language_direction
+ *   (issue #139 / MC-4 — NULL/NULL/NULL when the group has no primary
+ *   language worth showing; see GroupLanguageIndicatorHooks::resolveDisplayLanguage())
  * - gc_directory.member_count
  * - gc_directory.last_activity        (timestamp, or null)
  * - gc_directory.last_activity_display / last_activity_ago
@@ -66,6 +69,9 @@
               data-do-tooltip="{{ gc_directory.privacy_help_copy }}">
           {{ gc_directory.privacy_label }}
         </span>
+      {% endif %}
+      {% if gc_directory.language_label %}
+        <span class="do-group-language gc-badge" lang="{{ gc_directory.language_code }}" dir="{{ gc_directory.language_direction }}">{{ gc_directory.language_label }}</span>
       {% endif %}
     </div>
 
