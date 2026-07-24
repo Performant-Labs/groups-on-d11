@@ -222,3 +222,98 @@ above.
 **Verification:** `npx playwright test tests/e2e/directory-map.spec.ts --list` succeeds, all 13 tests still enumerated. Live re-run against the seeded site is O's next step (T does not re-drive U's live browser).
 
 **Blocking issues:** none new. **F code unchanged.** Ready for U re-verify (or O may accept U's forensic evidence + the targeted test edits and route directly to S).
+
+---
+
+## T-repair round 3 (post-CI, on PR #189)
+
+**Trigger:** After PR #189 opened, remote CI surfaced 4 test failures (3 E2E + 1 Functional) — all diagnosed as stale-contract test-authorship defects (same category as rounds 1 and 2). F's implementation confirmed correct; only the tests needed updating.
+
+### Edits (test files only; F production code untouched)
+
+**File: `tests/e2e/showcase.spec.ts`**
+
+1. **Deleted lines 185-201** — the `'an unavailable option is present, marked, and not a dead click'` test. Its entire premise (Map has `aria-disabled=true`, `tabindex=-1`, label `/soon/i`) no longer applies now that #125 SC-6 flipped `map` to `available` in `VariantSwitcher::directoryLayoutOptionIds()`. `/showcase` and `/all-groups` share `directoryLayoutOptions()`, so every option is live on both. Added an explanatory block comment above the surviving arrow-key tests documenting the retirement. Truthful cleanup, matches the pattern T-green round 1 applied to `directory-toggle.spec.ts`'s map-fallback test.
+
+2. **Rewrote lines 229-262 (was, now 221-249)** — `'ArrowRight moves selection to the next available option and rolls the roving tabindex'`. DOM order is `[compact, cards, map]`. **Before:** ArrowRight from Cards was asserted to SKIP Map and wrap to Compact. **After:** ArrowRight from Cards moves to Map (next available in DOM order — no skipping needed, Map is live). Switched the Map locator from `getByRole('radio', {name: /Map/i})` to `switcher.locator('[data-do-showcase-id="map"]')` — the "● " selection glyph SC-F1 prepends to the checked option would otherwise make the accessible name "● Map" (same guard the round-2 fix already applied to `directory-map.spec.ts`). Removed the trailing "unavailable option is never a valid arrow-nav target" assertion — no unavailable option exists. Updated leading comment.
+
+3. **Updated lines 264-289 (now 251-274)** — `'ArrowLeft moves selection to the previous available option'`. The assertions themselves already pass incidentally (ArrowLeft from Cards naturally lands on Compact whether or not Map is available), so behavior-wise this was already GREEN. Updated title (dropped "skipping the unavailable one") and leading comment to reflect the new "all three available" reality — truthful test-doc consistency.
+
+4. **Updated lines 291-308 (now 276-293)** — `'no-JS ?variant= fallback still works unmodified by the arrow-key fix'`. **Before:** asserted `?variant=map` fell back to `compact` (because Map was unavailable). **After:** `?variant=map` resolves to `map` itself (Map is live). Switched target to Map locator via `data-do-showcase-id="map"`, updated inline comment.
+
+**File: `docs/groups/modules/do_tests/tests/src/Functional/CreateGroupWizardOrganizerTest.php`**
+
+5. **Line 98** — added `'geofield'` to `protected static $modules`, alphabetized the whole list for consistency. Root cause: the test's `importRealCommunityGroupConfig()` helper bulk-imports every `field.storage.group.*.yml` in the assembled config dir; #125 SC-6 added `field.storage.group.field_group_location.yml` (geofield-typed), so the helper now picks it up and Drupal throws `PluginNotFoundException: Unable to determine class for field type 'geofield'` unless the module is enabled in the kernel bootstrap. Same defect pattern the existing docblock (lines 91-97) documents for `image`. Extended the docblock to name `geofield` and the identical rationale.
+
+Confirmed via grep that `importRealCommunityGroupConfig()` is defined and used **only** in this one test — no other Functional test needs the same fix.
+
+### Verification
+
+- `npx playwright test tests/e2e/showcase.spec.ts --list` succeeds: 19 tests enumerated (was 20 before the retirement).
+- No F production code touched.
+
+### Kernel job
+
+Kernel job (id `89467661385`) was still IN_PROGRESS at time of triage; polled after the E2E + Functional edits to see whether the analogous `field type 'geofield'` error surfaces there and needs the same modules-array fix in whichever Kernel test bulk-imports storage YAMLs. Result documented in the "Kernel post-check" subsection immediately below once available.
+
+### Blocking issues
+
+None new. F code unchanged.
+
+---
+
+## T-repair round 3.5 (Kernel post-check, same PR #189 CI cycle)
+
+**Trigger:** Kernel job (id `89467661385`) finished FAILURE with 2 additional
+stale-contract test defects in
+`docs/groups/modules/do_showcase/tests/src/Kernel/DirectoryTogglePreRenderTest.php`
+— same category as round 3's E2E + Functional fixes (map's pre-#125
+unavailable/(soon)/fallback contract asserted as if still current). F code
+untouched.
+
+### Edits (test file only)
+
+**File: `docs/groups/modules/do_showcase/tests/src/Kernel/DirectoryTogglePreRenderTest.php`**
+
+1. **`testSwitcherInjectedWithThreeOptionsInOrder` (~line 251-260)** — the
+   test's premise (three options render in order) is still valid; only the
+   "map is unavailable" flavor is stale. Flipped the two map-specific
+   assertions:
+   - `assertStringContainsString('aria-disabled="true"', $map_tag_match[0])`
+     → `assertStringNotContainsString('aria-disabled', $map_tag_match[0])`.
+     Confirmed against the shipped template
+     `do-showcase-variant-switcher.html.twig` line 30
+     (`{% if option.aria_disabled %}aria-disabled="true"{% endif %}`): the
+     attribute is OMITTED for available options, NOT rendered as
+     `aria-disabled="false"`. `VariantSwitcher::build()` sets
+     `aria_disabled => !$available`, so for map (now `available: TRUE`
+     since #125 SC-6) the twig conditional evaluates FALSE and the
+     attribute isn't emitted.
+   - `assertStringContainsString('Map (soon)', $html)` →
+     `assertStringNotContainsString('Map (soon)', $html)`. The
+     "(soon)" suffix is appended only for `!$available` options
+     (VariantSwitcher.php line 235-238); with map now live the plain
+     "Map" label ships.
+   - Updated the leading comment from "SC-6 flips this later" to
+     "SC-6 flipped this — map is now available." Truthful test-doc.
+
+2. **`testUnavailableMapQueryParamFallsBackToCompact` (~line 306-317)** —
+   renamed to `testMapQueryParamResolvesWrapperToMap`; updated
+   assertion `assertSame('compact', $attribute, ...)` →
+   `assertSame('map', $attribute, ...)`; rewrote docblock to state the
+   post-#125 SC-6 contract (map resolves to itself, no fallback) and
+   note the graceful-unknown-id fallback contract remains covered by
+   the sibling `testUnknownQueryParamFallsBackToCompact()` (untouched).
+
+### Verification
+
+- Diff inspected — both edits surgical, no unintended changes elsewhere in
+  the file.
+- No F production code touched.
+- Live re-run against a fully assembled+seeded site is O's next step (T
+  does not run CI or push).
+
+### Blocking issues
+
+None new. Same category as rounds 1, 2, 3: stale-contract test-authorship
+defects; every AC still satisfied by shipped F code.

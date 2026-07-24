@@ -93,9 +93,13 @@ class CreateGroupWizardOrganizerTest extends GroupBrowserTestBase {
    * type — importing the real assembled config means every module its
    * config depends on must be enabled, discovered empirically via the
    * `PluginNotFoundException: Unable to determine class for field type
-   * 'image'` this suite hit before `image` was added here.
+   * 'image'` this suite hit before `image` was added here. `geofield`
+   * was added for the same reason after #125 SC-6 added
+   * `field.storage.group.field_group_location.yml` (geofield-typed) — CI
+   * hit the analogous PluginNotFoundException for 'geofield' when the bulk
+   * config import discovered the new storage YAML.
    */
-  protected static $modules = ['group', 'gnode', 'options', 'node', 'image', 'taxonomy', 'link', 'do_group_membership'];
+  protected static $modules = ['do_group_membership', 'geofield', 'gnode', 'group', 'image', 'link', 'node', 'options', 'taxonomy'];
 
   /**
    * {@inheritdoc}

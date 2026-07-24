@@ -411,3 +411,60 @@ expect(leafletRequests.some((u) => u.includes('/libraries/leaflet/'))).toBe(true
 **Evidence:** `docs/handoffs/0125-directory-map/handoff-S.md`; `git diff --cached origin/main` per-file inspection (composer.json, do_showcase.info.yml, do_showcase.libraries.yml, VariantSwitcher.php, views.view.all_groups.yml, field YAMLs); grep of `docs/groups/libraries/leaflet/` + directory-map JS/CSS for CDN/external hosts.
 
 **Verdict: PASS. Ready for PR.**
+
+---
+
+## Phase 10-fix — T-repair round 3 (post-CI)
+
+**Decided:**
+- Delete showcase.spec.ts's "unavailable option" test outright (Map is no longer unavailable post-#125 SC-6; the test's premise is gone). Truthful cleanup, matches the same pattern round 1 applied to directory-toggle.spec.ts.
+- Rewrite showcase.spec.ts ArrowRight from-Cards expectation: lands on Map (next available in DOM order `[compact, cards, map]`) instead of skipping to Compact.
+- Update showcase.spec.ts ArrowLeft test's title/comment (assertions already pass incidentally — ArrowLeft naturally lands on Compact).
+- Update showcase.spec.ts `?variant=map` fallback test: expects Map to be selected directly (Map is now live), not to fall back to Compact.
+- Add `geofield` to CreateGroupWizardOrganizerTest.php's `$modules` array (bulk import of `field.storage.group.*.yml` now picks up the new geofield-typed `field_group_location` storage YAML).
+
+**Assumed:** None new. Every diagnosis grounded in F's actual shipped code (`VariantSwitcher::directoryLayoutOptionIds()` reflects three available options; DOM order `[compact, cards, map]`) and CI's exact error trace ("Unable to determine class for field type 'geofield'").
+
+**Hedged:**
+- Kernel job still IN_PROGRESS at triage time. If it also fails on `field type 'geofield'` a matching modules-array fix is required in the Kernel-test bulk-importer. Polled post-edit; result recorded in handoff-T-green.md.
+
+**Evidence:**
+- `tests/e2e/showcase.spec.ts` diff.
+- `docs/groups/modules/do_tests/tests/src/Functional/CreateGroupWizardOrganizerTest.php` diff.
+- `docs/groups/modules/do_showcase/src/VariantSwitcher.php` lines 87-93 (DOM order `[compact, cards, map]`).
+- `gh pr view 189 --repo Performant-Labs/groups-on-d11 --json statusCheckRollup` — jobs 89467661365 (Functional) + 89467661312 (E2E) FAILURE, 89467661385 (Kernel) IN_PROGRESS.
+- `npx playwright test tests/e2e/showcase.spec.ts --list` — 19 tests, parses clean.
+
+---
+
+## Phase 10-fix — T-repair round 3.5 (Kernel, same CI cycle as round 3)
+
+**Decided:**
+- Fix Kernel `DirectoryTogglePreRenderTest.php` in-place: flip the two
+  map-unavailable assertions in `testSwitcherInjectedWithThreeOptionsInOrder`
+  (aria-disabled: now assert absent, not present; "(soon)" suffix: now
+  assert absent, not present), and rename+rewrite
+  `testUnavailableMapQueryParamFallsBackToCompact` →
+  `testMapQueryParamResolvesWrapperToMap` (asserts `?variant=map` selects
+  `map`, not falls back to `compact`).
+- Ship all six repairs (rounds 3 + 3.5) in one commit: showcase.spec.ts (3)
+  + DirectoryTogglePreRenderTest.php (2) + CreateGroupWizardOrganizerTest.php
+  ($modules extension). No F code touched.
+
+**Assumed:** None new. Template behavior for `aria-disabled` verified
+directly against `do-showcase-variant-switcher.html.twig` line 30
+(`{% if option.aria_disabled %}...{% endif %}` — attribute omitted, not
+rendered false-valued) — the assertion needed the twig-conditional-aware
+"NotContainsString 'aria-disabled'" form rather than a
+"ContainsString 'aria-disabled=\"false\"'" form.
+
+**Hedged:** GREEN verdict for the Kernel edits rests on the same
+analytical source-tracing every prior T phase used (no local `php`/DDEV
+in this worktree). Live CI on PR #189 is the first real Kernel execution
+of the repaired assertions.
+
+**Evidence:**
+- `docs/groups/modules/do_showcase/templates/do-showcase-variant-switcher.html.twig` line 30 (conditional aria-disabled emission).
+- `docs/groups/modules/do_showcase/src/VariantSwitcher.php` lines 235-238 ("(soon)" appended only for `!$available`), 249 (`aria_disabled => !$available`).
+- `docs/groups/modules/do_showcase/tests/src/Kernel/DirectoryTogglePreRenderTest.php` diff.
+- CI job id `89467661385` (Kernel FAILURE) — original failing assertions.
