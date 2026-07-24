@@ -4,6 +4,12 @@ following:
     theme:
       css/following.css: {}
 
+my_feed:
+  version: 1.x
+  css:
+    theme:
+      css/my-feed.css: {}
+
 profile_activity:
   version: 1.x
   css:

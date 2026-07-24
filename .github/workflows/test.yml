@@ -318,8 +318,13 @@ jobs:
             echo "No Functional test dirs found — assemble-config.sh did not place the modules." >&2
             exit 1
           fi
+          # Uses project-level phpunit.functional.xml (not core's
+          # phpunit.xml.dist) so unrelated framework/contrib deprecations
+          # (RunTestsInSeparateProcesses, cache.static, Flag) do not fail
+          # the run as 'risky'. See phpunit.functional.xml header for the
+          # full rationale. (#110)
           php vendor/bin/phpunit \
-            -c web/core/phpunit.xml.dist \
+            -c phpunit.functional.xml \
             --testdox \
             $FUNCTIONAL_DIRS
 

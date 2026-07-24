@@ -30,6 +30,12 @@
  * - empty: bool, true when results has zero rows.
  * - empty_copy: scope-appropriate empty-state copy string (D-gate
  *   resolution 2: 4 distinct strings, one per scope).
+ * - empty_cta: OPTIONAL render array (default empty — renders nothing),
+ *   added by issue #110 (ST-1). A scope-specific empty-state
+ *   call-to-action (e.g. "-> Browse all groups"), built entirely by the
+ *   CALLER (never hardcoded here, preserving the "no hardcoded routes"
+ *   contract) — rendered inside `.gc-empty`, after `.gc-empty__text`, only
+ *   when non-empty and only alongside the empty state itself.
  *
  * Issue #112 (ST-3, T-GREEN blocking-bug fix): `scope_tabs`/`ranking_control`
  * both resolve to an empty array when the caller opted in to
@@ -75,6 +81,9 @@
     <div class="gc-empty" data-testid="do-streams-shell-empty">
       <p class="gc-empty__title">{{ 'Nothing here yet'|t }}</p>
       <p class="gc-empty__text">{{ empty_copy }}</p>
+      {% if empty_cta %}
+        {{ empty_cta }}
+      {% endif %}
     </div>
   {% else %}
     <div class="shell-results" data-testid="do-streams-shell-results">

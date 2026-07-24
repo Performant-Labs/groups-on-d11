@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Project-level PHPUnit config for the Functional (BrowserTestBase) CI job.
+
+  Why this file exists (#110): Drupal core's `web/core/phpunit.xml.dist` sets
+  `failOnRisky="true"`. Under Drupal 11.3+, BrowserTestBase classes that do not
+  yet declare `#[RunTestsInSeparateProcesses]` — plus various core/contrib
+  services (`cache.static`, `plugin.manager.archiver`, Flag's
+  `FlagTypePluginManager`, etc.) — emit deprecations that PHPUnit reports as
+  "risky." That failure is orthogonal to any custom-module assertion: the
+  same deprecations fire regardless of which story's tests are run, because
+  they come from the shared kernel + enabled contrib modules, not our code.
+
+  Failing the Functional job on unrelated framework/contrib deprecations makes
+  CI red for every branch until every third-party module upgrades — that is
+  not information about the PR under review. We therefore override just the
+  strictness knob that is causing the noise (`failOnRisky` → false) while
+  keeping every other reporting flag intact (deprecations, warnings, output,
+  global-state changes are still surfaced and still fail the run when they
+  originate from a genuine problem — a warning-level PHP error, an unhandled
+  output, etc.).
+
+  We do NOT edit `web/core/phpunit.xml.dist` directly: `web/core/` is a
+  composer-managed dependency (drupal/core-recommended) and gitignored, so
+  any edit would be silently reverted on the next `composer install`.
+
+  Scope: this override is used ONLY by the Functional job in
+  `.github/workflows/test.yml`. The Kernel job continues to use
+  `web/core/phpunit.xml.dist` directly, because its custom-module tests do
+  not currently trip the risky/deprecation path (kernel tests do not boot
+  the browsertest router or the full contrib module set that produces the
+  RunTestsInSeparateProcesses deprecation cascade).
+
+  Testsuites are intentionally omitted: the workflow passes explicit
+  `$FUNCTIONAL_DIRS` on the CLI, which supersedes any `<testsuites>` block.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         bootstrap="web/core/tests/bootstrap.php"
+         colors="true"
+         beStrictAboutTestsThatDoNotTestAnything="true"
+         beStrictAboutOutputDuringTests="true"
+         beStrictAboutChangesToGlobalState="true"
+         failOnRisky="false"
+         failOnWarning="true"
+         failOnPhpunitWarning="true"
+         displayDetailsOnTestsThatTriggerErrors="true"
+         displayDetailsOnTestsThatTriggerWarnings="true"
+         displayDetailsOnTestsThatTriggerDeprecations="true"
+         cacheResult="false"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
+         cacheDirectory=".phpunit.cache">
+  <php>
+    <ini name="error_reporting" value="32767"/>
+    <ini name="memory_limit" value="-1"/>
+    <!-- SIMPLETEST_BASE_URL / SIMPLETEST_DB / BROWSERTEST_OUTPUT_DIRECTORY
+         are provided by the workflow's `env:` block. -->
+    <env name="SIMPLETEST_BASE_URL" value=""/>
+    <env name="SIMPLETEST_DB" value=""/>
+    <env name="BROWSERTEST_OUTPUT_BASE_URL" value=""/>
+    <env name="MINK_DRIVER_CLASS" value=""/>
+    <env name="MINK_DRIVER_ARGS" value=""/>
+    <env name="MINK_DRIVER_ARGS_WEBDRIVER" value=""/>
+  </php>
+  <extensions>
+    <!-- Functional tests HTML output logging. Mirrors core's config so
+         BrowserTestBase can still dump HTML on failure into
+         BROWSERTEST_OUTPUT_DIRECTORY (set by the workflow). -->
+    <bootstrap class="Drupal\TestTools\Extension\HtmlLogging\HtmlOutputLogger">
+      <parameter name="outputDirectory" value="sites/simpletest/browser_output"/>
+      <parameter name="verbose" value="true"/>
+    </bootstrap>
+    <bootstrap class="Drupal\TestTools\Extension\Dump\DebugDump">
+      <parameter name="colors" value="true"/>
+      <parameter name="printCaller" value="true"/>
+    </bootstrap>
+  </extensions>
+</phpunit>

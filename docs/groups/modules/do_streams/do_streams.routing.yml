@@ -1,3 +1,23 @@
+do_streams.my_feed:
+  path: '/my-feed'
+  defaults:
+    _controller: '\Drupal\do_streams\Controller\MyFeedController::build'
+    _title: 'My Feed'
+  requirements:
+    # Core's actual authenticated-only access gate for a hand-authored route
+    # (issue #110 brief names `_role: authenticated`, but Drupal 11 core does
+    # not implement a generic `_role` route requirement outside a Views page
+    # display's own alterRouteDefinition() — see
+    # \Drupal\user\Plugin\views\access\Role::alterRouteDefinition(), which only
+    # fires for a VIEW's own page display route, not a manually-authored
+    # routing.yml entry like this one). `_user_is_logged_in: 'TRUE'` is the
+    # verified core mechanism (\Drupal\user\Access\LoginStatusCheck): it
+    # denies anonymous requests with a 403 (AC-1's "403 or login redirect" is
+    # satisfied by the 403 branch), mirroring the plain 403 behavior every
+    # sibling Functional test in this repo already asserts for a denied route
+    # (see do_group_membership/tests/src/Functional/ManageMembersRouteAccessTest.php).
+    _user_is_logged_in: 'TRUE'
+
 do_streams.my_events:
   path: '/my-feed/events'
   defaults:

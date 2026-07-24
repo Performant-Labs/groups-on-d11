@@ -326,6 +326,24 @@ final class HelpText {
       'showcase_help.persona-switcher' => 'Four public personas — Anonymous, Elena (Member), Maria (Organizer), Groups-Moderate. Each meets a different slice of the demo.',
       'showcase_help.map' => 'Map view plots groups with a geographic home. Only Geographical groups appear; pan and zoom to explore. Each marker\'s hover shows the group\'s name and type.',
 
+      // --- #110 (ST-1): My Feed shell-tab tooltip. --------------------------
+      // Appended per the append-only HelpText contract. A DIFFERENT namespace
+      // ('stream.*') and a DIFFERENT surface from the pre-existing
+      // 'page.my_feed' key above (#126's page-title ⓘ, consumed by
+      // \Drupal\do_chrome\Hook\PageHelp::preprocessPageTitle() and keyed off
+      // a route that anticipated a Views-generated page display,
+      // `view.my_feed.page_1` — this story's actual `/my-feed` route is a
+      // hand-authored do_streams controller route (`do_streams.my_feed`),
+      // per the brief's own "DEFAULT display only, controller owns the
+      // route" instruction, so that pre-registered W2 map entry simply never
+      // matches and stays inert exactly as PageHelp.php's own docblock says
+      // an unresolved pre-registered route should — no edit made there, no
+      // collision). 'stream.my_feed' is reserved for the shared
+      // do_streams_shell's own "My Feed" scope-tab tooltip (AC-10), read
+      // wherever a future story wires a tooltip trigger onto that tab —
+      // this story ships only the copy entry itself, per AC-10's literal
+      // wording ("HelpText entry ... exists").
+      'stream.my_feed' => 'Content from the groups you belong to, newest first. Join more groups to see more here.',
       // --- #131 (SD-4): Streams help — element tooltip stream.* keys. ------
       // Appended per the append-only HelpText contract — SD-4 pins ONLY the
       // copy here; each key is read by the SD-2-pattern `data-do-tooltip`

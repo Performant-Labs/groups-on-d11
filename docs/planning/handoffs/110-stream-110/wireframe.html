@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wireframe — /my-feed (issue #110, ST-1)</title>
+<style>
+  /* ---- Inherited verbatim from the #109 shell wireframe's design tokens ---- */
+  :root {
+    --gc-color-primary: #0678be;
+    --gc-color-primary-600: #055a91;
+    --gc-color-primary-700: #044568;
+    --gc-color-primary-050: #e7f2fb;
+    --gc-color-bg: #ffffff;
+    --gc-color-bg-subtle: #f5f7fa;
+    --gc-color-border: #d6dde5;
+    --gc-color-text: #1b2733;
+    --gc-color-text-muted: #5c6b7a;
+    --gc-radius-sm: 4px;
+    --gc-radius-md: 8px;
+    --gc-radius-lg: 12px;
+    --gc-radius-pill: 999px;
+    --gc-space-xs: 0.5rem;
+    --gc-space-sm: 0.75rem;
+    --gc-space-md: 1rem;
+    --gc-space-lg: 1.5rem;
+    --gc-space-xl: 2rem;
+    --gc-space-2xl: 3rem;
+    --gc-font-size-xs: 0.75rem;
+    --gc-font-size-sm: 0.875rem;
+    --gc-font-size-md: 1rem;
+    --gc-font-size-lg: 1.25rem;
+    --gc-font-size-xl: 1.5rem;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Arial, system-ui, sans-serif;
+    color: var(--gc-color-text);
+    background: #eef1f4;
+    margin: 0;
+    padding: var(--gc-space-2xl) var(--gc-space-lg);
+  }
+  h1.doc-title {
+    max-width: 760px;
+    margin: 0 auto var(--gc-space-xs);
+    font-size: var(--gc-font-size-xl);
+  }
+  p.doc-sub {
+    max-width: 760px;
+    margin: 0 auto var(--gc-space-2xl);
+    color: var(--gc-color-text-muted);
+    font-size: var(--gc-font-size-sm);
+  }
+  .legend {
+    max-width: 760px;
+    margin: 0 auto var(--gc-space-2xl);
+    padding: var(--gc-space-md);
+    background: #fff8e1;
+    border: 1px dashed #c9a227;
+    border-radius: var(--gc-radius-md);
+    font-size: var(--gc-font-size-sm);
+  }
+  .legend code { background: #00000010; padding: 0 4px; border-radius: 3px; }
+
+  .state {
+    max-width: 760px;
+    margin: 0 auto var(--gc-space-2xl);
+  }
+  .state__label {
+    display: inline-block;
+    margin-bottom: var(--gc-space-sm);
+    padding: 2px 10px;
+    background: var(--gc-color-primary-700);
+    color: #fff;
+    font-size: var(--gc-font-size-xs);
+    font-weight: 600;
+    border-radius: var(--gc-radius-pill);
+    letter-spacing: 0.02em;
+  }
+  .state__note {
+    margin: 0 0 var(--gc-space-sm);
+    font-size: var(--gc-font-size-xs);
+    color: var(--gc-color-text-muted);
+  }
+
+  /* ---- Shell chrome: EXACT inherited markup/classes from #109 (do-not-redesign) ---- */
+  .shell {
+    background: var(--gc-color-bg);
+    border: 1px solid var(--gc-color-border);
+    border-radius: var(--gc-radius-lg);
+    padding: var(--gc-space-lg);
+  }
+
+  .shell-tabs {
+    display: flex;
+    gap: var(--gc-space-xs);
+    border-bottom: 1px solid var(--gc-color-border);
+    margin-bottom: var(--gc-space-md);
+    padding-bottom: 0;
+  }
+  .shell-tabs__item {
+    padding: var(--gc-space-xs) var(--gc-space-md);
+    font-size: var(--gc-font-size-sm);
+    font-weight: 500;
+    color: var(--gc-color-text-muted);
+    border-bottom: 3px solid transparent;
+    cursor: default;
+  }
+  .shell-tabs__item.is-active {
+    color: var(--gc-color-primary-700);
+    border-bottom-color: var(--gc-color-primary);
+    font-weight: 600;
+  }
+
+  .shell-ranking {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--gc-space-md);
+  }
+  .shell-ranking__group {
+    display: inline-flex;
+    background: var(--gc-color-bg-subtle);
+    border: 1px solid var(--gc-color-border);
+    border-radius: var(--gc-radius-pill);
+    padding: 2px;
+  }
+  .shell-ranking__btn {
+    padding: 4px 14px;
+    font-size: var(--gc-font-size-xs);
+    font-weight: 500;
+    color: var(--gc-color-text-muted);
+    border-radius: var(--gc-radius-pill);
+    cursor: default;
+  }
+  .shell-ranking__btn.is-active {
+    background: var(--gc-color-primary);
+    color: #fff;
+  }
+
+  .shell-results { display: flex; flex-direction: column; gap: var(--gc-space-sm); }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--gc-color-bg);
+    border: 1px solid var(--gc-color-border);
+    border-radius: var(--gc-radius-lg);
+    padding: var(--gc-space-md);
+    box-shadow: 0 1px 2px rgba(27,39,51,0.06);
+  }
+  .card__head { display: flex; align-items: center; gap: 8px; }
+  .card__avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--gc-color-primary-050);
+    color: var(--gc-color-primary-700);
+    display: flex; align-items: center; justify-content: center;
+    font-size: var(--gc-font-size-xs); font-weight: 700;
+  }
+  .card__author { font-size: var(--gc-font-size-sm); font-weight: 600; }
+  .card__group-badge {
+    font-size: var(--gc-font-size-xs);
+    background: var(--gc-color-primary-050);
+    color: var(--gc-color-primary-700);
+    padding: 2px 8px;
+    border-radius: var(--gc-radius-pill);
+  }
+  .card__type-badge {
+    font-size: var(--gc-font-size-xs);
+    background: var(--gc-color-bg-subtle);
+    color: var(--gc-color-text-muted);
+    border: 1px solid var(--gc-color-border);
+    padding: 2px 8px;
+    border-radius: var(--gc-radius-pill);
+  }
+  .card__time { font-size: var(--gc-font-size-xs); color: var(--gc-color-text-muted); margin-left: auto; }
+  .card__title { font-size: var(--gc-font-size-md); font-weight: 600; margin: 2px 0; }
+  .card__snippet { font-size: var(--gc-font-size-sm); color: var(--gc-color-text-muted); margin: 0; }
+  .card__foot { font-size: var(--gc-font-size-xs); color: var(--gc-color-text-muted); }
+  .card--pinned { border-color: var(--gc-color-primary); }
+  .card--pinned .card__title::before { content: "\1F4CC  "; font-size: 0.8em; }
+
+  .pager {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-top: var(--gc-space-md);
+    font-size: var(--gc-font-size-sm);
+  }
+  .pager__item {
+    padding: 4px 10px;
+    border: 1px solid var(--gc-color-border);
+    border-radius: var(--gc-radius-sm);
+    color: var(--gc-color-text-muted);
+  }
+  .pager__item.is-current {
+    background: var(--gc-color-primary);
+    border-color: var(--gc-color-primary);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* empty state: EXACT .gc-empty pattern inherited from #109 + NEW empty_cta slot */
+  .gc-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--gc-space-xs);
+    margin: var(--gc-space-lg) auto;
+    padding: var(--gc-space-xl) var(--gc-space-lg);
+    text-align: center;
+    background-color: var(--gc-color-bg-subtle);
+    border: 1px dashed var(--gc-color-border);
+    border-radius: var(--gc-radius-lg);
+  }
+  .gc-empty__title { margin: 0; font-size: var(--gc-font-size-lg); font-weight: 600; }
+  .gc-empty__text { margin: 0; font-size: var(--gc-font-size-sm); color: var(--gc-color-text-muted); max-width: 32rem; }
+
+  /* NEW: empty_cta slot — button-shaped link (Q-D1 recommendation) */
+  .gc-empty__cta-link {
+    display: inline-block;
+    margin-top: var(--gc-space-sm);
+    padding: 8px 20px;
+    background: var(--gc-color-primary);
+    color: #fff;
+    text-decoration: none;
+    font-size: var(--gc-font-size-sm);
+    font-weight: 600;
+    border-radius: var(--gc-radius-md);
+    border: 1px solid var(--gc-color-primary-600);
+  }
+  .gc-empty__cta-link:hover { background: var(--gc-color-primary-600); }
+  .gc-empty__cta-link:focus-visible {
+    outline: 3px solid #044568;
+    outline-offset: 2px;
+  }
+
+  /* Nav strip mock (groups_chrome_main_menu block) */
+  .nav-strip {
+    display: flex;
+    gap: 2px;
+    background: #ffffff;
+    border: 1px solid var(--gc-color-border);
+    border-radius: var(--gc-radius-md);
+    padding: var(--gc-space-xs);
+  }
+  .nav-strip__link {
+    padding: 8px 14px;
+    font-size: var(--gc-font-size-sm);
+    font-weight: 500;
+    color: var(--gc-color-text);
+    text-decoration: none;
+    border-radius: var(--gc-radius-sm);
+  }
+  .nav-strip__link:hover { background: var(--gc-color-bg-subtle); }
+  .nav-strip__link:focus-visible {
+    outline: 3px solid #044568;
+    outline-offset: 1px;
+  }
+  .nav-strip__link--new {
+    background: var(--gc-color-primary-050);
+    color: var(--gc-color-primary-700);
+    font-weight: 700;
+  }
+  .nav-strip__missing {
+    padding: 8px 14px;
+    font-size: var(--gc-font-size-sm);
+    color: var(--gc-color-text-muted);
+    font-style: italic;
+    border: 1px dashed var(--gc-color-border);
+    border-radius: var(--gc-radius-sm);
+  }
+
+  .annot {
+    margin-top: var(--gc-space-sm);
+    font-size: var(--gc-font-size-xs);
+    color: var(--gc-color-text-muted);
+    background: var(--gc-color-bg-subtle);
+    border-radius: var(--gc-radius-sm);
+    padding: var(--gc-space-sm);
+  }
+  .annot code { background: #00000010; padding: 0 4px; border-radius: 3px; }
+  .annot ul { margin: 4px 0 0; padding-left: 18px; }
+</style>
+</head>
+<body>
+
+<h1 class="doc-title">/my-feed — ST-1 My Feed wireframe (issue #110)</h1>
+<p class="doc-sub">
+  Low-fidelity mockup for the new authenticated route <code>/my-feed</code>. The shell chrome
+  (<code>.shell.do-streams-shell</code>, <code>nav.shell-tabs</code>,
+  <code>.shell-ranking</code>) is <strong>inherited verbatim</strong> from the approved #109
+  wireframe (<code>docs/handoffs/109-do-streams-scaffold/wireframe.html</code>) — markup,
+  classes, and <code>data-testid</code>s are unchanged. This document adds: (1) the populated
+  My-Feed-scoped results state, (2) the empty state with the NEW <code>empty_cta</code> slot,
+  (3) a note on the anonymous 403 (no visual), and (4) the main-nav link strip for both
+  authenticated and anonymous users.
+</p>
+
+<div class="legend">
+  <strong>Contract reminder (no hardcoded routes in the shell).</strong> The shell chrome below
+  never prints a literal href — every tab/pill carries a <code>data-*</code> attribute mapping
+  back to its preprocess variable id, exactly as #109 shipped it. The ONLY place <code>/my-feed</code>
+  appears in this document is (a) the illustrative browser URL bar label and (b) the nav-strip
+  link's annotated target — never inside the shell chrome markup itself.
+</div>
+
+<!-- =====================================================================
+     STATE 1 — Populated (Elena Garcia, authenticated, My Feed / Recent)
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 1 of 4 — Populated (Elena Garcia, My Feed scope, Recent ranking)</span>
+  <p class="state__note">
+    URL: /my-feed &middot; scope_tabs: My Feed active (data-scope-id="my_feed") &middot;
+    ranking_control: Recent active (data-ranking-id="recent") &middot; results: 5 stream_cards,
+    pinned item first &middot; pager visible (results &gt; 10 total, page 1 of &hellip;)
+  </p>
+
+  <div class="shell do-streams-shell" data-testid="do-streams-shell">
+    <nav class="shell-tabs" aria-label="Stream scope" data-testid="do-streams-shell-tabs">
+      <span class="shell-tabs__item" data-testid="do-streams-shell-tab" data-scope-id="global">Global</span>
+      <span class="shell-tabs__item is-active" data-testid="do-streams-shell-tab" data-scope-id="my_feed" aria-current="true">My Feed</span>
+      <span class="shell-tabs__item" data-testid="do-streams-shell-tab" data-scope-id="following">Following</span>
+      <span class="shell-tabs__item" data-testid="do-streams-shell-tab" data-scope-id="trending">Trending</span>
+    </nav>
+
+    <div class="shell-ranking" data-testid="do-streams-shell-ranking">
+      <div class="shell-ranking__group" role="group" aria-label="Ranking">
+        <span class="shell-ranking__btn is-active" data-testid="do-streams-shell-ranking-pill" data-ranking-id="recent" aria-pressed="true">Recent</span>
+        <span class="shell-ranking__btn" data-testid="do-streams-shell-ranking-pill" data-ranking-id="hot" aria-pressed="false">Hot</span>
+      </div>
+    </div>
+
+    <div class="shell-results" data-testid="do-streams-shell-results">
+      <article class="card card--pinned">
+        <div class="card__head">
+          <span class="card__avatar">D</span>
+          <span class="card__author">DrupalCon Portland 2026</span>
+          <span class="card__group-badge">DrupalCon Portland 2026</span>
+          <span class="card__type-badge">Event</span>
+          <span class="card__time">just now</span>
+        </div>
+        <h3 class="card__title">Sprint Planning: Portland 2026</h3>
+        <p class="card__snippet">Pinned by the group. Coordinating sprint tracks and mentor sign-ups ahead of the con&hellip;</p>
+        <div class="card__foot">Pinned &middot; 12 comments</div>
+      </article>
+
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">E</span>
+          <span class="card__author">Elena Garcia</span>
+          <span class="card__group-badge">Core Committers</span>
+          <span class="card__type-badge">Forum</span>
+          <span class="card__time">3h ago</span>
+        </div>
+        <h3 class="card__title">RFC: deprecating the legacy plugin discovery path</h3>
+        <p class="card__snippet">Opening discussion ahead of the next core-hours call&hellip;</p>
+        <div class="card__foot">6 comments</div>
+      </article>
+
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">L</span>
+          <span class="card__author">Leadership Council</span>
+          <span class="card__group-badge">Leadership Council</span>
+          <span class="card__type-badge">Post</span>
+          <span class="card__time">1d ago</span>
+        </div>
+        <h3 class="card__title">Minutes: July governance sync</h3>
+        <p class="card__snippet">Summary of agenda items and action owners from this week's call&hellip;</p>
+        <div class="card__foot">2 comments</div>
+      </article>
+
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">C</span>
+          <span class="card__author">Camp Organizers EMEA</span>
+          <span class="card__group-badge">Camp Organizers EMEA</span>
+          <span class="card__type-badge">Event</span>
+          <span class="card__time">2d ago</span>
+        </div>
+        <h3 class="card__title">DrupalCamp Vienna — venue confirmed</h3>
+        <p class="card__snippet">Contract signed for the September date; volunteer sign-up opens next week&hellip;</p>
+        <div class="card__foot">4 comments</div>
+      </article>
+
+      <article class="card">
+        <div class="card__head">
+          <span class="card__avatar">F</span>
+          <span class="card__author">Drupal France</span>
+          <span class="card__group-badge">Drupal France</span>
+          <span class="card__type-badge">Page</span>
+          <span class="card__time">3d ago</span>
+        </div>
+        <h3 class="card__title">Guide de contribution mis à jour</h3>
+        <p class="card__snippet">Nouvelle version du guide pour les contributeurs francophones&hellip;</p>
+        <div class="card__foot">0 comments</div>
+      </article>
+    </div>
+
+    <nav class="pager" aria-label="Pagination">
+      <span class="pager__item is-current">1</span>
+      <span class="pager__item">2</span>
+      <span class="pager__item">Next &rsaquo;</span>
+    </nav>
+  </div>
+
+  <div class="annot">
+    <strong>Maps to:</strong>
+    <ul>
+      <li><code>#active_scope = 'my_feed'</code>, <code>#active_ranking = 'recent'</code> — controller-set properties on the <code>#theme =&gt; do_streams_shell</code> render array (MyFeedController).</li>
+      <li><code>#results</code> — the rendered <code>views_embed_view('my_feed', 'default')</code> output, 5 <code>stream_card</code> rows shown (of &gt;10 total, hence pager) drawn ONLY from Elena's 5 groups (DrupalCon Portland 2026, Core Committers, Leadership Council, Camp Organizers EMEA, Drupal France) via the <code>do_streams_membership_scope</code> filter — AC-9.</li>
+      <li>"Sprint Planning: Portland 2026" leads the list — pinned-first per AC-9; illustrated here via the SAME <code>.card--pinned</code> treatment #109 already defined (view's own sort/pin flag drives real ordering, not a new visual).</li>
+      <li>No card from Thunder Distribution or Drupal Deutschland — Elena is not a member (AC-9 negative assertion).</li>
+      <li>Pager renders — view's `full` pager style, &gt;10 results (AC-7). The pager markup itself is Drupal core's default pager theme, not shell-owned; shown here schematically only.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- =====================================================================
+     STATE 2 — Empty (authenticated user, zero group memberships)
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 2 of 4 — Empty (authenticated user in 0 groups)</span>
+  <p class="state__note">
+    URL: /my-feed &middot; scope_tabs: My Feed active &middot; ranking_control: Recent active
+    &middot; results: 0 rows &middot; empty: true &middot; NEW empty_cta slot rendered
+  </p>
+
+  <div class="shell do-streams-shell" data-testid="do-streams-shell">
+    <nav class="shell-tabs" aria-label="Stream scope" data-testid="do-streams-shell-tabs">
+      <span class="shell-tabs__item" data-testid="do-streams-shell-tab" data-scope-id="global">Global</span>
+      <span class="shell-tabs__item is-active" data-testid="do-streams-shell-tab" data-scope-id="my_feed" aria-current="true">My Feed</span>
+      <span class="shell-tabs__item" data-testid="do-streams-shell-tab" data-scope-id="following">Following</span>
+      <span class="shell-tabs__item" data-testid="do-streams-shell-tab" data-scope-id="trending">Trending</span>
+    </nav>
+
+    <div class="shell-ranking" data-testid="do-streams-shell-ranking">
+      <div class="shell-ranking__group" role="group" aria-label="Ranking">
+        <span class="shell-ranking__btn is-active" data-testid="do-streams-shell-ranking-pill" data-ranking-id="recent" aria-pressed="true">Recent</span>
+        <span class="shell-ranking__btn" data-testid="do-streams-shell-ranking-pill" data-ranking-id="hot" aria-pressed="false">Hot</span>
+      </div>
+    </div>
+
+    <div class="gc-empty" data-testid="do-streams-shell-empty">
+      <p class="gc-empty__title">Nothing here yet</p>
+      <p class="gc-empty__text">
+        You haven't joined any groups yet. Join a group to see its content here.
+      </p>
+      <a class="gc-empty__cta-link" href="/all-groups" data-testid="do-streams-shell-empty-cta">
+        &rarr; Browse all groups
+      </a>
+    </div>
+  </div>
+
+  <div class="annot">
+    <strong>Maps to:</strong>
+    <ul>
+      <li><code>empty</code> = true (controller passes an empty <code>#results</code> array when the view returns 0 rows) &mdash; gates the SAME <code>.gc-empty</code>/<code>data-testid="do-streams-shell-empty"</code> block #109 already defined; title/body copy unchanged from <code>DoStreamsHooks::preprocessDoStreamsShell()</code>'s existing <code>my_feed</code> string.</li>
+      <li><strong>NEW:</strong> <code>empty_cta</code> &mdash; an optional render-array variable added to the <code>do_streams_shell</code> theme hook (default <code>[]</code>, renders nothing when unset &mdash; #111&ndash;#115 stay unaffected until they opt in). Rendered INSIDE <code>.gc-empty</code>, after <code>.gc-empty__text</code>, only when non-empty.</li>
+      <li>Markup: <code>&lt;a class="gc-empty__cta-link" data-testid="do-streams-shell-empty-cta" href="{{ url }}"&gt;{{ label }}&lt;/a&gt;</code> &mdash; T asserts on the <code>data-testid</code>, not on href text, so F's controller is free to build the <code>Url::fromUserInput('/all-groups')</code> or route-based link internally.</li>
+      <li>Styled as a filled button-shaped link for prominence (Q-D1, resolved below) &mdash; this is the headline demo feature the empty state must not bury as plain text.</li>
+      <li>Focus-visible outline defined (<code>:focus-visible</code> 3px solid, 2px offset) &mdash; WCAG 2.2 AA visible-focus requirement (AC-12).</li>
+    </ul>
+  </div>
+</div>
+
+<!-- =====================================================================
+     STATE 3 — Anonymous (403 / login redirect) — annotation only, no visual
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 3 of 4 — Anonymous request to /my-feed (no rendering)</span>
+  <p class="state__note">AC-1: GET /my-feed unauthenticated &rarr; 403 (or login redirect).</p>
+
+  <div class="annot" style="margin-top:0;">
+    <strong>No shell chrome is depicted for this state.</strong> The route's access requirement
+    (<code>_role: authenticated</code>, mirroring the view display's own <code>authenticated</code>
+    role access) means an anonymous visitor never reaches a rendered <code>do_streams_shell</code>
+    &mdash; the response is Drupal's standard 403 (or the site's configured login-redirect
+    behavior, unchanged by this story). There is nothing new to wireframe here; F implements this
+    via the route's access requirement, and T asserts the HTTP status directly (AC-1). Anonymous
+    users keep the existing <code>/stream</code> (Global scope) fallback, untouched by this story.
+  </div>
+</div>
+
+<!-- =====================================================================
+     STATE 4 — Main nav strip: authenticated vs anonymous
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 4 of 4 — Main nav link strip (groups_chrome_main_menu block)</span>
+  <p class="state__note">
+    AC-8: "My Feed" appears for authenticated users, ordered between Activity and My Groups;
+    absent entirely for anonymous users (not merely hidden/disabled).
+  </p>
+
+  <p style="font-size:0.875rem; font-weight:600; margin: 0 0 6px;">Authenticated (e.g. elena_garcia):</p>
+  <div class="nav-strip">
+    <a class="nav-strip__link" href="#" tabindex="-1">Groups</a>
+    <a class="nav-strip__link" href="#" tabindex="-1">Activity</a>
+    <a class="nav-strip__link nav-strip__link--new" href="/my-feed" data-testid="nav-my-feed-link">My Feed</a>
+    <a class="nav-strip__link" href="#" tabindex="-1">My Groups</a>
+    <a class="nav-strip__link" href="#" tabindex="-1">Create Group</a>
+  </div>
+
+  <p style="font-size:0.875rem; font-weight:600; margin: 18px 0 6px;">Anonymous:</p>
+  <div class="nav-strip">
+    <a class="nav-strip__link" href="#" tabindex="-1">Groups</a>
+    <a class="nav-strip__link" href="#" tabindex="-1">Activity</a>
+    <span class="nav-strip__missing">(My Feed intentionally absent)</span>
+    <a class="nav-strip__link" href="#" tabindex="-1">My Groups</a>
+    <a class="nav-strip__link" href="#" tabindex="-1">Create Group</a>
+  </div>
+
+  <div class="annot">
+    <strong>Maps to:</strong>
+    <ul>
+      <li><code>step_780_nav_menu.php</code> &mdash; APPEND a 5th <code>menu_link_content</code> entry keyed <code>st1-nav-my-feed</code>, title "My Feed", <code>uri: internal:/my-feed</code>, <strong>weight 1.5</strong> (Q-D2, resolved below) so it sits between Activity (weight 1) and My Groups (weight 2) without renumbering the three existing links.</li>
+      <li>Auth-only visibility is NOT a new mechanism: Drupal's core menu-link access filter hides any link whose target route denies the current user, so the route's own <code>_role: authenticated</code> requirement is sufficient &mdash; no new per-role config on the link itself.</li>
+      <li>Highlighted here in a distinct fill (<code>.nav-strip__link--new</code>) purely so this document calls out the new link; production styling matches the four existing links exactly (same <code>.nav-strip__link</code> class in the real theme, no new visual treatment).</li>
+      <li>Anonymous strip shows the link fully absent from the DOM (not disabled/greyed) &mdash; keyboard tab order for anonymous users skips straight from Activity to My Groups.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="legend" style="background:#e7f2fb; border-color:#0678be;">
+  <strong>Open questions — both resolved, proceeding (per instructions, not blocking):</strong>
+  <ul>
+    <li><strong>Q-D1</strong> (CTA placement): block-level link BELOW the empty-state body copy,
+      styled as a filled button-shaped link (see State 2) &mdash; adopted above.</li>
+    <li><strong>Q-D2</strong> (nav weight): weight <strong>1.5</strong>, between Activity(1) and
+      My Groups(2) &mdash; adopted above. Activity/My Feed read as a natural pair; My Feed does not
+      crowd the Groups/Create Group discovery-oriented links at the strip's ends.</li>
+  </ul>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,147 @@
+uuid: null
+langcode: en
+status: true
+dependencies:
+  config:
+    - flag.flag.pin_in_group
+  module:
+    - comment
+    - do_streams
+    - flag
+    - node
+    - user
+id: my_feed
+label: 'My Feed'
+module: views
+description: 'Authenticated-only feed of content from the current user''s group memberships (issue #110, ST-1). DEFAULT display only — do_streams'' MyFeedController owns the /my-feed route and wraps this view''s embedded output in the shared stream shell.'
+tag: ''
+base_table: node_field_data
+base_field: nid
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      title: 'My Feed'
+      fields: {  }
+      pager:
+        type: full
+        options:
+          pagination_heading_level: h4
+          items_per_page: 10
+          offset: 0
+      sorts:
+        pin_sort:
+          id: pin_sort
+          table: flagging
+          field: flagged
+          relationship: flag_relationship
+          group_type: group
+          admin_label: ''
+          plugin_id: flag_sort
+          order: DESC
+        created:
+          id: created
+          table: node_field_data
+          field: created
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: date
+          order: DESC
+          granularity: second
+      filters:
+        status:
+          id: status
+          table: node_field_data
+          field: status
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+          group: 1
+          expose:
+            operator: ''
+        type:
+          id: type
+          table: node_field_data
+          field: type
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: type
+          plugin_id: bundle
+          value:
+            forum: forum
+            documentation: documentation
+            event: event
+            post: post
+            page: page
+          group: 1
+          expose:
+            operator: ''
+        do_streams_membership_scope:
+          id: do_streams_membership_scope
+          table: node_field_data
+          field: do_streams_membership_scope
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: do_streams_membership_scope
+          group: 1
+          expose:
+            operator: ''
+      filter_groups:
+        operator: AND
+        groups:
+          1: AND
+      style:
+        type: default
+        options:
+          grouping: {  }
+          row_class: stream-card-wrapper
+          default_row_class: true
+      row:
+        type: 'entity:node'
+        options:
+          relationship: none
+          view_mode: stream_card
+      query:
+        type: views_query
+        options:
+          disable_sql_rewrite: false
+          distinct: true
+          replica: false
+          query_comment: ''
+          query_tags: {  }
+      relationships:
+        flag_relationship:
+          id: flag_relationship
+          table: node_field_data
+          field: flag_relationship
+          relationship: none
+          group_type: group
+          admin_label: 'Pin in group flag'
+          required: false
+          flag: pin_in_group
+          user_scope: any
+          plugin_id: flag_relationship
+      use_ajax: false
+      access:
+        type: role
+        options:
+          role:
+            authenticated: authenticated
+      cache:
+        type: none
+        options: {  }
+      empty: {  }
+      header: {  }
+      footer: {  }
+      css_class: my-feed-view
