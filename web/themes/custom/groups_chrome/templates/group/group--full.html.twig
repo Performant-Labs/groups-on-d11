@@ -5,8 +5,8 @@
  *
  * Overrides the group module's `group.html.twig` for the `full` view mode only
  * (the canonical /group/{id} route), dressing it as a community page:
- *   - a header with the group name, group-type + visibility badges, member
- *     count, an avatar row, and a correctly-stated Join/Leave action;
+ *   - a header with the group name, group-type + visibility + privacy badges,
+ *     member count, an avatar row, and a correctly-stated Join/Leave action;
  *   - an OPTIONAL lead section (#122) that previews the group's top-3
  *     events/discussions/documentation, gated on the group's
  *     field_group_type — a sibling BETWEEN the header and the tab bar, never
@@ -24,16 +24,26 @@
  *   content_attributes, title_prefix, title_suffix, view_mode, page.
  * Added by groups_chrome_preprocess_group():
  * - gc_group: { gid, type_label, visibility_label, visibility_variant,
- *   member_count, members[{name,initial}], members_extra, is_member,
- *   action{label,url,variant}, tabs[{key,title,url,active}],
- *   leading_section, lead_label, lead_items[{title,url,meta}],
- *   lead_help_key, lead_help_copy, lead_see_all_url, lead_see_all_text }.
+ *   privacy_label, privacy_help_copy, member_count, members[{name,initial}],
+ *   members_extra, is_member, action{label,url,variant},
+ *   tabs[{key,title,url,active}], leading_section, lead_label,
+ *   lead_items[{title,url,meta}], lead_help_key, lead_help_copy,
+ *   lead_see_all_url, lead_see_all_text }.
  *
  * The lead section renders ONLY when `gc_group.lead_items is not empty` — NOT
  * merely when `leading_section` is set — per the empty-state contract
  * (wireframe.md §2/§7): a leading_section with zero qualifying/accessible
  * nodes degrades silently to the SAME (no new DOM) fallback as an unmapped
  * group type.
+ *
+ * #134 (SC-7): the privacy badge (`gc_group.privacy_label`) renders ONLY when
+ * the group's field_group_privacy is 'private' — silent (no badge) for
+ * public/unlisted, matching the visibility/type badges' own "omit rather
+ * than show an empty state" convention. It sits in the SAME
+ * `.gc-group-header__badges` row, between the visibility badge and the
+ * member-count badge (134-private/wireframe.md §2), reusing the landed
+ * `gc-badge` + `data-do-tooltip` trigger contract verbatim (the `#122`
+ * lead-section ⓘ precedent below, lines ~113-127).
  *
  * @see groups_chrome_preprocess_group()
  * @see groups_chrome_theme_suggestions_group_alter()
@@ -59,6 +69,15 @@
             {% endif %}
             {% if gc_group.visibility_label %}
               <span class="gc-badge gc-badge--{{ gc_group.visibility_variant }}">{{ gc_group.visibility_label }}</span>
+            {% endif %}
+            {% if gc_group.privacy_label == 'Private' %}
+              <span class="gc-badge gc-badge--warning gc-group-header__privacy gc-privacy-badge"
+                    tabindex="0"
+                    role="note"
+                    aria-label="{{ gc_group.privacy_help_copy }}"
+                    data-do-tooltip="{{ gc_group.privacy_help_copy }}">
+                {{ gc_group.privacy_label }}
+              </span>
             {% endif %}
             <span class="gc-badge">
               {{ gc_group.member_count }}

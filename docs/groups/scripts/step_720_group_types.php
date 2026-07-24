@@ -18,6 +18,14 @@
  *
  * Must run as uid 1 (see the seed-as-admin wrapper the callers build) so the
  * group re-saves don't trip do_group_extras' unpublish-on-create presave hook.
+ *
+ * #134 (SC-7): "Security Team" is tagged 'Working group' here (added to the
+ * $group_type_map below) rather than inside step_700_demo_data.php's Step 795
+ * (which creates the group) — this script runs AFTER step_700 in BOTH the
+ * deploy entrypoint and the CI E2E job, so field_group_type does not exist
+ * yet when Step 795 runs; tagging is deferred to this script's existing,
+ * purpose-built "tag a demo group by label" loop instead of duplicating the
+ * lookup here.
  */
 
 use Drupal\field\Entity\FieldStorageConfig;
@@ -89,7 +97,7 @@ foreach ($term_defs as [$name, $desc]) {
   echo "created term $name (tid=" . $term->id() . ")\n";
 }
 
-// 4. Tag the 8 demo groups. Map by label -> group_type term name.
+// 4. Tag the demo groups. Map by label -> group_type term name.
 $group_type_map = [
   'DrupalCon Portland 2026' => 'Event planning',
   'Drupal France'           => 'Geographical',
@@ -99,6 +107,9 @@ $group_type_map = [
   'Camp Organizers EMEA'    => 'Event planning',
   'Drupal Deutschland'      => 'Geographical',
   'Legacy Infrastructure'   => 'Archive',
+  // #134 (SC-7): Security Team is a Working-group-shaped group (coordination
+  // group, same category as Core Committers / Leadership Council).
+  'Security Team'           => 'Working group',
 ];
 $group_storage = $etm->getStorage('group');
 foreach ($group_type_map as $label => $type_name) {

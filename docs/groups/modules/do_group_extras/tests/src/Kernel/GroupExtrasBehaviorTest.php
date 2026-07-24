@@ -122,6 +122,7 @@ class GroupExtrasBehaviorTest extends GroupsKernelTestBase {
       $this->container->get('current_user'),
       $this->container->get('queue'),
       $route_match,
+      $this->container->get('entity_type.manager'),
     );
   }
 

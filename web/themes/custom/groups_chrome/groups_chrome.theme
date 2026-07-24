@@ -53,6 +53,17 @@
  * `visibility_value` so the reuse lookup and the existing label/variant
  * resolution share the same read).
  *
+ * Story #134 (SC-7): extends BOTH groups_chrome_preprocess_group() and
+ * groups_chrome_preprocess_views_view_fields__all_groups() with a `Private`
+ * badge (`gc_group.privacy_label` / `gc_directory.privacy_label` +
+ * `..._help_copy`), read from the new `field_group_privacy` field. Renders
+ * ONLY when the value is `private` — `public`/`unlisted` stay silent, matching
+ * the archive-badge "no badge when not applicable" convention already used
+ * elsewhere in this file. Access enforcement itself lives in
+ * `do_group_extras` (hook_group_access / node_access / views_query_alter);
+ * this theme layer only renders the READ-ONLY indicator for a session that
+ * was already granted access.
+ *
  * Demo-only, NO schema changes: all data is READ from existing entities and the
  * comment statistics table — no fields or config are added.
  */
@@ -259,6 +270,29 @@ function _groups_chrome_leading_section_for_type(?string $type_label): ?string {
 }
 
 /**
+ * Reads the `field_group_privacy` label off a group, if it is `private`.
+ *
+ * Shared by {@see groups_chrome_preprocess_group()} and
+ * {@see groups_chrome_preprocess_views_view_fields__all_groups()} (#134
+ * SC-7) so the two badge-rendering call sites never diverge on what counts as
+ * "private" or which HelpText key backs the tooltip. Returns NULL (silent,
+ * no badge) for `public`/`unlisted`/unset — mirrors the wireframe's "renders
+ * ONLY when field_group_privacy == 'private'" contract exactly.
+ *
+ * @param \Drupal\group\Entity\GroupInterface $group
+ *   The group to check.
+ *
+ * @return string|null
+ *   'Private' if the group's field_group_privacy is 'private', else NULL.
+ */
+function _groups_chrome_privacy_label(GroupInterface $group): ?string {
+  if (!$group->hasField('field_group_privacy') || $group->get('field_group_privacy')->isEmpty()) {
+    return NULL;
+  }
+  return $group->get('field_group_privacy')->value === 'private' ? (string) t('Private') : NULL;
+}
+
+/**
  * Implements hook_theme_suggestions_HOOK_alter() for group templates.  (#122)
  *
  * Appends a behavior-based suggestion (`group__community_group__events_first`
@@ -322,6 +356,8 @@ function groups_chrome_theme_suggestions_group_alter(array &$suggestions, array 
  * schema are added (demo-only constraint):
  *   - group-type + visibility badges  ← field_group_type (taxonomy) and
  *     field_group_visibility (list_string: open|moderated|invite_only).
+ *   - PRIVATE badge (#134, SC-7)      ← field_group_privacy (list_string:
+ *     public|unlisted|private); renders ONLY when 'private'.
  *   - member count + avatars          ← Group::getMembers() (GroupMembership
  *     relationships; getEntity() is the member user).
  *   - Join / Request / Leave action   ← entity.group.join /
@@ -367,6 +403,13 @@ function groups_chrome_theme_suggestions_group_alter(array &$suggestions, array 
  * absorbs — exactly the same graceful-degradation contract the
  * `entity.group.join` / `entity.group.leave` branches already rely on, so no
  * new defensive pattern was introduced.
+ *
+ * #134 SC-7: the PRIVATE badge added below is a read-only indicator only —
+ * access enforcement (the actual 403 on a private group for a non-member)
+ * lives entirely in `do_group_extras` (hook_group_access), not here. A
+ * session reaching this preprocess function has, by definition, already
+ * passed that gate (member, or the group is not private), so no additional
+ * access check is performed for the badge itself.
  */
 function groups_chrome_preprocess_group(array &$variables): void {
   // Only dress the full-page render; leave teasers and other view modes alone.
@@ -391,6 +434,9 @@ function groups_chrome_preprocess_group(array &$variables): void {
     'visibility' => NULL,
     'visibility_label' => NULL,
     'visibility_variant' => 'primary',
+    // --- #134 (SC-7) privacy-badge defaults ---------------------------------
+    'privacy_label' => NULL,
+    'privacy_help_copy' => NULL,
     'member_count' => 0,
     'members' => [],
     'members_extra' => 0,
@@ -433,6 +479,16 @@ function groups_chrome_preprocess_group(array &$variables): void {
     [$label, $variant] = $map[$value] ?? [ucfirst(str_replace('_', ' ', $value)), 'primary'];
     $gc['visibility_label'] = $label;
     $gc['visibility_variant'] = $variant;
+  }
+
+  // --- Privacy badge (#134, SC-7) -------------------------------------------
+  // Silent (NULL) for public/unlisted/unset — renders ONLY for 'private',
+  // matching the wireframe's "no badge when not applicable" convention.
+  $gc['privacy_label'] = _groups_chrome_privacy_label($group);
+  if ($gc['privacy_label'] !== NULL) {
+    $gc['privacy_help_copy'] = class_exists(HelpText::class)
+      ? HelpText::get('privacy.private')
+      : '';
   }
 
   // --- Members: count + avatar row -----------------------------------------
@@ -725,6 +781,7 @@ function groups_chrome_preprocess_group(array &$variables): void {
  *   - a description snippet (field_group_description, plain-text trimmed)
  *   - a TYPE badge (field_group_type taxonomy term label)
  *   - a VISIBILITY badge (field_group_visibility allowed-value label)
+ *   - a PRIVATE badge (#134, SC-7 — field_group_privacy == 'private' only)
  *   - MEMBER COUNT — number of group_membership relationships on the group
  *   - LAST ACTIVITY — MAX(node.created) across the group's group_node relations
  *   - a JOIN affordance state for the current user (member / can-join / closed)
@@ -739,6 +796,13 @@ function groups_chrome_preprocess_group(array &$variables): void {
  * pre-existing gap from the one this rework targets (the CANONICAL group
  * page, per the brief's own AC-2 wording and T-green's blocking finding).
  * Flagged for a follow-up story rather than folded into this targeted fix.
+ *
+ * #134 SC-7 note: a private group the current session is NOT a member of
+ * never reaches this preprocess function at all — the row itself is excluded
+ * upstream by `DoGroupExtrasHooks::viewsQueryAlter()` (do_group_extras). So
+ * the badge computed here only ever needs to answer "is THIS (already
+ * visible) group private", never "should this row be hidden" — that
+ * decision is made before Views even builds the row.
  */
 function groups_chrome_preprocess_views_view_fields__all_groups(array &$variables): void {
   // Attach the isolated directory-card component CSS to these rows only.
@@ -761,6 +825,9 @@ function groups_chrome_preprocess_views_view_fields__all_groups(array &$variable
     'visibility_label' => t('Open'),
     'visibility_variant' => 'success',
     'visibility_value' => 'open',
+    // --- #134 (SC-7) privacy-badge defaults ---------------------------------
+    'privacy_label' => NULL,
+    'privacy_help_copy' => NULL,
     'member_count' => 0,
     'last_activity' => NULL,
     'last_activity_display' => NULL,
@@ -812,6 +879,15 @@ function groups_chrome_preprocess_views_view_fields__all_groups(array &$variable
       'invite_only' => 'info',
       default => 'info',
     };
+  }
+
+  // --- Privacy badge (#134, SC-7) -------------------------------------------
+  // Silent (NULL) for public/unlisted/unset — renders ONLY for 'private'.
+  $gc['privacy_label'] = _groups_chrome_privacy_label($group);
+  if ($gc['privacy_label'] !== NULL) {
+    $gc['privacy_help_copy'] = class_exists(HelpText::class)
+      ? HelpText::get('privacy.private')
+      : '';
   }
 
   // --- Member count (group_membership relationships) ---------------------

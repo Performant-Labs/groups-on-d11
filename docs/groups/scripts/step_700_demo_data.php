@@ -806,4 +806,141 @@ if (!\Drupal::moduleHandler()->moduleExists("geofield")) {
   echo "SKIP: geofield module not enabled -- coordinate portion of Step 738 skipped (city text still seeded above)\n";
 }
 
+// ===== Step 795: "Security Team" private group (#134 SC-7) =====
+// Append-only, idempotent, mirrors Step 790's defensive hasField() guard
+// style (field_group_privacy is provisioned via config:import same as
+// field_group_visibility, so it is expected to exist by the time this runs —
+// the guard is belt-and-suspenders, matching this file's own convention).
+//
+// field_group_type is DELIBERATELY NOT set here: field_group_type is a
+// RUNTIME-provisioned field (step_720_group_types.php), and that script runs
+// AFTER this one in BOTH the deploy entrypoint (deploy/entrypoint.sh, seed at
+// line ~117, group-types provision at line ~150) and the CI E2E job
+// (.github/workflows/test.yml, DEMO_SCRIPT before TYPES_SCRIPT) — so
+// field_group_type does not exist yet at this point in the run and a
+// same-block assignment attempt would silently no-op every single run. The
+// "Working group" tagging for Security Team is instead added as one more
+// row in step_720_group_types.php's own $group_type_map (its existing,
+// idempotent, purpose-built extension point for exactly this "tag a demo
+// group by label" concern) rather than duplicating that lookup/tag logic
+// here.
+//
+// Persona-demo dependency (#120): Elena AND Maria are BOTH required members
+// (the #120 persona-switcher's two non-anonymous, non-moderator personas),
+// so switching to either persona in the demo reveals Security Team. James
+// Okafor is added as a third member per the issue's "optionally". Maria
+// holds the Organizer group role (matching her #120-catalog "Maria Chen —
+// Organizer" persona label, ShowcaseCatalog::personas()); Elena and James
+// are plain members (no group_roles), mirroring Step 730a's plain-membership
+// convention exactly.
+echo "\n=== Step 795: Security Team private group (#134 SC-7) ===\n";
+$security_team_groups = $group_storage->loadByProperties(["label" => "Security Team"]);
+$security_team = reset($security_team_groups);
+if (!$security_team) {
+  $security_team = \Drupal\group\Entity\Group::create([
+    "type" => "community_group",
+    "uid" => 1,
+    "status" => 1,
+    "label" => "Security Team",
+    "field_group_description" => [
+      "value" => "Coordinated disclosure and security review group.",
+      "format" => "basic_html",
+    ],
+  ]);
+  $security_team->save();
+  echo "Created gid=" . $security_team->id() . " Security Team\n";
+}
+else {
+  echo "Exists: Security Team (gid=" . $security_team->id() . ")\n";
+}
+
+if (!$security_team->hasField("field_group_privacy")) {
+  echo "SKIP: field_group_privacy missing on Security Team\n";
+}
+elseif ($security_team->get("field_group_privacy")->value !== "private") {
+  $security_team->set("field_group_privacy", "private");
+  $security_team->save();
+  echo "Set Security Team privacy -> private\n";
+}
+else {
+  echo "Security Team already private\n";
+}
+
+if (!$security_team->hasField("field_group_visibility")) {
+  echo "SKIP: field_group_visibility missing on Security Team\n";
+}
+elseif ($security_team->get("field_group_visibility")->value !== "invite_only") {
+  $security_team->set("field_group_visibility", "invite_only");
+  $security_team->save();
+  echo "Set Security Team visibility -> invite_only\n";
+}
+else {
+  echo "Security Team already invite_only\n";
+}
+
+// Members: Elena + Maria (required, #120 demo) + James (optional, per issue).
+// Maria gets the Organizer group role; Elena/James are plain members.
+if ($elena && !$security_team->getMember($elena)) {
+  $security_team->addMember($elena);
+  echo "  elena_garcia joined Security Team\n";
+}
+if ($maria) {
+  $maria_membership = $security_team->getMember($maria);
+  if (!$maria_membership) {
+    $security_team->addMember($maria, [
+      "group_roles" => [\Drupal\do_group_membership\GroupMembershipManager::ORGANIZER_ROLE_ID],
+    ]);
+    echo "  maria_chen joined Security Team as Organizer\n";
+  }
+  else {
+    $has_organizer_role = FALSE;
+    if ($maria_membership->hasField("group_roles")) {
+      foreach ($maria_membership->get("group_roles")->getValue() as $item) {
+        if (($item["target_id"] ?? NULL) === \Drupal\do_group_membership\GroupMembershipManager::ORGANIZER_ROLE_ID) {
+          $has_organizer_role = TRUE;
+          break;
+        }
+      }
+    }
+    if (!$has_organizer_role) {
+      $maria_membership->set("group_roles", [\Drupal\do_group_membership\GroupMembershipManager::ORGANIZER_ROLE_ID]);
+      $maria_membership->save();
+      echo "  Granted Organizer group role to maria_chen on Security Team\n";
+    }
+    else {
+      echo "  maria_chen already Organizer on Security Team\n";
+    }
+  }
+}
+if ($james && !$security_team->getMember($james)) {
+  $security_team->addMember($james);
+  echo "  james_okafor joined Security Team\n";
+}
+
+// Two forum topics, authored by Maria (mirrors Step 740a's exact block
+// shape — same node bundle, same addRelationship("group_node:forum") call,
+// which is proven safe for the "forum" plugin id per Step 740d's own
+// docblock: "forum" (32 chars exactly) fits BUNDLE_MAX_LENGTH).
+if ($maria) {
+  $security_team_topics = [
+    ["Coordinated disclosure process", $maria->id(), "Draft process for handling coordinated security disclosures — intake, triage, embargo, and public write-up."],
+    ["Q3 advisory review", $maria->id(), "Review of security advisories published this quarter and follow-up actions."],
+  ];
+  foreach ($security_team_topics as [$title, $uid, $body]) {
+    $existing = $node_storage->loadByProperties(["title" => $title]);
+    if ($existing) { echo "Exists: $title\n"; continue; }
+    $node = $node_storage->create([
+      "type" => "forum", "title" => $title, "uid" => $uid, "status" => 1,
+      "body" => ["value" => $body, "format" => "basic_html"],
+      "taxonomy_forums" => $forum_tid,
+    ]);
+    $node->save();
+    try { $security_team->addRelationship($node, "group_node:forum"); } catch (\Exception $e) {}
+    echo "Topic nid=" . $node->id() . " in Security Team\n";
+  }
+}
+else {
+  echo "SKIP: Security Team forum topics — maria_chen not found\n";
+}
+
 echo "\n=== Demo data complete ===\n";
