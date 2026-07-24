@@ -233,8 +233,8 @@ accessible to users with the `administer group` permission.
 | PHP | 8.3 |
 | Theme (front-end) | Olivero |
 | Theme (admin) | Claro / Gin |
-| Deployment | Docker (nginx + php-fpm) |
-| Host | Spiderman (172.232.174.154) |
+| Deployment | Docker (Coolify) — image `ghcr.io/performant-labs/groups-on-d11:latest`, TLS via Traefik |
+| Host | Uranus |
 
 ## Custom Modules Summary
 
