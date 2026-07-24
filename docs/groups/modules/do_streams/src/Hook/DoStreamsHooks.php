@@ -696,6 +696,16 @@ class DoStreamsHooks {
    * `variables` declaration -- see self::preprocessDoStreamsShell()'s
    * docblock for why this is a NEW boolean flag rather than a check on
    * `scope_tabs`/`ranking_control` emptiness.
+   *
+   * #193 (SD-4 tooltip consumers): the `stream_switcher` entry's `variables`
+   * declaration gains `switcher_help_copy` (default `''`), a plain string —
+   * NOT a render array — carrying `chrome.stream_switcher`'s resolved
+   * HelpText copy (or '' if do_chrome's dependency graph is somehow broken;
+   * see StreamSwitcherHooks::preprocessViewsView()). A `#`-prefixed render-
+   * array property only reaches the template if its bare name is declared
+   * here, exactly like every other variable already declared below (this
+   * SAME docblock's own `empty_cta` paragraph above explains the identical
+   * ThemeManager::render() contract).
    */
   #[Hook('theme')]
   public function theme(array $existing, string $type, string $theme, string $path): array {
@@ -722,6 +732,7 @@ class DoStreamsHooks {
       'stream_switcher' => [
         'variables' => [
           'tabs' => [],
+          'switcher_help_copy' => '',
         ],
         'template' => 'stream-switcher',
       ],
