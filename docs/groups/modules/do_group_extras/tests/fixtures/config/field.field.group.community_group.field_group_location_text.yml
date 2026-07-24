@@ -1,0 +1,20 @@
+uuid: 4d2e1f9a-8b6c-4a3d-b1e5-2f7c9d0a6b81
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.group.field_group_location_text
+    - group.type.community_group
+id: group.community_group.field_group_location_text
+field_name: field_group_location_text
+entity_type: group
+bundle: community_group
+label: Location
+description: 'Free-text location (city, region) used by the directory location filter.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  max_length: 255
+field_type: string
