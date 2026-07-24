@@ -66,6 +66,13 @@ class PrivacyAccessTest extends GroupsKernelTestBase {
   protected function setUp(): void {
     parent::setUp();
 
+    // Install node_access schema; node-access checks (AC-4) query it during
+    // $node->access('view', ...) and fail on 'no such table: node_access'
+    // without this. Rebuild grants so records match the (empty-for-kernel)
+    // grant realm before tests exercise access.
+    $this->installSchema('node', ['node_access']);
+    node_access_rebuild();
+
     $this->createGroupRole([
       'id' => 'community_group-member',
       'group_type' => static::GROUP_TYPE_ID,
