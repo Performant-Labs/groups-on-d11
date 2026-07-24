@@ -300,3 +300,70 @@ Functional/E2E) before U/S.
   `git stash` + `assemble-config.sh` re-run comparison (baseline: same single docblock error +
   same 8 `\Drupal calls should be avoided` warnings, only absolute line numbers shifted from the
   added docblock content) — zero net-new violations. See `handoff-F-rework.md` for full detail.
+
+## U — Phase 8 (UI walkthrough)
+
+- **Decided:** PASS. All 23 walkthrough checks passed against the running DDEV site
+  (`http://gm112-events.ddev.site/my-feed/events`) as elena_garcia (uid=4). Two
+  ADVISORY findings, both non-blocking and pre-existing to #112 (duplicate page-title
+  H1 also affects `/my-feed`; scope-tabs container is a `<div>` not a landmark `<nav>`).
+- **Decided:** Wireframe conformance faithful — chip markup (`○ RSVP · N going` /
+  `✓ You're going · N going`), iCal subscribe buttons, date badges, group badges,
+  section headings, and both-viewport layouts all match the approved `wireframe.html`.
+- **Decided:** All acceptance criteria met — Keynote chip = `✓ You're going · 4 going`,
+  Upcoming date-ASC order verified by text-position (posB=545 < posK=662 < posS=750),
+  Global toggle widens to include Thunder + Governance, both iCal links return
+  200/`text/calendar`, no phantom shell chrome (fix from `9727e15` confirmed live).
+- **Assumed:** The AC's "3 events under Upcoming default" was under-specified relative
+  to the seed — elena is a Leadership Council member per DB query, so Governance Town
+  Hall (4th event) legitimately appears. Cross-referenced with T's Phase-6 entry (same
+  reconciliation). Recorded as advisory context for S, not a defect.
+- **Hedged:** Automated axe scan not run — `@axe-core/playwright` is not installed in
+  this repo (consistent with T-red's + T-green's own documented gap). Spot-check done
+  manually: chip communicates state via icon+text (never color-only), focus ring visible
+  (`outline: 3px solid rgb(4,69,104)`), keyboard reaches 25 focusable stops in 25 tabs,
+  heading levels never skip.
+- **Evidence:** 6 screenshots under `screenshots/` (desktop full, keynote chip close-up,
+  upcoming section, my-rsvps section, global-toggle expanded, mobile 360). Per-control
+  action→expected→observed table in `handoff-U.md`. Console-error scan on the target
+  route recorded 0 failing responses via a dedicated `page.on('response')` pass.
+
+## S — Phase 9 (spec audit)
+
+- **Decided:** PASS. All 10 acceptance criteria met on the seeded site. No rework findings.
+  Recommend O opens the PR after rebasing onto current `origin/main` (pipeline hygiene, not a
+  #112 defect — the branch base `01f49a5` predates #131/#114/#115 merges).
+- **Decided:** F-rework's `suppress_default_chrome` boolean flag on the `do_streams_shell`
+  theme hook satisfies A's Finding #1 intent (shell contract stays clean for existing
+  callers; opt-in signal for controllers that render their own toggle). F's deviation from
+  the task's literal "empty array" mechanism is well-defended (traced `ThemeManager::render()`
+  directly; the emptiness-check would break all 6 `StreamsShellTest` contract tests). The
+  flag ties `scope_tabs` + `ranking_control` suppression together — acceptable YAGNI, flagged
+  as a forward-looking note for any future story that needs granular control.
+- **Decided:** AC-1's "3 events" number is a spec imprecision (elena is a Leadership Council
+  member per the seed, so Governance Town Hall legitimately joins Barcelona/Keynote/Sprint
+  under Upcoming default). Not an ADVISORY-HOLD — the three headline events render in the
+  specified order and the demo still reads correctly. Same reconciliation F/T/U independently
+  reached.
+- **Decided:** AC-8 (HelpText) is met — `page.my_feed_events` key is present on the branch
+  (line 232) with basic W2 copy. Richer #131 SD-4 decision-support copy that shipped later on
+  `main` is not part of #112's contract and will re-land automatically on rebase. Not a rework
+  finding.
+- **Decided:** U's two advisory findings (dup H1; scope-tabs `<div>` not landmark `<nav>`)
+  are both pre-existing to #112 (they trace to `do_streams` shell chrome originally shipped
+  by #109/#110). Agree with U: do not block ship. File a `do_streams`-wide a11y follow-up.
+- **Assumed:** The transient `ManageMembersRouteResolutionTest` cross-test flake T-green
+  noted (unrelated module, did not reproduce on isolation or in a 69/69 re-run) is not a #112
+  regression — consistent with known BrowserTestBase cross-test DB-state flakiness on large
+  combined runs. Accepted.
+- **Hedged:** Automated axe/WCAG scan not run — `@axe-core/playwright` is not installed in
+  this repo (persistent gap across #110/#112/#114/#115). U's manual spot-check (icon+text
+  chip, visible focus ring, keyboard-complete traversal, no skipped heading levels, mobile
+  reflow clean) is the acceptable substitute for this cycle. Recommend a tooling-infra story
+  add the dependency so future stream stories can gate on it automatically.
+- **Evidence:** Read handoff-U.md, handoff-T-green.md, handoff-A.md, handoff-F.md,
+  handoff-F-rework.md, brief.md, decisions.md entries for all prior phases, issue #112 body,
+  and directly verified `HelpText.php` line 232 has the `page.my_feed_events` key. Also
+  verified branch topology via `git merge-base HEAD origin/main` (`01f49a5`) and
+  `git log 01f49a5..origin/main` (4 merges landed since branch cut — rebase required at
+  merge time). Full handoff at `handoff-S.md`.
