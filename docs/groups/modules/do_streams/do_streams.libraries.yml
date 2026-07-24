@@ -33,3 +33,9 @@ model-toggle:
       css/model-toggle.css: {}
   dependencies:
     - do_showcase/switcher
+
+trending:
+  version: 1.x
+  css:
+    theme:
+      css/trending.css: {}

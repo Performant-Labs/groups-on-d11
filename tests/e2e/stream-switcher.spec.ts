@@ -206,15 +206,18 @@ test.describe('#115 ST-6 — Stream switcher chrome (keyboard/focus)', () => {
 });
 
 test.describe('#115 ST-6 — /hot redirect (route-tolerance)', () => {
-  test('/hot renders normally because /trending does not exist on this branch yet', async ({ page }) => {
-    // NOTE: this assertion is expected to FLIP once sibling #113 merges and
-    // registers the /trending route — HotRedirectSubscriber will then find
-    // /trending via router.route_provider and issue a 302 redirect. Until
-    // then, /hot must fall through to its existing hot_content view page,
-    // per brief.md step 6 ("otherwise no-op").
+  test('/hot redirects to /trending now that #113 registered the /trending route', async ({ page }) => {
+    // Original #115 shape asserted /hot fell through to hot_content because
+    // /trending did not exist yet on that branch. The assertion was
+    // explicitly documented to flip on the merge of sibling #113 (ST-4
+    // Trending surface). #113 registers /trending, so
+    // HotRedirectSubscriber::onKernelRequest() now finds
+    // routes-by-pattern(/trending) and issues its 302. The final URL
+    // after page.goto(/hot) is /trending; the response status is 200 (the
+    // page.goto call follows the redirect).
     const res = await page.goto('/hot', { waitUntil: 'domcontentloaded' });
     expect(res?.status()).toBe(200);
-    expect(page.url()).toMatch(/\/hot$/);
-    expect(page.url()).not.toMatch(/\/trending$/);
+    expect(page.url()).toMatch(/\/trending$/);
+    expect(page.url()).not.toMatch(/\/hot$/);
   });
 });
