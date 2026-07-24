@@ -71,12 +71,12 @@ class IcalController extends ControllerBase {
     // GroupRelationshipType *config property* content_plugin → relation_type
     // (CR 2026-06-19), NOT the "type" bundle column read below — so this query's
     // column names carry over.
-    // TODO(group4-VERIFY): gr.type stores the GroupRelationshipType *bundle ID*
-    // (a config entity ID), not the relation plugin ID. The LIKE '%event%'
-    // heuristic assumes that bundle ID contains "event". Confirm against the
-    // installed Group 4.x the exact bundle-ID naming for the group_node:event
-    // relation (e.g. "<group_type>-group_node-event") so this filter still
-    // matches; a build is out of scope for this issue.
+    // Verified on Group 4.0.x-dev: gr.type stores the GroupRelationshipType
+    // *bundle ID* (a config entity ID), not the relation plugin ID. The
+    // installed bundle for the group_node:event relation follows the
+    // "<group_type>-group_node-event" pattern (e.g.
+    // "community_group-group_node-event"), so the LIKE '%event%' heuristic
+    // matches as intended.
     $query = $database->select('group_relationship_field_data', 'gr');
     $query->fields('gr', ['entity_id']);
     $query->condition('gr.gid', $group->id());

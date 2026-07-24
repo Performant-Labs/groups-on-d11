@@ -22,8 +22,8 @@ use Drupal\user\RoleInterface;
  *
  * Only an INSIDER-scope role carries `view group`; there is deliberately no
  * OUTSIDER-scope `view group` grant, so membership is the sole difference
- * between the 403 and the 200. This closes the outstanding
- * `TODO(group4-VERIFY)` functional item from #6.
+ * between the 403 and the 200. This closes the outstanding functional item
+ * from #6.
  *
  * @group do_tests
  * @group group

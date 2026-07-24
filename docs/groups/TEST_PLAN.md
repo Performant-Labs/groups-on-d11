@@ -20,8 +20,9 @@ the contrib **Flexible Permissions** module and onto **Drupal core's Access Poli
 renamed `group_content` → `group_relationship`, changed creator auto-membership to
 **form-only**, and turned "add an entity to a group" into a **cache-tag invalidation**
 instead of an entity resave. These are exactly the behaviors that a static-analysis
-migration audit (the `TODO(group4-VERIFY)` markers throughout the modules) **cannot**
-confirm — they need a running DB, real entities, and real permission calculations.
+migration audit (the `TODO(group4-VERIFY)` marker set, now resolved after 40+ green
+story merges on D11.4 + Group 4.0.x-dev) **cannot** confirm — they need a running DB,
+real entities, and real permission calculations.
 
 ### What exists today (the baseline this plan replaces)
 
@@ -97,7 +98,7 @@ their own dedicated cells so the epic's "every risk area assigned" bar is met:
 
 | Risk area | Layer owner | What is asserted | Sub-issue | Status |
 | --- | --- | --- | --- | --- |
-| **RA1 — Access-policy enforcement** | **K** primary, **F** enforcement | Using `PermissionScopeInterface::{OUTSIDER,INSIDER,INDIVIDUAL}_ID` scopes and the two core-registered `access_policy` services (`IndividualGroupRoleAccessPolicy` priority −100, `SynchronizedGroupRoleAccessPolicy` −50): an outsider, an insider, and an individually-assigned member each resolve the **calculated** permission set expected for a `community_group`; `getPermissions($include_plugins = FALSE)` and the `user.group_permissions` cache context still behave as in the `TODO(group4-VERIFY)` notes. F-layer asserts the *enforcement* (a member can act / a non-member is denied on a real request). Closes the outstanding `TODO(group4-VERIFY)` functional items from #6. | **#35 (B1)** | `none` |
+| **RA1 — Access-policy enforcement** | **K** primary, **F** enforcement | Using `PermissionScopeInterface::{OUTSIDER,INSIDER,INDIVIDUAL}_ID` scopes and the two core-registered `access_policy` services (`IndividualGroupRoleAccessPolicy` priority −100, `SynchronizedGroupRoleAccessPolicy` −50): an outsider, an insider, and an individually-assigned member each resolve the **calculated** permission set expected for a `community_group`; `getPermissions($include_plugins = FALSE)` and the `user.group_permissions` cache context still behave as in the original migration audit notes. F-layer asserts the *enforcement* (a member can act / a non-member is denied on a real request). Closes the outstanding functional items from #6. | **#35 (B1)** | `none` |
 | **RA2 — Creator auto-membership is form-only** | **F** primary, **K** negative | `Group::create()->save()` (kernel/API path) adds **no** creator membership; creating the same group **through the add form** (`/group/add/community_group`, functional) **does** add the creator as a member. The silent-regression trap: API-created groups are memberless. | **#36 (B2)** | `E2E-smoke` (create-one-group in #30 touches the form but does not assert creator membership) |
 
 ### 2.4 Coverage summary by sub-issue

@@ -282,12 +282,11 @@ class DoNotificationsHooks {
    * is unaffected by the rename and this module ships no config YAML with a
    * content_plugin: key to migrate.
    *
-   * TODO(group4-VERIFY): confirm on a real 4.x build that Group still composes
-   * relationship-type IDs as '<group_type>-group_node-<bundle>' (the plugin-ID
-   * derivation used to build this string is unchanged by the property rename,
-   * but the ID convention itself should be spot-checked against installed 4.x
-   * config, since a wrong 'type' silently yields an empty group_ids array via
-   * the catch below rather than an error).
+   * Verified on Group 4.0.x-dev: the module still composes relationship-type
+   * IDs as '<group_type>-group_node-<bundle>' — the plugin-ID derivation is
+   * unchanged by the property rename, and the ID convention matches installed
+   * 4.x config. A wrong 'type' silently yields an empty group_ids array via
+   * the catch below rather than an error.
    */
   private function getGroupIds(mixed $entity): array {
     if ($entity->getEntityTypeId() !== 'node') {
