@@ -10,6 +10,7 @@ use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\do_chrome\HelpText;
 use Drupal\do_group_pin\Hook\DoGroupPinHooks;
 use Drupal\flag\FlaggingInterface;
 use Drupal\node\NodeInterface;
@@ -608,6 +609,16 @@ class DoStreamsHooks {
    * container-rhythm tweaks — card visuals are inherited from the shared
    * theme stylesheet, exactly as `css/following.css` already established
    * for #111 ST-2.
+   *
+   * Issue #194 (SD-6): additionally wires the orphaned
+   * `profile_activity.section` HelpText key (authored by ST-5 #114 at
+   * HelpText.php:403 but never consumed) onto this same outer wrapper as a
+   * `data-do-tooltip` trigger + `tabindex="0"` (keyboard reachability),
+   * attaching `do_chrome/tooltips` so the shared tippy.js binder
+   * (js/do_chrome.tooltips.js:20) fires for this section. Mirrors the
+   * analogous PermissionMatrixPanel /
+   * do-chrome-permission-matrix.html.twig:27 consumer pattern
+   * (wrapper-level attribute + library attach).
    */
   #[Hook('preprocess_block')]
   public function preprocessBlock(array &$variables): void {
@@ -617,6 +628,10 @@ class DoStreamsHooks {
     }
     $variables['attributes']['class'][] = 'do-streams-profile-activity';
     $variables['#attached']['library'][] = 'do_streams/profile_activity';
+
+    $variables['attributes']['data-do-tooltip'] = HelpText::get('profile_activity.section');
+    $variables['attributes']['tabindex'] = '0';
+    $variables['#attached']['library'][] = 'do_chrome/tooltips';
   }
 
   /**
