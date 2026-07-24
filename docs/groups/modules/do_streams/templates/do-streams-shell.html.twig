@@ -36,33 +36,46 @@
  *   CALLER (never hardcoded here, preserving the "no hardcoded routes"
  *   contract) — rendered inside `.gc-empty`, after `.gc-empty__text`, only
  *   when non-empty and only alongside the empty state itself.
+ *
+ * Issue #112 (ST-3, T-GREEN blocking-bug fix): `scope_tabs`/`ranking_control`
+ * both resolve to an empty array when the caller opted in to
+ * `#suppress_default_chrome => TRUE` (see DoStreamsHooks::
+ * preprocessDoStreamsShell()'s docblock for why this is a dedicated flag,
+ * not an emptiness check). The `{% if %}` guards below suppress the `<nav>`/
+ * ranking wrapper entirely in that case, rather than rendering an empty-but-
+ * present landmark with no children — MyEventsController (#112) composes its
+ * OWN two-tab Global/My-Groups toggle inside `#results` instead.
  */
 #}
 <div class="shell do-streams-shell" data-testid="do-streams-shell">
-  <nav class="shell-tabs" aria-label="{{ 'Stream scope'|t }}" data-testid="do-streams-shell-tabs">
-    {% for tab in scope_tabs %}
-      <span class="shell-tabs__item{{ tab.active ? ' is-active' : '' }}"
-            data-testid="do-streams-shell-tab"
-            data-scope-id="{{ tab.id }}"
-            data-url-or-param="{{ tab.url_or_param }}"
-            {{ tab.active ? 'aria-current="true"' : '' }}>
-        {{ tab.label }}
-      </span>
-    {% endfor %}
-  </nav>
-
-  <div class="shell-ranking" data-testid="do-streams-shell-ranking">
-    <div class="shell-ranking__group" role="group" aria-label="{{ 'Ranking'|t }}">
-      {% for pill in ranking_control %}
-        <span class="shell-ranking__btn{{ pill.active ? ' is-active' : '' }}"
-              data-testid="do-streams-shell-ranking-pill"
-              data-ranking-id="{{ pill.id }}"
-              {{ pill.active ? 'aria-pressed="true"' : 'aria-pressed="false"' }}>
-          {{ pill.label }}
+  {% if scope_tabs %}
+    <nav class="shell-tabs" aria-label="{{ 'Stream scope'|t }}" data-testid="do-streams-shell-tabs">
+      {% for tab in scope_tabs %}
+        <span class="shell-tabs__item{{ tab.active ? ' is-active' : '' }}"
+              data-testid="do-streams-shell-tab"
+              data-scope-id="{{ tab.id }}"
+              data-url-or-param="{{ tab.url_or_param }}"
+              {{ tab.active ? 'aria-current="true"' : '' }}>
+          {{ tab.label }}
         </span>
       {% endfor %}
+    </nav>
+  {% endif %}
+
+  {% if ranking_control %}
+    <div class="shell-ranking" data-testid="do-streams-shell-ranking">
+      <div class="shell-ranking__group" role="group" aria-label="{{ 'Ranking'|t }}">
+        {% for pill in ranking_control %}
+          <span class="shell-ranking__btn{{ pill.active ? ' is-active' : '' }}"
+                data-testid="do-streams-shell-ranking-pill"
+                data-ranking-id="{{ pill.id }}"
+                {{ pill.active ? 'aria-pressed="true"' : 'aria-pressed="false"' }}>
+            {{ pill.label }}
+          </span>
+        {% endfor %}
+      </div>
     </div>
-  </div>
+  {% endif %}
 
   {% if empty %}
     <div class="gc-empty" data-testid="do-streams-shell-empty">

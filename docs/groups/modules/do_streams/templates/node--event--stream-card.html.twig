@@ -1,0 +1,87 @@
+{#
+/**
+ * @file
+ * Event card row for the `stream_card` view mode, `event` bundle ONLY
+ * (issue #112, ST-3 Events + My RSVPs).
+ *
+ * Reach-boundary note (recorded in handoff-F, not a design change): the
+ * theme's OWN `node--stream-card.html.twig` (web/themes/custom/groups_chrome
+ * — a gitignored build artifact this repo's editing contract forbids
+ * touching) is a FIXED-shape activity-feed row template with no `{{ content
+ * }}` passthrough, so a module preprocess writing into
+ * `$variables['content']` would never surface through it, and its markup
+ * (`gc-stream-card__*`) does not match the approved wireframe's `.event-card`
+ * shape at all. Per Drupal's own theme-suggestion hierarchy
+ * (\Drupal\node\Hook\NodeThemeHooks::themeSuggestionsNode(): `node__<view
+ * mode>` -> `node__<bundle>` -> `node__<bundle>__<view mode>` -> ...), the
+ * BUNDLE+VIEW-MODE suggestion (`node__event__stream_card`, this file) is MORE
+ * SPECIFIC than the theme's `node__stream_card` template and wins regardless
+ * of which extension (module or theme) supplies it — \Drupal\Core\Theme\
+ * Registry::processExtension() registers every module's templates before the
+ * active theme's, but that ordering only matters when TWO implementations
+ * share the SAME suggestion name; here, no `node--event--stream-card.html.twig`
+ * exists anywhere else, so this module-owned, additive template is
+ * discovered and used for exactly (and only) `event`-bundle nodes rendered
+ * in the `stream_card` view mode — the `my_events` view's ONLY row shape,
+ * per views.view.my_events.yml's `row.options.view_mode: stream_card`. No
+ * theme edit, no new theme hook registration (template discovery is by
+ * filename convention alone, mirroring the theme's own undeclared
+ * `node--stream-card.html.twig`).
+ *
+ * Markup matches the approved wireframe
+ * (docs/planning/handoffs/112-events-rsvps/wireframe.html) verbatim:
+ * `.event-card` (date badge + title + group badge + RSVP chip), reused
+ * identically across BOTH the Upcoming and My RSVPs sections (survey.md: "the
+ * SAME card partial is reused verbatim across both sections — no divergent
+ * markup for Upcoming vs. My RSVPs, a card is a card").
+ *
+ * Available variables (populated by
+ * \Drupal\do_streams\Hook\DoStreamsHooks::preprocessNodeEventStreamCard()):
+ * - node: the event node entity.
+ * - gc_event.date_month / date_day: short month + day-of-month strings for
+ *   the date badge, or NULL when field_date_of_event is empty/unset (#60
+ *   defensive fallback — survey.md: "gracefully hide the date badge, don't
+ *   500" — the badge markup below is entirely wrapped in an `if`).
+ * - gc_event.date_display: the full human-readable date/time string for the
+ *   meta row (e.g. "Sep 15, 2026 . 10:30 AM"), or NULL.
+ * - gc_event.node_url: the event's canonical URL, or NULL if generation
+ *   fails (defensive — renders the title unlinked rather than fataling).
+ * - gc_event.group_label: the FIRST owning group's label (community_group
+ *   relationships only), or NULL if the node has no group relationship.
+ * - gc_event.chip: the RSVP chip's render array (from
+ *   DoStreamsHooks::buildRsvpChipRenderArray()) OR NULL when the `rsvp_event`
+ *   flag is unavailable (fails safe — no chip renders rather than fataling).
+ * - label: the node title (render array), Drupal's own standard node
+ *   template variable.
+ */
+#}
+<article class="event-card">
+  {% if gc_event.date_month and gc_event.date_day %}
+    <div class="event-card__date">
+      <span class="event-card__date-month">{{ gc_event.date_month }}</span>
+      <span class="event-card__date-day">{{ gc_event.date_day }}</span>
+    </div>
+  {% endif %}
+  <div class="event-card__body">
+    <h3 class="event-card__title">
+      {% if gc_event.node_url %}
+        <a href="{{ gc_event.node_url }}">{{ label }}</a>
+      {% else %}
+        {{ label }}
+      {% endif %}
+    </h3>
+    <div class="event-card__meta">
+      {% if gc_event.group_label %}
+        <span class="event-card__group-badge">{{ gc_event.group_label }}</span>
+      {% endif %}
+      {% if gc_event.date_display %}
+        <span>{{ gc_event.date_display }}</span>
+      {% endif %}
+    </div>
+  </div>
+  {% if gc_event.chip %}
+    <div class="event-card__actions">
+      {{ gc_event.chip }}
+    </div>
+  {% endif %}
+</article>

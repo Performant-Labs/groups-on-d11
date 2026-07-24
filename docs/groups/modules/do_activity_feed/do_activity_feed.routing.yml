@@ -1,0 +1,37 @@
+# #129 ST-7: two distinct paths (my_groups scope, and the single-group
+# scope variant), both handled by the SAME
+# ActivityFeedController::renderFeed() render array — per survey.md's
+# "Forward-compat check" contract ST-8 (#130) reuses. Two separate route
+# entries (not one route with an optional {group} path segment) since a
+# Symfony route parameter cannot be conditionally upcast to an entity only
+# on SOME requests to the same route name — this is the standard Drupal
+# idiom for "same controller, with vs. without an entity param" (matches
+# do_group_membership's own one-route-per-shape convention).
+do_activity_feed.my_groups:
+  path: '/activity'
+  defaults:
+    _controller: '\Drupal\do_activity_feed\Controller\ActivityFeedController::myGroups'
+    _title: 'Activity'
+  requirements:
+    _permission: 'access content'
+
+do_activity_feed.group_scope:
+  path: '/activity/group/{group}'
+  defaults:
+    _controller: '\Drupal\do_activity_feed\Controller\ActivityFeedController::groupScope'
+    _title_callback: '\Drupal\do_activity_feed\Controller\ActivityFeedController::groupScopeTitle'
+  requirements:
+    _permission: 'access content'
+    # Core's standard `_entity_access` requirement (Drupal\Core\Entity\
+    # EntityAccessCheck, wired in core.services.yml with `applies_to:
+    # _entity_access`) — format '<route parameter name>.<operation>'. Gates
+    # this route on the upcast {group} entity's own `view` access BEFORE the
+    # controller runs, so a group the viewer cannot see 403s here rather
+    # than falling through to an empty-looking feed. This is independent of
+    # (and runs earlier than) the field_group_id scope filter, which only
+    # decides WHICH ROWS appear once the controller is reached.
+    _entity_access: 'group.view'
+  options:
+    parameters:
+      group:
+        type: entity:group

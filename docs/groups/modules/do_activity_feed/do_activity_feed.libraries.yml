@@ -1,0 +1,5 @@
+activity_feed:
+  version: 1.x
+  css:
+    theme:
+      css/activity-feed.css: {}

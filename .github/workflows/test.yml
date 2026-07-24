@@ -490,6 +490,16 @@ jobs:
             do_tests do_group_extras do_group_language do_group_mission \
             do_group_pin do_multigroup do_notifications do_profile_stats do_discovery
           php vendor/drush/drush/drush.php user:password admin 'admin'
+          # 4b) #129 workaround: config:import does NOT run installDefaultConfig()
+          #     for modules whose ACTIVE core.extension.yml already lists them
+          #     (as this codebase's assembled core.extension.yml does for every
+          #     do_* custom module). do_activity_feed ships views.view.activity_feed
+          #     ONLY under config/install/, not config/sync/ — so its view never
+          #     lands via cim. Force the install-config drop by disabling and
+          #     re-enabling the module, which triggers hook_install() and its
+          #     defensive installDefaultConfig() self-heal (do_activity_feed.install).
+          php vendor/drush/drush/drush.php pmu do_activity_feed -y
+          php vendor/drush/drush/drush.php en do_activity_feed -y
           php vendor/drush/drush/drush.php cache:rebuild -y
           # drush site:install writes a complete $databases block (incl. the mysql
           # driver namespace/autoload keys) into settings.php, which the runserver
@@ -578,6 +588,28 @@ jobs:
           PHP
           php vendor/drush/drush/drush.php php:script /tmp/backfill-activity.php
           # --- do_activity step_7xx END ---
+          # --- do_activity_feed step_795 BEGIN ---
+          # #129 ST-7: activity feed E2E fixture. Seeds Elena a deterministic
+          # (social + aggregated + content) mix she's guaranteed to see on
+          # /activity — do_activity's incidental hook-noise doesn't produce
+          # the specific aggregated run AC-6 asserts on. Runs AFTER the
+          # backfill so its idempotency check covers already-logged Messages.
+          FEED_FIXTURE_SCRIPT="$PWD/docs/groups/scripts/step_795_activity_feed_e2e_fixture.php"
+          cat > /tmp/seed-activity-feed-fixture.php <<PHP
+          <?php
+          \$admin = \Drupal\user\Entity\User::load(1);
+          if (\$admin) { \Drupal::currentUser()->setAccount(\$admin); }
+          require '${FEED_FIXTURE_SCRIPT}';
+          PHP
+          php vendor/drush/drush/drush.php php:script /tmp/seed-activity-feed-fixture.php
+          # --- do_activity_feed step_795 END ---
+          # --- do_discovery cron BEGIN ---
+          # #113 ST-4: run cron so do_discovery_hot_score is populated for
+          # /trending's e2e spec (hook_cron recomputes for nodes changed in
+          # the last 7 days). Runs AFTER seeds so the two 2-comment threads
+          # score 6.0 and outrank the 0-comment ones.
+          php vendor/drush/drush/drush.php cron
+          # --- do_discovery cron END ---
           php vendor/drush/drush/drush.php cache:rebuild -y
 
       - name: Serve the site

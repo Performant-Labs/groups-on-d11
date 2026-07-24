@@ -1,0 +1,22 @@
+services:
+  # #129 ST-7: pure render-time bucketing algorithm — no entity/DB
+  # dependencies of its own (it operates on already-loaded Message entities
+  # the caller passes in), so no arguments beyond string translation.
+  do_activity_feed.aggregator:
+    class: Drupal\do_activity_feed\Service\ActivityAggregator
+    autowire: false
+
+  # Row-model construction: loads referenced entities (node/comment/user/
+  # group) and shapes one row array per Message, including the comment
+  # snippet transform (AC-5).
+  do_activity_feed.row_builder:
+    class: Drupal\do_activity_feed\Service\ActivityRowBuilder
+    autowire: false
+    arguments:
+      - '@entity_type.manager'
+
+  do_activity_feed.hooks:
+    class: Drupal\do_activity_feed\Hook\DoActivityFeedHooks
+    autowire: false
+    tags:
+      - { name: 'hook_implementations' }

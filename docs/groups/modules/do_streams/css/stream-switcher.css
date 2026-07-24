@@ -1,0 +1,55 @@
+/**
+ * @file
+ * Stream switcher chrome styling (#115 ST-6).
+ *
+ * Module-owned CSS, attached only on views listed in
+ * StreamSwitcherHooks::ATTACH_VIEW_IDS (#attached library), per every
+ * existing UI-bearing do_* module (do_chrome, do_group_membership,
+ * do_showcase).
+ *
+ * WCAG 2.2 AA: the active tab is conveyed via a visible underline + bold
+ * weight, never color alone — the colored bottom border below is a
+ * TERTIARY reinforcement only (matches the convention already documented in
+ * do_group_membership/manage-members.css: "status is conveyed via a
+ * visible text label + glyph, never color alone"). Every focusable tab gets
+ * an explicit :focus-visible outline (2px solid, 2px offset), matching the
+ * same convention already used by manage-members.css,
+ * directory-compact.css, and do_showcase's own CSS files — no new focus
+ * mechanism invented (handoff-D.md).
+ *
+ * `--gc-color-primary` (with the same #0678be fallback used by
+ * directory-compact.css) is reused rather than inventing a new brand color
+ * for the active-tab border.
+ */
+
+.stream-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  padding: 0 1rem;
+  border-bottom: 2px solid #d0d5da;
+  background: #fbfbfc;
+}
+
+.stream-switcher__tab {
+  display: inline-block;
+  padding: 0.75rem 0.1rem 0.65rem;
+  text-decoration: none;
+  color: #1a1a1a;
+  font-size: 0.95rem;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+}
+
+.stream-switcher__tab.is-active {
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  border-bottom-color: var(--gc-color-primary, #0678be);
+}
+
+.stream-switcher__tab:focus-visible {
+  outline: 2px solid #0b5fff;
+  outline-offset: 2px;
+}

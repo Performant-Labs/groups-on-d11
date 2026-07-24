@@ -37,3 +37,40 @@ persona-switcher:
   css:
     theme:
       css/persona-switcher.css: {}
+
+# #124 SC-5: the compact-list row presentation for /all-groups, attached by
+# DoShowcaseHooks::viewsPreRender() alongside `do_showcase/switcher`
+# whenever the all_groups.page_1 view renders. CSS-ONLY (brief.md "Owned
+# files": "docs/groups/modules/do_showcase/css/directory-compact.css
+# (new)") — the compact/cards toggle is a pure presentation delta over the
+# SAME row markup groups_chrome's views-view-fields--all-groups.html.twig
+# already renders (wireframe.md Surface 2/3: "no schema/Views-field change,
+# CSS alone hides/restyles"). Depends on `do_showcase/switcher` so the
+# wrapper-mirror data-* attributes it reads
+# (data-do-showcase-mirror-attribute/-selector, set on the switcher's own
+# render array below) are guaranteed present before this library's styling
+# would ever need to react to a live (no-reload) toggle.
+directory-compact:
+  version: '1.0'
+  css:
+    theme:
+      css/directory-compact.css: {}
+  dependencies:
+    - do_showcase/switcher
+
+# #123 SC-4 (Discovery three ways): "Discovery ranking" comparison section
+# styling on /showcase, attached by ShowcaseController::page() ONLY on the
+# discovery_ranking render subtree (never site-wide) — CSS-ONLY, mirrors the
+# #124 SC-5 directory-compact library's own precedent immediately above.
+# Depends on `do_showcase/switcher` so the shared switcher styling
+# (radiogroup/[role="radio"]/focus-visible, do_showcase.css) is guaranteed
+# present — this library deliberately does NOT redefine any of it (wireframe.md
+# "WCAG 2.2 AA notes": "should NOT redefine focus style, just import/match the
+# same outline color+width for consistency").
+discovery-compare:
+  version: '1.0'
+  css:
+    theme:
+      css/discovery-compare.css: {}
+  dependencies:
+    - do_showcase/switcher

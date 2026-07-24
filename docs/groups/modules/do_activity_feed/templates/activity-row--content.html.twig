@@ -1,0 +1,66 @@
+{#
+/**
+ * @file
+ * Content-card row (#129 ST-7) — wraps the existing `stream_card` view mode
+ * output with a compact meta strip.
+ *
+ * Per the approved wireframe
+ * (docs/planning/handoffs/129-activity-feed/wireframe.html): black-boxes the
+ * card's own interior (owned by node--stream-card.html.twig in the
+ * groups_chrome subtheme, per the #109 wireframe's established convention)
+ * and adds only the "Posted by … in …, time ago" meta strip above it.
+ *
+ * Root element is `<li>` (per wireframe.html line 324:
+ * `<li class="activity-row--content" ...><article class="card">...`), NOT
+ * `<article>` — this is a direct child of activity-feed.html.twig's `<ol>`,
+ * exactly like the other two row shapes (activity-row--social.html.twig,
+ * activity-row--aggregated.html.twig, both already `<li>`-rooted). S's Phase
+ * 9 spec audit (decisions.md, "S — Phase 9 REWORK", Defect 2) found this
+ * template previously rooted on `<article>`, which — combined with the
+ * shell's now-removed `<li>{{ row }}</li>` wrapper — left a bare `<article>`
+ * as a direct, non-`<li>` child of `<ol>`, an invalid list content model.
+ * The inner `<article class="card">` (the `.activity-row--content .card`
+ * CSS descendant selector) is unchanged.
+ *
+ * Available variables:
+ * - row: the row-model array from ActivityFeedController::renderFeed(),
+ *   with keys:
+ *   - actor: \Drupal\user\UserInterface|null, the post's author.
+ *   - actor_url: string|null, the actor's precomputed canonical URL (a
+ *     plain string — see ActivityRowBuilder::buildRow()'s docblock, Defect
+ *     2: Twig's magic `row.actor.id` getter returns a FieldItemList, not a
+ *     scalar, so the URL is ALWAYS resolved in PHP, never via Twig's
+ *     `path()`).
+ *   - group: \Drupal\group\Entity\GroupInterface|null. NOTE: always call
+ *     `row.group.label()` WITH explicit method-call parens, never
+ *     `row.group.label` — Group entities carry a real `label` BASE FIELD,
+ *     so the bare magic-attribute form hits the identical FieldItemList
+ *     trap Defect 2 already fixed for `.id` (confirmed empirically: `$group
+ *     ->label` returns a FieldItemList; only `$group->label()` returns the
+ *     scalar string).
+ *   - group_url: string|null, the group's precomputed canonical URL (same
+ *     reasoning as actor_url).
+ *   - created: int, the Message's created timestamp.
+ *   - card: the pre-built `stream_card` view-mode render array for the
+ *     referenced node (already access-checked — ActivityRowBuilder never
+ *     returns a row for an unviewable node in the first place).
+ */
+#}
+<li class="activity-row--content" data-testid="activity-row-content">
+  <article class="card">
+    <p class="card__meta">
+      {% if row.actor %}
+        {{ 'Posted by'|t }}
+        <a href="{{ row.actor_url }}">{{ row.actor.getDisplayName() }}</a>
+      {% else %}
+        {{ 'Posted'|t }}
+      {% endif %}
+      {% if row.group %}
+        {{ 'in'|t }}
+        <a href="{{ row.group_url }}">{{ row.group.label() }}</a>
+      {% endif %}
+      <span class="row__time">&middot; <time datetime="{{ row.created|date('c') }}">{{ row.created|format_date('short') }}</time></span>
+    </p>
+    {{ row.card }}
+  </article>
+</li>

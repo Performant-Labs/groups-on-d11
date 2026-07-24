@@ -388,8 +388,15 @@ test.describe('SC-F1 — /showcase tour page (#119)', () => {
       ['Private-group reveal', 'coming'],
     ];
 
+    // Scope the title search to the tour catalog container
+    // (`.do-showcase-catalog`, per ShowcaseController::page()) — the #123
+    // SC-4 story added a sibling `<h2>Discovery ranking: Recent / Hot /
+    // Promoted</h2>` section OUTSIDE this catalog, which would otherwise
+    // make an unscoped `getByText('Discovery ranking')` a strict-mode
+    // collision.
+    const catalog = page.locator('.do-showcase-catalog');
     for (const [title, status] of entries) {
-      const entry = page.getByText(title, { exact: false });
+      const entry = catalog.getByText(title, { exact: false });
       await expect(entry).toBeVisible();
       const badgeText = status === 'live' ? '[ live ]' : '[ coming ]';
       // The status badge is text (non-color cue) near the entry — assert the
