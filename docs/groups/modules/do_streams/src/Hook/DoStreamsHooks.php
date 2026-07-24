@@ -23,6 +23,33 @@ use Drupal\views\ViewExecutable;
  * views_query_alter/compiled-query-rewrite/cache-tag pattern (new module,
  * same technique — see survey.md's Reuse map), and the shared stream shell
  * theme hook + preprocess (scope tabs + ranking control).
+ *
+ * ST-8 (#130): constructor-injected with `ModelToggleHooks` so this class's
+ * `preprocessViewsView()` — the module's ONE legal
+ * `#[Hook('preprocess_views_view')]` listener (Drupal's `ModuleHandler
+ * ::invoke()` throws `LogicException` if a single module registers a
+ * second `preprocess_views_view` implementation, even across two classes)
+ * — can delegate to `ModelToggleHooks::preprocessViewsView()` for the
+ * `activity_stream:page_1` stream-model switcher mount, after handling its
+ * own pre-existing `following_feed` library-attach branch. See
+ * `ModelToggleHooks`'s own class docblock for the full explanation of why
+ * that class's `preprocessViewsView()` is deliberately NOT `#[Hook]`-
+ * attributed itself.
+ *
+ * `$modelToggleHooks` carries a NULL default (`?ModelToggleHooks = NULL`),
+ * mirroring `ModelToggleHooks`'s own nullable `$switcher` parameter, for the
+ * identical underlying reason: `StreamsShellTest
+ * ::preprocessShellVariables()` — a PRE-EXISTING test, not authored/touched
+ * by this story — directly `new DoStreamsHooks()`-instantiates this class
+ * (bypassing the service container entirely) to call
+ * `preprocessDoStreamsShell()`, a method that has no relationship
+ * whatsoever to the model-toggle delegation. Requiring a non-defaulted
+ * constructor argument broke that direct-instantiation call site
+ * (`ArgumentCountError`). The real, container-built service
+ * (`do_streams.hooks` in do_streams.services.yml) always supplies a real
+ * `ModelToggleHooks` instance; only a caller that manually `new`s this
+ * class for an unrelated method ever sees the NULL default, and
+ * `preprocessViewsView()` guards on it with the null-safe operator below.
  */
 class DoStreamsHooks {
 
@@ -42,9 +69,26 @@ class DoStreamsHooks {
    * library attachment to exactly this view, per handoff-A.md finding §1's
    * preferred mechanism (a single, view-id-guarded preprocess hook, matching
    * this class's existing lightweight-preprocess convention rather than
-   * introducing a new hook type).
+   * introducing a new attachment mechanism).
    */
   public const FOLLOWING_FEED_VIEW_ID = 'following_feed';
+
+  public function __construct(
+    private readonly ?ModelToggleHooks $modelToggleHooks = NULL,
+  ) {}
+
+  /**
+   * The block plugin id of ST-5's shipped "Recent posts" block (#114).
+   *
+   * The exact `plugin:` value block.block.do_streams_user_activity.yml
+   * carries (`views_block:<view id>-<display id>`) — used by
+   * self::preprocessBlock() to scope the `.do-streams-profile-activity`
+   * wrapper class + `do_streams/profile_activity` library attachment to
+   * exactly this block, mirroring self::preprocessViewsView()'s existing
+   * view-id-guarded convention (guard on a specific, meaningful identifier,
+   * return immediately otherwise).
+   */
+  public const USER_ACTIVITY_BLOCK_PLUGIN_ID = 'views_block:user_activity-block_1';
 
   /**
    * The id of the `rsvp_event` flag consumed by issue #112's RSVP chip.
@@ -57,10 +101,6 @@ class DoStreamsHooks {
 
   /**
    * Builds the per-viewing-user stream cache tag ([A-W2]).
-   *
-   * Membership/following scope is per-viewing-user (not per-group like
-   * do_group_pin's own tag), so invalidation is scoped per user viewing
-   * their own stream.
    *
    * @param int|string $uid
    *   The viewing user's id.
@@ -96,6 +136,33 @@ class DoStreamsHooks {
    */
   public static function rsvpChipCacheTag(int|string $nid): string {
     return 'flagging_list:node:' . $nid;
+  }
+
+  /**
+   * The single source of truth for the 4 stream scopes (id => label).
+   *
+   * #115 ST-6 (brief.md §Plan step 1): extracted from
+   * self::preprocessDoStreamsShell()'s formerly-local `$scope_labels` array
+   * so both the shared stream shell AND `StreamSwitcherHooks` read the same
+   * ids/labels/order, never a second, independently-maintained list.
+   *
+   * A `public static function` rather than a `public const` — per
+   * handoff-A.md finding §1, `TranslatableMarkup` instances cannot be class
+   * constants (they are not evaluated at class-load time), so a method is
+   * the only shape the runtime allows for a translated, constant-like
+   * registry.
+   *
+   * @return \Drupal\Core\StringTranslation\TranslatableMarkup[]
+   *   An array of scope id => translated label, in stable Global / My Feed /
+   *   Following / Trending order.
+   */
+  public static function getScopeRegistry(): array {
+    return [
+      'global' => new TranslatableMarkup('Global'),
+      'my_feed' => new TranslatableMarkup('My Feed'),
+      'following' => new TranslatableMarkup('Following'),
+      'trending' => new TranslatableMarkup('Trending'),
+    ];
   }
 
   /**
@@ -448,26 +515,104 @@ class DoStreamsHooks {
   }
 
   /**
-   * Attaches the `do_streams/following` library on the `/following` view only.
+   * Do_streams' ONE legal `preprocess_views_view` listener.
    *
-   * Issue #111 ST-2. Per handoff-A.md finding §1 (preferred mechanism) and
-   * brief.md §Plan step 2: a single, view-id-guarded preprocess hook,
-   * matching this class's existing lightweight-preprocess convention (see
-   * self::preprocessDoStreamsShell(), self::viewsQueryAlter(),
-   * self::viewsPostRender() — all guard on a specific view/display id and
-   * return immediately otherwise) rather than introducing a new attachment
-   * mechanism. The CSS itself (`css/following.css`) only carries small
-   * `.following-feed` container/empty-state spacing tweaks — card visuals
-   * are inherited from the shared theme stylesheet.
+   * Drupal's `ModuleHandler::invoke()` throws `LogicException: "Module
+   * do_streams should not implement preprocess_views_view more than once"`
+   * the moment TWO classes in this module each carry a
+   * `#[Hook('preprocess_views_view')]` method — the exact class of bug this
+   * module already hit and fixed for `#[Hook('theme')]`. This ONE method
+   * therefore handles three independently-scoped concerns:
+   *
+   * 1. Issue #111 ST-2: attaches the `do_streams/following` library on the
+   *    `/following` view only (self::FOLLOWING_FEED_VIEW_ID).
+   * 2. Issue #115 ST-6: delegates to
+   *    {@see StreamSwitcherHooks::preprocessViewsView()} for any view in
+   *    `StreamSwitcherHooks::ATTACH_VIEW_IDS` — prepends the switcher tabs
+   *    render array and attaches `do_streams/stream-switcher`.
+   * 3. Issue #130 ST-8: delegates to
+   *    {@see ModelToggleHooks::preprocessViewsView()} for the SC-F1
+   *    Content/Activity variant switcher mount on `activity_stream:page_1`.
+   *    The delegation call uses the null-safe operator (`?->`) because
+   *    `$this->modelToggleHooks` is NULL when this class is directly
+   *    instantiated (bypassing the container) with no constructor argument;
+   *    the real container-built `do_streams.hooks` service always supplies
+   *    a real instance.
+   *
+   * All three concerns can fire independently for the SAME `$variables`
+   * (e.g. `activity_stream` is in `ATTACH_VIEW_IDS` AND is the model-toggle
+   * mount target — both branches must run).
    */
   #[Hook('preprocess_views_view')]
   public function preprocessViewsView(array &$variables): void {
     $view = $variables['view'] ?? NULL;
-    if (!$view instanceof ViewExecutable || $view->id() !== self::FOLLOWING_FEED_VIEW_ID) {
+    if (!$view instanceof ViewExecutable) {
       return;
     }
-    $variables['#attached']['library'][] = 'do_streams/following';
+
+    if ($view->id() === self::FOLLOWING_FEED_VIEW_ID) {
+      $variables['#attached']['library'][] = 'do_streams/following';
+    }
+
+    if (in_array($view->id(), StreamSwitcherHooks::ATTACH_VIEW_IDS, TRUE)) {
+      (new StreamSwitcherHooks())->preprocessViewsView($variables);
+    }
+
+    $this->modelToggleHooks?->preprocessViewsView($variables);
   }
+
+  /**
+   * Wraps the "Recent posts" profile-activity block with its own class.
+   *
+   * Issue #114 ST-5. Mirrors self::preprocessViewsView()'s existing
+   * view/block-id-guarded convention exactly (guard on a specific,
+   * meaningful identifier, return immediately otherwise) rather than
+   * introducing a new attachment mechanism.
+   *
+   * Uses `hook_preprocess_block` (not `preprocess_views_view`) deliberately:
+   * `block.html.twig` renders the block's own `<h2>{{ label }}</h2>` title
+   * and `{{ content }}` (the view's rendered output) as SIBLINGS inside one
+   * outer `<div{{ attributes }}>` — attaching the wrapper class at the
+   * block level, not the inner views level, gives the wireframe's single
+   * coherent "Recent posts" section (heading + rows together under one
+   * selector), matching wireframe.md's depiction of one bordered block
+   * rather than a class that would only wrap the rows, sibling to the
+   * heading.
+   *
+   * The CSS itself (`css/profile-activity.css`) only carries small
+   * container-rhythm tweaks — card visuals are inherited from the shared
+   * theme stylesheet, exactly as `css/following.css` already established
+   * for #111 ST-2.
+   */
+  #[Hook('preprocess_block')]
+  public function preprocessBlock(array &$variables): void {
+    $plugin_id = $variables['plugin_id'] ?? NULL;
+    if ($plugin_id !== self::USER_ACTIVITY_BLOCK_PLUGIN_ID) {
+      return;
+    }
+    $variables['attributes']['class'][] = 'do-streams-profile-activity';
+    $variables['#attached']['library'][] = 'do_streams/profile_activity';
+  }
+
+  /**
+   * Registers this module's theme hooks (do_streams_shell + stream_switcher).
+   *
+   * The shared stream shell is [B-3]; `stream_switcher` was added by #115
+   * ST-6. `stream_switcher` (StreamSwitcherHooks::preprocessViewsView())
+   * is registered HERE, not on `StreamSwitcherHooks` itself, because
+   * Drupal's `ModuleHandler::invoke()` throws `LogicException: "Module
+   * do_streams should not implement theme more than once"` the moment TWO
+   * separate classes in the same module both carry a `#[Hook('theme')]`
+   * method — hook_theme() (like every non-cumulative hook) must have
+   * exactly one implementation per module, regardless of which class
+   * declares it (confirmed via CI-equivalent kernel test failure at
+   * F-implementation time: StreamsInstallTest::
+   * testModuleInstallsWithZeroSchemaChanges and StreamsShellTest::
+   * testNoHardcodedRoutePathsInRenderedTabMarkup both threw this exact
+   * exception when `stream_switcher` was registered via a second `theme()`
+   * method on StreamSwitcherHooks — reverted in favor of this single
+   * consolidated registration).
+   */
 
   /**
    * Registers the shared stream shell theme hook ([B-3]) plus the issue #112
@@ -533,6 +678,12 @@ class DoStreamsHooks {
         'base hook' => 'node',
         'path' => $path . '/templates',
         'template' => 'node--event--stream-card',
+      ],
+      'stream_switcher' => [
+        'variables' => [
+          'tabs' => [],
+        ],
+        'template' => 'stream-switcher',
       ],
     ];
   }
@@ -615,6 +766,12 @@ class DoStreamsHooks {
    * unconditionally (see do-streams-shell.html.twig), so "never read" was
    * true of the render-ARRAY property but false of the rendered MARKUP —
    * T-GREEN caught this distinction live, not merely via static review.
+   * #115 ST-6 (brief.md §Plan step 1): `$scope_tabs` is now built by
+   * iterating self::getScopeRegistry() — the SAME shared, ordered
+   * id => label source `StreamSwitcherHooks::buildTabList()` reads — instead
+   * of a second, locally-declared `$scope_labels` array. No other behavior
+   * in this method changes: same 4 ids, same labels, same order, same
+   * `url_or_param`/`active` shape.
    */
   #[Hook('preprocess_do_streams_shell')]
   public function preprocessDoStreamsShell(array &$variables): void {
@@ -637,14 +794,8 @@ class DoStreamsHooks {
       return;
     }
 
-    $scope_labels = [
-      'global' => new TranslatableMarkup('Global'),
-      'my_feed' => new TranslatableMarkup('My Feed'),
-      'following' => new TranslatableMarkup('Following'),
-      'trending' => new TranslatableMarkup('Trending'),
-    ];
     $scope_tabs = [];
-    foreach ($scope_labels as $id => $label) {
+    foreach (self::getScopeRegistry() as $id => $label) {
       $scope_tabs[] = [
         'id' => $id,
         'label' => $label,

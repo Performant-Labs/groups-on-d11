@@ -4,6 +4,39 @@ following:
     theme:
       css/following.css: {}
 
+profile_activity:
+  version: 1.x
+  css:
+    theme:
+      css/profile-activity.css: {}
+
+stream-switcher:
+  version: 1.x
+  css:
+    theme:
+      css/stream-switcher.css: {}
+
+# ST-8 (#130): CSS-only visibility scoping for the /stream Content/Activity
+# model toggle, attached by `Drupal\do_streams\Hook\ModelToggleHooks
+# ::viewsPreRender()` alongside `do_showcase/switcher` whenever the
+# activity_stream:page_1 view renders. Depends on do_showcase/switcher so
+# the wrapper-mirror data-* attributes it reads
+# (data-do-showcase-mirror-attribute/-selector, set on the switcher's own
+# render array in ModelToggleHooks::preprocessViewsView()) are guaranteed
+# present before this library's styling would ever need to react to a live
+# (no-reload) toggle — same dependency shape as do_showcase's own
+# directory-compact library (#124 SC-5).
+model-toggle:
+  version: 1.x
+  css:
+    theme:
+      css/model-toggle.css: {}
+  dependencies:
+    - do_showcase/switcher
+
+# ST-3 (#112): CSS for the /my-feed/events page — RSVP chip + section
+# spacing. Attached by MyEventsController::build() via the outer render
+# array's #attached.library.
 events:
   version: 1.x
   css:

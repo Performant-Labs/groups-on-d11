@@ -1,0 +1,61 @@
+uuid: null
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: some_other_view
+label: 'Some Other View'
+module: views
+description: 'Minimal, unrelated fixture used ONLY to pin that ModelToggleHooks (ST-8) does NOT fire for a view id other than activity_stream — deliberately NOT all_groups, since #124''s already-shipped DoShowcaseHooks legitimately instruments all_groups:page_1 with its own switcher/cache-context, which would be a false negative here (see StreamModelTogglePreRenderTest::testHookDoesNotFireForADifferentViewId docblock).'
+tag: ''
+base_table: node_field_data
+base_field: nid
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      title: 'Some Other View'
+      fields:
+        title:
+          id: title
+          table: node_field_data
+          field: title
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: title
+          plugin_id: field
+          label: Title
+      pager:
+        type: full
+        options:
+          pagination_heading_level: h4
+          items_per_page: 25
+      filters:
+        status:
+          id: status
+          table: node_field_data
+          field: status
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: node
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+      style:
+        type: default
+      row:
+        type: fields
+  page_1:
+    id: page_1
+    display_title: Page
+    display_plugin: page
+    position: 1
+    display_options:
+      path: some-other-view
