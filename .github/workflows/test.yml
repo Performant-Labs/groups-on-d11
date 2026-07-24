@@ -522,6 +522,26 @@ jobs:
           grep -c "databases\['default'\]\['default'\]" web/sites/default/settings.php || true
           php vendor/drush/drush/drush.php status --fields=drupal-version,db-status,bootstrap
 
+      - name: Seed languages + content translation (step_640)
+        # #191: step_640 (languages, negotiation, content-translation-per-
+        # bundle) must run BEFORE any demo content on a translatable bundle
+        # (forum/documentation/event/post/page) is created, so
+        # ContentLanguageSettings exists and is well-formed before
+        # step_700/step_795 touch those bundles. Defensive/idempotent per
+        # #191's fix: installs `language` + `content_translation` if not
+        # already enabled, backfills the `und`/`zxx` locked-language
+        # entities config:import skips (their config/install/ never lands
+        # because assemble-config.sh already lists `language` as active in
+        # the assembled core.extension.yml, so config:import's own
+        # installDefaultConfig() call is skipped for it — the same class of
+        # gap the do_activity_feed pmu/en workaround above targets, here
+        # fixed with entity-level backfill instead of module reinstall),
+        # and uses ContentLanguageSettings::loadByEntityTypeBundle() +
+        # setThirdPartySetting() rather than a bare config write.
+        run: |
+          set -euxo pipefail
+          php vendor/drush/drush/drush.php php:script "$PWD/docs/groups/scripts/step_640.php"
+
       - name: Seed full demo data (groups, content, types, nav, personas) — mirror the deployed image
         # CI installs + imports config but does NOT run the container entrypoint,
         # so without this the site has NO demo groups, members, group-type tags,
