@@ -1,0 +1,156 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_MIMIR",
+      "label": "Mimir",
+      "description": "Uranus Mimir (metrics)",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    },
+    {
+      "name": "DS_LOKI",
+      "label": "Loki",
+      "description": "Uranus Loki (logs)",
+      "type": "datasource",
+      "pluginId": "loki",
+      "pluginName": "Loki"
+    }
+  ],
+  "__requires": [
+    {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0"},
+    {"type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0"},
+    {"type": "datasource", "id": "loki", "name": "Loki", "version": "1.0.0"}
+  ],
+  "annotations": {
+    "list": [
+      {
+        "name": "Modules checksum drift",
+        "datasource": {"type": "loki", "uid": "${DS_LOKI}"},
+        "enable": true,
+        "iconColor": "orange",
+        "expr": "{job=\"blackbox_healthz\"} |= \"modules_checksum\" | json | line_format \"drift: {{ .modules_checksum }}\""
+      }
+    ]
+  },
+  "editable": true,
+  "title": "Groups on D11 — Demo observability (REL-4 / #213)",
+  "uid": "groups-on-d11-demo",
+  "tags": ["groups-on-d11", "demo", "sla"],
+  "timezone": "browser",
+  "time": {"from": "now-6h", "to": "now"},
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "/healthz probe success rate (last 1h)",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${DS_MIMIR}"},
+      "targets": [
+        {
+          "expr": "avg_over_time(probe_success{job=\"blackbox_healthz\"}[1h]) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "orange", "value": 99},
+              {"color": "green", "value": 100}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "background"}
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Page response times (p50 / p95 / p99)",
+      "gridPos": {"h": 8, "w": 16, "x": 8, "y": 0},
+      "datasource": {"type": "loki", "uid": "${DS_LOKI}"},
+      "targets": [
+        {
+          "expr": "quantile_over_time(0.50, {job=\"caddy\", app=\"groups-on-d11\"} | json | unwrap duration_ms [5m])",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "quantile_over_time(0.95, {job=\"caddy\", app=\"groups-on-d11\"} | json | unwrap duration_ms [5m])",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "quantile_over_time(0.99, {job=\"caddy\", app=\"groups-on-d11\"} | json | unwrap duration_ms [5m])",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ms"}}
+    },
+    {
+      "id": 3,
+      "type": "gauge",
+      "title": "CI-runner busy count (Uranus self-hosted)",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "${DS_MIMIR}"},
+      "targets": [
+        {
+          "expr": "sum(github_runner_busy{host=\"uranus\"})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "orange", "value": 3},
+              {"color": "red", "value": 4}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Drupal error-log rate (Loki level=error)",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 12},
+      "datasource": {"type": "loki", "uid": "${DS_LOKI}"},
+      "targets": [
+        {
+          "expr": "sum by (severity) (count_over_time({app=\"groups-on-d11\"} |~ \"(?i)\\\\|(error|critical|alert|emergency)\\\\|\" [1m]))",
+          "legendFormat": "{{severity}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "cps"}}
+    },
+    {
+      "id": 5,
+      "type": "logs",
+      "title": "Recent /healthz JSON payloads",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
+      "datasource": {"type": "loki", "uid": "${DS_LOKI}"},
+      "targets": [
+        {
+          "expr": "{job=\"blackbox_healthz\"} | json",
+          "refId": "A"
+        }
+      ],
+      "options": {"showTime": true, "wrapLogMessage": true}
+    }
+  ]
+}

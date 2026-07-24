@@ -1,0 +1,18 @@
+# REL-4 (#213) — /healthz probe.
+#
+# Access is `_access: 'TRUE'` (fully public — Coolify/alloy probes are
+# unauthenticated), and the controller is opted out of Drupal's page cache
+# (no_cache: TRUE) so a stale HTTP 200 is never served after a subsystem
+# degrades. HTTP status maps directly to overall health: 200 = ok, 503 =
+# degraded/down (any check failed) — Coolify's healthcheck reads the status
+# code, Grafana's blackbox probe records both status + JSON body.
+do_ops.healthz:
+  path: '/healthz'
+  defaults:
+    _controller: '\Drupal\do_ops\Controller\HealthzController::probe'
+    _title: 'Health'
+  requirements:
+    _access: 'TRUE'
+  methods: [GET]
+  options:
+    no_cache: TRUE
