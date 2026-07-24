@@ -248,16 +248,21 @@ class DirectoryTogglePreRenderTest extends GroupsKernelTestBase {
     preg_match_all('/data-do-showcase-id="([^"]+)"/', $html, $matches);
     $this->assertSame(['compact', 'cards', 'map'], $matches[1] ?? [], 'Exactly three options, in order: compact, cards, map.');
 
-    // The map option is unavailable: aria-disabled + "(soon)" suffix, never
-    // a silently omitted option (VariantSwitcher::build() contract).
+    // SC-6 flipped this — map is now available. The <a> tag must NOT carry
+    // aria-disabled: the twig template `do-showcase-variant-switcher.html.twig`
+    // line 30 only emits the attribute when `option.aria_disabled` is truthy;
+    // for an available option VariantSwitcher::build() sets
+    // `aria_disabled => !$available` == FALSE and the attribute is omitted
+    // entirely (never rendered as aria-disabled="false"). The visible label
+    // is the plain "Map" without the truthful-unavailable "(soon)" suffix.
     preg_match('#<a\b[^>]*data-do-showcase-id="map"[^>]*>#s', $html, $map_tag_match);
     $this->assertNotEmpty($map_tag_match, 'The map option\'s opening <a> tag must be found in the rendered HTML.');
-    $this->assertStringContainsString(
-      'aria-disabled="true"',
+    $this->assertStringNotContainsString(
+      'aria-disabled',
       $map_tag_match[0] ?? '',
-      'The map option\'s <a> tag must carry aria-disabled="true" (available: false) — SC-6 flips this later.'
+      'Post-#125 SC-6: the map option\'s <a> tag must NOT carry aria-disabled at all (the twig template omits the attribute for available options rather than emitting aria-disabled="false").'
     );
-    $this->assertStringContainsString('Map (soon)', $html, 'The map option\'s visible label must carry the truthful "(soon)" suffix.');
+    $this->assertStringNotContainsString('Map (soon)', $html, 'Post-#125 SC-6: the map option\'s visible label is the plain "Map" — the truthful-unavailable "(soon)" suffix is gone now that map is live.');
 
     // Correct labels for the other two options.
     $this->assertStringContainsString('Compact list', $html, 'The compact option\'s visible label must read "Compact list".');
@@ -304,16 +309,18 @@ class DirectoryTogglePreRenderTest extends GroupsKernelTestBase {
   }
 
   /**
-   * `?variant=map` (unavailable) -> falls back to "compact" (first
-   * available), NEVER a blank/broken map render (wireframe.md Surface 1
-   * "State: map selected via URL fallback while unavailable").
+   * Post-#125 SC-6: `?variant=map` resolves to "map" itself — map is now
+   * a LIVE, selectable option in VariantSwitcher::directoryLayoutOptionIds(),
+   * so the previous "unavailable -> falls back to compact" contract is
+   * retired. The graceful-fallback contract for genuinely unknown ids is
+   * still exercised by `testUnknownQueryParamFallsBackToCompact()` below.
    */
-  public function testUnavailableMapQueryParamFallsBackToCompact(): void {
+  public function testMapQueryParamResolvesWrapperToMap(): void {
     $view = $this->buildAllGroupsView('variant=map');
     $element = $this->renderView($view);
 
     $attribute = $this->wrapperVariantAttribute($element);
-    $this->assertSame('compact', $attribute, 'An unavailable ?variant=map must fall back to the first available option (compact), matching VariantSwitcher::resolveSelection()\'s contract — never blank/broken.');
+    $this->assertSame('map', $attribute, 'Post-#125 SC-6: ?variant=map must resolve to "map" itself (map is a live option in the shared directory.layout spec) — no fallback needed.');
   }
 
   /**

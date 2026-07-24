@@ -1,0 +1,155 @@
+/**
+ * @file
+ * #125 SC-6: Leaflet map presentation for /all-groups' "Map" variant.
+ *
+ * Attached by `DoShowcaseHooks::viewsPreRender()` (via the new
+ * `do_showcase/directory-map` library, do_showcase.libraries.yml) ONLY when
+ * the `all_groups.page_1` view renders — never site-wide.
+ *
+ * Wrapper contract (wireframe.md Surface 3, mirrors `directory-compact.css`'s
+ * contract exactly — same attribute, third value): EVERY selector below is
+ * scoped under `.views-element-container[data-do-directory-variant="map"]` —
+ * the SAME wrapper element `directory-compact.css` already keys off. When the
+ * attribute is absent, `="cards"`, or `="compact"`, NOTHING in this
+ * stylesheet matches — Cards and Compact continue to render exactly as
+ * before (brief AC: "Cards + Compact list variants render identically to
+ * pre-story").
+ *
+ * Structural job (wireframe.md Surface 1/3): hide the row grid
+ * (`.view-content`) and the pager — but the ROWS THEMSELVES stay in the DOM,
+ * unstyled-but-present, because `do_showcase.directory-map.js` reads their
+ * `data-do-location-lat/lng` attributes to build markers; hiding via CSS, not
+ * removing via JS, is what keeps that data-read possible — then show/size
+ * the new `.do-showcase-map` container and reveal the SR-only fallback list.
+ *
+ * No background tiles — `.leaflet-container`'s background is restyled to a
+ * plain grey (brief's "Design note — tiles": zero external network requests
+ * is a hard AC, so no `L.tileLayer(...)` call exists anywhere in this
+ * story's JS; the grey fill here is what a visitor actually sees behind the
+ * markers, not a loading placeholder for a tile image that never arrives).
+ *
+ * SR-only fallback list (wireframe.md Surface 2): built on Drupal core's own
+ * `.visually-hidden` utility class (already relied on elsewhere in this
+ * codebase, e.g. `do-chrome-permission-matrix.html.twig` — never redefined
+ * locally) rather than a hand-rolled clip pattern. Core's own
+ * `.visually-hidden` clips via `position: absolute !important` + a `clip`
+ * rect; the `:focus-within` rule below explicitly overrides both so a
+ * sighted keyboard user tabbing into the list sees it appear — "MUST become
+ * visible-on-focus ... not optional" (wireframe.md Surface 2), so this is a
+ * REQUIRED override, not a nicety.
+ */
+
+/* ==========================================================================
+   Structural — hide the row grid + pager, show the map region instead.
+   ========================================================================== */
+
+.views-element-container[data-do-directory-variant="map"] .view-content {
+  display: none;
+}
+
+/* Inverse case: once a live client-side toggle INTO map mode has run at
+   least once, do_showcase.directory-map.js has permanently created
+   `.do-showcase-map` / `.do-showcase-map-caption` /
+   `.do-showcase-map-fallback-list` inside the wrapper (never re-created,
+   never removed — see that file's ensureMapContainer()/ensureCaption()/
+   ensureFallbackList() docblocks). A toggle back OUT of map mode does not
+   remove that markup either (JS never deletes DOM, only CSS-hides it, the
+   same "hide via CSS, keep in DOM" discipline this story's OWN .view-content
+   rule above already follows) — so these three elements need an explicit
+   hide rule for every OTHER value of the wrapper's attribute, or a toggle
+   Map -> Cards would leave a stray, empty map box sitting next to the card
+   grid (violating brief AC: "Cards + Compact list variants render
+   identically to pre-story"). */
+.views-element-container:not([data-do-directory-variant="map"]) .do-showcase-map,
+.views-element-container:not([data-do-directory-variant="map"]) .do-showcase-map-caption,
+.views-element-container:not([data-do-directory-variant="map"]) .do-showcase-map-fallback-list {
+  display: none;
+}
+
+.views-element-container[data-do-directory-variant="map"] .pager {
+  /* .pager renders as a descendant of the inner .view div (views-view.html.twig:
+     header/exposed/.view-content/pager/footer, all inside the SAME .view
+     wrapper that .views-element-container itself wraps) — a plain
+     descendant combinator, matching how .view-content is targeted above,
+     reaches it regardless of the exact intermediate nesting. Pagination has
+     no meaning for a single all-markers view (wireframe.md Surface 1) —
+     truthfully hidden, not shown-but-inert. */
+  display: none;
+}
+
+/* ==========================================================================
+   Caption — visible truthful count, sits between the filter row and the map
+   container (wireframe.md Surface 1).
+   ========================================================================== */
+
+.views-element-container[data-do-directory-variant="map"] .do-showcase-map-caption {
+  /* Same scale as .gc-directory-card__title (directory-compact.css) — no new
+     type token introduced for this story's own copy. */
+  font-size: var(--gc-font-size-md, 1rem);
+  font-weight: var(--gc-font-weight-semibold, 600);
+  margin-block: var(--gc-space-sm, 0.75rem);
+}
+
+/* ==========================================================================
+   Map container — a single fixed-aspect box, full content-column width
+   (wireframe.md Surface 1: "same content-column width the card grid already
+   occupies").
+   ========================================================================== */
+
+.views-element-container[data-do-directory-variant="map"] .do-showcase-map {
+  display: block;
+  width: 100%;
+  min-height: 400px;
+  /* Plain background BEFORE Leaflet mounts (avoids a flash of unstyled
+     white while the behavior attaches) — matches .leaflet-container's own
+     restyle below so there is no visible seam once Leaflet takes over. */
+  background: var(--gc-color-surface-muted, #ececec);
+  border: 1px solid var(--gc-color-border, #d8dee4);
+  border-radius: var(--gc-radius-md, 4px);
+}
+
+/* No live tile layer (brief's Design note) — plain grey fill is what
+   actually renders behind the markers, not a placeholder. */
+.views-element-container[data-do-directory-variant="map"] .do-showcase-map .leaflet-container {
+  background: #eceff1;
+}
+
+/* ==========================================================================
+   SR-only keyboard fallback list (wireframe.md Surface 2).
+   ========================================================================== */
+
+.views-element-container[data-do-directory-variant="map"] .do-showcase-map-fallback-list {
+  margin-block-start: var(--gc-space-sm, 0.75rem);
+  padding: 0;
+  list-style: none;
+}
+
+/* REQUIRED override (wireframe.md Surface 2: "not optional") — reveal the
+   list the moment a descendant link receives focus, undoing core's
+   `.visually-hidden` clip so a sighted keyboard-only user gets visual
+   confirmation of where focus landed, rather than tabbing through invisible
+   links. */
+.views-element-container[data-do-directory-variant="map"] .do-showcase-map-fallback-list.visually-hidden:focus-within {
+  position: static !important;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  background: var(--gc-color-surface, #fff);
+  border: 1px solid var(--gc-color-border, #d8dee4);
+  border-radius: var(--gc-radius-md, 4px);
+  padding: var(--gc-space-sm, 0.75rem);
+}
+
+.views-element-container[data-do-directory-variant="map"] .do-showcase-map-fallback-list li {
+  margin-block-end: var(--gc-space-2xs, 0.25rem);
+}
+
+/* Focus-visible outline — same token as directory-compact.css's
+   `.gc-directory-card__title a:focus-visible`, no new focus design. */
+.views-element-container[data-do-directory-variant="map"] .do-showcase-map-fallback-list a:focus-visible {
+  outline: 2px solid var(--gc-color-primary, #0678be);
+  outline-offset: 2px;
+}

@@ -73,6 +73,17 @@ use Symfony\Component\HttpFoundation\RequestStack;
  * `do_showcase.services.yml`'s `do_showcase.hooks` entry now passes
  * `@do_showcase.showcase_catalog` as a second argument.
  *
+ * #125 SC-6: `viewsPreRender()` additionally attaches `do_showcase/directory-map`
+ * (unconditionally, alongside `do_showcase/switcher` +
+ * `do_showcase/directory-compact` — the library itself no-ops harmlessly
+ * whenever the wrapper's resolved variant isn't `"map"`, same precedent as
+ * `directory-compact`). A NEW, independent `preprocessViewsViewUnformatted()`
+ * hook (below) projects `data-do-location-lat` / `-lng` / `-url` / `-name`
+ * onto each row's own `attributes` object — the ONE place this story reads
+ * `field_group_location` off the row's entity (handoff-A-plan.md's "simpler
+ * alternative": one hook, one loop, one place, rather than a
+ * `preprocess_views_view_field` + a second aggregating hook).
+ *
  * #124 SC-5: TWO cooperating hooks mount the SC-F1 `VariantSwitcher` over
  * `/all-groups` (view `all_groups`, display `page_1`):
  *  - `viewsPreRender()` sets the `data-do-directory-variant` wrapper
@@ -459,6 +470,12 @@ class DoShowcaseHooks {
     $view->element['#attributes']['data-do-directory-variant'] = $resolved_variant;
     $view->element['#attached']['library'][] = 'do_showcase/switcher';
     $view->element['#attached']['library'][] = 'do_showcase/directory-compact';
+    // #125 SC-6: attached unconditionally, mirroring directory-compact above
+    // — do_showcase.directory-map.js checks the wrapper's own
+    // data-do-directory-variant value before doing any Leaflet work, so
+    // Cards/Compact mode pays zero cost for this attach (wireframe.md
+    // Surface 3).
+    $view->element['#attached']['library'][] = 'do_showcase/directory-map';
   }
 
   /**
@@ -511,6 +528,106 @@ class DoShowcaseHooks {
     $switcher['#wrapper_attributes']['data-do-showcase-mirror-selector'] = '.views-element-container';
 
     $variables['header']['switcher'] = $switcher;
+  }
+
+  /**
+   * Projects each row's `field_group_location` onto its own row attributes.
+   *
+   * #125 SC-6 (handoff-A-plan.md's "simpler alternative"): ONE hook, ONE
+   * loop, ONE place — rather than a `preprocess_views_view_field` on the
+   * geofield plus a second hook aggregating its output onto the row wrapper.
+   * `do_showcase.directory-map.js` reads these attributes directly off each
+   * `.views-row` element (survey.md's resolved seam) to build one Leaflet
+   * marker + one SR-only fallback-list `<li>` per group with a resolvable
+   * location — rows without a location simply carry none of these
+   * attributes and are silently skipped by the JS (wireframe.md Surface 1:
+   * "no dead marker, no placeholder pin").
+   *
+   * Scoped identically to `viewsPreRender()`/`preprocessViewsView()` above
+   * (same view id/display id guard via `isDirectoryView()`) — every other
+   * view/display's `views_view_unformatted` preprocess returns immediately
+   * with no side effects.
+   *
+   * Reads the row's already-loaded entity off `$view->result[$i]->_entity`
+   * (populated by Views' own query plugin for an entity-based base table
+   * like `groups_field_data` — no extra entity load is needed here) rather
+   * than re-querying by row index, matching how every other `getEntity()`
+   * consumer in this codebase (e.g. `CreateGroupOrganizerHook`,
+   * `DoActivityHooks`) reads an already-resolved entity off its own
+   * Views/Group relationship object instead of loading a fresh copy.
+   */
+  #[Hook('preprocess_views_view_unformatted')]
+  public function preprocessViewsViewUnformatted(array &$variables): void {
+    $view = $variables['view'] ?? NULL;
+    if (!$view instanceof ViewExecutable || !$this->isDirectoryView($view)) {
+      return;
+    }
+
+    foreach ($variables['rows'] as $index => $row) {
+      $result_row = $view->result[$index] ?? NULL;
+      $group = $result_row->_entity ?? NULL;
+      if (!$group instanceof \Drupal\group\Entity\GroupInterface) {
+        continue;
+      }
+
+      $location_attributes = $this->groupLocationAttributes($group);
+      if ($location_attributes === NULL) {
+        continue;
+      }
+
+      if (!isset($variables['rows'][$index]['attributes']) || !$variables['rows'][$index]['attributes'] instanceof Attribute) {
+        $variables['rows'][$index]['attributes'] = new Attribute();
+      }
+      foreach ($location_attributes as $name => $value) {
+        $variables['rows'][$index]['attributes']->setAttribute($name, $value);
+      }
+    }
+  }
+
+  /**
+   * Computes the `data-do-location-*` attribute values for one group.
+   *
+   * @param \Drupal\group\Entity\GroupInterface $group
+   *   The group entity for one directory row.
+   *
+   * @return array<string, string>|null
+   *   A `['data-do-location-lat' => ..., 'data-do-location-lng' => ...,
+   *   'data-do-location-url' => ..., 'data-do-location-name' => ...]` map, or
+   *   NULL if the group has no `field_group_location` value (the field is
+   *   optional — brief.md AC: "Groups without field_group_location don't
+   *   plot").
+   */
+  private function groupLocationAttributes(\Drupal\group\Entity\GroupInterface $group): ?array {
+    if (!$group->hasField('field_group_location') || $group->get('field_group_location')->isEmpty()) {
+      return NULL;
+    }
+
+    $item = $group->get('field_group_location')->first();
+    $lat = $item?->get('lat')?->getValue();
+    $lng = $item?->get('lon')?->getValue();
+    if ($lat === NULL || $lng === NULL || $lat === '' || $lng === '') {
+      return NULL;
+    }
+
+    // "Group Name — City" (wireframe.md Surface 2) — built here, the ONE
+    // place this copy is assembled, so the marker's native `title` and the
+    // SR-only fallback list's link text (both consumed client-side from
+    // this same data-do-location-name attribute) can never drift apart.
+    // field_group_location_text (city) is safe-missing (survey.md: an
+    // existing free-text field already set on all 4 seed groups; still
+    // guarded here for any group that has a location but no city text).
+    $city = '';
+    if ($group->hasField('field_group_location_text') && !$group->get('field_group_location_text')->isEmpty()) {
+      $city = (string) $group->get('field_group_location_text')->value;
+    }
+    $name = $city !== '' ? $group->label() . ' — ' . $city : (string) $group->label();
+
+    return [
+      'data-do-location-lat' => (string) $lat,
+      'data-do-location-lng' => (string) $lng,
+      'data-do-location-url' => $group->toUrl()->toString(),
+      'data-do-location-name' => $name,
+    ];
   }
 
   /**

@@ -6,7 +6,7 @@ import { test, expect, Page } from '@playwright/test';
  * `docs/handoffs/0124-directory-toggle/brief.md` + `wireframe.md` mount the
  * SC-F1 (#119) variant switcher over `/all-groups` (view `all_groups`,
  * `page_1`) as the view's `#header`, with three options — Compact list /
- * Cards (default) / Map (soon, unavailable) — sharing the SAME instance id
+ * Cards (default) / Map — sharing the SAME instance id
  * (`directory.layout`) and sessionStorage key as `/showcase`'s own stub
  * switcher (SC-F1). Toggling flips a `data-do-directory-variant` attribute
  * on the view's `.view-content` wrapper (wireframe.md Surface 3) WITHOUT a
@@ -190,12 +190,6 @@ test.describe('#124 SC-5 — Directory compact/cards toggle (/all-groups)', () =
     await page.goto('/all-groups?variant=compact');
     await expect(directoryWrapperLocator(page)).toHaveAttribute('data-do-directory-variant', 'compact');
     await expect(switcherLocator(page).getByRole('radio', { name: /Compact list/i })).toHaveAttribute('aria-checked', 'true');
-  });
-
-  test('?variant=map (unavailable) falls back gracefully to compact, never blank', async ({ page }) => {
-    await page.goto('/all-groups?variant=map');
-    await expect(directoryWrapperLocator(page)).toHaveAttribute('data-do-directory-variant', 'compact');
-    await expect(page.locator('.views-row').first()).toBeVisible();
   });
 
   test('cross-page persistence: selecting Compact on /showcase carries over to /all-groups', async ({
