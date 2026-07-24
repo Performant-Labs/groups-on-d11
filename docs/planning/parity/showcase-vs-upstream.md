@@ -4,6 +4,7 @@
 **Local source:** `docs/groups/modules/do_showcase/src/ShowcaseCatalog.php`
 **Upstream source:** https://git.drupalcode.org/project/groupsdrupalorg/-/issues/3578797 ("July 2026 POC Feature Tour & Personas")
 **Audit date:** 2026-07-24
+**Recon date:** 2026-07-24 (#217/#218/#219/#220).
 **Prior sweeps:** #195 (tooltip inventory), #196 (map view — CLOSED), #197 (theme toggle — CLOSED), #198 (map copy — MERGED).
 
 ## Method
@@ -19,19 +20,20 @@ Every entry in `ShowcaseCatalog::entries()` and `ShowcaseCatalog::personas()` wa
 
 | # | Upstream item | Local catalog entry | Status | Notes |
 |---|---|---|---|---|
-| 1 | Public Browse (anonymous read access) | (implicit: Anonymous persona) | LOCAL-ONLY (implicit) | Upstream lists as a top-level tour item. Locally covered by the Anonymous persona in the persona-switcher, no dedicated catalog entry. Filed as reconciliation issue — decide whether to add a dedicated entry or accept implicit coverage. |
+| 1 | Public Browse (anonymous read access) | `public-browse` | MATCH | Reconciled by #217 — added explicit `public-browse` catalog entry (2026-07-24). |
 | 2 | Dual Stream Models | `stream-model` | MATCH | Local decision sentence names node-content vs. activity-log model (post-ST-8/#130 correction). |
-| 3 | Persona Switcher (Anonymous, Member, Group Admin, Moderator) | `persona-switcher` | MATCH (with intentional persona-name drift) | Local personas: Anonymous, Elena Garcia (Member), Maria Chen (Organizer), Groups-Moderate. Upstream "Group Admin" → local "Organizer"; upstream "Moderator" → local "Groups-Moderate". Deliberate per #133 SD-6 honesty sweep (brief.md scope item 3). Filed as reconciliation issue — decide whether to push the local names upstream or keep the divergence documented. |
+| 3 | Persona Switcher (Anonymous, Member, Group Admin, Moderator) | `persona-switcher` | MATCH (with intentional persona-name drift) | Local personas: Anonymous, Elena Garcia (Member), Maria Chen (Organizer), Groups-Moderate. Upstream "Group Admin" → local "Organizer"; upstream "Moderator" → local "Groups-Moderate". Deliberate per #133 SD-6 honesty sweep (brief.md scope item 3). Cross-references added in-copy by #220 — the persona `description` fields now name the upstream roles ("Group Admin", "Moderator") so /showcase visitors can map local↔upstream without hunting docblocks (2026-07-24). |
 | 4 | Membership Models (open / request-to-join / invite-only) | `membership-models` | MATCH | Local sentence adds a second axis (privacy) — richer than upstream but not contradictory. |
-| 5 | Group-Type Homepages (events-first / discussion-first / docs-first) | `group-type-homepages` | MATCH | Both describe per-type UI adaptation. Local sentence is more abstract; upstream names the three concrete variants. Minor DRIFT worth reconciling. |
+| 5 | Group-Type Homepages (events-first / discussion-first / docs-first) | `group-type-homepages` | MATCH | Reconciled by #218 — decision_sentence now names events-first / discussion-first / docs-first (2026-07-24). |
 | 6 | Geographic Directory (Leaflet + geofield) | `directory-presentation` (Map variant) | MATCH | Reconciled by #198 (merged). Local sentence now names Map + geographic axis. |
-| 7 | Archive Semantics (archived = published + read-only) | (none) | MISSING | No catalog entry. Feature exists in the demo (archive semantics ship as part of moderation), but is not surfaced on `/showcase`. Filed as reconciliation issue. |
+| 7 | Archive Semantics (archived = published + read-only) | (none) | Resolved | Resolved by #219 with decision record `docs/planning/decisions/0003-archive-semantics-no-catalog-entry.md` — semantics ship via moderation, no standalone comparison surface. |
 | 8 | Theme Toggle (rejected) | (none — documented in decision record) | Resolved | #197 closed with a decision record; no catalog entry needed. |
 
 ## Local catalog entries → upstream
 
 | Local entry | Upstream item | Status |
 |---|---|---|
+| `public-browse` | #1 Public Browse | MATCH |
 | `discovery-ranking` (Recent / Hot / Promoted) | (none) | LOCAL-ONLY. Upstream tour has no discovery/ranking comparison. Deliberate local extension — flagged with `local_only => TRUE` in the catalog. |
 | `directory-presentation` | #6 Geographic Directory | MATCH |
 | `membership-models` | #4 Membership Models | MATCH |
@@ -46,8 +48,8 @@ Every entry in `ShowcaseCatalog::entries()` and `ShowcaseCatalog::personas()` wa
 |---|---|---|---|
 | Anonymous | Anonymous | Anonymous | MATCH |
 | Member | Elena Garcia | Elena Garcia — Member | MATCH (label preserves the role word) |
-| Group Admin | Maria Chen | Maria Chen — Organizer | DRIFT (intentional — #133) |
-| Moderator | Groups-Moderate | Groups-Moderate | DRIFT (intentional — #133) |
+| Group Admin | Maria Chen | Maria Chen — Organizer | DRIFT (intentional — #133; cross-referenced in-copy by #220) |
+| Moderator | Groups-Moderate | Groups-Moderate | DRIFT (intentional — #133; cross-referenced in-copy by #220) |
 
 ## Reconciliation issues filed
 
@@ -63,6 +65,13 @@ Already resolved and NOT re-filed:
 - #196 Geographic map view — CLOSED
 - #197 Theme toggle — CLOSED (decision record)
 - #198 Map copy — MERGED
+
+## Resolved (2026-07-24)
+
+- **#217** — Public Browse: added an explicit `public-browse` catalog entry (first in `ShowcaseCatalog::entries()`), mirroring upstream feature-tour item #1. Previously implicit-only via the Anonymous persona.
+- **#218** — Group-Type Homepages copy drift: rewrote `group-type-homepages`'s `decision_sentence` to name the three concrete variants (events-first / discussion-first / docs-first), matching upstream's framing and `HelpText.php:321`'s already-aligned help copy.
+- **#219** — Archive Semantics: resolved via decision record (`0003-archive-semantics-no-catalog-entry.md`) rather than a new catalog entry — semantics ship via moderation, but there is no standalone comparison surface to point a catalog card at without violating the truthful-copy rule.
+- **#220** — Persona-name drift: kept the intentional divergence (per #133 SD-6) and formalized the cross-reference in-copy — `maria-chen`'s and `moderator`'s persona `description` fields now name the corresponding upstream role ("Group Admin", "Moderator"), plus a docblock note on `ShowcaseCatalog::personas()` explaining the deliberate choice.
 
 ## Regression guard
 
