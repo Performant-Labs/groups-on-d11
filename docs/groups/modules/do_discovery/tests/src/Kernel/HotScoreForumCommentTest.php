@@ -59,6 +59,17 @@ class HotScoreForumCommentTest extends GroupsKernelTestBase {
     $this->installSchema('comment', ['comment_entity_statistics']);
     $this->installSchema('do_discovery', ['do_discovery_hot_score']);
 
+    // Kernel tests never run hook_install() for modules enabled via
+    // static::$modules (KernelTestBase::enableModules() only rewrites
+    // core.extension and rebuilds the container — it does not replay any
+    // module's install hook). comment_install() normally sets this state key,
+    // and \Drupal\comment\CommentStatistics::update() early-returns without
+    // writing a comment_entity_statistics row unless it is TRUE. Root-caused
+    // empirically in handoff-F.md (Phase 5): without this line, the hot-score
+    // test's final assertion sees score 0.0 (no row at all), not a "field
+    // missing" failure.
+    \Drupal::state()->set('comment.maintain_entity_statistics', TRUE);
+
     // Install the comment field storage + comment type + the article
     // instance's dependencies (comment module config), all of which already
     // ship in config/sync/ today — only the FORUM instance is missing (the
@@ -73,6 +84,17 @@ class HotScoreForumCommentTest extends GroupsKernelTestBase {
       ->save();
     $entity_type_manager->getStorage('field_storage_config')
       ->create($shipped->read('field.storage.node.comment'))
+      ->save();
+
+    // Install the FORUM bundle's field_config instance (the config F ships
+    // for #182: docs/groups/config/field.field.node.forum.comment.yml). This
+    // codebase's Kernel harness never performs a generic config-import (see
+    // IcalFeedsTest's identical pattern for field_date_of_event) — every
+    // bundle-specific field instance must be installed explicitly via the
+    // storage API in setUp(), mirroring what a real config-import/site-install
+    // would do.
+    $entity_type_manager->getStorage('field_config')
+      ->create($shipped->read('field.field.node.forum.comment'))
       ->save();
 
     // Grant the base fixture's non-member current user view access to every
