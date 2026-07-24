@@ -159,6 +159,13 @@ class PrivacyDirectoryTest extends BrowserTestBase {
       'label' => 'Security Team',
       'status' => 1,
     ]);
+    // Second save bypasses DoGroupExtrasHooks::entityPresave auto-unpublish
+    // (which only fires on new entities). The presave hook flips status to 0
+    // whenever the current user lacks 'administer group|s' — during BrowserTestBase
+    // setUp() that is uid 0 (anonymous), so the initial createGroup would leave
+    // the group unpublished, and every subsequent anonymous/non-admin GET on its
+    // canonical route would return 403 regardless of the privacy axis under test.
+    $this->securityTeam->set('status', 1);
     $this->securityTeam->set('field_group_privacy', 'private');
     $this->securityTeam->save();
 
@@ -169,6 +176,10 @@ class PrivacyDirectoryTest extends BrowserTestBase {
     ]);
     // field_group_privacy defaults to 'public' — left unset intentionally, to
     // pin the AC-1 default-value contract at the functional layer too.
+    // Second save bypasses DoGroupExtrasHooks::entityPresave auto-unpublish
+    // (which only fires on new entities) so status stays 1 for anonymous GET.
+    $this->publicGroup->set('status', 1);
+    $this->publicGroup->save();
 
     $this->elena = $this->drupalCreateUser([], 'elena_garcia');
     $this->securityTeam->addMember($this->elena, ['group_roles' => ['community_group-member']]);
