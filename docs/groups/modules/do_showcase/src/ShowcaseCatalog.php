@@ -26,6 +26,15 @@ use Drupal\Core\StringTranslation\StringTranslationTrait;
  * homepages; #134 private-group reveal). Request-to-join stayed bespoke in
  * #121 (`drupal/grequest` is incompatible with group 4.0.x-dev, per #136),
  * but the comparison itself is live and demonstrable, not aspirational.
+ *
+ * #212 (REL-3, docs-repo parity): every entry additionally carries
+ * `upstream_ref` — the URL of the upstream docs-repo feature-tour item this
+ * comparison mirrors — OR `local_only => TRUE` (asserting the entry is a
+ * deliberate local extension not present upstream). Exactly one of the two
+ * MUST be set on every entry; ShowcaseCatalogUpstreamRefTest pins that
+ * invariant so any future entry that omits both fails loud. The upstream
+ * feature-tour source of record is
+ * https://git.drupalcode.org/project/groupsdrupalorg/-/issues/3578797.
  */
 final class ShowcaseCatalog {
 
@@ -34,10 +43,14 @@ final class ShowcaseCatalog {
   /**
    * The seven required catalog entries (six comparisons + persona switcher).
    *
-   * @return array<int, array{id: string, title: \Drupal\Core\StringTranslation\TranslatableMarkup, decision_sentence: \Drupal\Core\StringTranslation\TranslatableMarkup, status: string, route: string|null}>
+   * @return array<int, array{id: string, title: \Drupal\Core\StringTranslation\TranslatableMarkup, decision_sentence: \Drupal\Core\StringTranslation\TranslatableMarkup, status: string, route: string|null, upstream_ref?: string, local_only?: bool}>
    *   The catalog entries, in display order.
    */
   public function entries(): array {
+    // #212: `UPSTREAM_TOUR` is the single upstream feature-tour issue URL —
+    // the docs-repo has no per-item anchors, so every mirrored entry links to
+    // the same source-of-record page.
+    $upstream_tour = 'https://git.drupalcode.org/project/groupsdrupalorg/-/issues/3578797';
     return [
       [
         'id' => 'discovery-ranking',
@@ -45,6 +58,9 @@ final class ShowcaseCatalog {
         'decision_sentence' => $this->t('Compares three ways to surface groups: Recent, Hot, Promoted — the decision: how much editorial curation vs. raw recency.'),
         'status' => 'live',
         'route' => 'do_showcase.showcase',
+        // #212: no matching item in the upstream feature tour — this is a
+        // deliberate local extension (Recent/Hot/Promoted three-way ranking).
+        'local_only' => TRUE,
       ],
       [
         'id' => 'directory-presentation',
@@ -60,6 +76,11 @@ final class ShowcaseCatalog {
         // against PageHelp.php:72 + PageHelpRouteMapTest.php:46).
         'status' => 'live',
         'route' => 'view.all_groups.page_1',
+        // #212: mirrors upstream feature-tour item #6 (Geographic Directory,
+        // "map view displays groups geographically using a locally-vendored
+        // Leaflet library with geofield integration") — post-#198 the local
+        // decision sentence names the Map variant explicitly.
+        'upstream_ref' => $upstream_tour,
       ],
       [
         'id' => 'membership-models',
@@ -75,6 +96,10 @@ final class ShowcaseCatalog {
         // /all-groups directory.
         'status' => 'live',
         'route' => 'view.all_groups.page_1',
+        // #212: mirrors upstream feature-tour item #4 (Membership Models,
+        // "three enforced membership tiers: open access, request-to-join
+        // workflow, and invite-only restrictions").
+        'upstream_ref' => $upstream_tour,
       ],
       [
         'id' => 'group-type-homepages',
@@ -85,6 +110,10 @@ final class ShowcaseCatalog {
         // visitor can pick a group of any type and see its adapted homepage.
         'status' => 'live',
         'route' => 'view.all_groups.page_1',
+        // #212: mirrors upstream feature-tour item #5 (Group-Type Homepages,
+        // "homepages adapt by group type: events-first, discussion-first, or
+        // docs-first layouts").
+        'upstream_ref' => $upstream_tour,
       ],
       [
         'id' => 'stream-model',
@@ -101,6 +130,10 @@ final class ShowcaseCatalog {
         // The canonical Views auto-generated route id for /stream, same
         // pattern as 'view.all_groups.page_1' above.
         'route' => 'view.activity_stream.page_1',
+        // #212: mirrors upstream feature-tour item #2 (Dual Stream Models,
+        // "both node-based streams and a message-based activity layer
+        // operate simultaneously, with a visitor-facing toggle").
+        'upstream_ref' => $upstream_tour,
       ],
       [
         'id' => 'private-group-reveal',
@@ -111,6 +144,11 @@ final class ShowcaseCatalog {
         // from the directory reveals the private-group difference.
         'status' => 'live',
         'route' => 'view.all_groups.page_1',
+        // #212: no dedicated item in the upstream feature tour — upstream
+        // folds privacy into item #4 (Membership Models). This local entry
+        // splits the join-policy axis from the visibility axis, making the
+        // private-group reveal comparison its own catalog entry.
+        'local_only' => TRUE,
       ],
       [
         'id' => 'persona-switcher',
@@ -118,6 +156,12 @@ final class ShowcaseCatalog {
         'decision_sentence' => $this->t('Switch between four public personas to see the demo from each point of view — the decision: one generic anonymous view vs. role-tailored experiences.'),
         'status' => 'live',
         'route' => 'do_showcase.showcase',
+        // #212: mirrors upstream feature-tour item #3 (Persona Switcher,
+        // "Browse-as device allows switching between four public personas").
+        // Persona-name drift (upstream: Group Admin/Moderator; local:
+        // Organizer/Groups-Moderate) is deliberate per #133 SD-6 honesty
+        // sweep — brief.md scope item 3 pins the local names.
+        'upstream_ref' => $upstream_tour,
       ],
     ];
   }
