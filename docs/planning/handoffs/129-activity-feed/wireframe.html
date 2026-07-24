@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wireframe — do_activity_feed (issue #129)</title>
+<style>
+  /* ---- Approximated groups_chrome design tokens (low-fi, not production CSS) ----
+     Reused verbatim from docs/handoffs/109-do-streams-scaffold/wireframe.html so this
+     surface visually matches the existing stream shell rather than inventing a new
+     visual language. */
+  :root {
+    --gc-color-primary: #0678be;
+    --gc-color-primary-600: #055a91;
+    --gc-color-primary-700: #044568;
+    --gc-color-primary-050: #e7f2fb;
+    --gc-color-bg: #ffffff;
+    --gc-color-bg-subtle: #f5f7fa;
+    --gc-color-border: #d6dde5;
+    --gc-color-text: #1b2733;
+    --gc-color-text-muted: #4c5a68; /* darkened from #5c6b7a (109) to clear 4.5:1 on white for meta text */
+    --gc-radius-sm: 4px;
+    --gc-radius-md: 8px;
+    --gc-radius-lg: 12px;
+    --gc-radius-pill: 999px;
+    --gc-space-xs: 0.5rem;
+    --gc-space-sm: 0.75rem;
+    --gc-space-md: 1rem;
+    --gc-space-lg: 1.5rem;
+    --gc-space-xl: 2rem;
+    --gc-space-2xl: 3rem;
+    --gc-font-size-xs: 0.75rem;
+    --gc-font-size-sm: 0.875rem;
+    --gc-font-size-md: 1rem;
+    --gc-font-size-lg: 1.25rem;
+    --gc-font-size-xl: 1.5rem;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--gc-color-text);
+    background: #eef1f4;
+    margin: 0;
+    padding: var(--gc-space-2xl) var(--gc-space-lg);
+  }
+  h1.doc-title {
+    max-width: 760px;
+    margin: 0 auto var(--gc-space-xs);
+    font-size: var(--gc-font-size-xl);
+  }
+  p.doc-sub {
+    max-width: 760px;
+    margin: 0 auto var(--gc-space-lg);
+    color: var(--gc-color-text-muted);
+    font-size: var(--gc-font-size-sm);
+  }
+  .legend {
+    max-width: 760px;
+    margin: 0 auto var(--gc-space-2xl);
+    padding: var(--gc-space-md);
+    background: #fff8e1;
+    border: 1px dashed #c9a227;
+    border-radius: var(--gc-radius-md);
+    font-size: var(--gc-font-size-sm);
+  }
+  .legend code { background: #00000010; padding: 0 4px; border-radius: 3px; }
+
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  /* ---- Shell chrome: reused from do-streams-shell.html.twig conventions ---- */
+  .shell {
+    background: var(--gc-color-bg);
+    border: 1px solid var(--gc-color-border);
+    border-radius: var(--gc-radius-lg);
+    padding: var(--gc-space-lg);
+  }
+
+  .shell-tabs {
+    display: flex;
+    gap: var(--gc-space-xs);
+    border-bottom: 1px solid var(--gc-color-border);
+    margin-bottom: var(--gc-space-md);
+    padding-bottom: 0;
+  }
+  .shell-tabs__item {
+    padding: var(--gc-space-xs) var(--gc-space-md);
+    font-size: var(--gc-font-size-sm);
+    font-weight: 500;
+    color: var(--gc-color-text-muted);
+    border-bottom: 3px solid transparent;
+    text-decoration: none;
+  }
+  .shell-tabs__item.is-active {
+    color: var(--gc-color-primary-700);
+    border-bottom-color: var(--gc-color-primary);
+    font-weight: 600;
+  }
+  .shell-tabs__item:focus-visible {
+    outline: 2px solid var(--gc-color-primary-700);
+    outline-offset: 2px;
+  }
+
+  .shell-scope-note {
+    font-size: var(--gc-font-size-xs);
+    color: var(--gc-color-text-muted);
+    margin: 0 0 var(--gc-space-md);
+  }
+  .shell-scope-note a { color: var(--gc-color-primary-700); }
+
+  /* ---- Feed list: one vertical stack, alternating row types share a left gutter ---- */
+  .activity-feed { display: flex; flex-direction: column; gap: var(--gc-space-sm); }
+  .activity-feed__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--gc-space-sm); }
+
+  /* Shared left-gutter avatar column so content/social/aggregated rows align visually. */
+  .row { display: flex; gap: var(--gc-space-sm); align-items: flex-start; }
+  .row__avatar {
+    flex: 0 0 auto;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--gc-color-primary-050);
+    color: var(--gc-color-primary-700);
+    display: flex; align-items: center; justify-content: center;
+    font-size: var(--gc-font-size-xs); font-weight: 700;
+  }
+  .row__body { flex: 1 1 auto; min-width: 0; }
+
+  /* ---- Content-card row (activity-row--content.html.twig) ----
+     Wraps the EXISTING node.stream_card view mode output; this wireframe
+     black-boxes the card interior (owned by node--stream-card.html.twig,
+     per the 109 wireframe's own convention) and only adds the meta strip. */
+  .activity-row--content .card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--gc-color-bg);
+    border: 1px solid var(--gc-color-border);
+    border-radius: var(--gc-radius-lg);
+    padding: var(--gc-space-md);
+    box-shadow: 0 1px 2px rgba(27,39,51,0.06);
+  }
+  .card__meta {
+    font-size: var(--gc-font-size-xs);
+    color: var(--gc-color-text-muted);
+    margin: 0 0 4px;
+  }
+  .card__meta a { color: var(--gc-color-primary-700); text-decoration: none; }
+  .card__meta a:hover, .card__meta a:focus-visible { text-decoration: underline; }
+  .card__title { font-size: var(--gc-font-size-md); font-weight: 600; margin: 2px 0; }
+  .card__title a { color: inherit; text-decoration: none; }
+  .card__title a:hover, .card__title a:focus-visible { text-decoration: underline; }
+  .card__snippet { font-size: var(--gc-font-size-sm); color: var(--gc-color-text-muted); margin: 0; }
+  .card__badge {
+    display: inline-block;
+    font-size: var(--gc-font-size-xs);
+    background: var(--gc-color-primary-050);
+    color: var(--gc-color-primary-700);
+    padding: 2px 8px;
+    border-radius: var(--gc-radius-pill);
+    margin-left: 6px;
+  }
+
+  /* ---- Social rows (activity-row--social.html.twig) ----
+     Visually compact vs. content cards: one line, no card border/shadow. */
+  .activity-row--social .row__sentence {
+    font-size: var(--gc-font-size-sm);
+    margin: 0;
+    padding: 6px 0;
+  }
+  .activity-row--social .row__sentence strong { font-weight: 600; }
+  .activity-row--social .row__sentence a { color: var(--gc-color-primary-700); text-decoration: none; }
+  .activity-row--social .row__sentence a:hover,
+  .activity-row--social .row__sentence a:focus-visible { text-decoration: underline; }
+  .row__time {
+    font-size: var(--gc-font-size-xs);
+    color: var(--gc-color-text-muted);
+  }
+  .row__snippet-quote {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--gc-font-size-sm);
+    color: var(--gc-color-text-muted);
+    font-style: italic;
+  }
+
+  /* ---- Aggregated row (activity-row--aggregated.html.twig) ----
+     Native <details>/<summary> disclosure — no JS, keyboard-operable by default. */
+  .activity-row--aggregated details {
+    padding: 6px 0;
+  }
+  .activity-row--aggregated summary {
+    font-size: var(--gc-font-size-sm);
+    cursor: pointer;
+    list-style: none;
+  }
+  .activity-row--aggregated summary::-webkit-details-marker { display: none; }
+  .activity-row--aggregated summary::before {
+    content: "\25B8"; /* ▸ */
+    display: inline-block;
+    margin-right: 6px;
+    color: var(--gc-color-text-muted);
+    transition: transform 0.1s ease-in-out;
+  }
+  .activity-row--aggregated details[open] summary::before {
+    transform: rotate(90deg);
+  }
+  .activity-row--aggregated summary:focus-visible {
+    outline: 2px solid var(--gc-color-primary-700);
+    outline-offset: 2px;
+  }
+  .activity-row--aggregated .row__count {
+    font-weight: 600; /* non-color signal: the count is in the text itself, "3 topics" */
+  }
+  .activity-row--aggregated__children {
+    list-style: none;
+    margin: 6px 0 0 22px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .activity-row--aggregated__children a {
+    font-size: var(--gc-font-size-sm);
+    color: var(--gc-color-primary-700);
+    text-decoration: none;
+  }
+  .activity-row--aggregated__children a:hover,
+  .activity-row--aggregated__children a:focus-visible { text-decoration: underline; }
+
+  /* ---- Empty state (reused .gc-empty pattern from 109) ---- */
+  .gc-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--gc-space-xs);
+    margin: var(--gc-space-lg) auto;
+    padding: var(--gc-space-xl) var(--gc-space-lg);
+    text-align: center;
+    background-color: var(--gc-color-bg-subtle);
+    border: 1px dashed var(--gc-color-border);
+    border-radius: var(--gc-radius-lg);
+  }
+  .gc-empty__title { margin: 0; font-size: var(--gc-font-size-lg); font-weight: 600; }
+  .gc-empty__text { margin: 0; font-size: var(--gc-font-size-sm); color: var(--gc-color-text-muted); max-width: 32rem; }
+
+  .state {
+    max-width: 760px;
+    margin: 0 auto var(--gc-space-2xl);
+  }
+  .state__label {
+    display: inline-block;
+    margin-bottom: var(--gc-space-sm);
+    padding: 2px 10px;
+    background: var(--gc-color-primary-700);
+    color: #fff;
+    font-size: var(--gc-font-size-xs);
+    font-weight: 600;
+    border-radius: var(--gc-radius-pill);
+    letter-spacing: 0.02em;
+  }
+  .state__note {
+    margin: 0 0 var(--gc-space-sm);
+    font-size: var(--gc-font-size-xs);
+    color: var(--gc-color-text-muted);
+  }
+
+  .annot {
+    margin-top: var(--gc-space-sm);
+    font-size: var(--gc-font-size-xs);
+    color: var(--gc-color-text-muted);
+    background: var(--gc-color-bg-subtle);
+    border-radius: var(--gc-radius-sm);
+    padding: var(--gc-space-sm);
+  }
+  .annot code { background: #00000010; padding: 0 4px; border-radius: 3px; }
+  .annot ul { margin: 4px 0 0; padding-left: 18px; }
+
+  .row-divider {
+    border: none;
+    border-top: 1px solid var(--gc-color-border);
+    margin: 2px 0;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="doc-title">do_activity_feed — activity feed wireframe (issue #129)</h1>
+<p class="doc-sub">
+  Low-fidelity mockup of <code>/activity</code> (my_groups scope, persona Elena) covering the six
+  row shapes from the brief interleaved in one feed, plus the empty state. Matches the visual
+  language of the approved do_streams shell wireframe (#109) &mdash; same tokens, same
+  <code>.shell</code>/<code>.card</code>/<code>.gc-empty</code> conventions &mdash; rather than
+  inventing a new one. Static HTML/CSS only; the <code>&lt;details&gt;/&lt;summary&gt;</code>
+  disclosure is the only interactive behavior and is native (no JS).
+</p>
+
+<div class="legend">
+  <strong>Route note.</strong> This wireframe shows <code>/activity</code> (my_groups scope, the
+  default/only scope for this story per the brief &mdash; there is no "Following"/"Trending" scope
+  for activity, unlike do_streams). The group-scope variant <code>/activity/group/{group}</code>
+  renders the identical row shapes filtered to one group; it is <strong>not drawn twice</strong> here
+  &mdash; see the linked note under the scope-tab strip in State 1 below. "Trending" tab shown is
+  <em>illustrative of future ST-8 mounting</em>, not a working control in this story (see open
+  question).
+</div>
+
+<!-- =====================================================================
+     STATE 1 — My Groups feed, populated (all 6 row shapes)
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 1 of 2 &mdash; My Groups feed, populated (all row shapes)</span>
+  <p class="state__note">scope_tabs: My Groups active &middot; persona: Elena &middot; 6 rows: content card, join, RSVP, comment, aggregated, group-created</p>
+
+  <div class="wrap">
+    <div class="shell" data-testid="activity-feed-shell">
+      <nav class="shell-tabs" aria-label="Activity feed scope">
+        <span class="shell-tabs__item is-active" aria-current="true">My Groups</span>
+        <span class="shell-tabs__item">Trending</span>
+      </nav>
+      <p class="shell-scope-note">
+        Group-scope variant: <a href="#">view this group's activity only</a> (<code>/activity/group/&lt;gid&gt;</code>) &mdash; same row shapes, filtered to one group. Not drawn separately in this wireframe.
+      </p>
+
+      <ol class="activity-feed__list" aria-label="Activity feed">
+
+        <!-- 1. Content card row -->
+        <li class="activity-row--content" data-testid="activity-row-content">
+          <article class="card">
+            <p class="card__meta">
+              Posted by <a href="#">Alex Novak</a> in <a href="#">Camp Organizers EMEA</a>
+              <span class="row__time">&middot; 2h ago</span>
+            </p>
+            <h3 class="card__title"><a href="#">Site logistics update for August camp</a></h3>
+            <p class="card__snippet">Updated shuttle schedule and check-in times are posted&hellip;</p>
+          </article>
+        </li>
+
+        <!-- 2. Social join row -->
+        <li class="row activity-row--social" data-testid="activity-row-social">
+          <span class="row__avatar" aria-hidden="true">A</span>
+          <div class="row__body">
+            <p class="row__sentence">
+              <strong><a href="#">Alex Novak</a></strong> joined <a href="#">Camp Organizers EMEA</a>
+              <span class="row__time">&middot; 3h ago</span>
+            </p>
+          </div>
+        </li>
+
+        <!-- 3. Social RSVP row -->
+        <li class="row activity-row--social" data-testid="activity-row-social">
+          <span class="row__avatar" aria-hidden="true">A</span>
+          <div class="row__body">
+            <p class="row__sentence">
+              <strong><a href="#">Alex Novak</a></strong> RSVP'd to <a href="#">DrupalCon Portland Keynote</a>
+              <span class="row__time">&middot; 4h ago</span>
+            </p>
+          </div>
+        </li>
+
+        <!-- 4. Comment row with truncated snippet -->
+        <li class="row activity-row--social" data-testid="activity-row-social">
+          <span class="row__avatar" aria-hidden="true">A</span>
+          <div class="row__body">
+            <p class="row__sentence">
+              <strong><a href="#">Alex Novak</a></strong> commented on <a href="#">&ldquo;Wi-Fi feedback&rdquo;</a>
+              <span class="row__time">&middot; 5h ago</span>
+            </p>
+            <span class="row__snippet-quote">&ldquo;Room C has poor Wi-Fi coverage&hellip;&rdquo;</span>
+          </div>
+        </li>
+
+        <!-- 5. Aggregated row: native details/summary disclosure -->
+        <li class="row activity-row--aggregated" data-testid="activity-row-aggregated">
+          <span class="row__avatar" aria-hidden="true">M</span>
+          <div class="row__body">
+            <details>
+              <summary>
+                <strong><a href="#" onclick="event.preventDefault()">Maria Chen</a></strong>
+                posted <span class="row__count">3 topics</span> in <a href="#" onclick="event.preventDefault()">Drupal Enthusiasts</a>
+                <span class="row__time">&middot; 6h ago</span>
+              </summary>
+              <ul class="activity-row--aggregated__children">
+                <li><a href="#">Best practices for local Views caching</a></li>
+                <li><a href="#">Migrating custom blocks to Layout Builder</a></li>
+                <li><a href="#">Call for volunteers: Drupal Enthusiasts meetup</a></li>
+              </ul>
+            </details>
+          </div>
+        </li>
+
+        <!-- 6. Group-created row -->
+        <li class="row activity-row--social" data-testid="activity-row-social">
+          <span class="row__avatar" aria-hidden="true">S</span>
+          <div class="row__body">
+            <p class="row__sentence">
+              <strong><a href="#">Sam Rivera</a></strong> created group <a href="#">Drupal Bay Area</a>
+              <span class="row__time">&middot; 1d ago</span>
+            </p>
+          </div>
+        </li>
+
+      </ol>
+    </div>
+  </div>
+
+  <div class="annot">
+    <strong>Maps to:</strong>
+    <ul>
+      <li><code>activity-row-content</code> &mdash; wraps <code>node.stream_card</code> render output (black-boxed here, owned by the existing node view-mode template) with the compact meta strip <code>card__meta</code>: "Posted by [actor] in [group], [time]". Actor/group/title are links; snippet is the node's existing teaser text.</li>
+      <li><code>activity-row-social</code> (used for join / RSVP / comment / group-created) &mdash; one-line sentence built from actor + verb + target + group, timestamp trailing. Comment rows add a truncated (&le;180 char, tags-stripped) italic quote line beneath the sentence, per the kernel acceptance criterion.</li>
+      <li><code>activity-row-aggregated</code> &mdash; native <code>&lt;details&gt;/&lt;summary&gt;</code>; the <code>&lt;summary&gt;</code> IS the aggregated sentence including the actor link, group link, and the textual count ("3 topics" &mdash; non-color status signal). Expanding reveals the underlying titles as links (<code>children</code> render-array data). Keyboard-operable natively (Tab to focus, Enter/Space to toggle); the disclosure triangle glyph (&#9656;) is a Unicode character, not hand-drawn SVG, and rotates via CSS on <code>[open]</code>.</li>
+      <li>All actor names, group names, node/comment/event titles are anchors (<code>&lt;a&gt;</code>) &mdash; real hrefs in production, inert <code>#</code> in this static mock.</li>
+      <li>Left-gutter avatar circle (<code>row__avatar</code>) is shared across social/aggregated rows for visual rhythm; content-card rows omit it since the card itself carries its own author line (matches how do_streams' <code>stream_card</code> already renders authorship &mdash; no duplication).</li>
+    </ul>
+  </div>
+</div>
+
+<!-- =====================================================================
+     STATE 2 — Empty state (viewer in no groups, or group scope with zero activity)
+     ===================================================================== -->
+<div class="state">
+  <span class="state__label">State 2 of 2 &mdash; Empty state (viewer in no groups / zero-activity group)</span>
+  <p class="state__note">scope_tabs: My Groups active &middot; rows: 0 &middot; per acceptance criterion 3, a user in no groups sees an empty result</p>
+
+  <div class="wrap">
+    <div class="shell" data-testid="activity-feed-shell">
+      <nav class="shell-tabs" aria-label="Activity feed scope">
+        <span class="shell-tabs__item is-active" aria-current="true">My Groups</span>
+        <span class="shell-tabs__item">Trending</span>
+      </nav>
+      <p class="shell-scope-note">
+        Group-scope variant: <a href="#">view this group's activity only</a> (<code>/activity/group/&lt;gid&gt;</code>).
+      </p>
+
+      <div class="gc-empty" data-testid="activity-feed-empty">
+        <p class="gc-empty__title">Nothing here yet</p>
+        <p class="gc-empty__text">
+          You're not a member of any group yet, so there's no activity to show. Join a group to see
+          posts, comments, and updates from its members here.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="annot">
+    <strong>Maps to:</strong> reuses the existing <code>.gc-empty</code> pattern from the do_streams
+    shell (#109) rather than inventing a new empty-state visual. <strong>Truthful copy:</strong>
+    names the concrete prerequisite (join a group) rather than a generic "no results" &mdash;
+    matches acceptance criterion 3 ("user in no groups sees empty result on <code>/activity</code>").
+    The group-scope variant's zero-activity empty copy would differ slightly ("No activity in this
+    group yet" rather than "join a group") &mdash; flagged below as an open question since the brief
+    doesn't specify per-scope empty copy for this story the way #109 did.
+  </div>
+</div>
+
+</body>
+</html>

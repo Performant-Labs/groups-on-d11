@@ -1,0 +1,45 @@
+{#
+/**
+ * @file
+ * Activity feed shell (#129 ST-7).
+ *
+ * Wraps the ordered row list in a semantic list (<ol>/<li>, per the
+ * approved wireframe, docs/planning/handoffs/129-activity-feed/wireframe.html)
+ * for WCAG 2.2 AA reading-order/semantics, or the reused `.gc-empty`
+ * empty-state pattern (matching do_streams' shell, #109) when there are no
+ * rows.
+ *
+ * Each `row` is ALREADY a complete `<li>` element (its own `#theme`'d row
+ * template — activity-row--social.html.twig, activity-row--content.html.twig,
+ * or activity-row--aggregated.html.twig — emits `<li>` at its own root; see
+ * each template's own docblock). This shell therefore prints `{{ row }}`
+ * bare, with NO wrapping `<li>` of its own — S's Phase 9 spec audit
+ * (decisions.md, "S — Phase 9 REWORK", Defect 2) found the previous
+ * `<li>{{ row }}</li>` here produced invalid, doubly-nested
+ * `<li><li class="row">...</li></li>` markup on every live social/aggregated
+ * row (a `<li>` cannot contain a `<li>` — WCAG 1.3.1 borderline: invalid
+ * list semantics can confuse assistive-technology list-item counts).
+ *
+ * Available variables:
+ * - rows: ordered list of pre-built row render arrays, each carrying its
+ *   own `#theme` (activity_row_social / activity_row_content /
+ *   activity_row_aggregated) set by
+ *   \Drupal\do_activity_feed\Controller\ActivityFeedController.
+ * - empty: bool, true when rows is empty.
+ * - empty_copy: scope-appropriate empty-state copy string.
+ */
+#}
+<div class="shell activity-feed" data-testid="activity-feed-shell">
+  {% if empty %}
+    <div class="gc-empty" data-testid="activity-feed-empty">
+      <p class="gc-empty__title">{{ 'Nothing here yet'|t }}</p>
+      <p class="gc-empty__text">{{ empty_copy }}</p>
+    </div>
+  {% else %}
+    <ol class="activity-feed__list" aria-label="{{ 'Activity feed'|t }}">
+      {% for row in rows %}
+        {{ row }}
+      {% endfor %}
+    </ol>
+  {% endif %}
+</div>

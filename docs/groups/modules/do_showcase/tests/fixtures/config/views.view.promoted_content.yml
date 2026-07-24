@@ -1,0 +1,60 @@
+uuid: null
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: promoted_content
+label: 'Promoted Content'
+module: views
+description: 'Fixture mirroring the real promoted_content view default display shape (issue 123 DiscoveryRankingControllerTest). See handoff-T-red.md: the production view filters only on status (published); this fixture matches that exactly.'
+tag: ''
+base_table: node_field_data
+base_field: nid
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      title: 'Promoted Content'
+      fields:
+        title:
+          id: title
+          table: node_field_data
+          field: title
+          entity_type: node
+          entity_field: title
+          plugin_id: field
+          label: ''
+          type: string
+          settings:
+            link_to_entity: true
+      pager:
+        type: full
+        options:
+          pagination_heading_level: h4
+          items_per_page: 25
+      sorts:
+        created:
+          id: created
+          table: node_field_data
+          field: created
+          entity_type: node
+          entity_field: created
+          plugin_id: date
+          order: DESC
+      filters:
+        status:
+          id: status
+          table: node_field_data
+          field: status
+          entity_type: node
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+      style:
+        type: table
+      row:
+        type: fields

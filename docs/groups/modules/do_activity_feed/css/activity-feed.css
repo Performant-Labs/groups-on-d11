@@ -1,0 +1,205 @@
+/**
+ * @file
+ * Activity feed (#129 ST-7) — one vertical stack, alternating row types
+ * share the same left gutter; social rows are visually compact vs. content
+ * cards.
+ *
+ * Reuses the approved wireframe's low-fi tokens
+ * (docs/planning/handoffs/129-activity-feed/wireframe.html), themselves
+ * reused verbatim from the do_streams shell wireframe (#109), so this
+ * surface matches the existing stream shell's visual language rather than
+ * inventing a new one.
+ */
+
+.activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.activity-feed__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Shared left-gutter avatar column so content/social/aggregated rows align
+ * visually. */
+.row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.row__avatar {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e7f2fb;
+  color: #044568;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.row__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Content-card row — wraps the EXISTING node.stream_card view mode output;
+ * this module only adds the meta strip above it. */
+.activity-row--content .card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #d6dde5;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgba(27, 39, 51, 0.06);
+}
+
+.card__meta {
+  font-size: 0.75rem;
+  color: #4c5a68;
+  margin: 0 0 4px;
+}
+
+.card__meta a {
+  color: #044568;
+  text-decoration: none;
+}
+
+.card__meta a:hover,
+.card__meta a:focus-visible {
+  text-decoration: underline;
+}
+
+/* Social rows — visually compact vs. content cards: one line, no card
+ * border/shadow. */
+.activity-row--social .row__sentence {
+  font-size: 0.875rem;
+  margin: 0;
+  padding: 6px 0;
+}
+
+.activity-row--social .row__sentence strong {
+  font-weight: 600;
+}
+
+.activity-row--social .row__sentence a {
+  color: #044568;
+  text-decoration: none;
+}
+
+.activity-row--social .row__sentence a:hover,
+.activity-row--social .row__sentence a:focus-visible {
+  text-decoration: underline;
+}
+
+.row__time {
+  font-size: 0.75rem;
+  color: #4c5a68;
+}
+
+.row__snippet-quote {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.875rem;
+  color: #4c5a68;
+  font-style: italic;
+}
+
+/* Aggregated row — native <details>/<summary> disclosure, no JS,
+ * keyboard-operable by default. */
+.activity-row--aggregated details {
+  padding: 6px 0;
+}
+
+.activity-row--aggregated summary {
+  font-size: 0.875rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.activity-row--aggregated summary::-webkit-details-marker {
+  display: none;
+}
+
+.activity-row--aggregated summary::before {
+  content: '\25B8'; /* ▸ */
+  display: inline-block;
+  margin-right: 6px;
+  color: #4c5a68;
+  transition: transform 0.1s ease-in-out;
+}
+
+.activity-row--aggregated details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.activity-row--aggregated summary:focus-visible {
+  outline: 2px solid #044568;
+  outline-offset: 2px;
+}
+
+/* Non-color status: the count is in the text itself, "3 topics" — this
+ * bold weight is a supplementary visual cue, not the ONLY signal. */
+.activity-row--aggregated .row__count {
+  font-weight: 600;
+}
+
+.activity-row--aggregated__children {
+  list-style: none;
+  margin: 6px 0 0 22px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.activity-row--aggregated__children a {
+  font-size: 0.875rem;
+  color: #044568;
+  text-decoration: none;
+}
+
+.activity-row--aggregated__children a:hover,
+.activity-row--aggregated__children a:focus-visible {
+  text-decoration: underline;
+}
+
+/* Empty state — reuses the .gc-empty pattern from the do_streams shell
+ * (#109). */
+.gc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.5rem auto;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  background-color: #f5f7fa;
+  border: 1px dashed #d6dde5;
+  border-radius: 12px;
+}
+
+.gc-empty__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.gc-empty__text {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #4c5a68;
+  max-width: 32rem;
+}

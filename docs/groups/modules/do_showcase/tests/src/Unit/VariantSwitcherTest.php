@@ -39,6 +39,19 @@ use Drupal\Tests\UnitTestCase;
  *    SC-5/SC-6/ST-8 will call this with their own option sets, not just the
  *    3-option stub instance this story ships.
  *
+ * #123 SC-4 (Phase 4, T-RED): extends this file with coverage for the new
+ * OPTIONAL 4th `string $query_key = 'variant'` parameter (handoff-A-plan.md
+ * Risk 1 resolution) — a caller-supplied key so a SECOND simultaneous
+ * switcher instance on the same page (e.g. `/showcase`'s `discovery.ranking`
+ * instance alongside the existing `directory.layout` stub) does not collide
+ * on `?variant=`. Every option's `href` must read `?<query_key>=<id>` instead
+ * of the hardcoded `?variant=<id>`, and the render array's own
+ * `#cache['contexts']` must bubble `url.query_args:<query_key>` (not a
+ * hardcoded `url.query_args:variant`) so Dynamic Page Cache varies correctly
+ * per THIS instance's own query key. The 3-arg call form (omitting
+ * $query_key) must remain fully BC — every existing assertion above (which
+ * calls build() with exactly 3 args) must keep passing unchanged.
+ *
  * @coversDefaultClass \Drupal\do_showcase\VariantSwitcher
  * @group do_showcase
  */
@@ -73,6 +86,21 @@ final class VariantSwitcherTest extends UnitTestCase {
       ['id' => 'compact', 'label' => 'Compact list'],
       ['id' => 'cards', 'label' => 'Cards'],
       ['id' => 'map', 'label' => 'Map', 'available' => FALSE],
+    ];
+  }
+
+  /**
+   * The three-option discovery.ranking instance (#123 SC-4): Recent / Hot /
+   * Promoted, all available (no "(soon)" option — brief.md acceptance:
+   * "all three variants render non-empty from seed").
+   *
+   * @return array<int, array{id: string, label: string}>
+   */
+  private function discoveryOptions(): array {
+    return [
+      ['id' => 'recent', 'label' => 'Recent'],
+      ['id' => 'hot', 'label' => 'Hot'],
+      ['id' => 'promoted', 'label' => 'Promoted'],
     ];
   }
 
@@ -403,6 +431,108 @@ final class VariantSwitcherTest extends UnitTestCase {
       $contexts,
       'build()\'s render array must carry the url.query_args:variant cache context: its own content (#options aria_checked/tabindex) is a pure function of $current, which this module\'s one caller derives from the variant query string. Without this context, Drupal\'s Dynamic Page Cache cannot distinguish a /showcase?variant=map render from a /showcase?variant=compact render and will serve a stale cross-variant HIT (the defect handoff-T-green2.md reproduced live).',
     );
+  }
+
+  /**
+   * #123 SC-4 (handoff-A-plan.md Risk 1): calling build() with the NEW 4th
+   * `$query_key` parameter set to a non-default value ('discovery') produces
+   * every option's `href` as `?discovery=<id>` — NOT `?variant=<id>`.
+   *
+   * RED reason: `VariantSwitcher::build()` does not yet declare a 4th
+   * parameter at all — this call is a fatal ArgumentCountError against the
+   * current 3-parameter signature, which is the RIGHT failure (missing
+   * feature), not an import/typo error.
+   *
+   * @covers ::build
+   */
+  public function testBuildWithCustomQueryKeyEmitsThatKeyInEveryOptionHref(): void {
+    $build = $this->switcher->build('discovery.ranking', $this->discoveryOptions(), 'hot', 'discovery');
+
+    foreach ($build['#options'] as $item) {
+      $href = $item['href'] ?? '';
+      $this->assertStringContainsString(
+        'discovery=' . $item['id'],
+        $href,
+        "Option \"{$item['id']}\" must carry a ?discovery= fallback link (the caller-supplied query_key), not ?variant=.",
+      );
+      $this->assertStringNotContainsString(
+        'variant=',
+        $href,
+        "Option \"{$item['id']}\"'s href must NOT contain 'variant=' when a distinct \$query_key is supplied — a shared key would let this instance's link silently override a co-resident directory.layout switcher's own selection.",
+      );
+    }
+  }
+
+  /**
+   * #123 SC-4 (handoff-A-plan.md Risk 1, BC guard): omitting the 4th
+   * parameter (the existing 3-arg call form every current caller uses)
+   * still produces `?variant=<id>` hrefs — the default value preserves
+   * every existing call site exactly. This is the explicit non-regression
+   * pin for the BC-safety claim the plan makes; it duplicates none of the
+   * assertions above (they exercise CONTENT correctness, not the specific
+   * "3-arg call form still defaults to variant" contract) — it directly
+   * guards against a future edit that makes $query_key non-optional or
+   * changes its default.
+   *
+   * @covers ::build
+   */
+  public function testBuildWithoutQueryKeyStillDefaultsToVariantForBackwardCompatibility(): void {
+    $build = $this->switcher->build('directory.layout', $this->stubOptions(), 'cards');
+    foreach ($build['#options'] as $item) {
+      $href = $item['href'] ?? '';
+      $this->assertStringContainsString('variant=' . $item['id'], $href, 'The 3-arg call form (no $query_key) must keep producing ?variant= hrefs — BC-safe default.');
+    }
+  }
+
+  /**
+   * #123 SC-4 (handoff-A-plan.md Risk 1 + Spot-check finding #1): the
+   * render array's own `#cache['contexts']` bubbles `url.query_args:
+   * <query_key>` — NOT a hardcoded `url.query_args:variant` — when a custom
+   * $query_key is supplied. Without this, Drupal's Dynamic Page Cache has no
+   * way to know THIS instance's render content varies by `?discovery=`, and
+   * would serve a stale discovery-tab render across different `?discovery=`
+   * requests (the same defect class as the existing
+   * testBuildDeclaresUrlQueryArgsVariantCacheContext test guards for the
+   * default key).
+   *
+   * @covers ::build
+   */
+  public function testBuildWithCustomQueryKeyBubblesMatchingCacheContext(): void {
+    $build = $this->switcher->build('discovery.ranking', $this->discoveryOptions(), 'hot', 'discovery');
+
+    $contexts = $build['#cache']['contexts'] ?? [];
+    $this->assertContains(
+      'url.query_args:discovery',
+      $contexts,
+      'build() called with $query_key="discovery" must bubble url.query_args:discovery in its own #cache[\'contexts\'] — not the hardcoded url.query_args:variant.',
+    );
+    $this->assertNotContains(
+      'url.query_args:variant',
+      $contexts,
+      'When a custom $query_key is supplied, the stale url.query_args:variant context must NOT also be present — the cache context must reflect the ACTUAL query key this instance reads, not a hardcoded leftover.',
+    );
+  }
+
+  /**
+   * #123 SC-4: two simultaneous instances (directory.layout with the default
+   * key, discovery.ranking with 'discovery') can coexist on one call site
+   * without either's option hrefs leaking the other's query key — proves the
+   * two switchers on `/showcase` truly preserve each other's state per the
+   * wireframe's own justification ("a shared key would force one switcher's
+   * selection to silently override the other's on every link").
+   *
+   * @covers ::build
+   */
+  public function testTwoSimultaneousInstancesWithDistinctQueryKeysDoNotCollide(): void {
+    $directoryBuild = $this->switcher->build('directory.layout', $this->stubOptions(), 'cards');
+    $discoveryBuild = $this->switcher->build('discovery.ranking', $this->discoveryOptions(), 'hot', 'discovery');
+
+    foreach ($directoryBuild['#options'] as $item) {
+      $this->assertStringContainsString('variant=' . $item['id'], $item['href'] ?? '');
+    }
+    foreach ($discoveryBuild['#options'] as $item) {
+      $this->assertStringContainsString('discovery=' . $item['id'], $item['href'] ?? '');
+    }
   }
 
   /**

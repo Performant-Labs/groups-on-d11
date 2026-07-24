@@ -39,6 +39,19 @@ use Drupal\do_chrome\HelpText;
  * Selection resolution: if $current names an option that does not exist, or
  * one flagged unavailable, the FIRST AVAILABLE option is selected instead —
  * the control never silently renders with nothing selected.
+ *
+ * #123 SC-4 (handoff-A-plan.md Risk 1): `build()` accepts an OPTIONAL 4th
+ * `string $query_key = 'variant'` parameter so a SECOND simultaneous switcher
+ * instance on the same page (e.g. `/showcase`'s `discovery.ranking` instance
+ * alongside the existing `directory.layout` stub) does not collide on
+ * `?variant=` — every option's no-JS fallback `href` reads `?<query_key>=<id>`
+ * instead of the previously-hardcoded `?variant=<id>`, and the render array's
+ * own `#cache['contexts']` bubbles `url.query_args:<query_key>` to match. The
+ * default value keeps every pre-#123 3-arg call site (ShowcaseController::
+ * page()'s `directory.layout` instance, DoShowcaseHooks::
+ * preprocessViewsView()'s `all_groups` instance) fully backward-compatible —
+ * neither passes a 4th argument, so both keep emitting `?variant=` exactly as
+ * before.
  */
 final class VariantSwitcher {
 
@@ -184,14 +197,26 @@ final class VariantSwitcher {
    * @param string $current
    *   The id of the option that should be selected. Falls back to the first
    *   available option if this id is unknown or unavailable.
+   * @param string $query_key
+   *   #123 SC-4 (handoff-A-plan.md Risk 1): the query-string parameter name
+   *   each option's no-JS fallback `href` reads/writes (e.g. `'discovery'`
+   *   emits `?discovery=<id>`). Defaults to `'variant'` — every pre-#123
+   *   caller omits this argument and keeps emitting `?variant=` exactly as
+   *   before (BC-safe). A caller that mounts a SECOND switcher instance on a
+   *   page already hosting one (e.g. `/showcase`'s `discovery.ranking`
+   *   alongside `directory.layout`) MUST supply a distinct key here — a
+   *   shared key would let one instance's link silently override the
+   *   other's selection.
    *
    * @return array
    *   A render array: '#type' => 'container', '#attributes' (role/aria-label/
    *   data attributes), '#options' (the resolved per-option data the
    *   switcher template/theme consumes), '#tooltip' (the HelpText-sourced
-   *   copy), '#instance_id'.
+   *   copy), '#instance_id'. '#cache['contexts']' bubbles
+   *   `url.query_args:<query_key>` so Dynamic Page Cache varies correctly for
+   *   THIS instance's own query key.
    */
-  public function build(string $instance_id, array $options, string $current): array {
+  public function build(string $instance_id, array $options, string $current, string $query_key = 'variant'): array {
     $normalized = $this->normalizeOptions($options);
     $selected_id = $this->resolveSelection($normalized, $current);
 
@@ -222,7 +247,7 @@ final class VariantSwitcher {
         // only via Arrow-Left/Right once focus is inside the radiogroup.
         'tabindex' => ($available && $is_selected) ? '0' : '-1',
         'available' => $available,
-        'href' => '?variant=' . rawurlencode($option['id']),
+        'href' => '?' . $query_key . '=' . rawurlencode($option['id']),
       ];
     }
 
@@ -262,8 +287,16 @@ final class VariantSwitcher {
       // top-level $build) keeps this contract correct for every current/
       // future caller of build(), not just this one controller (#119
       // fix-loop round 3: the defect class, not one call site).
+      //
+      // #123 SC-4 (handoff-A-plan.md Risk 1 + Spot-check finding #1): the
+      // bubbled context now reflects the ACTUAL $query_key this instance
+      // reads (`url.query_args:<query_key>`), not a hardcoded
+      // `url.query_args:variant` — fixed at this seam so every current/
+      // future caller that supplies a custom $query_key gets correct cache
+      // varying for free, rather than each caller re-deriving its own
+      // context string.
       '#cache' => [
-        'contexts' => ['url.query_args:variant'],
+        'contexts' => ['url.query_args:' . $query_key],
       ],
     ];
   }

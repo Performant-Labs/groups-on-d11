@@ -1,0 +1,76 @@
+/**
+ * @file
+ * #123 SC-4 (Discovery three ways): "Discovery ranking" comparison section
+ * styling on `/showcase`.
+ *
+ * Scope: ONLY `.do-showcase-discovery-ranking` (the section wrapper) and its
+ * embedded-view meta-line typography — the `discovery.ranking`
+ * VariantSwitcher instance itself reuses `.do-showcase-variant-switcher`'s
+ * EXISTING (unscoped, shared-by-both-instances) styling from do_showcase.css
+ * verbatim. This stylesheet deliberately does NOT redefine
+ * `[role="radio"]:focus-visible` or any other switcher-wrapper rule
+ * (wireframe.md "WCAG 2.2 AA notes": "new discovery-compare.css should NOT
+ * redefine focus style, just import/match the same outline color+width for
+ * consistency") — the existing do_showcase.css rule already applies to every
+ * switcher instance on the page, including this one, since both are attached
+ * via the same `do_showcase/switcher` library and neither is scoped to a
+ * per-instance class.
+ *
+ * Non-color status cues: `.do-showcase-discovery-hot-badge` and
+ * `.do-showcase-discovery-promoted-badge` are plain text content rendered by
+ * the embedded view templates/row markup, never conveyed by color alone —
+ * this stylesheet only adds a visual affordance (weight/spacing), matching
+ * do_showcase.css's own documented convention ("selection and disabled state
+ * are ALSO conveyed by glyph/text ... this stylesheet only adds the visual
+ * affordance, never the sole cue").
+ *
+ * Contrast: meta-line text below uses #767676 — the SAME gray do_showcase.css
+ * already uses for the switcher's own disabled-state text (the current AA
+ * floor in this stylesheet, >= 4.5:1 against a white background) — no lighter
+ * gray is introduced here (wireframe.md "WCAG 2.2 AA notes").
+ */
+
+.do-showcase-discovery-ranking {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #cccccc;
+}
+
+.do-showcase-discovery-ranking h2 {
+  margin-bottom: 0.25rem;
+}
+
+.do-showcase-discovery-ranking > p {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+/* The embedded view region (activity_stream / hot_content / promoted_content,
+ * rendered as-is via views_embed_view() — no new row markup is introduced
+ * here, only meta-line typography for the rows those views already emit). */
+
+.do-showcase-discovery-ranking .views-row {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.do-showcase-discovery-ranking .views-row:last-child {
+  border-bottom: none;
+}
+
+/* Meta line ("created X ago" / "N comments" / "[promoted]") — plain text,
+ * never the sole cue for any state, kept at >= 4.5:1 contrast (#767676,
+ * do_showcase.css's own existing AA floor for de-emphasized text). */
+.do-showcase-discovery-ranking .views-field-created,
+.do-showcase-discovery-ranking .views-field-comment-count,
+.do-showcase-discovery-ranking .do-showcase-discovery-meta {
+  color: #767676;
+  font-size: 0.875rem;
+}
+
+/* Empty-state fallback copy (wireframe.md "Data states": truthful,
+ * non-blocking copy shown when a view genuinely has no rows to embed). */
+.do-showcase-discovery-ranking .do-showcase-discovery-empty {
+  color: #767676;
+  font-style: italic;
+}
