@@ -220,7 +220,7 @@ class ShowcaseController extends ControllerBase {
     ];
 
     // The one guaranteed wired stub switcher instance (wireframe.md's own
-    // example: Compact list / Cards / Map, Map unavailable). Options are
+    // example: Compact list / Cards / Map). Options are
     // shared with DoShowcaseHooks::viewsPreRender() (#124 SC-5,
     // A-advisory #7) via VariantSwitcher::directoryLayoutOptions(), which
     // already returns them translated.

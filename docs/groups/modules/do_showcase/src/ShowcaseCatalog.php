@@ -49,7 +49,7 @@ final class ShowcaseCatalog {
       [
         'id' => 'directory-presentation',
         'title' => $this->t('Directory presentation'),
-        'decision_sentence' => $this->t('Compares list vs. card layouts for the group directory — the decision: information density vs. visual scannability.'),
+        'decision_sentence' => $this->t('Compares list, cards, and a Map that plots groups geographically for the group directory — the decision: information density vs. visual scannability vs. geographic browsing.'),
         // #124 SC-5: the compact/cards toggle ships on /all-groups (the
         // VariantSwitcher build()'d in DoShowcaseHooks::viewsPreRender()),
         // not on this /showcase page itself — the route points AT the live
