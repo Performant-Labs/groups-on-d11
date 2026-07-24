@@ -1,0 +1,33 @@
+{#
+/**
+ * @file
+ * HTML wrapper shell for do_notifications activity emails (#232, N-4).
+ *
+ * Single-file wrapper per the brief's locked "HTML shape" section: a
+ * minimal, self-contained HTML document (no external stylesheet — email
+ * clients strip <link>) with the per-event body partial slotted in, a
+ * horizontal rule, and the unsubscribe link.
+ *
+ * Available variables:
+ * - body: the rendered per-event HTML partial (a `#theme`'d sub-render
+ *   array — see \Drupal\do_notifications\Email\EmailRenderer::renderHtmlShell()).
+ * - unsubscribe_url: absolute URL to the recipient's notification settings
+ *   page (\Drupal\do_notifications\Email\EmailRenderer::unsubscribeUrl()).
+ * - timestamp: the Message's `created` time, formatted via
+ *   \Drupal\Core\Datetime\DateFormatterInterface::format() with the
+ *   `medium` format (\Drupal\do_notifications\Email\EmailRenderer::render()).
+ */
+#}
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>body{font-family:sans-serif}</style>
+  </head>
+  <body>
+    <p class="timestamp">{{ timestamp }}</p>
+    {{ body }}
+    <hr>
+    <p>{{ 'Unsubscribe:'|t }} <a href="{{ unsubscribe_url }}">{{ unsubscribe_url }}</a></p>
+  </body>
+</html>

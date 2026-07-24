@@ -7,3 +7,4 @@ dependencies:
   - drupal:flag
   - drupal:node
   - drupal:user
+  - drupal:message

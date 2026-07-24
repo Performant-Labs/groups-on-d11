@@ -1,0 +1,17 @@
+{#
+/**
+ * @file
+ * Plain-text body partial for the activity_group_created event (#232, N-4).
+ *
+ * Loaded directly through the `twig` environment service — see
+ * \Drupal\do_notifications\Email\EmailRenderer's class docblock ("DUAL
+ * RENDER PATH"). `body_line` is the already token-replaced (and
+ * `(removed)`-substituted) message text; Twig performs no token
+ * substitution of its own here (brief v2 §3). `autoescape false` matches
+ * email-shell.txt.twig — see that file's docblock for why.
+ *
+ * Available variables:
+ * - body_line: the rendered body-line string.
+ */
+#}
+{% autoescape false %}{{ body_line }}{% endautoescape %}

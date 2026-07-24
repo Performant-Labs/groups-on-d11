@@ -19,3 +19,39 @@ services:
       - '@datetime.time'
       - '@state'
       - '@config.factory'
+
+  # #232 (N-4): renders an activity_* Message into a subject/body_text/
+  # body_html email payload. See src/Email/EmailRenderer.php's class
+  # docblock for the rendering pipeline (token substitution + (removed)
+  # semantics + the HTML/text dual render path).
+  do_notifications.email_renderer:
+    class: Drupal\do_notifications\Email\EmailRenderer
+    autowire: false
+    arguments:
+      - '@token'
+      - '@renderer'
+      - '@entity_type.manager'
+      - '@twig'
+      - '@extension.list.module'
+      - '@date.formatter'
+
+  do_notifications.email_hooks:
+    class: Drupal\do_notifications\Hook\DoNotificationsEmailHooks
+    autowire: false
+    tags:
+      - { name: 'hook_implementations' }
+
+  # #232 (N-4): the [message:uid] / [message:field_group_id] /
+  # [message:field_referenced_entity_type] /
+  # [message:field_referenced_entity_id] token provider the activity_*
+  # Message templates' stored text depends on — see
+  # src/Hook/DoNotificationsTokensHooks.php's class docblock for why this is
+  # needed (the contrib Token module is not installed, and message.tokens.inc
+  # only resolves its one `author` BC token).
+  do_notifications.tokens_hooks:
+    class: Drupal\do_notifications\Hook\DoNotificationsTokensHooks
+    autowire: false
+    arguments:
+      - '@entity_type.manager'
+    tags:
+      - { name: 'hook_implementations' }
