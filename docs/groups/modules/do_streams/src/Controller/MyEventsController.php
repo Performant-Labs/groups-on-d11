@@ -448,19 +448,17 @@ class MyEventsController extends ControllerBase {
    *   The current viewing user's id.
    *
    * @return array
-   *   A `container` render array with the page title (`<h1>`) and the two
-   *   iCal `<a>` links.
+   *   A `container` render array with the two iCal `<a>` links.
+   *   The page H1 is NOT rendered here — Drupal core's page-title block
+   *   already renders one from the route's `_title` metadata, and a second
+   *   H1 causes a strict-mode Playwright `getByRole('heading', {level:1})`
+   *   match violation (CI-red on PR #183 run 30058305285). One H1 per page
+   *   is also WCAG 2.4.6 best practice.
    */
   protected function buildPageHead($uid): array {
     return [
       '#type' => 'container',
       '#attributes' => ['class' => ['page-head']],
-      'title' => [
-        '#type' => 'html_tag',
-        '#tag' => 'h1',
-        '#value' => $this->t('My Feed — Events'),
-        '#attributes' => ['class' => ['page-head__title']],
-      ],
       'ical_links' => [
         '#type' => 'container',
         '#attributes' => ['class' => ['ical-links']],
