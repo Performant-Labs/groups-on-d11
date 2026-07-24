@@ -505,6 +505,12 @@ class DoStreamsHooks {
    * node__event__stream_card resolved in the registry but pointed at
    * core's own generic `node` template -- the module-owned file was
    * silently never found.
+   *
+   * Issue #112 (ST-3) follow-up (T-GREEN blocking-bug fix): adds
+   * `suppress_default_chrome` (default `FALSE`) to `do_streams_shell`'s own
+   * `variables` declaration -- see self::preprocessDoStreamsShell()'s
+   * docblock for why this is a NEW boolean flag rather than a check on
+   * `scope_tabs`/`ranking_control` emptiness.
    */
   #[Hook('theme')]
   public function theme(array $existing, string $type, string $theme, string $path): array {
@@ -519,6 +525,7 @@ class DoStreamsHooks {
           'empty' => TRUE,
           'empty_copy' => '',
           'empty_cta' => [],
+          'suppress_default_chrome' => FALSE,
         ],
         'template' => 'do-streams-shell',
       ],
@@ -560,21 +567,75 @@ class DoStreamsHooks {
    * nothing), per handoff-A.md Finding #5 ("built by controller, not
    * preprocess" — this preprocess function never hardcodes a route).
    *
-   * Issue #112 note: the Events page (do_streams.my_events route) does NOT
-   * use this shell's own `scope_tabs`/`empty`/`empty_copy` branches at all —
-   * per handoff-A.md Finding #1's binding resolution, MyEventsController
-   * pre-composes both Upcoming/My RSVPs sections into ONE `#results` render
-   * array (with its OWN two-tab scope markup and per-section empty states)
-   * and always passes `empty: FALSE` on the outer shell invocation, so this
-   * preprocess's `empty`/`empty_copy` assignment below is harmless dead
-   * weight on that one route (never read by the Events page's own template
-   * fragment) rather than a collision — no edit needed here for #112.
+   * Issue #112 (ST-3) fix — `suppress_default_chrome` (T-GREEN blocking bug):
+   * MyEventsController composes its OWN two-tab Global/My-Groups toggle
+   * directly into `#results` (handoff-A.md Finding #1) and needs the
+   * shell's own generic 4-tab `scope_tabs` nav and Recent/Hot
+   * `ranking_control` pills to render NOTHING on that route — leaving them
+   * in place produced a real production bug: BOTH tab sets rendered
+   * stacked, sharing the identical `data-testid="do-streams-shell-tab"` +
+   * `data-scope-id="global"` pair, breaking `tests/e2e/my-events.spec.ts`'s
+   * "Global toggle" test (a strict-mode 2-element match) and creating a
+   * confusing, WCAG 2.2 AA-hostile duplicate-navigation landmark.
+   *
+   * This is deliberately a NEW boolean variable, not a check on whether the
+   * caller already populated `scope_tabs`/`ranking_control` with an empty
+   * array: `\Drupal\Core\Theme\ThemeManager::render()` (read directly,
+   * lines ~190-213) converts a `#`-prefixed render-array property to a
+   * plain `$variables` entry via `array_key_exists("#$name", $element)`,
+   * then backfills any STILL-unset key from `hook_theme()`'s own declared
+   * default via `$variables += $info['variables']` — and both
+   * `scope_tabs`/`ranking_control` default to `[]` in that declaration
+   * (above). This means a caller who explicitly sets `#scope_tabs => []`
+   * and a caller who never sets `#scope_tabs` at all are INDISTINGUISHABLE
+   * by the time this preprocess hook runs — both see `$variables['scope_tabs']
+   * === []`. Confirmed this is not merely a theoretical concern:
+   * `StreamsShellTest::preprocessShellVariables()` (this class's own
+   * pre-existing Kernel-test harness, which calls this method directly,
+   * bypassing ThemeManager::render()) ALSO pre-seeds
+   * `$variables['scope_tabs'] = []`/`$variables['ranking_control'] = []`
+   * before invoking this hook, on the explicit expectation that this method
+   * OVERWRITES that empty seed with the full 4-tab/2-pill lists regardless
+   * — exactly the behavior an emptiness-based check would incorrectly
+   * suppress, breaking all 5 of that suite's contract tests. A dedicated
+   * flag, defaulting FALSE and left untouched by every EXISTING caller
+   * (including that Kernel test's own harness, which never sets this new
+   * key), is the only mechanism that is both backward-compatible (every
+   * pre-#112 caller/test keeps building the full default lists) and
+   * correctly suppressible by a caller that opts in explicitly.
+   *
+   * Superseded note: the ORIGINAL Phase-5 version of this docblock (see
+   * git history / handoff-F.md's "Issue #112 note") claimed the Events page
+   * simply never reads `scope_tabs`/`ranking_control`/`empty`/`empty_copy`
+   * from this preprocess function, so no change was needed here. That was
+   * correct for `empty`/`empty_copy` (MyEventsController always passes
+   * `#empty_cta => []` and composes its OWN empty states inside `#results`,
+   * so the shell's own `{% if empty %}` branch never fires there) but
+   * WRONG for `scope_tabs`/`ranking_control`: the template renders those
+   * unconditionally (see do-streams-shell.html.twig), so "never read" was
+   * true of the render-ARRAY property but false of the rendered MARKUP —
+   * T-GREEN caught this distinction live, not merely via static review.
    */
   #[Hook('preprocess_do_streams_shell')]
   public function preprocessDoStreamsShell(array &$variables): void {
     $active_scope = $variables['active_scope'] ?? 'global';
     $active_ranking = $variables['active_ranking'] ?? 'recent';
     $results = $variables['results'] ?? [];
+    $suppress_default_chrome = $variables['suppress_default_chrome'] ?? FALSE;
+
+    if ($suppress_default_chrome) {
+      // Issue #112 (ST-3): the caller (MyEventsController) builds its own
+      // scope toggle / has no ranking concept at all — leave both lists
+      // empty so the template's `{% if scope_tabs %}` / `{% if
+      // ranking_control %}` guards suppress the shell's default chrome
+      // entirely, rather than rendering an empty-but-present nav/group
+      // wrapper.
+      $variables['scope_tabs'] = [];
+      $variables['ranking_control'] = [];
+      $variables['empty'] = empty($results);
+      $variables['empty_copy'] = '';
+      return;
+    }
 
     $scope_labels = [
       'global' => new TranslatableMarkup('Global'),

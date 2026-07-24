@@ -194,3 +194,109 @@ Append-only. Every phase logs Decided / Assumed / Hedged / Evidence.
   `rsvp-chip` markup, correct going-count/viewer-state text and data-attributes, correct
   iCal hrefs, correct page title, and correct per-user My-RSVPs scoping across two distinct
   users each RSVP'd to a different event.
+
+## T — Phase 6 (GREEN + Tier 2)
+
+- **Decided:** BLOCKED, not GREEN. Kernel (5/5) and Functional (4/4) suites pass fully. E2E passes
+  4/5 — the 5th ("Global toggle widens Upcoming beyond elena's memberships") surfaces a genuine
+  production bug, not a test defect: `do-streams-shell.html.twig` unconditionally renders its own
+  generic 4-tab `scope_tabs` nav + `ranking_control` pills regardless of the calling controller's
+  intent, so `/my-feed/events` shows BOTH the shared shell's dead 4-tab nav AND
+  `MyEventsController`'s own correct 2-tab toggle, sharing identical
+  `data-testid="do-streams-shell-tab"` + `data-scope-id="global"` pairs (strict-mode collision).
+  handoff-A.md Finding #1 anticipated exactly this risk; F's mitigation (documented in
+  `DoStreamsHooks.php`'s "Issue #112 note") correctly reasoned that `empty`/`empty_copy` are
+  harmless dead weight on this route but incorrectly assumed the same of `scope_tabs`/
+  `ranking_control`, which DO render, visibly, with no guard.
+- **Decided:** Fixed one test-authoring bug in my own `tests/e2e/my-events.spec.ts` before
+  concluding the toggle test's failure was code-side: the test's "before" assertion wrongly
+  claimed elena is not a member of EITHER Thunder Distribution OR Leadership Council — she IS a
+  Leadership Council member per `step_700_demo_data.php`'s own Step 730a seed, so "Governance Town
+  Hall" legitimately appears under the default scope. Scoped the assertion to "Thunder Editorial
+  Workshop" only (the one genuinely non-member event). This fix resolved the "before" half of the
+  test but not the toggle-click half, which is the real production bug above.
+- **Decided:** Removed the broken `flagging_uid` filter block from my own kernel fixture
+  (`tests/fixtures/config/views.view.my_events.yml`), matching F's identical fix to the shipped
+  config (F flagged this exact gap in decisions.md's Phase-5 entry and correctly left my fixture
+  untouched for me to fix).
+- **Decided:** Ran Tier 1 regression broadly: do_streams+do_discovery+do_chrome+do_group_pin
+  Kernel (45/45 pass), do_streams+do_chrome Functional (5/5), do_showcase+do_group_membership+
+  do_multigroup+do_group_extras+do_tests Functional (69/69, one transient cross-test error on a
+  single combined run that did not reproduce on isolation or re-run — flaky, not a regression),
+  E2E nav.spec.ts + showcase.spec.ts (26/26, after fixing an admin-password mismatch caused by MY
+  OWN fresh site:install, not a code issue).
+- **Decided:** Verified RSVP chip cache metadata at REAL render time (not just kernel-mocked) via
+  `drush php:script` against the live seeded Keynote node: `contexts: [user]`,
+  `tags: [flagging_list:node:13]` — matches handoff-A.md Finding #2's obligation exactly.
+- **Assumed:** The Axe/WCAG automated scan the task requested could not run — `@axe-core/playwright`
+  is not installed in this repo (confirmed via `npm ls`), consistent with T-red's own already-
+  documented gap. Flagged as advisory for U/S, not a suite failure.
+- **Hedged:** phpcs on `DoStreamsHooks.php` shows 1 error / 8 warnings vs. a pre-#112 baseline of
+  1 error / 4 warnings — diffed and confirmed the delta is exactly 4 new `\Drupal calls should be
+  avoided` warnings, the SAME pre-existing DI-constraint pattern F's own hedge in Phase-5 already
+  named (not new debt category, just more instances of an accepted pattern).
+- **Evidence:** DDEV `gm112-events` (worktree-local `.ddev/config.yaml` had a stale `name:` from a
+  prior worktree copy — fixed). Fresh `site:install --existing-config --profile=standard` (had to
+  add `$settings['config_sync_directory']` to `web/sites/default/settings.php` per RUNBOOK.md Step
+  105 — gitignored, not part of the diff). Seeded via `step_700_demo_data.php`. BrowserTestBase's
+  webserver started manually (`php -S 127.0.0.1:8080 -t web web/.ht.router.php`, backgrounded
+  inside the DDEV container) since `ddev exec` doesn't serve one by default. All commands and raw
+  output captured in `handoff-T-green.md`.
+
+## Blocking issue for F (re-open Phase 5)
+
+The shared `do_streams_shell` template's unconditional `scope_tabs`/`ranking_control` rendering
+must be gated so `/my-feed/events` shows ONLY `MyEventsController`'s own 2-tab toggle, not both.
+See `handoff-T-green.md`'s "Blocking issues" section for the two suggested fix shapes. Re-run A
+if the fix touches the shell's template contract (Finding #1 territory), then re-run T (Kernel/
+Functional/E2E) before U/S.
+
+## F — Phase 5 rework (resolves the Phase 6 blocker above)
+
+- **Decided:** Implemented option (a) from handoff-T-green.md's suggested fix shapes — a small,
+  backward-compatible `do_streams_shell` template-contract addition — rather than option (b)
+  (bypassing the shared shell entirely). Added `suppress_default_chrome` (bool, default `FALSE`)
+  to the theme hook's `variables` declaration; `MyEventsController::buildShell()` now passes
+  `'#suppress_default_chrome' => TRUE`; `preprocessDoStreamsShell()` honors it by leaving
+  `scope_tabs`/`ranking_control` both empty instead of building the default 4-tab/2-pill lists;
+  the Twig template gates the `<nav>`/ranking `<div>` wrappers behind `{% if %}` so nothing
+  renders at all (not just zero `<span>` children inside an empty-but-present landmark).
+- **Decided (deviation from the task's literal instruction, load-bearing):** The task instructed
+  implementing this as "respect a caller-supplied `#scope_tabs => []` verbatim" (an emptiness
+  check on the render-array property), not a new dedicated flag. Traced
+  `\Drupal\Core\Theme\ThemeManager::render()` directly (lines ~190-213) before implementing that
+  literally, and found it is NOT implementable that way: the render pipeline's own
+  `array_key_exists("#$name", $element)` + `$variables += $info['variables']` merge mechanics mean
+  a caller who explicitly sets `#scope_tabs => []` and a caller who never sets `#scope_tabs` at all
+  are BOTH observed as `$variables['scope_tabs'] === []` by the time the preprocess hook runs —
+  indistinguishable. Confirmed this is not theoretical: `StreamsShellTest`'s own pre-existing
+  Kernel-test harness (`preprocessShellVariables()`) ALSO pre-seeds `scope_tabs: []` before
+  invoking the hook directly, on the explicit expectation that the hook overwrites that empty seed
+  with the full list regardless — an emptiness-based implementation would have broken all 6 of
+  that suite's contract tests to fix the one E2E test, a straight regression trade. Implemented a
+  dedicated boolean flag instead (defaults `FALSE`, untouched by every existing caller including
+  that Kernel test's own harness) — achieves the identical OBSERVABLE outcome the task asked for
+  (shell chrome suppressed on `/my-feed/events`) via a mechanism that is actually correct against
+  the real render pipeline and the pre-existing test suite.
+- **Decided:** Left T's test fixups (fixture, `my-events.spec.ts`) untouched — reviewed both,
+  found no issues, no further changes needed from this rework.
+- **Assumed:** None beyond what F-Phase-5 already assumed; this rework is scoped to exactly the
+  one blocker T-GREEN identified.
+- **Hedged:** None — the fix was verified live (curl with an authenticated session,
+  `grep -c`/`grep -o` on the rendered HTML) before running the automated suites, not merely
+  inferred from the code change.
+- **Evidence:** Re-ran Kernel (`MyEventsViewTest` + `StreamsShellTest`, since the change touches
+  shared preprocess logic the latter also exercises): 11/11 pass, twice (before and after a
+  deliberate `git stash`/`assemble-config.sh` re-run/`git stash pop` cycle used to obtain an
+  apples-to-apples phpcs baseline comparison — identical result both times). Functional
+  (`MyEventsRouteTest`): 4/4 pass, twice. E2E (`tests/e2e/my-events.spec.ts` against the live
+  seeded `http://gm112-events.ddev.site`): 5/5 pass, twice, including the previously-blocked
+  "Global toggle widens Upcoming beyond elena's memberships" test. Full regression re-run:
+  do_streams+do_discovery+do_chrome+do_group_pin Kernel 45/45, do_streams+do_chrome Functional
+  5/5, nav.spec.ts+showcase.spec.ts E2E 26/26 — all matching T-green's own prior counts exactly,
+  zero regressions from the shared-shell change. phpcs: `MyEventsController.php` and
+  `do-streams-shell.html.twig` both 0 errors/0 warnings; `DoStreamsHooks.php` 1 error/8 warnings,
+  byte-verified identical in violation SET (not just count) to the pre-rework baseline via a
+  `git stash` + `assemble-config.sh` re-run comparison (baseline: same single docblock error +
+  same 8 `\Drupal calls should be avoided` warnings, only absolute line numbers shifted from the
+  added docblock content) — zero net-new violations. See `handoff-F-rework.md` for full detail.

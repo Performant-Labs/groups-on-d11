@@ -191,17 +191,6 @@ display:
           group: 1
           expose:
             operator: ''
-        flagging_uid:
-          id: flagging_uid
-          table: flagging
-          field: uid
-          relationship: rsvp_relationship
-          group_type: group
-          admin_label: ''
-          plugin_id: user_current
-          group: 1
-          expose:
-            operator: ''
       filter_groups:
         operator: AND
         groups:

@@ -48,6 +48,23 @@ use Symfony\Component\HttpFoundation\Request;
  * MyFeedController's own docblock explains and justifies — see that class
  * for the full rationale (single-execution, non-deprecated equivalent of
  * `views_embed_view()`, same access-check defense-in-depth).
+ *
+ * T-GREEN blocking-bug fix (re-opened Phase 5): this controller's own
+ * two-tab Global/My-Groups toggle ({@see self::buildScopeToggle()}) was
+ * previously rendering STACKED underneath the shared shell's own generic
+ * 4-tab scope_tabs nav and Recent/Hot ranking_control pills — the shell's
+ * template renders those unconditionally, regardless of whether a given
+ * route "uses" them. Both tab sets shared the identical
+ * `data-testid="do-streams-shell-tab"` + `data-scope-id="global"` pair,
+ * breaking `tests/e2e/my-events.spec.ts`'s "Global toggle" test (a
+ * strict-mode 2-element match) and creating a confusing, WCAG 2.2 AA-hostile
+ * duplicate-navigation landmark. Fixed by passing
+ * `#suppress_default_chrome => TRUE` on the outer shell invocation ({@see
+ * self::buildShell()}), which DoStreamsHooks::preprocessDoStreamsShell()
+ * now honors by leaving `scope_tabs`/`ranking_control` both empty, and the
+ * template now guards their wrapping `<nav>`/ranking `<div>` with `{% if %}`
+ * so nothing renders at all in that case (see that method's docblock for
+ * why this is a dedicated boolean flag rather than an emptiness check).
  */
 class MyEventsController extends ControllerBase {
 
@@ -356,20 +373,36 @@ class MyEventsController extends ControllerBase {
    *   The shell render array, with `#results` never empty (Finding #1: the
    *   shell's own `empty`/`empty_copy` branch is deliberately unused on this
    *   route) and the page-head (title + iCal links) + two-tab toggle
-   *   prepended ahead of the two sections.
+   *   prepended ahead of the two sections. `#suppress_default_chrome =>
+   *   TRUE` (T-GREEN blocking-bug fix) suppresses the shell's own generic
+   *   4-tab scope_tabs nav and Recent/Hot ranking_control pills entirely —
+   *   this route's ONLY scope toggle is the two-tab Global/My-Groups one
+   *   built below, in `#results` ({@see self::buildScopeToggle()}), and this
+   *   route has no ranking concept at all (RSVPs/upcoming events are
+   *   date-ordered, not activity-scored).
    */
   protected function buildShell(array $results, bool $is_global_scope): array {
     $uid = $this->currentUser()->id();
 
     $build = [
       '#theme' => 'do_streams_shell',
-      // Finding #1: this route never uses the shell's own 4-tab scope_tabs
-      // set — 'my_feed' here is simply a harmless default (the shell's
-      // preprocessDoStreamsShell() always overwrites scope_tabs itself);
-      // the page's REAL two-tab Global/My-Groups toggle is built below, in
-      // #results, ahead of the two sections.
+      // This route never uses the shell's own 4-tab scope_tabs set —
+      // 'my_feed' here is simply a harmless default retained for schema
+      // completeness (irrelevant now that #suppress_default_chrome => TRUE
+      // makes DoStreamsHooks::preprocessDoStreamsShell() leave scope_tabs
+      // empty regardless of #active_scope); the page's REAL two-tab
+      // Global/My-Groups toggle is built below, in #results, ahead of the
+      // two sections.
       '#active_scope' => 'my_feed',
       '#active_ranking' => 'recent',
+      // T-GREEN blocking-bug fix: suppresses the shell's own generic 4-tab
+      // scope_tabs nav + Recent/Hot ranking_control pills, which previously
+      // rendered STACKED above this page's own correct two-tab toggle (see
+      // class docblock + DoStreamsHooks::preprocessDoStreamsShell()'s
+      // docblock for the full root-cause explanation and why this is a
+      // dedicated flag rather than passing empty arrays for scope_tabs/
+      // ranking_control directly).
+      '#suppress_default_chrome' => TRUE,
       '#results' => [
         'page_head' => $this->buildPageHead($uid),
         'scope_toggle' => $this->buildScopeToggle($is_global_scope),
@@ -462,6 +495,13 @@ class MyEventsController extends ControllerBase {
    * extending the shell template itself to accept a caller-supplied tab
    * SET) keeps this a two-line, page-owned fragment instead of a
    * cross-story shell-contract change, matching Finding #1's guidance.
+   *
+   * T-GREEN blocking-bug fix: this is now the ONLY `do-streams-shell-tab`
+   * markup rendered on this route — the shell's own generic 4-tab
+   * scope_tabs nav is suppressed via `#suppress_default_chrome => TRUE`
+   * (see self::buildShell()), so `data-testid="do-streams-shell-tab"` +
+   * `data-scope-id="global"` resolves to exactly ONE element on this page,
+   * matching `tests/e2e/my-events.spec.ts`'s strict-mode locator.
    *
    * @param bool $is_global_scope
    *   Whether the Global tab is currently active.

@@ -39,6 +39,20 @@ import { test, expect, Page } from '@playwright/test';
  * my-feed.spec.ts's own T-red self-correction note, the real seeded
  * password is the shared "demo_password_2026" every demo user gets, NOT
  * their username — defaulted here to the same value.
+ *
+ * T-GREEN self-correction: the "Global toggle" test originally asserted on
+ * BOTH "Thunder Editorial Workshop" (Thunder Distribution) AND "Governance
+ * Town Hall" (Leadership Council) as events from groups elena is NOT a
+ * member of. That is only true for Thunder Editorial Workshop —
+ * step_700_demo_data.php's Step 730a membership seed (`"Leadership
+ * Council" => ["james_okafor", "maria_chen", "elena_garcia"]`) makes elena
+ * a Leadership Council MEMBER, so Governance Town Hall legitimately
+ * appears under the DEFAULT (My Groups) scope too. Asserting `.some(...)`
+ * across both titles in the "before" (default-scope) check produced a false
+ * RED against real behavior (Governance Town Hall correctly appears
+ * pre-toggle). Fixed by pinning the assertion to Thunder Editorial Workshop
+ * only — the one event in the seed that is unambiguously outside every
+ * group elena belongs to.
  */
 
 const ELENA_USER = process.env.ELENA_USER ?? 'elena_garcia';
@@ -137,11 +151,18 @@ test.describe('/my-feed/events (#112 ST-3)', () => {
     await login(page, ELENA_USER, ELENA_PASS);
     await page.goto(MY_EVENTS_PATH);
 
+    // Thunder Editorial Workshop belongs to Thunder Distribution, the ONE
+    // seeded group among the two candidate "non-member" events that elena
+    // is genuinely not a member of (step_700_demo_data.php Step 730a:
+    // Thunder Distribution's members are ravi_patel/sophie_mueller only —
+    // elena is NOT listed). Governance Town Hall's group (Leadership
+    // Council) DOES include elena, so it is deliberately excluded from
+    // this assertion (see class docblock's T-GREEN self-correction note).
     const upcomingBefore = page.locator('[data-testid="upcoming-events-results"]');
     const titlesBefore = await upcomingBefore.locator('.event-card__title').allInnerTexts();
     expect(
-      titlesBefore.some((t) => /Thunder Editorial Workshop|Governance Town Hall/i.test(t)),
-      'Neither Thunder Editorial Workshop nor Governance Town Hall appears under the default (My Groups) scope — elena is not a member of their groups.',
+      titlesBefore.some((t) => /Thunder Editorial Workshop/i.test(t)),
+      'Thunder Editorial Workshop does NOT appear under the default (My Groups) scope — elena is not a member of Thunder Distribution.',
     ).toBe(false);
 
     const globalTab = page.locator('[data-testid="do-streams-shell-tab"][data-scope-id="global"]');
@@ -153,8 +174,8 @@ test.describe('/my-feed/events (#112 ST-3)', () => {
     await expect(upcomingAfter).toBeVisible();
     const titlesAfter = await upcomingAfter.locator('.event-card__title').allInnerTexts();
     expect(
-      titlesAfter.some((t) => /Thunder Editorial Workshop|Governance Town Hall/i.test(t)),
-      'Under ?scope=global, Upcoming widens to include at least one event from a group elena is not a member of.',
+      titlesAfter.some((t) => /Thunder Editorial Workshop/i.test(t)),
+      'Under ?scope=global, Upcoming widens to include Thunder Editorial Workshop, a non-member group\'s event.',
     ).toBe(true);
   });
 
