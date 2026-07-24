@@ -170,6 +170,15 @@ final class HelpText {
       // the wireframe's own example options (Compact list / Cards / Map).
       'showcase.switcher.directory.layout' => 'Compact list favors scanning many groups fast; Cards shows more per-group detail; Map plots groups geographically.',
 
+      // #123 SC-4 (Discovery three ways): the discovery.ranking switcher's
+      // ONE wrapper-level tooltip (handoff-A-plan.md Risk 2 — a single
+      // shared tooltip, not one per option; VariantSwitcher has no per-option
+      // tooltip surface). Names all three decisions the tabs represent
+      // (chronological vs. engagement-ranked vs. editorially curated), the
+      // issue's own phrasing, so one ⓘ read is enough to understand the
+      // whole comparison.
+      'showcase.switcher.discovery.ranking' => 'Recent = chronological (newest first). Hot = engagement-ranked (most commented first, recalculated by cron). Promoted = editorially curated (hand-picked via the promote-to-homepage flag).',
+
       // Note: the site-wide POC ribbon (Surface 3) does NOT carry a ⓘ
       // tooltip trigger — wireframe.md depicts only the POC text + link +
       // dismiss ✕, so no 'showcase.ribbon' key is appended here (diff-gate
