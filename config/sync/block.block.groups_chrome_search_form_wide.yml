@@ -3,6 +3,7 @@ langcode: en
 status: true
 dependencies:
   module:
+    - do_chrome
     - search
   theme:
     - groups_chrome
@@ -11,11 +12,10 @@ theme: groups_chrome
 region: secondary_menu
 weight: -5
 provider: null
-plugin: search_form_block
+plugin: do_chrome_plain_search_form
 settings:
-  id: search_form_block
+  id: do_chrome_plain_search_form
   label: 'Search form (wide)'
   label_display: '0'
-  provider: search
-  page_id: null
+  provider: do_chrome
 visibility: {  }
