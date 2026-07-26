@@ -8,3 +8,4 @@ dependencies:
   - drupal:node
   - drupal:user
   - drupal:message
+  - drupal:message_notify

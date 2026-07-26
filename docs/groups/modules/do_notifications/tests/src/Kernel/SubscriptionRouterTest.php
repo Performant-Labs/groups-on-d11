@@ -74,6 +74,10 @@ class SubscriptionRouterTest extends GroupsKernelTestBase {
     $this->installEntitySchema('taxonomy_term');
     $this->installSchema('flag', ['flag_counts']);
     $this->installSchema('node', ['node_access']);
+    // N-1 (#229) swapped do_notifications.queue to a real DB-backed
+    // implementation (DatabaseQueueBackend); this suite calls the queue's
+    // drain()/count() directly, so the table must exist.
+    $this->installSchema('do_notifications', ['do_notifications_queue']);
     $this->installConfig(['field']);
     // do_activity's Message templates (activity_post_created et al.) are
     // config/install, never auto-installed by enableModules() alone. NOTE:

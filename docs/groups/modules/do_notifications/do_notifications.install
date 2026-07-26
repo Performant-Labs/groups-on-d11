@@ -1,0 +1,85 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the DO Notifications module.
+ */
+
+/**
+ * Implements hook_schema().
+ *
+ * Part of the Notifications epic #237, N-1 (#229). Defines the
+ * `do_notifications_queue` table backing
+ * `Drupal\do_notifications\Queue\DatabaseQueueBackend` — the DB-persistent
+ * swap-in for N-2's (#230) in-memory `MockQueueBackend`
+ * (see `do_notifications.services.yml`).
+ *
+ * The unique key on (uid, mid, frequency, day) is the dedup enforcement
+ * {@see \Drupal\do_notifications\Queue\QueueBackendInterface::enqueue()}
+ * requires: a second enqueue() with an identical tuple must be a silent
+ * no-op, matching `MockQueueBackend`'s in-memory `$seenKeys` contract
+ * exactly. `DatabaseQueueBackend::enqueue()` relies on this key via
+ * `Connection::merge()->keys([...])`, so no separate SELECT-then-INSERT
+ * race window or try/catch-on-duplicate-key is needed.
+ */
+function do_notifications_schema() {
+  $schema['do_notifications_queue'] = [
+    'description' => 'Per-recipient queued notification entries awaiting a future digest/frequency worker (N-3+, out of scope for this story).',
+    'fields' => [
+      'id' => [
+        'description' => 'Primary key: unique queue entry ID.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'uid' => [
+        'description' => 'The recipient user ID.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'mid' => [
+        'description' => 'The routed Message entity ID.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'template' => [
+        'description' => "The Message's template (message_template) ID.",
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+      ],
+      'frequency' => [
+        'description' => "The recipient's notification frequency (e.g. 'immediately', 'daily', 'weekly').",
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ],
+      'day' => [
+        'description' => "The enqueue date, 'Y-m-d' format. Part of the dedup key: an overlapping subscription on the SAME day collapses, while a later day's routing for the same (uid, mid, frequency) is a distinct entry.",
+        'type' => 'varchar',
+        'length' => 10,
+        'not null' => TRUE,
+      ],
+      'created' => [
+        'description' => 'The UNIX timestamp the entry was enqueued.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+    ],
+    'primary key' => ['id'],
+    'unique keys' => [
+      'uid_mid_frequency_day' => ['uid', 'mid', 'frequency', 'day'],
+    ],
+    'indexes' => [
+      // Not required by this story's acceptance criteria; anticipates the
+      // N-3+ digest worker's "find everything due for a given
+      // frequency/day" query pattern.
+      'frequency_day' => ['frequency', 'day'],
+    ],
+  ];
+
+  return $schema;
+}
