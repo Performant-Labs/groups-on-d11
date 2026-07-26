@@ -1,0 +1,48 @@
+{#
+/**
+ * @file
+ * Plain-text digest wrapper for do_notifications (#236, N-8).
+ *
+ * Loaded directly through the `twig` environment service, NOT through the
+ * theme registry — see \Drupal\do_notifications\Email\EmailRenderer's class
+ * docblock ("DUAL RENDER PATH") for why: Drupal's Twig theme engine
+ * hardcodes the `.html.twig` extension and can never load a `.txt.twig`
+ * file via the normal #theme render pipeline. Same dual-render precedent as
+ * email-shell.txt.twig.
+ *
+ * `autoescape false` is required here: TwigEnvironment forces HTML
+ * autoescaping site-wide by default, which would HTML-entity-encode plain
+ * text (e.g. turning `&` into `&amp;`) if left on.
+ *
+ * Available variables:
+ * - greeting: pre-rendered translatable greeting string (e.g. "Hi Jane,").
+ * - window_label: 'day' or 'week', used in the "Here's what happened this
+ *   <window_label>:" intro line.
+ * - day_groups: a list of {label, events} arrays. `label` is the day's long
+ *   date heading (e.g. "Wednesday, November 14, 2023"); `events` is a list
+ *   of fragment arrays as returned by EmailRenderer::renderEventFragments()
+ *   (`text_line`, `html_body`, `created`) for that day, newest-first.
+ * - overflow_line: the pre-rendered "…and N more" translatable string, or
+ *   NULL if the digest was not truncated.
+ * - unsubscribe_url: absolute URL to the recipient's notification settings
+ *   page (\Drupal\do_notifications\Email\DigestRenderer::unsubscribeUrl()).
+ */
+#}
+{% autoescape false %}
+{{ greeting }}
+{{ "Here's what happened this @window_label:"|t({'@window_label': window_label}) }}
+
+{% for group in day_groups %}
+{{ group.label }}
+{% for event in group.events %}
+- {{ event.text_line }}
+{% endfor %}
+
+{% endfor %}
+{% if overflow_line %}
+{{ overflow_line }}
+
+{% endif %}
+--
+{{ 'Unsubscribe:'|t }} {{ unsubscribe_url }}
+{% endautoescape %}

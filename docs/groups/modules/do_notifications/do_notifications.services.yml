@@ -41,6 +41,19 @@ services:
     tags:
       - { name: 'hook_implementations' }
 
+  # #236 (N-8): wraps N do_notifications.email_renderer fragments into one
+  # digest payload for a recipient + window ("daily"|"weekly"). See
+  # src/Email/DigestRenderer.php's class docblock for the aggregation/
+  # grouping/cap pipeline.
+  do_notifications.digest_renderer:
+    class: Drupal\do_notifications\Email\DigestRenderer
+    autowire: false
+    arguments:
+      - '@do_notifications.email_renderer'
+      - '@twig'
+      - '@extension.list.module'
+      - '@date.formatter'
+
   # #232 (N-4): the [message:uid] / [message:field_group_id] /
   # [message:field_referenced_entity_type] /
   # [message:field_referenced_entity_id] token provider the activity_*
