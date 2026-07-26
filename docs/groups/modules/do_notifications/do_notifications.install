@@ -21,6 +21,14 @@
  * exactly. `DatabaseQueueBackend::enqueue()` relies on this key via
  * `Connection::merge()->keys([...])`, so no separate SELECT-then-INSERT
  * race window or try/catch-on-duplicate-key is needed.
+ *
+ * `send_at` (nullable int) was added by N-5 (#233): the unix timestamp at
+ * which a delivery/digest worker (N-3/N-6/N-7) should include the entry.
+ * NOT part of the dedup tuple — a user flipping their frequency preference
+ * mid-day produces a NEW row (discriminated by `frequency` in the unique
+ * key), not an update to an existing row's `send_at`. The composite
+ * `frequency_send_at` index supports the digest workers' anticipated query
+ * pattern `WHERE frequency = ? AND send_at <= NOW()`.
  */
 function do_notifications_schema() {
   $schema['do_notifications_queue'] = [
@@ -68,6 +76,12 @@ function do_notifications_schema() {
         'unsigned' => TRUE,
         'not null' => TRUE,
       ],
+      'send_at' => [
+        'description' => "N-5 (#233): the UNIX timestamp at which the delivery/digest worker should include this entry. NULL only if the enqueuer did not resolve a schedule (never happens once SubscriptionRouter is in the path — kept nullable for cross-version safety on rows written before this column existed).",
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+      ],
     ],
     'primary key' => ['id'],
     'unique keys' => [
@@ -78,8 +92,54 @@ function do_notifications_schema() {
       // N-3+ digest worker's "find everything due for a given
       // frequency/day" query pattern.
       'frequency_day' => ['frequency', 'day'],
+      // N-5 (#233): the digest workers' primary query pattern —
+      // WHERE frequency = ? AND send_at <= NOW(). Composite ordering
+      // matches the equality-then-range access pattern.
+      'frequency_send_at' => ['frequency', 'send_at'],
     ],
   ];
 
   return $schema;
+}
+
+/**
+ * N-5 (#233): add nullable `send_at` column + `(frequency, send_at)` index.
+ *
+ * Idempotent — safe to re-run. For sites installed via N-1 (#229) before
+ * N-5 landed, this adds the column so DatabaseQueueBackend can persist the
+ * schedule stamp SubscriptionRouter now writes on every enqueue. Fresh
+ * installs pick this up via the updated hook_schema() directly, so this
+ * hook_update_N is a no-op on those.
+ */
+function do_notifications_update_10001(): string {
+  $schema = \Drupal::database()->schema();
+  $added = FALSE;
+
+  if (!$schema->fieldExists('do_notifications_queue', 'send_at')) {
+    $schema->addField('do_notifications_queue', 'send_at', [
+      'description' => 'N-5 (#233): the UNIX timestamp at which the delivery/digest worker should include this entry.',
+      'type' => 'int',
+      'unsigned' => TRUE,
+      'not null' => FALSE,
+    ]);
+    $added = TRUE;
+  }
+
+  if (!$schema->indexExists('do_notifications_queue', 'frequency_send_at')) {
+    $schema->addIndex(
+      'do_notifications_queue',
+      'frequency_send_at',
+      ['frequency', 'send_at'],
+      [
+        'fields' => [
+          'frequency' => ['type' => 'varchar', 'length' => 32, 'not null' => TRUE],
+          'send_at' => ['type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE],
+        ],
+      ],
+    );
+  }
+
+  return $added
+    ? 'Added send_at column and (frequency, send_at) index to do_notifications_queue.'
+    : 'send_at column already present; ensured (frequency, send_at) index exists.';
 }

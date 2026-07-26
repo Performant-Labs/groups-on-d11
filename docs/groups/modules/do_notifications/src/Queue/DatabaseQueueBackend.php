@@ -22,6 +22,13 @@ use Drupal\Core\Database\Connection;
  * the DB's own unique constraint silently collapse a repeat tuple into a
  * no-op UPDATE rather than requiring exception-as-control-flow around a
  * duplicate-key INSERT failure.
+ *
+ * N-5 (#233) added the `send_at` field to the payload / column: `enqueue()`
+ * writes it when present, `drain()` returns it when populated. Since
+ * `send_at` is NOT part of the dedup tuple (see QueueBackendInterface's
+ * docblock), a repeat enqueue of the same tuple with a DIFFERENT send_at
+ * updates the row's send_at via merge()->fields() — the last writer wins,
+ * matching the "silent no-op" contract's intent (nothing new is added).
  */
 class DatabaseQueueBackend implements QueueBackendInterface {
 
@@ -39,6 +46,15 @@ class DatabaseQueueBackend implements QueueBackendInterface {
    * {@inheritdoc}
    */
   public function enqueue(array $item): void {
+    // send_at is optional per the interface docblock: callers that predate
+    // N-5 or use a mock payload may omit it. Store NULL when absent so the
+    // schema's `not null => FALSE` accepts the write.
+    $fields = [
+      'template' => $item['template'],
+      'created' => $this->time->getRequestTime(),
+      'send_at' => $item['send_at'] ?? NULL,
+    ];
+
     $this->database->merge(self::TABLE)
       ->keys([
         'uid' => $item['uid'],
@@ -46,10 +62,7 @@ class DatabaseQueueBackend implements QueueBackendInterface {
         'frequency' => $item['frequency'],
         'day' => $item['day'],
       ])
-      ->fields([
-        'template' => $item['template'],
-        'created' => $this->time->getRequestTime(),
-      ])
+      ->fields($fields)
       ->execute();
   }
 
@@ -69,7 +82,7 @@ class DatabaseQueueBackend implements QueueBackendInterface {
     $transaction = $this->database->startTransaction();
     try {
       $select = $this->database->select(self::TABLE, 'q')
-        ->fields('q', ['id', 'uid', 'mid', 'template', 'frequency', 'day']);
+        ->fields('q', ['id', 'uid', 'mid', 'template', 'frequency', 'day', 'send_at']);
       if ($frequency !== NULL) {
         $select->condition('frequency', $frequency);
       }
@@ -94,13 +107,21 @@ class DatabaseQueueBackend implements QueueBackendInterface {
 
     $items = [];
     foreach ($rows as $row) {
-      $items[] = [
+      $item = [
         'uid' => (int) $row['uid'],
         'mid' => (int) $row['mid'],
         'template' => $row['template'],
         'frequency' => $row['frequency'],
         'day' => $row['day'],
       ];
+      // Only include send_at when populated (row written by an N-5-aware
+      // enqueuer). Preserves BC for consumers that predate #233 and would
+      // choke on an unexpected key — this array is documented as
+      // shape-strict in the interface.
+      if ($row['send_at'] !== NULL) {
+        $item['send_at'] = (int) $row['send_at'];
+      }
+      $items[] = $item;
     }
 
     return $items;

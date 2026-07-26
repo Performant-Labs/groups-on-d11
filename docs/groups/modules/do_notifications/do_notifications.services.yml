@@ -12,6 +12,16 @@ services:
     arguments: ['@database', '@datetime.time']
     # N-1 (#229) completed — DatabaseQueueBackend is now the default;
     # MockQueueBackend remains in the codebase for unit tests.
+
+  # #233 (N-5): resolves a recipient's (frequency, send_at) pair per uid --
+  # see src/Frequency/FrequencyResolver.php's class docblock.
+  do_notifications.frequency_resolver:
+    class: Drupal\do_notifications\Frequency\FrequencyResolver
+    arguments:
+      - '@entity_type.manager'
+      - '@datetime.time'
+      - '@config.factory'
+
   do_notifications.subscription_router:
     class: Drupal\do_notifications\Subscription\SubscriptionRouter
     arguments:
@@ -20,7 +30,7 @@ services:
       - '@do_notifications.queue'
       - '@datetime.time'
       - '@state'
-      - '@config.factory'
+      - '@do_notifications.frequency_resolver'
 
   # #232 (N-4): renders an activity_* Message into a subject/body_text/
   # body_html email payload. See src/Email/EmailRenderer.php's class
