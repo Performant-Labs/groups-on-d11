@@ -204,3 +204,11 @@
 - **Verified:** `merge()` (not try/catch) in `DatabaseQueueBackend::enqueue()`; `getTempDirectory()` (not hardcoded `/tmp`) in `LogMailer`; UTC via `gmdate('Y-m-d\TH:i:s\Z', ...)`; unconditional `return TRUE` in `deliver()`; both watchdog + file sinks written; `MockQueueBackend` class body intact; no parallel-path duplication (services.yml points queue exclusively at DB backend); LogMailer stays out of DB; deferred concerns (retry, cron worker) documented as N-3+ in brief and `.install` docblock; all production changes limited to `docs/groups/` source-of-truth.
 - **Accepted deviations from literal task snippets** (all net-positive, F- and T-documented): `TimeInterface` injected instead of `\Drupal::time()` static; `logger.channel.do_notifications` registered as a service instead of `\Drupal::logger()` static; bonus `frequency_day` schema index (brief said "consider").
 - **Evidence:** `handoff-S.md`.
+
+## O — Chain Summary (post-merge)
+- **Outcome:** MERGED as 3ec16f245ff5945d2f36abb09a25b4a5e81e04f6 via PR #260. Closes #229. Part of epic #237.
+- **Key decisions:** Option A trim honored (no retry column, deferred to N-3/#231). `merge()` for DB dedup (portable). `getTempDirectory()` for file sink (portable, kernel-testable). UTC timestamps. MockQueueBackend retained for unit tests. LogMailer as message_notify @Notifier plugin.
+- **Regression handled inside the run:** N-2's `SubscriptionRouterTest` needed `installSchema()` for the new queue table once the swap made the queue DB-backed; T fixed it in Phase 6.
+- **Open assumptions still unverified:** None — all A/T/F/S concerns resolved. Real digest-worker behavior against LogMailer will be exercised by N-6+ stories.
+- **Follow-ups filed:** None. Retry semantics + cron worker are already tracked as N-3 (#231) and later stories per epic #237.
+- **CI note:** First push hit a transient Harbor container-registry auth outage on the self-hosted runner (affected sibling PRs #233/#236/#252 identically). Cleared without code change; coordinator confirmed green and directed merge.

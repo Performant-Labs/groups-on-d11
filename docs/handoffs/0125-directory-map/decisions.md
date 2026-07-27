@@ -468,3 +468,25 @@ of the repaired assertions.
 - `docs/groups/modules/do_showcase/src/VariantSwitcher.php` lines 235-238 ("(soon)" appended only for `!$available`), 249 (`aria_disabled => !$available`).
 - `docs/groups/modules/do_showcase/tests/src/Kernel/DirectoryTogglePreRenderTest.php` diff.
 - CI job id `89467661385` (Kernel FAILURE) — original failing assertions.
+
+---
+
+## Phase 11 — Chain Summary (post-merge)
+
+**Outcome:** MERGED via PR #189 at 2026-07-24T12:09:43Z. Merge commit `546d4dee0f94a23568d0e7143ebcfafe7c6c14ba`. Story feat commit `352e782`, repair commit `ce82378` — both present on origin/main. Branch auto-deleted.
+
+**Key decisions (recap):**
+- Extend-not-fork thesis held throughout: `VariantSwitcher::directoryLayoutOptionIds()` single-line flip, existing wrapper-attribute contract extended to a third value, peer library pattern mirrored (`do_showcase/directory-map` alongside `directory-compact`), new hook TYPE (`preprocess_views_view_unformatted`) on the existing hook class not a new class.
+- Zero-CDN posture enforced end-to-end: NO tile layer (rejects OSM external tile hosts), Leaflet 1.9.4 vendored under new `docs/groups/libraries/leaflet/` source tree, new `scripts/ci/assemble-libraries.sh` mirrors the assemble-config discipline.
+- geofield used for storage/typing only — no `geofield_map` runtime attach (survey/A confirmed adding `geofield` to `do_showcase.info.yml` deps does NOT transitively enable geofield_map).
+- POC lean pipeline: skipped brief-gate, A-dup, pre-PR-hold. D → A → T(red) → F → T(green) → U → S → PR → self-merge on CI-green.
+- D-gate resolutions: marker `title` on hover APPROVED, `role="application"` DROPPED, zero-groups-defensive-state DEFERRED.
+
+**Number of test-repair rounds:** 3 (T-green post-F, T-repair round 2 post-U live-run, T-repair round 3+3.5 post-CI). All repairs were the same category — stale-contract tests pinning Map's pre-#125 unavailable/(soon)/fallback assertions. Total 6 tests repaired across 4 spec files (showcase.spec.ts, directory-map.spec.ts, directory-toggle.spec.ts, DirectoryTogglePreRenderTest.php) + 1 Functional test (CreateGroupWizardOrganizerTest.php needed `geofield` in `$modules`) + 1 orchestrator infra fix (`assemble-config.sh` now registers `geofield` in `core.extension.yml`).
+
+**Open assumptions unverified (none critical):**
+- `scripts/ci/assemble-libraries.sh` runs `cp -r` idempotently — verified locally by F and U ran it twice; CI ran it 3 times per workflow-job without failure. Assumption HELD.
+- geofield storage YAML schema is `type: geofield` with no explicit settings needed — verified by CI's clean-room `drush cim` succeeding after `geofield` was added to core.extension.
+- `MutationObserver` on the wrapper's `data-do-directory-variant` attribute is a POC-acceptable client-side-toggle reactivity pattern (new to this codebase, no prior use). A-plan Q7 passed; live U verified it works; CI validated non-regression on `directory-toggle.spec.ts`. **This new pattern is now precedent for any future variant-that-needs-init-on-live-switch.** Flagging for future stories that might reuse it.
+
+**Follow-ups filed:** None. Pre-PR nits from S (map `aria-label` short-form vs richer, missing `layers.png` in vendored Leaflet, `directory-toggle.spec.ts` docblock stale reference) were: (a) docblock fixed inline before PR, (b) aria-label + layers.png accepted as cosmetic / future-story landmines not worth a new issue in POC scope (POC feedback rule: no follow-ups for merged-story latent debt).

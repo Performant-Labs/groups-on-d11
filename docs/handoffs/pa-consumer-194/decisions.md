@@ -38,3 +38,10 @@ PermissionMatrixPanel precedent). Ready for S. Evidence + full checklist in
 
 ## S (2026-07-24) — spec audit verdict: REWORK (git hygiene only)
 All six acceptance criteria verified against the in-scope diff (DoStreamsHooks.php lines 632-634 + info.yml line 15 + ProfileActivityTooltipTest.php with 6 assertions in one render pass). HelpText.php untouched (append-only contract respected); sibling #193 surface (stream-card variants, do-streams-shell.html.twig) not touched. F handoff matches actual diff; U evidence PNGs on disk. **Blocking:** (1) nothing committed — `git log origin/main..HEAD` empty. (2) Branch base `d014e29` is behind `origin/main` `9203cda` (#133 SD-6 merged after cut) — `git diff origin/main` currently shows spurious "reversions" of #133 that are actually just the stale base; must rebase (clean fast-forward — verified `origin/main`'s DoStreamsHooks::preprocessBlock is still pre-#194 and info.yml has no `do_chrome` line, so F's edits apply without conflict). (3) Staging is partial: test + T-red + decisions staged, but DoStreamsHooks/info.yml/brief/F+U handoffs/evidence still unstaged; plus dozens of unrelated modified/untracked files (rebase-noise, expected to evaporate post-rebase); plus a T-authored `.ddev/config.yaml` project rename (`gm145-wcag` → `gm194-paconsumer`) that is environment-only, not in brief — recommend revert before commit unless O keeps it deliberately. No REWORK on code content — only git hygiene. Handoff at `handoff-S.md`.
+
+## O — Chain Summary (post-merge)
+- **Outcome:** PR #201 merged as 4f3638e on 2026-07-24. Main advanced, branch auto-deleted.
+- **Key decisions:** Extend `preprocessBlock()` (not a twig override); attach `data-do-tooltip` on the block outer wrapper (whole-section trigger); add `do_chrome:do_chrome` as hard dep (resolving HelpText.php:414 deferral).
+- **CI:** 3/3 checks SUCCESS; mergeable CLEAN.
+- **Open assumptions still unverified:** None — U walkthrough proved live browser binding at both viewports; Kernel test covers all 4 ACs; full do_streams suite regression clean.
+- **Follow-ups filed:** None. Sibling #193 (SD-4 stream-card tooltips) is a separate, non-colliding story.

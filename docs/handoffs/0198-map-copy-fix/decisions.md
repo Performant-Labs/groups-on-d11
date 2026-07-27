@@ -150,3 +150,17 @@ applied.
 
 **Advisory:** T-green's `SIMPLETEST_DB` local-runner note worth folding into
 RUNBOOK.md/TEST_PLAN.md at some point — not a blocker.
+
+## Chain Summary (O post-merge)
+**Outcome:** MERGED `922e057` on `origin/main` via PR #206 (squash + branch delete). Closes #198.
+
+**Key decisions:**
+- Fourth-path reconciliation: rather than the three options the issue proposed (add "coming soon" copy / remove Map / mark Map available), we updated the stale copy because #125 SC-6 had ALREADY shipped Map as live — the issue was filed pre-#125 and the copy simply hadn't caught up.
+- Extended the existing `ShowcaseCatalogTest` with one substring assertion (Map + geograph) modeled 1:1 on `testStreamModelEntryIsLive…`; no new test class. Matches the #202 orphan-copy-sweep pattern.
+- Phase 8 U declared N/A — two-word copy edit; substrings pinned by unit assertion + grep-guard.
+
+**Open assumptions still unverified:** None.
+
+**Follow-ups filed:** None. (POC rule: no follow-ups for merged-story latent debt.)
+
+**Anomaly note:** First CI run failed at `shivammathur/setup-php@v2` setup step ("php_config: parameter null or not set") — all 3 jobs died at ~1m before any test executed. Transient upstream action / runner issue (not code-caused); `gh run rerun --failed` succeeded on the same commit. No code change required. Not filing an issue per POC no-follow-ups rule; if it recurs on the next batch, revisit.
