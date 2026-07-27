@@ -37,6 +37,13 @@ namespace Drupal\do_notifications\Queue;
  * one user's digest render throws), the un-deleted rows are simply claimed
  * again on the next run — a combined claim-and-delete would instead lose
  * those rows on a partial failure with nothing left to retry.
+ *
+ * #235 (N-7) adds the sibling `claimWeekly()`: the weekly digest worker
+ * ({@see \Drupal\do_notifications\Commands\DigestCommands::digestWeekly()})
+ * claims every 'weekly' row older than its own configurable window in the
+ * identical read-only, claim-then-delete-via-`deleteByIds()` idiom
+ * `claimDaily()` established — no new deletion path was needed since
+ * `deleteByIds()` is already frequency-agnostic.
  */
 interface QueueBackendInterface {
 
@@ -131,6 +138,27 @@ interface QueueBackendInterface {
    *   nothing matches.
    */
   public function claimDaily(int $olderThan): array;
+
+  /**
+   * Returns every 'weekly'-frequency entry older than a given threshold.
+   *
+   * Part of #235 (N-7). The sibling of {@see self::claimDaily()}: applies
+   * `frequency = 'weekly' AND created < $olderThan` as an AND — a row that is
+   * 'weekly' but within the window, or a row outside the window but a
+   * different frequency, is excluded either way. Does NOT delete the
+   * returned rows; the caller must explicitly call {@see self::deleteByIds()}
+   * once it has successfully consumed them (see class docblock for why the
+   * two are separate calls).
+   *
+   * @param int $olderThan
+   *   A UNIX timestamp; only rows with `created < $olderThan` are returned.
+   *
+   * @return array<int, array>
+   *   Every matching row, each shaped `['id', 'uid', 'mid', 'template',
+   *   'frequency', 'day', 'created']`, ordered by (uid, created). Empty when
+   *   nothing matches.
+   */
+  public function claimWeekly(int $olderThan): array;
 
   /**
    * Deletes the queue entries with the given ids.

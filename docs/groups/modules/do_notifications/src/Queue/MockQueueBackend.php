@@ -22,6 +22,9 @@ namespace Drupal\do_notifications\Queue;
  * sequential id (mirroring `DatabaseQueueBackend`'s auto-increment PK) so
  * `claimDaily()` can return each row's `id` and `deleteByIds()` can remove
  * specific entries by that id.
+ *
+ * #235 (N-7) adds `claimWeekly()`: a literal in-memory sibling of
+ * `claimDaily()`, filtering on `'weekly'` instead of `'daily'`.
  */
 class MockQueueBackend implements QueueBackendInterface {
 
@@ -119,6 +122,25 @@ class MockQueueBackend implements QueueBackendInterface {
     $claimed = [];
     foreach ($this->items as $id => $item) {
       if ($item['frequency'] === 'daily' && ($item['created'] ?? 0) < $olderThan) {
+        $claimed[] = ['id' => $id] + $item;
+      }
+    }
+
+    usort(
+      $claimed,
+      static fn(array $a, array $b): int => [$a['uid'], $a['created']] <=> [$b['uid'], $b['created']],
+    );
+
+    return $claimed;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function claimWeekly(int $olderThan): array {
+    $claimed = [];
+    foreach ($this->items as $id => $item) {
+      if ($item['frequency'] === 'weekly' && ($item['created'] ?? 0) < $olderThan) {
         $claimed[] = ['id' => $id] + $item;
       }
     }

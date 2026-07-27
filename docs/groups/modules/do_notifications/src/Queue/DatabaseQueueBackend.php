@@ -34,6 +34,10 @@ use Drupal\Core\Database\Connection;
  * created) and `deleteByIds()` (a plain `DELETE ... WHERE id IN (...)`) —
  * see {@see QueueBackendInterface}'s class docblock for why these are two
  * separate calls rather than one combined claim-and-delete.
+ *
+ * #235 (N-7) adds `claimWeekly()`: a literal sibling of `claimDaily()` with
+ * `frequency = 'weekly'` in place of `frequency = 'daily'`. `deleteByIds()`
+ * is reused verbatim — it was already frequency-agnostic.
  */
 class DatabaseQueueBackend implements QueueBackendInterface {
 
@@ -149,6 +153,35 @@ class DatabaseQueueBackend implements QueueBackendInterface {
     $rows = $this->database->select(self::TABLE, 'q')
       ->fields('q', ['id', 'uid', 'mid', 'template', 'frequency', 'day', 'created'])
       ->condition('frequency', 'daily')
+      ->condition('created', $olderThan, '<')
+      ->orderBy('uid', 'ASC')
+      ->orderBy('created', 'ASC')
+      ->execute()
+      ->fetchAll(\PDO::FETCH_ASSOC);
+
+    $items = [];
+    foreach ($rows as $row) {
+      $items[] = [
+        'id' => (int) $row['id'],
+        'uid' => (int) $row['uid'],
+        'mid' => (int) $row['mid'],
+        'template' => $row['template'],
+        'frequency' => $row['frequency'],
+        'day' => $row['day'],
+        'created' => (int) $row['created'],
+      ];
+    }
+
+    return $items;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function claimWeekly(int $olderThan): array {
+    $rows = $this->database->select(self::TABLE, 'q')
+      ->fields('q', ['id', 'uid', 'mid', 'template', 'frequency', 'day', 'created'])
+      ->condition('frequency', 'weekly')
       ->condition('created', $olderThan, '<')
       ->orderBy('uid', 'ASC')
       ->orderBy('created', 'ASC')
