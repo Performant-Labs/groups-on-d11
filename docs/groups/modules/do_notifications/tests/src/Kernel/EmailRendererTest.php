@@ -265,4 +265,52 @@ class EmailRendererTest extends GroupsKernelTestBase {
     );
   }
 
+  /**
+   * `renderEventFragments()` returns the exact locked fragment shape (#236).
+   *
+   * Pins the N-8 extract-method contract (brief §"Design decisions" #3, A
+   * warn #1): the new public helper `EmailRenderer::renderEventFragments()`
+   * — which `DigestRenderer` consumes to embed per-event fragments into a
+   * combined digest — must return an array with EXACTLY the keys
+   * `text_line`, `html_body`, `created`, so a digest can slot the fragment
+   * into its own shell without re-deriving the per-event body pair.
+   */
+  public function testRenderEventFragmentsReturnsLockedShape(): void {
+    $group = $this->createGroup();
+    $author = $this->getCurrentUser();
+
+    $post = $this->addNode($group, 'post', ['status' => 1, 'title' => 'A post']);
+
+    $message = Message::create([
+      'template' => 'activity_post_created',
+      'uid' => $author->id(),
+      'field_referenced_entity_type' => 'node',
+      'field_referenced_entity_id' => $post->id(),
+      'field_group_id' => $group->id(),
+    ]);
+    $message->save();
+    $message->setCreatedTime(self::FIXED_CREATED_TIME);
+    $message->save();
+
+    $fragments = $this->renderer()->renderEventFragments($message);
+
+    $this->assertIsArray($fragments);
+    $this->assertArrayHasKey('text_line', $fragments);
+    $this->assertArrayHasKey('html_body', $fragments);
+    $this->assertArrayHasKey('created', $fragments);
+
+    $this->assertIsString($fragments['text_line']);
+    $this->assertNotSame('', trim($fragments['text_line']), 'text_line is a non-empty string.');
+
+    $this->assertIsString($fragments['html_body']);
+    $this->assertNotSame('', trim($fragments['html_body']), 'html_body is a non-empty string.');
+
+    $this->assertIsInt($fragments['created']);
+    $this->assertSame(
+      $message->getCreatedTime(),
+      $fragments['created'],
+      'created matches the Message entity\'s own created timestamp.',
+    );
+  }
+
 }

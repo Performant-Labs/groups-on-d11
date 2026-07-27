@@ -7,6 +7,7 @@ namespace Drupal\do_notifications\Email;
 use Drupal\Core\Datetime\DateFormatterInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleExtensionList;
+use Drupal\Core\Render\Markup;
 use Drupal\Core\Render\RendererInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\Core\Template\TwigEnvironment;
@@ -68,6 +69,20 @@ use Drupal\user\UserInterface;
  * The 14 theme hooks are still all registered (brief AC), including the 6
  * text-format ones, for registry completeness/documentation — EmailRenderer
  * simply never calls `theme()`/`render()` for the text-format hook names.
+ *
+ * #236 (N-8): {@see self::renderEventFragments()} exposes the per-event body
+ * pair (`text_line` + `html_body`, both UNWRAPPED by either shell) so
+ * {@see \Drupal\do_notifications\Email\DigestRenderer} can embed N per-event
+ * fragments into one combined digest payload without re-implementing the
+ * token/`(removed)`-placeholder machinery documented above. `render()` is now
+ * an extract-method refactor on top of this same helper (see its own
+ * docblock) — the DUAL RENDER PATH note above still governs: `html_body` is
+ * produced via the `#theme` + renderInIsolation pipeline (theme registry) and
+ * comes back as safe {@see \Drupal\Core\Render\Markup}, cast to `string` for
+ * the return array; `text_line` is the same plain string
+ * {@see self::renderBodyLine()} always produced. No `.txt.twig` load happens
+ * inside `renderEventFragments()` itself, only in the shell-wrapping methods
+ * that consume its output.
  */
 class EmailRenderer {
 
@@ -128,6 +143,11 @@ class EmailRenderer {
   /**
    * Renders a Message into a two-part (+ subject) email payload.
    *
+   * Extract-method refactor (#236, N-8): delegates the per-event body pair
+   * to {@see self::renderEventFragments()} so the token/removed-placeholder/
+   * theme-key derivation lives in exactly one place. Behavior is unchanged
+   * from the pre-#236 implementation — only the internal call shape differs.
+   *
    * @param \Drupal\message\MessageInterface $message
    *   The activity_* Message to render.
    * @param \Drupal\user\UserInterface $recipient
@@ -137,15 +157,49 @@ class EmailRenderer {
    *   An array with keys `subject`, `body_text`, `body_html` — all strings.
    */
   public function render(MessageInterface $message, UserInterface $recipient): array {
-    $event_key = $this->eventThemeKey($message);
-    $body_line = $this->renderBodyLine($message);
+    $fragments = $this->renderEventFragments($message);
     $unsubscribe_url = $this->unsubscribeUrl($recipient);
-    $timestamp = $this->dateFormatter->format($message->getCreatedTime(), 'custom', self::TIMESTAMP_FORMAT);
+    $timestamp = $this->dateFormatter->format($fragments['created'], 'custom', self::TIMESTAMP_FORMAT);
 
     return [
       'subject' => $this->renderSubject($message),
-      'body_text' => $this->renderTextShell($event_key, $body_line, $unsubscribe_url, $timestamp),
-      'body_html' => $this->renderHtmlShell($event_key, $body_line, $unsubscribe_url, $timestamp),
+      'body_text' => $this->renderTextShell($this->eventThemeKey($message), $fragments['text_line'], $unsubscribe_url, $timestamp),
+      'body_html' => $this->renderHtmlShellFromFragment($fragments['html_body'], $unsubscribe_url, $timestamp),
+    ];
+  }
+
+  /**
+   * Renders a Message's per-event body pair, unwrapped by either shell.
+   *
+   * Introduced for #236 (N-8):
+   * {@see \Drupal\do_notifications\Email\DigestRenderer} consumes this to
+   * embed N per-event fragments into one combined digest without
+   * duplicating the token-replacement / `(removed)`-placeholder logic
+   * documented on the class. `render()` also calls this (extract-method) so
+   * there is exactly one code path deriving a Message's rendered body
+   * content.
+   *
+   * @param \Drupal\message\MessageInterface $message
+   *   The activity_* Message to render fragments for.
+   *
+   * @return array
+   *   An array with keys:
+   *   - text_line: the token-replaced (and `(removed)`-substituted) plain
+   *     body string, identical to the pre-#236 `renderBodyLine()` output.
+   *   - html_body: the rendered per-event HTML partial ONLY (the
+   *     `#theme => email_<event>_html` sub-render), isolated — no shell
+   *     wrap. Safe HTML, cast to `string`.
+   *   - created: the Message's own `created` Unix timestamp
+   *     ({@see \Drupal\message\MessageInterface::getCreatedTime()}).
+   */
+  public function renderEventFragments(MessageInterface $message): array {
+    $event_key = $this->eventThemeKey($message);
+    $text_line = $this->renderBodyLine($message);
+
+    return [
+      'text_line' => $text_line,
+      'html_body' => $this->renderHtmlPartial($event_key, $text_line),
+      'created' => $message->getCreatedTime(),
     ];
   }
 
@@ -258,20 +312,38 @@ class EmailRenderer {
   }
 
   /**
-   * Renders the HTML shell + per-event HTML partial via the theme registry.
+   * Renders the per-event HTML partial in isolation, via the theme registry.
    *
-   * Uses the standard `#theme` + `renderInIsolation()` pipeline — HTML
-   * templates load through the normal Twig theme engine without issue (see
-   * class docblock "DUAL RENDER PATH").
+   * Extracted for #236 (N-8) so {@see self::renderEventFragments()} can hand
+   * back the bare per-event fragment (no shell wrap) while
+   * {@see self::renderHtmlShellFromFragment()} still produces the exact same
+   * shell-wrapped HTML `render()` always has.
    */
-  private function renderHtmlShell(string $event_key, string $body_line, string $unsubscribe_url, string $timestamp): string {
+  private function renderHtmlPartial(string $event_key, string $body_line): string {
     $partial_build = [
       '#theme' => 'email_' . $event_key . '_html',
       '#body_line' => $body_line,
     ];
+
+    return (string) $this->renderer->renderInIsolation($partial_build);
+  }
+
+  /**
+   * Wraps an already-rendered HTML fragment in the HTML shell.
+   *
+   * Consumes the `html_body` fragment {@see self::renderEventFragments()}
+   * produces. The fragment is re-marked as safe via
+   * {@see \Drupal\Core\Render\Markup} before being placed on the `#markup`
+   * render-array key — this is the same "already-safe HTML, do not
+   * re-escape/re-filter" contract
+   * {@see \Drupal\Core\Render\Renderer::ensureMarkupIsSafe()} uses for any
+   * `#markup` value already implementing `MarkupInterface`, so this produces
+   * byte-identical shell output to the pre-#236 nested-render-array approach.
+   */
+  private function renderHtmlShellFromFragment(string $html_body, string $unsubscribe_url, string $timestamp): string {
     $shell_build = [
       '#theme' => 'email_shell_html',
-      '#body' => $partial_build,
+      '#body' => ['#markup' => Markup::create($html_body)],
       '#unsubscribe_url' => $unsubscribe_url,
       '#timestamp' => $timestamp,
     ];

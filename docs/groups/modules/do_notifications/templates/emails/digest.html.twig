@@ -1,0 +1,50 @@
+{#
+/**
+ * @file
+ * HTML digest wrapper for do_notifications (#236, N-8).
+ *
+ * Aggregates N per-event HTML fragments (each already rendered by
+ * \Drupal\do_notifications\Email\EmailRenderer::renderEventFragments(), see
+ * \Drupal\do_notifications\Email\DigestRenderer) into one email, grouped by
+ * UTC day, newest-day-first. Mirrors email-shell.html.twig's minimal,
+ * self-contained HTML document (no external stylesheet — email clients
+ * strip <link>).
+ *
+ * Available variables:
+ * - greeting: pre-rendered translatable greeting string (e.g. "Hi Jane,").
+ * - window_label: 'day' or 'week', used in the "Here's what happened this
+ *   <window_label>:" intro line.
+ * - day_groups: a list of {label, events} arrays. `label` is the day's long
+ *   date heading (e.g. "Wednesday, November 14, 2023"); `events` is a list
+ *   of fragment arrays as returned by EmailRenderer::renderEventFragments()
+ *   (`text_line`, `html_body`, `created`) for that day, newest-first.
+ * - overflow_line: the pre-rendered "…and N more" translatable string, or
+ *   NULL if the digest was not truncated.
+ * - unsubscribe_url: absolute URL to the recipient's notification settings
+ *   page (\Drupal\do_notifications\Email\DigestRenderer::unsubscribeUrl()).
+ */
+#}
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>body{font-family:sans-serif}</style>
+  </head>
+  <body>
+    <p>{{ greeting }}</p>
+    <p>{{ "Here's what happened this @window_label:"|t({'@window_label': window_label}) }}</p>
+    {% for group in day_groups %}
+      <h2>{{ group.label }}</h2>
+      <ul>
+        {% for event in group.events %}
+          <li>{{ event.html_body|raw }}</li>
+        {% endfor %}
+      </ul>
+    {% endfor %}
+    {% if overflow_line %}
+      <p>{{ overflow_line }}</p>
+    {% endif %}
+    <hr>
+    <p>{{ 'Unsubscribe:'|t }} <a href="{{ unsubscribe_url }}">{{ unsubscribe_url }}</a></p>
+  </body>
+</html>

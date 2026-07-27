@@ -39,6 +39,13 @@ use Drupal\Core\Hook\Attribute\Hook;
  * EmailRenderer's class docblock, "DUAL RENDER PATH"). They are still
  * registered here so the theme registry accurately reflects every email
  * template file that ships with this module.
+ *
+ * #236 (N-8): also registers `digest_html`, the digest wrapper
+ * {@see \Drupal\do_notifications\Email\DigestRenderer} builds against. Its
+ * `.txt.twig` counterpart (`digest.txt.twig`) is loaded directly through the
+ * `twig` environment service, same dual-render precedent as the shells
+ * above — NOT registered as a `digest_text` theme hook, since nothing ever
+ * calls `theme()`/`render()` for it.
  */
 class DoNotificationsEmailHooks {
 
@@ -60,7 +67,7 @@ class DoNotificationsEmailHooks {
   ];
 
   /**
-   * Registers the 14 email theme hooks: 2 shells + 6 events x 2 formats.
+   * Registers the 14 email theme hooks + the digest hook (#236).
    */
   #[Hook('theme')]
   public function theme(array $existing, string $type, string $theme, string $path): array {
@@ -84,6 +91,17 @@ class DoNotificationsEmailHooks {
         ],
         'path' => $templates_path,
         'template' => 'email-shell',
+      ],
+      'digest_html' => [
+        'variables' => [
+          'day_groups' => [],
+          'overflow_line' => NULL,
+          'unsubscribe_url' => '',
+          'window_label' => '',
+          'greeting' => '',
+        ],
+        'path' => $templates_path,
+        'template' => 'digest',
       ],
     ];
 
