@@ -189,8 +189,9 @@ class EmailRenderer {
    *   - html_body: the rendered per-event HTML partial ONLY (the
    *     `#theme => email_<event>_html` sub-render), isolated — no shell
    *     wrap. Safe HTML, cast to `string`.
-   *   - created: the Message's own `created` Unix timestamp
-   *     ({@see \Drupal\message\MessageInterface::getCreatedTime()}).
+   *   - created: the Message's own `created` Unix timestamp, cast to `int`
+   *     ({@see \Drupal\message\MessageInterface::getCreatedTime()} — see
+   *     the explicit `(int)` cast note below).
    */
   public function renderEventFragments(MessageInterface $message): array {
     $event_key = $this->eventThemeKey($message);
@@ -199,7 +200,24 @@ class EmailRenderer {
     return [
       'text_line' => $text_line,
       'html_body' => $this->renderHtmlPartial($event_key, $text_line),
-      'created' => $message->getCreatedTime(),
+      // #231 (N-3) discovery: explicitly cast to int. getCreatedTime()
+      // reads the field item's raw `->value` (NOT
+      // `Timestamp::getCastedValue()`, which does cast), and
+      // SqlContentEntityStorage::mapFromStorageRecords() assigns a freshly
+      // `->load()`-ed entity's field value directly from the PDO-fetched DB
+      // row with no cast of its own — MySQL/MariaDB PDO drivers commonly
+      // return an `int`-columned value as a numeric PHP string. Every
+      // pre-#231 caller of this method (EmailRendererTest/DigestRendererTest)
+      // only ever passes an in-memory Message whose `created` was just set
+      // via setCreatedTime()/applyDefaultValue() (a real int, never
+      // round-tripped through the DB), so this gap was never exercised until
+      // #231's delivery worker — the first caller to
+      // `getStorage('message')->load($mid)` a Message the queue only knows
+      // by numeric id. Without this cast, DigestRenderer::groupByDay()'s
+      // `gmdate('Y-m-d', $fragment['created'])` fatals under
+      // strict_types=1 ("Argument #2 ($timestamp) must be of type ?int,
+      // string given").
+      'created' => (int) $message->getCreatedTime(),
     ];
   }
 

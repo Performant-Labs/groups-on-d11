@@ -52,7 +52,7 @@ interface QueueBackendInterface {
   public function enqueue(array $item): void;
 
   /**
-   * Removes and returns every currently queued entry.
+   * Removes and returns queued entries, optionally filtered by frequency.
    *
    * A test/inspection helper (mirrors the "drain-and-assert" idiom already
    * established by {@see \Drupal\Tests\do_notifications\Kernel\GroupAddNotificationTest::drainQueue()}
@@ -60,11 +60,24 @@ interface QueueBackendInterface {
    * state, so each assertion sees only entries written since the previous
    * drain.
    *
+   * Extended for #231 (N-3): the delivery worker's `--type` option needs to
+   * drain a single frequency (e.g. 'immediately') while leaving every other
+   * frequency's entries queued for a later run. Passing NULL (the default)
+   * preserves the original "drain everything" behavior every existing caller
+   * relies on — this is a backward-compatible signature extension, not a new
+   * method, per the brief's Reuse map.
+   *
+   * @param string|null $frequency
+   *   (optional) When given, only entries whose `frequency` field matches
+   *   this value are removed and returned; every other queued entry is left
+   *   untouched. When NULL (the default), every currently queued entry is
+   *   drained, regardless of frequency — the pre-#231 behavior.
+   *
    * @return array<int, array>
-   *   Every queued entry (see {@see self::enqueue()} for the payload shape),
-   *   in enqueue order. Empty when nothing is queued.
+   *   The matching queued entries (see {@see self::enqueue()} for the payload
+   *   shape), in enqueue order. Empty when nothing matches.
    */
-  public function drain(): array;
+  public function drain(?string $frequency = NULL): array;
 
   /**
    * Returns the number of currently queued entries, without removing them.
