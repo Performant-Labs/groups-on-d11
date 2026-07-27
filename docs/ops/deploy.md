@@ -190,6 +190,42 @@ Look it up with `docker ps --format '{{.Names}}' | grep rt7xfshm`.
 
 Full health signals: [`health-checks.md`](health-checks.md).
 
+## 7a. Newly-added modules on redeploys (#250 lesson)
+
+`deploy/entrypoint.sh` runs `site:install` + `config:import` + `drush en`
+**only on a fresh DB** (§6). On a redeploy against an *existing* DB, the
+install/seed block is skipped — so a module added to the codebase after the
+initial install is **not** automatically enabled by the redeploy alone.
+
+As of #250 (2026-07-27) the entrypoint carries a second, always-on
+`drush en` belt (§3b in the script) that runs on every container start and
+enables the full set of custom demo modules. `drush en` is idempotent, so
+this is a no-op on containers where the modules are already on, and it
+enables newly-added modules on their first redeploy afterwards. If a new
+`do_*` module is added:
+
+1. Add it to **both** belts in `deploy/entrypoint.sh` (the fresh-install
+   list and the always-on list — the Unit test
+   `EntrypointModuleBeltTest::testEntrypointBeltCoversAllProdModules` in
+   `do_ops` enforces this at CI time).
+2. Redeploy the Coolify container (§5). The always-on belt will pick it up
+   on the next boot without any manual `docker exec`.
+
+**Manual recovery** (if a currently-running container is missing a module
+and you cannot wait for a redeploy):
+
+```bash
+CONT=$(docker ps --format '{{.Names}}' | grep rt7xfshm)
+docker exec "$CONT" drush en do_showcase -y  # or whichever module
+docker exec "$CONT" drush cr
+curl -sI https://groups.performantlabs.com/showcase | head -1  # expect 200
+```
+
+The #250 root cause was exactly this drift: `do_showcase` had been in the
+codebase and enabled in CI for weeks, but the live container's DB
+predated its addition, so the redeploy never enabled it and `/showcase`
+returned 404 on prod while returning 200 everywhere else.
+
 ## 8. Gaps / follow-ups
 
 - TODO: verify with operator — is there a repo variable / label / GitHub
