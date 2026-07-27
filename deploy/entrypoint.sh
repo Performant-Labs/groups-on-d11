@@ -97,9 +97,9 @@ else
   # Belt-and-suspenders: ensure the custom modules are enabled even if the
   # imported core.extension did not turn them all on.
   $DRUSH en -y \
-    do_group_extras do_group_language do_group_mission do_group_pin \
+    do_group_extras do_group_language do_group_membership do_group_mission do_group_pin \
     do_multigroup do_notifications do_profile_stats do_discovery \
-    do_chrome || true
+    do_chrome do_showcase do_streams do_activity do_activity_feed do_ops || true
 
   # Seed the demo data (idempotent; the "no comment field on forum" notice is
   # expected and non-fatal). The seed runs with the current user switched to
@@ -205,6 +205,25 @@ PHP
   # --- do_discovery cron END ---
 
   echo "[entrypoint] Install + seed complete"
+fi
+
+# --- 3b. Ensure custom modules are enabled on EVERY boot --------------------
+# #250: /showcase 404'd on prod because do_showcase was added to the codebase
+# AFTER the initial install, and the belt-and-suspenders `drush en` above only
+# runs inside the fresh-DB block — which is skipped on redeploys against an
+# existing DB. Result: newly-added modules stayed disabled forever. This
+# always-on belt runs `drush en` on every container boot (idempotent — enabling
+# an already-enabled module is a no-op) so new demo modules are picked up on
+# the next redeploy without a manual `docker exec ... drush en` step. Guarded
+# with `if drush status | grep bootstrap successful` so we do not fire it against
+# a not-yet-installed site (the fresh-DB branch above will do it instead).
+if $DRUSH status --field=bootstrap 2>/dev/null | grep -qi 'successful'; then
+  $DRUSH en -y \
+    do_group_extras do_group_language do_group_membership do_group_mission do_group_pin \
+    do_multigroup do_notifications do_profile_stats do_discovery \
+    do_chrome do_showcase do_streams do_activity do_activity_feed do_ops \
+    || echo "[entrypoint] WARNING: always-on module-enable belt returned non-zero (continuing)"
+  $DRUSH cr || true
 fi
 
 # --- 4. Serve ---------------------------------------------------------------
