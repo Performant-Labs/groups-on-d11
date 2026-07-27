@@ -132,17 +132,35 @@ running container, and starts a new one with the same env + labels. The
 
 ### 5b — Coolify API (recommended for automation)
 
+**Preferred:** from a clean checkout of `main`, run
+
 ```bash
-COOLIFY_TOKEN=$(op read "op://Security/<coolify-api-token-item>/credential")
-curl -sX GET "https://coolify.performantlabs.com/api/v1/applications/rt7xfshm01tvw4locfxb8f6t/restart" \
-  -H "Authorization: Bearer $COOLIFY_TOKEN"
+npm run app:prod:deploy
 ```
 
-TODO: verify with operator — the exact Coolify API base URL (host / port) and
-the 1Password item name that holds the API token. The pattern matches how
-`personal-dashboard` triggers redeploys (see
-`docs/playbook/agent/troubleshooting.md`, the `personal-dashboard` note under
-Coolify redeploy).
+This runs [`scripts/ops/coolify-redeploy.sh`](../../scripts/ops/coolify-redeploy.sh),
+which enforces three preflight guards (on `main`, clean working tree, not
+behind `origin/main`), fetches the Coolify API token from 1Password at run
+time (item **`coolio/coolify (PL.com)`** in the **`Security`** vault, ID
+`k2xnfs4rjmldr77666gwuez3l4`, `notesPlain` field), POSTs to Coolify's
+deploy endpoint, and prints the deployment UUID + a Coolify UI URL to
+watch.
+
+**Raw curl equivalent** (if you need to trigger a deploy from a machine
+without this repo checked out):
+
+```bash
+COOLIFY_TOKEN=$(op read "op://Security/k2xnfs4rjmldr77666gwuez3l4/notesPlain" \
+  | grep -oE '^[0-9]+\|[A-Za-z0-9]+' | head -n 1)
+curl -sS -X POST \
+  "https://coolify.performantlabs.com/api/v1/deploy?uuid=rt7xfshm01tvw4locfxb8f6t" \
+  -H "Authorization: Bearer $COOLIFY_TOKEN" \
+  -H 'Accept: application/json'
+```
+
+Endpoint is Coolify v4's official deploy trigger: `POST /api/v1/deploy?uuid={uuid}`.
+(An earlier revision of this doc showed `GET /restart` — that path does not
+exist in Coolify v4 and was never correct.)
 
 ### 5c — SSH fallback (only if Coolify UI + API are down)
 
@@ -231,5 +249,8 @@ returned 404 on prod while returning 200 everywhere else.
 - TODO: verify with operator — is there a repo variable / label / GitHub
   Deployment that should auto-trigger Coolify on a `main` merge, or is
   manual-redeploy the intended cadence for this POC? (Currently manual.)
-- TODO: verify with operator — the Coolify API host and the 1Password item
-  holding the Coolify API token (§5b).
+- ~~TODO: verify with operator — the Coolify API host and the 1Password item
+  holding the Coolify API token (§5b).~~ **Resolved #272 (2026-07-27):** host is
+  `https://coolify.performantlabs.com`; token lives in 1Password Security
+  vault item **`coolio/coolify (PL.com)`** (ID `k2xnfs4rjmldr77666gwuez3l4`),
+  in the `notesPlain` field.
