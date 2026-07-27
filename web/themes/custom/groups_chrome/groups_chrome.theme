@@ -201,10 +201,22 @@ function groups_chrome_preprocess_node(array &$variables): void {
   // --- Comment count ------------------------------------------------------
   // Read the aggregate from comment_entity_statistics (populated for any
   // comment-enabled entity), independent of which bundle owns a comment field.
+  //
+  // #253: `comment_entity_statistics`'s existence cannot change mid-request,
+  // so the schema check is memoized per request with drupal_static() —
+  // without this, it was re-issued as a fresh `information_schema.tables`
+  // query on EVERY stream_card node render (an N+1: ~10x/page cold on `/`,
+  // `/showcase`, `/stream` — docs/planning/perf/query-audit-2026-07-24.md).
+  // Scoped to THIS function via __FUNCTION__ so the key can't collide with
+  // an unrelated drupal_static() elsewhere in the codebase.
   $comment_count = 0;
   try {
     $database = \Drupal::database();
-    if ($database->schema()->tableExists('comment_entity_statistics')) {
+    $has_stats_table = &drupal_static(__FUNCTION__ . '_has_comment_stats');
+    if ($has_stats_table === NULL) {
+      $has_stats_table = $database->schema()->tableExists('comment_entity_statistics');
+    }
+    if ($has_stats_table) {
       $comment_count = (int) $database->select('comment_entity_statistics', 'ces')
         ->fields('ces', ['comment_count'])
         ->condition('entity_type', 'node')
