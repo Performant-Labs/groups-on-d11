@@ -7,11 +7,13 @@ namespace Drupal\do_notifications\Queue;
 /**
  * In-memory {@see QueueBackendInterface} implementation.
  *
- * The shippable default for #230 (N-2) until `DatabaseQueueBackend` (N-1,
- * #229) lands and swaps in via `do_notifications.services.yml`. Backed by a
- * single request-lifetime array — entries do not persist across requests,
- * which is acceptable for tests and local dev but NOT a substitute for the
- * real DB-backed queue a production digest worker would claim from.
+ * Was the shippable default for #230 (N-2) until `DatabaseQueueBackend`
+ * (N-1, #229) landed and swapped in via `do_notifications.services.yml`.
+ * Retained in the codebase for unit tests that want a fast, real-DB-free
+ * `QueueBackendInterface` implementation. Backed by a single
+ * request-lifetime array — entries do not persist across requests, which is
+ * fine for tests but NOT a substitute for `DatabaseQueueBackend`, the real
+ * DB-backed queue a production digest worker claims from.
  */
 class MockQueueBackend implements QueueBackendInterface {
 

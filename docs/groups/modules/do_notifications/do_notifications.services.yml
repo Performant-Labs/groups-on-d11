@@ -8,8 +8,10 @@ services:
     tags:
       - { name: 'hook_implementations' }
   do_notifications.queue:
-    class: Drupal\do_notifications\Queue\MockQueueBackend
-    # NOTE: N-1 (#229) will swap this class to DatabaseQueueBackend.
+    class: Drupal\do_notifications\Queue\DatabaseQueueBackend
+    arguments: ['@database', '@datetime.time']
+    # N-1 (#229) completed — DatabaseQueueBackend is now the default;
+    # MockQueueBackend remains in the codebase for unit tests.
   do_notifications.subscription_router:
     class: Drupal\do_notifications\Subscription\SubscriptionRouter
     arguments:
@@ -68,3 +70,10 @@ services:
       - '@entity_type.manager'
     tags:
       - { name: 'hook_implementations' }
+
+  # #229 (N-1): the logger channel Drupal\do_notifications\Plugin\Notifier\
+  # LogMailer writes each delivery to (watchdog `type` = `do_notifications`).
+  # Mirrors message_notify's own `logger.channel.message_notify` entry.
+  logger.channel.do_notifications:
+    parent: logger.channel_base
+    arguments: ['do_notifications']
