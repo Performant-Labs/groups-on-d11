@@ -15,3 +15,34 @@ services:
       - '@logger.channel.do_notifications'
     tags:
       - { name: drush.command }
+
+  # #234 (N-6): the daily digest worker (`drush do_notifications:digest-daily`).
+  # This file is Drush's own CLI-command-discovery mechanism
+  # (\Drush\Runtime\LegacyServiceFinder / LegacyServiceInstantiator) — it is
+  # REQUIRED for `drush do_notifications:digest-daily` to be found on the
+  # command line, because DrupalBoot8::bootstrap() only collects
+  # 'drush.command'-tagged services from files discovered this way (see
+  # that class's `taggedServices('drush.command')` call), never from a tag
+  # scan of Drupal's own container.
+  #
+  # The SAME class is ALSO registered as `do_notifications.digest_command`
+  # in `do_notifications.services.yml` — required so `\Drupal::service(
+  # 'do_notifications.digest_command')` resolves (this is how
+  # DailyDigestCommandTest invokes it directly, with no drush process
+  # boundary, and how any future non-CLI caller would too).
+  # LegacyServiceInstantiator constructs its own separate instance from
+  # THIS file purely for CLI dispatch; the two instances are stateless
+  # (identical constructor deps, no shared mutable state) so this is a
+  # harmless quirk of Drush's legacy discovery mechanism, not a functional
+  # duplication.
+  do_notifications.digest_command:
+    class: Drupal\do_notifications\Commands\DigestCommands
+    arguments:
+      - '@do_notifications.queue'
+      - '@do_notifications.digest_queue'
+      - '@do_notifications.digest_renderer'
+      - '@entity_type.manager'
+      - '@state'
+      - '@datetime.time'
+    tags:
+      - { name: 'drush.command' }

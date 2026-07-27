@@ -14,11 +14,23 @@ namespace Drupal\do_notifications\Queue;
  * request-lifetime array — entries do not persist across requests, which is
  * fine for tests but NOT a substitute for `DatabaseQueueBackend`, the real
  * DB-backed queue a production digest worker claims from.
+ *
+ * #234 (N-6) adds `claimDaily()`/`deleteByIds()` in-memory equivalents so
+ * unit tests that construct this mock directly (rather than going through
+ * the DB-backed service) don't break when code starts depending on the two
+ * new `QueueBackendInterface` methods. Entries are keyed by a synthetic
+ * sequential id (mirroring `DatabaseQueueBackend`'s auto-increment PK) so
+ * `claimDaily()` can return each row's `id` and `deleteByIds()` can remove
+ * specific entries by that id.
  */
 class MockQueueBackend implements QueueBackendInterface {
 
   /**
-   * The queued entries, in enqueue order.
+   * The queued entries, in enqueue order, keyed by a synthetic sequential id.
+   *
+   * Keyed (rather than a plain list) so `claimDaily()` can return each row's
+   * `id` and `deleteByIds()` can remove specific entries by that same id —
+   * mirroring `DatabaseQueueBackend`'s real auto-increment primary key.
    *
    * @var array<int, array>
    */
@@ -30,6 +42,11 @@ class MockQueueBackend implements QueueBackendInterface {
    * @var array<string, true>
    */
   private array $seenKeys = [];
+
+  /**
+   * The next synthetic id to assign to a newly enqueued item.
+   */
+  private int $nextId = 1;
 
   /**
    * {@inheritdoc}
@@ -47,7 +64,9 @@ class MockQueueBackend implements QueueBackendInterface {
       return;
     }
     $this->seenKeys[$key] = TRUE;
-    $this->items[] = $item;
+    $item += ['created' => 0];
+    $this->items[$this->nextId] = $item;
+    $this->nextId++;
   }
 
   /**
@@ -63,15 +82,14 @@ class MockQueueBackend implements QueueBackendInterface {
    */
   public function drain(?string $frequency = NULL): array {
     if ($frequency === NULL) {
-      $items = $this->items;
+      $items = array_values($this->items);
       $this->items = [];
       $this->seenKeys = [];
       return $items;
     }
 
     $matched = [];
-    $remaining = [];
-    foreach ($this->items as $item) {
+    foreach ($this->items as $id => $item) {
       if ($item['frequency'] === $frequency) {
         $matched[] = $item;
         $key = implode(':', [
@@ -80,13 +98,9 @@ class MockQueueBackend implements QueueBackendInterface {
           $item['frequency'],
           $item['day'],
         ]);
-        unset($this->seenKeys[$key]);
-      }
-      else {
-        $remaining[] = $item;
+        unset($this->seenKeys[$key], $this->items[$id]);
       }
     }
-    $this->items = $remaining;
 
     return $matched;
   }
@@ -96,6 +110,40 @@ class MockQueueBackend implements QueueBackendInterface {
    */
   public function count(): int {
     return count($this->items);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function claimDaily(int $olderThan): array {
+    $claimed = [];
+    foreach ($this->items as $id => $item) {
+      if ($item['frequency'] === 'daily' && ($item['created'] ?? 0) < $olderThan) {
+        $claimed[] = ['id' => $id] + $item;
+      }
+    }
+
+    usort(
+      $claimed,
+      static fn(array $a, array $b): int => [$a['uid'], $a['created']] <=> [$b['uid'], $b['created']],
+    );
+
+    return $claimed;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function deleteByIds(array $ids): void {
+    if (empty($ids)) {
+      // Match DatabaseQueueBackend's guard: an empty id list deletes
+      // nothing, not everything.
+      return;
+    }
+
+    foreach ($ids as $id) {
+      unset($this->items[$id]);
+    }
   }
 
 }

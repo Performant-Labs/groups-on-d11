@@ -23,6 +23,13 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  * `do_notifications_queue` schema, and the `do_notifications.queue` service
  * swap do not exist yet. F implements against this suite.
  *
+ * #234 (N-6) extends this suite with `claimDaily()` and `deleteByIds()`
+ * coverage — the two new `QueueBackendInterface` methods the daily digest
+ * command claims-then-deletes through (brief §"Extensions to existing
+ * interface"; claim and delete are deliberately separate calls so a mid-run
+ * failure after claimDaily() but before deleteByIds() is idempotent on the
+ * next run — the un-deleted rows are simply claimed again).
+ *
  * @group do_notifications
  * @group do_tests
  */
@@ -72,6 +79,32 @@ class DatabaseQueueBackendTest extends KernelTestBase {
       ->countQuery()
       ->execute()
       ->fetchField();
+  }
+
+  /**
+   * Inserts a raw row directly, bypassing enqueue()'s merge/dedup semantics.
+   *
+   * `claimDaily()` filters on `frequency` and `created`, both of which
+   * `enqueue()` either doesn't accept as a controllable input (created is
+   * always `time.getRequestTime()`, i.e. "now") or would require a real Time
+   * service mock to backdate. Inserting directly lets these tests pin
+   * arbitrary `created` timestamps deterministically without depending on a
+   * TestTime seam that does not exist in this codebase.
+   *
+   * @return int
+   *   The inserted row's id.
+   */
+  private function insertRawRow(int $uid, int $mid, string $template, string $frequency, string $day, int $created): int {
+    return (int) \Drupal::database()->insert('do_notifications_queue')
+      ->fields([
+        'uid' => $uid,
+        'mid' => $mid,
+        'template' => $template,
+        'frequency' => $frequency,
+        'day' => $day,
+        'created' => $created,
+      ])
+      ->execute();
   }
 
   /**
@@ -141,6 +174,92 @@ class DatabaseQueueBackendTest extends KernelTestBase {
 
     $drained = $backend->drain();
     $this->assertCount(1, $drained, 'drain() returns exactly 1 item for the deduped tuple.');
+  }
+
+  /**
+   * claimDaily() returns only 'daily' rows older than the threshold.
+   *
+   * Pins the exact filter `claimDaily(int $olderThan)` must apply:
+   * `frequency = 'daily' AND created < :olderThan`. Rows that are 'daily' but
+   * inside the window, and rows outside the window but a different
+   * frequency, must both be excluded — proving the two predicates are
+   * ANDed, not ORed.
+   */
+  public function testClaimDailyFiltersOnFrequencyAndThreshold(): void {
+    $backend = $this->backend();
+    $threshold = 1700100000;
+
+    $old_daily_id = $this->insertRawRow(1, 1, 'activity_post_created', 'daily', '2026-07-01', $threshold - 100);
+    $this->insertRawRow(1, 2, 'activity_post_created', 'daily', '2026-07-02', $threshold + 100);
+    $this->insertRawRow(2, 3, 'activity_post_created', 'immediately', '2026-07-01', $threshold - 100);
+    $this->insertRawRow(3, 4, 'activity_post_created', 'weekly', '2026-07-01', $threshold - 100);
+
+    $claimed = $backend->claimDaily($threshold);
+
+    $this->assertCount(1, $claimed, 'Only the daily row older than the threshold is claimed.');
+    $claimed_row = reset($claimed);
+    $this->assertSame($old_daily_id, (int) $claimed_row['id'], 'The claimed row is the old daily row, identified by its id.');
+    $this->assertSame('daily', $claimed_row['frequency']);
+
+    // claimDaily() does NOT delete — the rows must still be in the table.
+    $this->assertSame(4, $this->rawRowCount(), 'claimDaily() is read-only: all 4 rows remain in the DB table.');
+  }
+
+  /**
+   * claimDaily() groups multiple users' rows, ordered by (uid, created).
+   */
+  public function testClaimDailyReturnsRowsAcrossMultipleUsers(): void {
+    $backend = $this->backend();
+    $threshold = 1700100000;
+
+    $this->insertRawRow(7, 1, 'activity_post_created', 'daily', '2026-07-01', $threshold - 300);
+    $this->insertRawRow(7, 2, 'activity_post_created', 'daily', '2026-07-01', $threshold - 200);
+    $this->insertRawRow(2, 3, 'activity_post_created', 'daily', '2026-07-01', $threshold - 100);
+
+    $claimed = $backend->claimDaily($threshold);
+
+    $this->assertCount(3, $claimed, 'All 3 daily rows older than the threshold are claimed, across both uids.');
+    $uids = array_map(static fn (array $row): int => (int) $row['uid'], $claimed);
+    sort($uids);
+    $this->assertSame([2, 7, 7], $uids, 'Claimed rows cover both recipients (uid 7 x2, uid 2 x1).');
+  }
+
+  /**
+   * deleteByIds() removes exactly the specified rows and no others.
+   *
+   * Pins the claim-then-delete split (brief §"Extensions to existing
+   * interface"): claimDaily() and deleteByIds() are separate calls so a
+   * caller can render/enqueue a digest BEFORE deleting the source rows,
+   * making a mid-run failure idempotent on retry.
+   */
+  public function testDeleteByIdsRemovesOnlySpecifiedRows(): void {
+    $backend = $this->backend();
+
+    $id1 = $this->insertRawRow(1, 1, 'activity_post_created', 'daily', '2026-07-01', 1700000000);
+    $id2 = $this->insertRawRow(1, 2, 'activity_post_created', 'daily', '2026-07-01', 1700000000);
+    $id3 = $this->insertRawRow(2, 3, 'activity_post_created', 'daily', '2026-07-01', 1700000000);
+
+    $backend->deleteByIds([$id1, $id3]);
+
+    $this->assertSame(1, $this->rawRowCount(), 'Only the 2 specified rows were deleted; 1 remains.');
+
+    $remaining = $backend->drain();
+    $this->assertCount(1, $remaining);
+    $remaining_row = reset($remaining);
+    $this->assertSame(2, (int) $remaining_row['mid'], 'The surviving row is the one NOT passed to deleteByIds().');
+    unset($id2);
+  }
+
+  /**
+   * deleteByIds() with an empty array is a safe no-op.
+   */
+  public function testDeleteByIdsWithEmptyArrayIsNoOp(): void {
+    $backend = $this->backend();
+    $this->insertRawRow(1, 1, 'activity_post_created', 'daily', '2026-07-01', 1700000000);
+
+    $backend->deleteByIds([]);
+
+    $this->assertSame(1, $this->rawRowCount(), 'An empty deleteByIds() call deletes nothing.');
   }
 
 }
