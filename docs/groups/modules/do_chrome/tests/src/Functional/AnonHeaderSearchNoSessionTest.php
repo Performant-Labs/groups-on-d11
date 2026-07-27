@@ -6,6 +6,8 @@ namespace Drupal\Tests\do_chrome\Functional;
 
 use Drupal\Tests\BrowserTestBase;
 use Drupal\block\Entity\Block;
+use Drupal\node\Entity\Node;
+use Drupal\node\Entity\NodeType;
 
 /**
  * Functional coverage for #252 (anon header search must not start a session).
@@ -36,6 +38,16 @@ use Drupal\block\Entity\Block;
  *      action=/search/node, a `keys` search input) with NO Form-API
  *      artifacts (`form_token` / `form_build_id` hidden inputs).
  *
+ * Both requests target a real, anonymously-viewable node page rather than the
+ * front page (`/`): BrowserTestBase's minimal profile has no `site.frontpage`
+ * configured and anonymous has no access to the default `/user` landing, so a
+ * GET on `/` redirects to `/user/login`. That login page renders its own
+ * Form-API `<form>` with `form_build_id` / `form_token` hidden inputs, which
+ * collides with assertions (3)/(4) — the test would be asserting against the
+ * login form, not the header search block. A node page is a normal themed
+ * response (still rendering the header region where the search block sits)
+ * with no Form API artifacts of its own.
+ *
  * RED (before the fix): block config still places `search_form_block` (or,
  * once this test provisions `do_chrome_plain_search_form` directly, the
  * plugin id does not resolve because \Drupal\do_chrome\Plugin\Block\
@@ -58,6 +70,9 @@ class AnonHeaderSearchNoSessionTest extends BrowserTestBase {
     'system',
     'user',
     'node',
+    'field',
+    'filter',
+    'text',
     'page_cache',
   ];
 
@@ -65,6 +80,15 @@ class AnonHeaderSearchNoSessionTest extends BrowserTestBase {
    * {@inheritdoc}
    */
   protected $defaultTheme = 'groups_chrome';
+
+  /**
+   * Absolute URL of the anonymously-viewable node used as the request target.
+   *
+   * See class docblock for why `/` (the front page) is unusable here.
+   *
+   * @var string
+   */
+  protected string $publicNodeUrl;
 
   /**
    * {@inheritdoc}
@@ -119,6 +143,26 @@ class AnonHeaderSearchNoSessionTest extends BrowserTestBase {
       ],
       'visibility' => [],
     ])->save();
+
+    // Create a minimal "page" content type and one published, promoted node
+    // so both requests below can target a real, anonymously-viewable page
+    // (see class docblock for why the front page is unusable here).
+    NodeType::create([
+      'type' => 'page',
+      'name' => 'Basic page',
+    ])->save();
+
+    user_role_grant_permissions('anonymous', ['access content']);
+
+    $node = Node::create([
+      'type' => 'page',
+      'title' => 'Public page for anon header search test',
+      'status' => 1,
+      'promote' => 1,
+    ]);
+    $node->save();
+
+    $this->publicNodeUrl = $node->toUrl()->setAbsolute(TRUE)->toString();
   }
 
   /**
@@ -126,10 +170,10 @@ class AnonHeaderSearchNoSessionTest extends BrowserTestBase {
    */
   public function testAnonHeaderSearchDoesNotStartSession(): void {
     $client = \Drupal::httpClient();
-    $front_url = $this->getAbsoluteUrl('/');
+    $target_url = $this->publicNodeUrl;
 
     // --- Request 1: cold, primes the page cache. --------------------------
-    $response1 = $client->request('GET', $front_url, [
+    $response1 = $client->request('GET', $target_url, [
       'cookies' => FALSE,
       'http_errors' => FALSE,
     ]);
@@ -175,7 +219,7 @@ class AnonHeaderSearchNoSessionTest extends BrowserTestBase {
     );
 
     // --- Request 2: warm, same anon client (no cookies carried). ----------
-    $response2 = $client->request('GET', $front_url, [
+    $response2 = $client->request('GET', $target_url, [
       'cookies' => FALSE,
       'http_errors' => FALSE,
     ]);
