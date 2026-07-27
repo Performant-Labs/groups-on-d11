@@ -13,6 +13,7 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\do_chrome\HelpText;
 use Drupal\do_group_pin\Hook\DoGroupPinHooks;
 use Drupal\flag\FlaggingInterface;
+use Drupal\group\Entity\GroupRelationshipInterface;
 use Drupal\node\NodeInterface;
 use Drupal\views\ViewExecutable;
 
@@ -114,6 +115,19 @@ class DoStreamsHooks {
    * DoGroupPinHooks::PIN_FLAG_ID's own convention.
    */
   public const RSVP_FLAG_ID = 'rsvp_event';
+
+  /**
+   * The `group_membership` relationship plugin id (#251 Fix 1).
+   *
+   * Mirrors `DoActivityHooks::groupRelationshipInsert()`'s own
+   * `$plugin_id === 'group_membership'` discriminator
+   * (`do_activity/src/Hook/DoActivityHooks.php:142`) and
+   * `DoGroupExtrasHooks::GROUP_MEMBERSHIP_PLUGIN_ID`'s identical private
+   * constant in the sibling module — named here (not a bare string literal)
+   * so self::groupRelationshipInsert()/self::groupRelationshipDelete() read
+   * identically to that established convention.
+   */
+  private const GROUP_MEMBERSHIP_PLUGIN_ID = 'group_membership';
 
   /**
    * Builds the per-viewing-user stream cache tag ([A-W2]).
@@ -442,6 +456,85 @@ class DoStreamsHooks {
   public function entityDelete(EntityInterface $entity): void {
     $this->onFlaggingChange($entity);
     $this->onRsvpFlaggingChange($entity);
+  }
+
+  /**
+   * Invalidates the joining member's own stream cache tag (#251 Fix 1).
+   *
+   * Audit `cache-audit-2026-07-24.md` §2 Scenario 2 / §4 Recommendation 1:
+   * today NO hook invalidates `do_streams:user_stream:{uid}` when a user
+   * joins a group, so their ALREADY-CACHED `/my-feed` render (keyed on the
+   * `user` cache context, per `MyFeedController::buildShell()`) is never
+   * proactively busted the moment they join a new group with existing
+   * content — the correctness net was "eventually consistent on next cache
+   * expiry," not "immediately consistent on join."
+   *
+   * Scoped to the `group_membership` plugin id ONLY — mirrors
+   * `DoActivityHooks::groupRelationshipInsert()`'s exact discriminator
+   * (`do_activity/src/Hook/DoActivityHooks.php:142`,
+   * `if ($plugin_id === 'group_membership')`) and
+   * `DoGroupExtrasHooks::GROUP_MEMBERSHIP_PLUGIN_ID`'s identical constant in
+   * the sibling module. `group_node:*` relationships (content added to a
+   * group) are a DIFFERENT plugin id and are deliberately NOT handled here —
+   * that is Scenario 1's already-correct entity-cache-tag path (§2 Scenario
+   * 1: Group 4.x's own add-to-group invalidates the node's own cache tags),
+   * not a user_stream membership-scope concern.
+   *
+   * The invalidation target is the MEMBER's own tag
+   * (`self::userStreamCacheTag($member->id())`), never the current user —
+   * per `DoActivityHooks::groupRelationshipInsert()`'s own reasoning
+   * (community_group's `creator_membership => TRUE` means the group owner's
+   * OWN join can be attributed to a request whose current user is someone
+   * else, e.g. an organizer adding another member on someone's behalf), the
+   * relationship's own entity is the only reliably-correct identity for
+   * "whose stream just changed."
+   *
+   * Reuses the SAME `userStreamCacheTag()` helper and `Cache::invalidateTags()`
+   * idiom already used for pin/RSVP toggles ({@see self::onFlaggingChange()},
+   * line ~474 above) — this module's own established, scoped-tag-only
+   * (never a blanket flush) invalidation discipline.
+   *
+   * @param \Drupal\group\Entity\GroupRelationshipInterface $relationship
+   *   The just-inserted group_relationship.
+   */
+  #[Hook('group_relationship_insert')]
+  public function groupRelationshipInsert(GroupRelationshipInterface $relationship): void {
+    if ($relationship->getPluginId() !== self::GROUP_MEMBERSHIP_PLUGIN_ID) {
+      return;
+    }
+    $member = $relationship->getEntity();
+    if ($member === NULL) {
+      return;
+    }
+
+    Cache::invalidateTags([self::userStreamCacheTag($member->id())]);
+  }
+
+  /**
+   * Invalidates the leaving member's own stream cache tag (#251 Fix 1).
+   *
+   * The delete-side mirror of {@see self::groupRelationshipInsert()} — a
+   * user leaving a group (or being removed) can make previously-visible
+   * group content disappear from their `/my-feed`, so their own
+   * ALREADY-CACHED render must be busted the same way a join busts it.
+   * Same `group_membership` plugin-id scoping, same
+   * relationship-entity-is-the-member identity, same single-tag,
+   * never-a-blanket-flush invalidation.
+   *
+   * @param \Drupal\group\Entity\GroupRelationshipInterface $relationship
+   *   The just-deleted group_relationship.
+   */
+  #[Hook('group_relationship_delete')]
+  public function groupRelationshipDelete(GroupRelationshipInterface $relationship): void {
+    if ($relationship->getPluginId() !== self::GROUP_MEMBERSHIP_PLUGIN_ID) {
+      return;
+    }
+    $member = $relationship->getEntity();
+    if ($member === NULL) {
+      return;
+    }
+
+    Cache::invalidateTags([self::userStreamCacheTag($member->id())]);
   }
 
   /**

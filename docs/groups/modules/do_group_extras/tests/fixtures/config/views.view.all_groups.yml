@@ -142,6 +142,9 @@ display:
             label: 'Primary language'
             identifier: field_group_language
             remember: false
+      cache:
+        type: none
+        options: {  }
       empty:
         area_text_custom:
           id: area_text_custom
