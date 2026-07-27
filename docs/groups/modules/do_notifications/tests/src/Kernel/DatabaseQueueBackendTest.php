@@ -30,6 +30,10 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  * failure after claimDaily() but before deleteByIds() is idempotent on the
  * next run — the un-deleted rows are simply claimed again).
  *
+ * #235 (N-7) extends this suite further with `claimWeekly()` coverage — the
+ * sibling method the weekly digest worker claims through, in the same
+ * frequency-AND-threshold idiom as `claimDaily()`.
+ *
  * @group do_notifications
  * @group do_tests
  */
@@ -203,6 +207,36 @@ class DatabaseQueueBackendTest extends KernelTestBase {
 
     // claimDaily() does NOT delete — the rows must still be in the table.
     $this->assertSame(4, $this->rawRowCount(), 'claimDaily() is read-only: all 4 rows remain in the DB table.');
+  }
+
+  /**
+   * claimWeekly() returns only 'weekly' rows older than the threshold.
+   *
+   * Part of #235 (N-7). Mirror of {@see self::testClaimDailyFiltersOnFrequencyAndThreshold()}
+   * for the sibling method: pins the exact filter `claimWeekly(int $olderThan)`
+   * must apply: `frequency = 'weekly' AND created < :olderThan`. A row that
+   * is 'weekly' but inside the window, and a row outside the window but a
+   * different frequency, must both be excluded — proving the two predicates
+   * are ANDed, not ORed.
+   */
+  public function testClaimWeeklyFiltersOnFrequencyAndThreshold(): void {
+    $backend = $this->backend();
+    $threshold = 1700100000;
+
+    $old_weekly_id = $this->insertRawRow(1, 1, 'activity_post_created', 'weekly', '2026-07-01', $threshold - 100);
+    $this->insertRawRow(1, 2, 'activity_post_created', 'weekly', '2026-07-02', $threshold + 100);
+    $this->insertRawRow(2, 3, 'activity_post_created', 'immediately', '2026-07-01', $threshold - 100);
+    $this->insertRawRow(3, 4, 'activity_post_created', 'daily', '2026-07-01', $threshold - 100);
+
+    $claimed = $backend->claimWeekly($threshold);
+
+    $this->assertCount(1, $claimed, 'Only the weekly row older than the threshold is claimed.');
+    $claimed_row = reset($claimed);
+    $this->assertSame($old_weekly_id, (int) $claimed_row['id'], 'The claimed row is the old weekly row, identified by its id.');
+    $this->assertSame('weekly', $claimed_row['frequency']);
+
+    // claimWeekly() does NOT delete — the rows must still be in the table.
+    $this->assertSame(4, $this->rawRowCount(), 'claimWeekly() is read-only: all 4 rows remain in the DB table.');
   }
 
   /**

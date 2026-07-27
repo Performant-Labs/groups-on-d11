@@ -15,66 +15,84 @@ use Drush\Attributes\Command;
 use Drush\Commands\DrushCommands;
 
 /**
- * The `do_notifications:digest-daily` worker (#234, N-6).
+ * The `do_notifications:digest-daily` / `digest-weekly` workers (#234/#235).
  *
  * Part of the Notifications epic #237. Nightly (default 02:00 UTC — see
- * `wire via` note below), aggregates every `frequency='daily'` entry queued
- * in `do_notifications_queue` older than a configurable window (default
- * 24h) per recipient, renders one aggregated digest per user via N-8's
+ * `wire via` note below), `digestDaily()` aggregates every `frequency='daily'`
+ * entry queued in `do_notifications_queue` older than a configurable window
+ * (default 24h) per recipient; weekly (`digestWeekly()`, #235/N-7) does the
+ * same for `frequency='weekly'` entries older than a configurable window
+ * (default 7d). Both render one aggregated digest per user via N-8's
  * {@see DigestRenderer} (reused verbatim — its own 50-fragment cap already
- * applies), and enqueues one row per user into the `do_notifications_digest_
+ * applies), and enqueue one row per user into the `do_notifications_digest_
  * queue` table for the (not-yet-merged) N-3 delivery worker to eventually
- * consume and send. Deletes the consumed source rows from
+ * consume and send. Both delete the consumed source rows from
  * `do_notifications_queue` once each user's digest is successfully
  * rendered/enqueued — see {@see QueueBackendInterface}'s class docblock for
- * why the claim (`claimDaily()`) and the delete (`deleteByIds()`) are
- * separate calls (mid-run failure idempotency).
+ * why the claim (`claimDaily()`/`claimWeekly()`) and the delete
+ * (`deleteByIds()`) are separate calls (mid-run failure idempotency).
  *
  * Uses `Drush\Attributes\Command` (the "annotated command" attribute, method
- * signature `digestDaily(): array` with no `Input`/`Output` parameters) —
- * deliberately NOT the newer `Symfony\Component\Console\Attribute\AsCommand`
- * class-level style Drush core itself has migrated to. That style requires
- * an `execute(InputInterface, OutputInterface): int` method whose return
- * value is a shell exit code, with any result data written to `$output`
- * rather than returned — awkward to kernel-test directly (a kernel test has
- * no drush process/IO boundary) and a needless layer for a command whose
- * only "output" this story cares about is a plain summary array a kernel
- * test (and a human running `drush do_notifications:digest-daily`, via
- * Drush's own default array-pretty-printer) can consume directly. The
- * `#[Command]` attribute is deprecated in favor of `#[AsCommand]` but
- * remains fully functional in this Drush version — see
- * `vendor/drush/drush/src/Attributes/Command.php`.
+ * signatures with no `Input`/`Output` parameters) — deliberately NOT the
+ * newer `Symfony\Component\Console\Attribute\AsCommand` class-level style
+ * Drush core itself has migrated to. That style requires an
+ * `execute(InputInterface, OutputInterface): int` method whose return value
+ * is a shell exit code, with any result data written to `$output` rather
+ * than returned — awkward to kernel-test directly (a kernel test has no
+ * drush process/IO boundary) and a needless layer for commands whose only
+ * "output" this story cares about is a plain summary array a kernel test
+ * (and a human running `drush do_notifications:digest-daily` /
+ * `digest-weekly`, via Drush's own default array-pretty-printer) can consume
+ * directly. The `#[Command]` attribute is deprecated in favor of
+ * `#[AsCommand]` but remains fully functional in this Drush version — see
+ * `vendor/drush/drush/src/Attributes/Command.php`. Drush 12+ attribute
+ * commands support multiple `#[Command]`-attributed methods on a single
+ * class, so `digestWeekly()` (#235) is added alongside `digestDaily()`
+ * (#234) here rather than in a separate command class — see the brief's
+ * Reuse map for #235 ("EXTEND — add `digestWeekly()` method + private
+ * `digestUserWeekly()` helper alongside existing `digestDaily()` /
+ * `digestUser()`. NO new command class.").
  *
  * Registered in BOTH `do_notifications.services.yml`
  * (`do_notifications.digest_command`, so `\Drupal::service()` resolves it —
  * required for this class to be kernel-testable and for any future
  * non-CLI caller) AND `drush.services.yml` (tagged `drush.command`, so
- * `drush do_notifications:digest-daily` is discoverable on the command
- * line). See both files' inline comments — `drush.services.yml`'s legacy
- * DI mechanism instantiates into a container Drush never merges back into
- * Drupal's own, so a service registered there alone is invisible to
+ * `drush do_notifications:digest-daily`/`digest-weekly` is discoverable on
+ * the command line). See both files' inline comments — `drush.services.yml`'s
+ * legacy DI mechanism instantiates into a container Drush never merges back
+ * into Drupal's own, so a service registered there alone is invisible to
  * `\Drupal::service()`; registering in only `do_notifications.services.yml`
  * would conversely be invisible to Drush's own CLI command discovery
  * (`DrupalBoot8::bootstrap()` only scans `drush.services.yml`-sourced
- * services for the `drush.command` tag).
+ * services for the `drush.command` tag). No change to either service
+ * registration was needed for #235: the same class, same constructor deps,
+ * with the second command surfacing automatically via method attribute scan.
  *
- * Non-goals (brief): no email sending (N-3's job), no weekly digest (N-7,
- * a future story reusing this same `do_notifications_digest_queue` table
- * with `window='weekly'`), no cron entry (an ops concern — wire this command
- * up with `drush cron:add do_notifications:digest-daily "0 2 * * *"`), no
- * re-render at delivery time (the rendered body is stored at digest time),
- * no user-timezone offset (UTC only, per brief).
+ * Non-goals (brief): no email sending (N-3's job), no cron entry (an ops
+ * concern — wire these commands up with
+ * `drush cron:add do_notifications:digest-daily "0 2 * * *"` and a weekly
+ * equivalent), no re-render at delivery time (the rendered body is stored at
+ * digest time), no user-timezone offset (UTC only, per brief).
  */
 class DigestCommands extends DrushCommands {
 
   /**
-   * The default digest window, in seconds: 24 hours.
+   * The default daily digest window, in seconds: 24 hours.
    *
    * Overridable via
    * `state.set('do_notifications.digest_daily.window_seconds', N)` (AC9) —
    * tests use this to compress the window without waiting real time.
    */
   private const DEFAULT_WINDOW_SECONDS = 86400;
+
+  /**
+   * The default weekly digest window, in seconds: 7 days.
+   *
+   * Part of #235 (N-7). Overridable via
+   * `state.set('do_notifications.digest_weekly.window_seconds', N)` (AC9),
+   * symmetric with {@see self::DEFAULT_WINDOW_SECONDS} for the daily path.
+   */
+  private const DEFAULT_WEEKLY_WINDOW_SECONDS = 604800;
 
   public function __construct(
     private readonly QueueBackendInterface $queue,
@@ -119,6 +137,51 @@ class DigestCommands extends DrushCommands {
 
     foreach ($rows_by_uid as $uid => $user_rows) {
       $consumed_ids = array_merge($consumed_ids, $this->digestUser((int) $uid, $user_rows, $users_digested, $digests_enqueued));
+    }
+
+    $this->queue->deleteByIds($consumed_ids);
+
+    return [
+      'users_digested' => $users_digested,
+      'items_consumed' => count($consumed_ids),
+      'digests_enqueued' => $digests_enqueued,
+    ];
+  }
+
+  /**
+   * Aggregates queued weekly notifications into one digest email per user.
+   *
+   * Part of #235 (N-7). Structural mirror of {@see self::digestDaily()}: the
+   * only differences are the state key read (`do_notifications.digest_
+   * weekly.window_seconds`), the default window (7 days vs. 24 hours), the
+   * queue method claimed through (`claimWeekly()` vs. `claimDaily()`), and
+   * the `'weekly'` window string passed through to the private per-user
+   * helper and, ultimately, to {@see DigestRenderer::render()} and
+   * {@see DigestQueueBackendInterface::enqueue()}.
+   *
+   * @return array
+   *   A summary shaped `['users_digested' => int, 'items_consumed' => int,
+   *   'digests_enqueued' => int]` — see {@see self::digestDaily()}'s
+   *   docblock for the exact meaning of each key.
+   */
+  #[Command(name: 'do_notifications:digest-weekly')]
+  public function digestWeekly(): array {
+    $window_seconds = (int) $this->state->get('do_notifications.digest_weekly.window_seconds', self::DEFAULT_WEEKLY_WINDOW_SECONDS);
+    $threshold = $this->time->getRequestTime() - $window_seconds;
+
+    $rows = $this->queue->claimWeekly($threshold);
+
+    $rows_by_uid = [];
+    foreach ($rows as $row) {
+      $rows_by_uid[$row['uid']][] = $row;
+    }
+
+    $users_digested = 0;
+    $digests_enqueued = 0;
+    $consumed_ids = [];
+
+    foreach ($rows_by_uid as $uid => $user_rows) {
+      $consumed_ids = array_merge($consumed_ids, $this->digestUserWeekly((int) $uid, $user_rows, $users_digested, $digests_enqueued));
     }
 
     $this->queue->deleteByIds($consumed_ids);
@@ -222,6 +285,97 @@ class DigestCommands extends DrushCommands {
     $this->digestQueue->enqueue(
       $uid,
       'daily',
+      $digest['subject'],
+      $digest['body_text'],
+      $digest['body_html'],
+      $this->time->getRequestTime(),
+    );
+
+    $users_digested++;
+    $digests_enqueued++;
+
+    return $row_ids_to_delete;
+  }
+
+  /**
+   * Digests a single user's claimed WEEKLY rows, mutating the two tallies.
+   *
+   * Part of #235 (N-7). Structural mirror of {@see self::digestUser()} for
+   * the weekly window — identical orphan-handling, identical
+   * `setCreatedTime((int) ...)` normalization at the Message-load boundary
+   * (see that method's inline comment for the full quirk explanation this
+   * helper also depends on), differing only in the literal `'weekly'`
+   * window string passed to {@see DigestRenderer::render()} and
+   * {@see DigestQueueBackendInterface::enqueue()}.
+   *
+   * @param int $uid
+   *   The recipient user id.
+   * @param array[] $rows
+   *   This user's claimed queue rows (see
+   *   {@see QueueBackendInterface::claimWeekly()} for the row shape).
+   * @param int $users_digested
+   *   Running tally of users who received a digest; incremented by
+   *   reference when this user gets one.
+   * @param int $digests_enqueued
+   *   Running tally of digest rows enqueued; incremented by reference when
+   *   this user gets one.
+   *
+   * @return int[]
+   *   The queue row ids to delete for this user: every row whose Message
+   *   was found and successfully digested, PLUS every orphaned row,
+   *   regardless of whether a digest was ultimately produced. Empty only
+   *   when the user had zero claimed rows to begin with (never actually
+   *   called in that case, since {@see self::digestWeekly()} only calls this
+   *   for uids present in the claimed rows).
+   */
+  private function digestUserWeekly(int $uid, array $rows, int &$users_digested, int &$digests_enqueued): array {
+    $message_storage = $this->entityTypeManager->getStorage('message');
+
+    $mids = array_map(static fn(array $row): int => $row['mid'], $rows);
+    /** @var \Drupal\message\MessageInterface[] $loaded_messages */
+    $loaded_messages = $message_storage->loadMultiple($mids);
+
+    $valid_messages = [];
+    $row_ids_to_delete = [];
+    foreach ($rows as $row) {
+      $row_ids_to_delete[] = $row['id'];
+      $message = $loaded_messages[$row['mid']] ?? NULL;
+      if ($message instanceof MessageInterface) {
+        // See self::digestUser()'s identical line for the full explanation
+        // of why this normalization is required: a storage-reloaded
+        // Message's `created` value can surface as a numeric string, which
+        // gmdate() (called deep inside DigestRenderer's rendering pipeline)
+        // rejects with a TypeError.
+        $message->setCreatedTime((int) $message->getCreatedTime());
+        $valid_messages[] = $message;
+      }
+      // Else: orphaned row (mid no longer resolves to a Message) — dropped
+      // from the digest, but its id is still queued for deletion above so
+      // it is garbage-collected rather than retried forever.
+    }
+
+    if (empty($valid_messages)) {
+      // Zero valid messages for this user (either every row was orphaned,
+      // or — unreachable via digestWeekly()'s own grouping, but defensive
+      // regardless — there were no rows at all): no empty-digest email.
+      return $row_ids_to_delete;
+    }
+
+    $user_storage = $this->entityTypeManager->getStorage('user');
+    $recipient = $user_storage->load($uid);
+    if ($recipient === NULL) {
+      // The recipient itself is unloadable: nothing sensible to render a
+      // digest for, but the claimed rows are still consumed (garbage
+      // collection applies here too — a user that no longer exists will
+      // never become loadable again).
+      return $row_ids_to_delete;
+    }
+
+    $digest = $this->digestRenderer->render($valid_messages, $recipient, 'weekly');
+
+    $this->digestQueue->enqueue(
+      $uid,
+      'weekly',
       $digest['subject'],
       $digest['body_text'],
       $digest['body_html'],
