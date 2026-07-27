@@ -7,7 +7,7 @@
     "app:local:run": "ddev restart && ddev drush cr && ddev launch",
     "app:local:launch": "npm run app:local:run",
     "app:docker:build": "docker build -t ghcr.io/performant-labs/groups-on-d11:local -f Dockerfile .",
-    "app:prod:deploy": "echo 'Prod deploy is operator-initiated via Coolify. See docs/ops/deploy.md §5 for UI / API / SSH-fallback paths.' && exit 1",
+    "app:prod:deploy": "bash scripts/ops/coolify-redeploy.sh",
     "test:e2e": "playwright test",
     "test:e2e:phase1": "playwright test tests/e2e/phase1.spec.ts"
   },
