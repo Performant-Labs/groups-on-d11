@@ -52,12 +52,43 @@ class MockQueueBackend implements QueueBackendInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * Extended for #231 (N-3): when `$frequency` is given, only the matching
+   * in-memory entries are removed and returned — the remaining entries (and
+   * their dedup keys) are left in place so a later drain() for a different
+   * frequency still sees them, and so a repeat enqueue() of an
+   * already-queued (non-matching) tuple still correctly no-ops. Passing no
+   * `$frequency` reproduces the pre-#231 "drain everything" behavior
+   * exactly, including the full `$seenKeys` reset.
    */
-  public function drain(): array {
-    $items = $this->items;
-    $this->items = [];
-    $this->seenKeys = [];
-    return $items;
+  public function drain(?string $frequency = NULL): array {
+    if ($frequency === NULL) {
+      $items = $this->items;
+      $this->items = [];
+      $this->seenKeys = [];
+      return $items;
+    }
+
+    $matched = [];
+    $remaining = [];
+    foreach ($this->items as $item) {
+      if ($item['frequency'] === $frequency) {
+        $matched[] = $item;
+        $key = implode(':', [
+          $item['uid'],
+          $item['mid'],
+          $item['frequency'],
+          $item['day'],
+        ]);
+        unset($this->seenKeys[$key]);
+      }
+      else {
+        $remaining[] = $item;
+      }
+    }
+    $this->items = $remaining;
+
+    return $matched;
   }
 
   /**

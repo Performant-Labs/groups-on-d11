@@ -55,17 +55,35 @@ class DatabaseQueueBackend implements QueueBackendInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * Extended for #231 (N-3): when `$frequency` is given, the read is
+   * WHERE-filtered on the `frequency` column and the delete removes ONLY the
+   * rows just read — by their primary-key `id`, not by re-applying the
+   * frequency filter to a fresh DELETE — so a row inserted between the SELECT
+   * and the DELETE (same transaction, but defensive against any future
+   * change to isolation level) can never be swept up by a filter it never
+   * matched at read time. Passing no `$frequency` reproduces the pre-#231
+   * "delete everything just read" behavior exactly.
    */
-  public function drain(): array {
+  public function drain(?string $frequency = NULL): array {
     $transaction = $this->database->startTransaction();
     try {
-      $rows = $this->database->select(self::TABLE, 'q')
-        ->fields('q', ['uid', 'mid', 'template', 'frequency', 'day'])
+      $select = $this->database->select(self::TABLE, 'q')
+        ->fields('q', ['id', 'uid', 'mid', 'template', 'frequency', 'day']);
+      if ($frequency !== NULL) {
+        $select->condition('frequency', $frequency);
+      }
+      $rows = $select
         ->orderBy('id', 'ASC')
         ->execute()
         ->fetchAll(\PDO::FETCH_ASSOC);
 
-      $this->database->delete(self::TABLE)->execute();
+      $ids = array_map(static fn(array $row): int => (int) $row['id'], $rows);
+      if (!empty($ids)) {
+        $this->database->delete(self::TABLE)
+          ->condition('id', $ids, 'IN')
+          ->execute();
+      }
     }
     catch (\Exception $e) {
       // Roll back the read+delete pair together: a caller must never see a

@@ -77,3 +77,39 @@ services:
   logger.channel.do_notifications:
     parent: logger.channel_base
     arguments: ['do_notifications']
+
+  # #231 (N-3): the do_notifications:deliver Drush command's own logic,
+  # registered here (NOT just drush.services.yml) so it resolves via
+  # Drupal's OWN service container (`\Drupal::service()`), not only via
+  # Drush's own separate, one-way-read LegacyServiceInstantiator object
+  # graph (see vendor/drush/drush/src/Runtime/LegacyServiceInstantiator.php
+  # — it instantiates drush.services.yml classes into its OWN internal
+  # array, never registers them back into the Drupal container). This
+  # kernel test suite (and any other real container consumer) needs the
+  # normal container lookup to work; drush.services.yml (also present, same
+  # class + arguments) remains the mechanism Drush's own CLI bootstrap uses
+  # to discover and wire the command for `drush do_notifications:deliver`.
+  #
+  # The 5th argument is an OPTIONAL reference ('@?', not '@') deliberately:
+  # message_notify IS a hard .info.yml dependency of do_notifications (so
+  # this is always resolvable on a real site), but several of this module's
+  # OWN kernel test suites (DatabaseQueueBackendTest, DigestRendererTest,
+  # EmailRendererTest) enable do_notifications WITHOUT enabling
+  # message_notify, to keep their fixtures minimal. A hard '@' reference
+  # here would fail EVERY one of those suites' container compilation
+  # (Symfony validates every registered service's references at compile
+  # time, whether or not the service is ever instantiated) — not just this
+  # command's own test. See
+  # src/Drush/Commands/DoNotificationsCommands.php's class docblock
+  # "OPTIONAL `$notifierManager`" for the corresponding nullable
+  # constructor parameter + runtime fail-fast guard.
+  do_notifications.deliver_commands:
+    class: Drupal\do_notifications\Drush\Commands\DoNotificationsCommands
+    autowire: false
+    arguments:
+      - '@do_notifications.queue'
+      - '@do_notifications.email_renderer'
+      - '@do_notifications.digest_renderer'
+      - '@?plugin.message_notify.notifier.manager'
+      - '@entity_type.manager'
+      - '@logger.channel.do_notifications'

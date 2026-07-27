@@ -1,0 +1,17 @@
+services:
+  # #231 (N-3): the do_notifications:deliver command, wiring together the
+  # queue backend (N-1/N-2), the email/digest renderers (N-4/N-8), and the
+  # log_mailer message_notify plugin (N-1). See
+  # src/Drush/Commands/DoNotificationsCommands.php's class docblock for the
+  # full drain/group/deliver contract.
+  do_notifications.deliver_commands:
+    class: Drupal\do_notifications\Drush\Commands\DoNotificationsCommands
+    arguments:
+      - '@do_notifications.queue'
+      - '@do_notifications.email_renderer'
+      - '@do_notifications.digest_renderer'
+      - '@plugin.message_notify.notifier.manager'
+      - '@entity_type.manager'
+      - '@logger.channel.do_notifications'
+    tags:
+      - { name: drush.command }
