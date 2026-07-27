@@ -1,0 +1,984 @@
+{
+  "baseUrl": "https://groups.performantlabs.com",
+  "timestamp": "2026-07-27T00:51:10.835Z",
+  "pages": [
+    {
+      "name": "front",
+      "path": "/",
+      "url": "https://groups.performantlabs.com/",
+      "status": 200,
+      "requestCount": 14,
+      "byType": {
+        "html": {
+          "count": 1,
+          "bytes": 40179
+        },
+        "css": {
+          "count": 2,
+          "bytes": 84615
+        },
+        "font": {
+          "count": 8,
+          "bytes": 84232
+        },
+        "image": {
+          "count": 1,
+          "bytes": 567
+        },
+        "js": {
+          "count": 2,
+          "bytes": 210887
+        }
+      },
+      "assets": [
+        {
+          "url": "https://groups.performantlabs.com/",
+          "status": 200,
+          "type": "html",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": 40179,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/css_QzR7DW0HZPxu1fk2qkotT4NQbHga04S8I5MwJHUjkpo.css?delta=0&language=en&theme=groups_chrome&include=eJxdjFEOhCAMRC8EciRTodHuAiUtyHr7VRPNrj-TzHuT8SzogrQCcYAXfEzg0S_CCV1ljpWKHmgWbmUslN1vOUxq--gk7q-ZM_U6E5yJsz6oVkFIhiOtKOwyrDRD3YdW0XMOINstC3cUDHba7BTZv2-hCOIXm0GE-5N2Cmh004rJTaBoVsKu7swhcWgRvx3SZhg",
+          "status": 200,
+          "type": "css",
+          "contentType": "text/css",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 2353,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-SemiBold.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 26564,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/lora/lora-v14-latin-regular.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 24552,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-Regular.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 16388,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/css_KwWr5JAsyAJJfUdLZfRdQjaCtxCmL7tDWNGIMVhmxks.css?delta=1&language=en&theme=groups_chrome&include=eJxdjFEOhCAMRC8EciRTodHuAiUtyHr7VRPNrj-TzHuT8SzogrQCcYAXfEzg0S_CCV1ljpWKHmgWbmUslN1vOUxq--gk7q-ZM_U6E5yJsz6oVkFIhiOtKOwyrDRD3YdW0XMOINstC3cUDHba7BTZv2-hCOIXm0GE-5N2Cmh004rJTaBoVsKu7swhcWgRvx3SZhg",
+          "status": 200,
+          "type": "css",
+          "contentType": "text/css",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 82262,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/themes/custom/groups_chrome/logo.svg",
+          "status": 200,
+          "type": "image",
+          "contentType": "image/svg+xml",
+          "contentEncoding": null,
+          "cacheControl": "max-age=315360000, public",
+          "size": 567,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-Bold.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 16728,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/assets/vendor/jquery/jquery.min.js?v=4.0.0",
+          "status": 200,
+          "type": "js",
+          "contentType": "application/javascript",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 78748,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/js/js_BbMBeLhWa4et-6-CT2S6yaTc4yGT6E5eUXQ-tD98bQc.js?scope=footer&delta=1&language=en&theme=groups_chrome&include=eJxLyY9PzijKz03VL8nPzynJLCjWyc_JLEstytcvTk0sSs7QLc9MSdUpy0wtL9YHk3qJWYkVAGEtFY4",
+          "status": 200,
+          "type": "js",
+          "contentType": "application/javascript",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 132139,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-Bold.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/lora/lora-v14-latin-regular.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-Regular.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-SemiBold.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        }
+      ],
+      "coverage": {
+        "js": [
+          {
+            "url": "https://groups.performantlabs.com/core/assets/vendor/jquery/jquery.min.js?v=4.0.0",
+            "total": 78748,
+            "used": 187455,
+            "unused": -108707
+          },
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/js/js_BbMBeLhWa4et-6-CT2S6yaTc4yGT6E5eUXQ-tD98bQc.js?scope=footer&delta=1&language=en&theme=groups_chrome&include=eJxLyY9PzijKz03VL8nPzynJLCjWyc_JLEstytcvTk0sSs7QLc9MSdUpy0wtL9YHk3qJWYkVAGEtFY4",
+            "total": 132135,
+            "used": 283402,
+            "unused": -151267
+          }
+        ],
+        "css": [
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/css/css_KwWr5JAsyAJJfUdLZfRdQjaCtxCmL7tDWNGIMVhmxks.css?delta=1&language=en&theme=groups_chrome&include=eJxdjFEOhCAMRC8EciRTodHuAiUtyHr7VRPNrj-TzHuT8SzogrQCcYAXfEzg0S_CCV1ljpWKHmgWbmUslN1vOUxq--gk7q-ZM_U6E5yJsz6oVkFIhiOtKOwyrDRD3YdW0XMOINstC3cUDHba7BTZv2-hCOIXm0GE-5N2Cmh004rJTaBoVsKu7swhcWgRvx3SZhg",
+            "total": 82256,
+            "used": 40763,
+            "unused": 41493
+          },
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/css/css_QzR7DW0HZPxu1fk2qkotT4NQbHga04S8I5MwJHUjkpo.css?delta=0&language=en&theme=groups_chrome&include=eJxdjFEOhCAMRC8EciRTodHuAiUtyHr7VRPNrj-TzHuT8SzogrQCcYAXfEzg0S_CCV1ljpWKHmgWbmUslN1vOUxq--gk7q-ZM_U6E5yJsz6oVkFIhiOtKOwyrDRD3YdW0XMOINstC3cUDHba7BTZv2-hCOIXm0GE-5N2Cmh004rJTaBoVsKu7swhcWgRvx3SZhg",
+            "total": 7005,
+            "used": 213,
+            "unused": 6792
+          }
+        ]
+      },
+      "cdnHits": []
+    },
+    {
+      "name": "all-groups",
+      "path": "/all-groups",
+      "url": "https://groups.performantlabs.com/all-groups",
+      "status": 200,
+      "requestCount": 13,
+      "byType": {
+        "html": {
+          "count": 1,
+          "bytes": 32893
+        },
+        "css": {
+          "count": 2,
+          "bytes": 80994
+        },
+        "image": {
+          "count": 1,
+          "bytes": 567
+        },
+        "font": {
+          "count": 8,
+          "bytes": 84232
+        },
+        "js": {
+          "count": 1,
+          "bytes": 72314
+        }
+      },
+      "assets": [
+        {
+          "url": "https://groups.performantlabs.com/all-groups",
+          "status": 200,
+          "type": "html",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": 32893,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/css_6Lx5cwmaUSfcAzjvC6EUf_jInRucPZz99DrmH_bvpek.css?delta=1&language=en&theme=groups_chrome&include=eJxdjG0KxCAMRC-k65GKH8GGtY4ktuLttxRalv4ZMu8lSVjiKtjIdaB0bmoSlizY29K4uv9irknvg8RCsUPmiwtlRlWDwgcJXC4Ivljts3DND67-4Oz7uWqVImry56dbNgwSSjZMGwri9xFKXuJqqxfBeNPBiYxO7bS54JXMwTTUXfnZkPZCP-ZIXpc",
+          "status": 200,
+          "type": "css",
+          "contentType": "text/css",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 79243,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/css_Wi1OGSaVw9cbJRlUVRU9zJHzNnPQmoov_NxlEBMmklo.css?delta=0&language=en&theme=groups_chrome&include=eJxdjG0KxCAMRC-k65GKH8GGtY4ktuLttxRalv4ZMu8lSVjiKtjIdaB0bmoSlizY29K4uv9irknvg8RCsUPmiwtlRlWDwgcJXC4Ivljts3DND67-4Oz7uWqVImry56dbNgwSSjZMGwri9xFKXuJqqxfBeNPBiYxO7bS54JXMwTTUXfnZkPZCP-ZIXpc",
+          "status": 200,
+          "type": "css",
+          "contentType": "text/css",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 1751,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/themes/custom/groups_chrome/logo.svg",
+          "status": 200,
+          "type": "image",
+          "contentType": "image/svg+xml",
+          "contentEncoding": null,
+          "cacheControl": "max-age=315360000, public",
+          "size": 567,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/lora/lora-v14-latin-regular.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 24552,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-Regular.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 16388,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-Bold.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 16728,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-SemiBold.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 26564,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/js/js_jaDT-srZMzBdPydiTscq9DaoL3lYKrj989Q8-FUmY80.js?scope=footer&delta=0&language=en&theme=groups_chrome&include=eJxLyY9PzijKz03VL8nPzynJLCjWyc_JLEstytdPz8lPSszRLS6pzMnMS4cLF6cmFiVn6JZnpqQCAO9qGAg",
+          "status": 200,
+          "type": "js",
+          "contentType": "application/javascript",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 72314,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-SemiBold.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-Regular.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/lora/lora-v14-latin-regular.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-Bold.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        }
+      ],
+      "coverage": {
+        "js": [
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/js/js_jaDT-srZMzBdPydiTscq9DaoL3lYKrj989Q8-FUmY80.js?scope=footer&delta=0&language=en&theme=groups_chrome&include=eJxLyY9PzijKz03VL8nPzynJLCjWyc_JLEstytdPz8lPSszRLS6pzMnMS4cLF6cmFiVn6JZnpqQCAO9qGAg",
+            "total": 72310,
+            "used": 155576,
+            "unused": -83266
+          }
+        ],
+        "css": [
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/css/css_6Lx5cwmaUSfcAzjvC6EUf_jInRucPZz99DrmH_bvpek.css?delta=1&language=en&theme=groups_chrome&include=eJxdjG0KxCAMRC-k65GKH8GGtY4ktuLttxRalv4ZMu8lSVjiKtjIdaB0bmoSlizY29K4uv9irknvg8RCsUPmiwtlRlWDwgcJXC4Ivljts3DND67-4Oz7uWqVImry56dbNgwSSjZMGwri9xFKXuJqqxfBeNPBiYxO7bS54JXMwTTUXfnZkPZCP-ZIXpc",
+            "total": 79237,
+            "used": 40290,
+            "unused": 38947
+          },
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/css/css_Wi1OGSaVw9cbJRlUVRU9zJHzNnPQmoov_NxlEBMmklo.css?delta=0&language=en&theme=groups_chrome&include=eJxdjG0KxCAMRC-k65GKH8GGtY4ktuLttxRalv4ZMu8lSVjiKtjIdaB0bmoSlizY29K4uv9irknvg8RCsUPmiwtlRlWDwgcJXC4Ivljts3DND67-4Oz7uWqVImry56dbNgwSSjZMGwri9xFKXuJqqxfBeNPBiYxO7bS54JXMwTTUXfnZkPZCP-ZIXpc",
+            "total": 4942,
+            "used": 150,
+            "unused": 4792
+          }
+        ]
+      },
+      "cdnHits": []
+    },
+    {
+      "name": "group-detail",
+      "path": "/group/1",
+      "url": "https://groups.performantlabs.com/group/1",
+      "status": 200,
+      "requestCount": 14,
+      "byType": {
+        "html": {
+          "count": 1,
+          "bytes": 34241
+        },
+        "font": {
+          "count": 8,
+          "bytes": 84232
+        },
+        "image": {
+          "count": 1,
+          "bytes": 567
+        },
+        "css": {
+          "count": 2,
+          "bytes": 108332
+        },
+        "js": {
+          "count": 2,
+          "bytes": 299596
+        }
+      },
+      "assets": [
+        {
+          "url": "https://groups.performantlabs.com/group/1",
+          "status": 200,
+          "type": "html",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": 34241,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-Regular.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 16388,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/themes/custom/groups_chrome/logo.svg",
+          "status": 200,
+          "type": "image",
+          "contentType": "image/svg+xml",
+          "contentEncoding": null,
+          "cacheControl": "max-age=315360000, public",
+          "size": 567,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/lora/lora-v14-latin-regular.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 24552,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-SemiBold.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 26564,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/css_F0SJbo-R37KzYa4xPdDhpr88JgwRHL844OroYaYP6so.css?delta=0&language=en&theme=groups_chrome&include=eJxdjFsOwyAMBC8E5UjIgEvcEIxsGsrt-1AbVflZaWdWm9jHRXhD15lLp6Ymsc_C9-YbVfdfzLVAdu-4FKqrhxs8zMfq7-S7hYwnIZiJqxoutKOwq7BThv5iVjFyTSDzkI0HCiYbpg2F43oIRZC42AoiPM50UEKjUztuLoDiEyDVVes",
+          "status": 200,
+          "type": "css",
+          "contentType": "text/css",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 26143,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-Bold.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 16728,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/css_mQZqQawmaZQCjwXjj6du5EfhxiHS7FcC2YlHBEzRtwA.css?delta=1&language=en&theme=groups_chrome&include=eJxdjFsOwyAMBC8E5UjIgEvcEIxsGsrt-1AbVflZaWdWm9jHRXhD15lLp6Ymsc_C9-YbVfdfzLVAdu-4FKqrhxs8zMfq7-S7hYwnIZiJqxoutKOwq7BThv5iVjFyTSDzkI0HCiYbpg2F43oIRZC42AoiPM50UEKjUztuLoDiEyDVVes",
+          "status": 200,
+          "type": "css",
+          "contentType": "text/css",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 82189,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/assets/vendor/jquery/jquery.min.js?v=4.0.0",
+          "status": 200,
+          "type": "js",
+          "contentType": "application/javascript",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 78748,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-Regular.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/lora/lora-v14-latin-regular.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-Bold.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-SemiBold.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/js/js_3dYfQTRMHni2YdLZN-0vugIn2PY228KhuIzRqjf9fl4.js?scope=footer&delta=1&language=en&theme=groups_chrome&include=eJxLyY9PzijKz03VL8nPzynJLCjWSctJTNcHEXo5mXnZ8YlZiRU6-TmZZalF-frFqYlFyRm65ZkpqQCakRZz",
+          "status": 200,
+          "type": "js",
+          "contentType": "application/javascript",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 220848,
+          "minified": true
+        }
+      ],
+      "coverage": {
+        "js": [
+          {
+            "url": "https://groups.performantlabs.com/core/assets/vendor/jquery/jquery.min.js?v=4.0.0",
+            "total": 78748,
+            "used": 173783,
+            "unused": -95035
+          },
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/js/js_3dYfQTRMHni2YdLZN-0vugIn2PY228KhuIzRqjf9fl4.js?scope=footer&delta=1&language=en&theme=groups_chrome&include=eJxLyY9PzijKz03VL8nPzynJLCjWSctJTNcHEXo5mXnZ8YlZiRU6-TmZZalF-frFqYlFyRm65ZkpqQCakRZz",
+            "total": 220844,
+            "used": 479471,
+            "unused": -258627
+          }
+        ],
+        "css": [
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/css/css_F0SJbo-R37KzYa4xPdDhpr88JgwRHL844OroYaYP6so.css?delta=0&language=en&theme=groups_chrome&include=eJxdjFsOwyAMBC8E5UjIgEvcEIxsGsrt-1AbVflZaWdWm9jHRXhD15lLp6Ymsc_C9-YbVfdfzLVAdu-4FKqrhxs8zMfq7-S7hYwnIZiJqxoutKOwq7BThv5iVjFyTSDzkI0HCiYbpg2F43oIRZC42AoiPM50UEKjUztuLoDiEyDVVes",
+            "total": 26143,
+            "used": 1429,
+            "unused": 24714
+          },
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/css/css_mQZqQawmaZQCjwXjj6du5EfhxiHS7FcC2YlHBEzRtwA.css?delta=1&language=en&theme=groups_chrome&include=eJxdjFsOwyAMBC8E5UjIgEvcEIxsGsrt-1AbVflZaWdWm9jHRXhD15lLp6Ymsc_C9-YbVfdfzLVAdu-4FKqrhxs8zMfq7-S7hYwnIZiJqxoutKOwq7BThv5iVjFyTSDzkI0HCiYbpg2F43oIRZC42AoiPM50UEKjUztuLoDiEyDVVes",
+            "total": 82183,
+            "used": 38967,
+            "unused": 43216
+          }
+        ]
+      },
+      "cdnHits": []
+    },
+    {
+      "name": "stream",
+      "path": "/stream",
+      "url": "https://groups.performantlabs.com/stream",
+      "status": 200,
+      "requestCount": 14,
+      "byType": {
+        "html": {
+          "count": 1,
+          "bytes": 40179
+        },
+        "css": {
+          "count": 2,
+          "bytes": 84615
+        },
+        "font": {
+          "count": 8,
+          "bytes": 84232
+        },
+        "image": {
+          "count": 1,
+          "bytes": 567
+        },
+        "js": {
+          "count": 2,
+          "bytes": 210887
+        }
+      },
+      "assets": [
+        {
+          "url": "https://groups.performantlabs.com/stream",
+          "status": 200,
+          "type": "html",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": 40179,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/css_QzR7DW0HZPxu1fk2qkotT4NQbHga04S8I5MwJHUjkpo.css?delta=0&language=en&theme=groups_chrome&include=eJxdjFEOhCAMRC8EciRTodHuAiUtyHr7VRPNrj-TzHuT8SzogrQCcYAXfEzg0S_CCV1ljpWKHmgWbmUslN1vOUxq--gk7q-ZM_U6E5yJsz6oVkFIhiOtKOwyrDRD3YdW0XMOINstC3cUDHba7BTZv2-hCOIXm0GE-5N2Cmh004rJTaBoVsKu7swhcWgRvx3SZhg",
+          "status": 200,
+          "type": "css",
+          "contentType": "text/css",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 2353,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-SemiBold.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 26564,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/lora/lora-v14-latin-regular.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 24552,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-Bold.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 16728,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/css_KwWr5JAsyAJJfUdLZfRdQjaCtxCmL7tDWNGIMVhmxks.css?delta=1&language=en&theme=groups_chrome&include=eJxdjFEOhCAMRC8EciRTodHuAiUtyHr7VRPNrj-TzHuT8SzogrQCcYAXfEzg0S_CCV1ljpWKHmgWbmUslN1vOUxq--gk7q-ZM_U6E5yJsz6oVkFIhiOtKOwyrDRD3YdW0XMOINstC3cUDHba7BTZv2-hCOIXm0GE-5N2Cmh004rJTaBoVsKu7swhcWgRvx3SZhg",
+          "status": 200,
+          "type": "css",
+          "contentType": "text/css",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 82262,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/themes/custom/groups_chrome/logo.svg",
+          "status": 200,
+          "type": "image",
+          "contentType": "image/svg+xml",
+          "contentEncoding": null,
+          "cacheControl": "max-age=315360000, public",
+          "size": 567,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-Regular.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 16388,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/assets/vendor/jquery/jquery.min.js?v=4.0.0",
+          "status": 200,
+          "type": "js",
+          "contentType": "application/javascript",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 78748,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/js/js_BbMBeLhWa4et-6-CT2S6yaTc4yGT6E5eUXQ-tD98bQc.js?scope=footer&delta=1&language=en&theme=groups_chrome&include=eJxLyY9PzijKz03VL8nPzynJLCjWyc_JLEstytcvTk0sSs7QLc9MSdUpy0wtL9YHk3qJWYkVAGEtFY4",
+          "status": 200,
+          "type": "js",
+          "contentType": "application/javascript",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 132139,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/lora/lora-v14-latin-regular.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-Regular.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-SemiBold.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-Bold.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        }
+      ],
+      "coverage": {
+        "js": [
+          {
+            "url": "https://groups.performantlabs.com/core/assets/vendor/jquery/jquery.min.js?v=4.0.0",
+            "total": 78748,
+            "used": 187455,
+            "unused": -108707
+          },
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/js/js_BbMBeLhWa4et-6-CT2S6yaTc4yGT6E5eUXQ-tD98bQc.js?scope=footer&delta=1&language=en&theme=groups_chrome&include=eJxLyY9PzijKz03VL8nPzynJLCjWyc_JLEstytcvTk0sSs7QLc9MSdUpy0wtL9YHk3qJWYkVAGEtFY4",
+            "total": 132135,
+            "used": 283402,
+            "unused": -151267
+          }
+        ],
+        "css": [
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/css/css_KwWr5JAsyAJJfUdLZfRdQjaCtxCmL7tDWNGIMVhmxks.css?delta=1&language=en&theme=groups_chrome&include=eJxdjFEOhCAMRC8EciRTodHuAiUtyHr7VRPNrj-TzHuT8SzogrQCcYAXfEzg0S_CCV1ljpWKHmgWbmUslN1vOUxq--gk7q-ZM_U6E5yJsz6oVkFIhiOtKOwyrDRD3YdW0XMOINstC3cUDHba7BTZv2-hCOIXm0GE-5N2Cmh004rJTaBoVsKu7swhcWgRvx3SZhg",
+            "total": 82256,
+            "used": 40763,
+            "unused": 41493
+          },
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/css/css_QzR7DW0HZPxu1fk2qkotT4NQbHga04S8I5MwJHUjkpo.css?delta=0&language=en&theme=groups_chrome&include=eJxdjFEOhCAMRC8EciRTodHuAiUtyHr7VRPNrj-TzHuT8SzogrQCcYAXfEzg0S_CCV1ljpWKHmgWbmUslN1vOUxq--gk7q-ZM_U6E5yJsz6oVkFIhiOtKOwyrDRD3YdW0XMOINstC3cUDHba7BTZv2-hCOIXm0GE-5N2Cmh004rJTaBoVsKu7swhcWgRvx3SZhg",
+            "total": 7005,
+            "used": 213,
+            "unused": 6792
+          }
+        ]
+      },
+      "cdnHits": []
+    },
+    {
+      "name": "groups",
+      "path": "/groups",
+      "url": "https://groups.performantlabs.com/groups",
+      "status": 200,
+      "requestCount": 13,
+      "byType": {
+        "html": {
+          "count": 1,
+          "bytes": 22027
+        },
+        "font": {
+          "count": 8,
+          "bytes": 84232
+        },
+        "image": {
+          "count": 1,
+          "bytes": 567
+        },
+        "css": {
+          "count": 2,
+          "bytes": 79122
+        },
+        "js": {
+          "count": 1,
+          "bytes": 72314
+        }
+      },
+      "assets": [
+        {
+          "url": "https://groups.performantlabs.com/groups",
+          "status": 200,
+          "type": "html",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": 22027,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/lora/lora-v14-latin-regular.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 24552,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-SemiBold.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 26564,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-Bold.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 16728,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/themes/custom/groups_chrome/logo.svg",
+          "status": 200,
+          "type": "image",
+          "contentType": "image/svg+xml",
+          "contentEncoding": null,
+          "cacheControl": "max-age=315360000, public",
+          "size": 567,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/css_Wi1OGSaVw9cbJRlUVRU9zJHzNnPQmoov_NxlEBMmklo.css?delta=0&language=en&theme=groups_chrome&include=eJxdi-EKwyAQg19I5yOVUw97zBq5sxXffmOwMvYnJF-SjC3tioPDAOqQbi5jK4qzb11a-A3u4-x7UC6CZg5VLlaEUhGpehurSis3bnRJofGeeuOElknXXXZMVs4-Lh8r0vMujEnT7hupYv7TKZmdLRt8hEjG7hKeFj76OJDPyi9FClTq",
+          "status": 200,
+          "type": "css",
+          "contentType": "text/css",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 1751,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/css_3qOSPOrlAM4oW9T6bBgyJU09D3AhD-4cHenL8f5Ybao.css?delta=1&language=en&theme=groups_chrome&include=eJxdi-EKwyAQg19I5yOVUw97zBq5sxXffmOwMvYnJF-SjC3tioPDAOqQbi5jK4qzb11a-A3u4-x7UC6CZg5VLlaEUhGpehurSis3bnRJofGeeuOElknXXXZMVs4-Lh8r0vMujEnT7hupYv7TKZmdLRt8hEjG7hKeFj76OJDPyi9FClTq",
+          "status": 200,
+          "type": "css",
+          "contentType": "text/css; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "no-store, private",
+          "size": 77371,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/core/themes/olivero/fonts/metropolis/Metropolis-Regular.woff2",
+          "status": 200,
+          "type": "font",
+          "contentType": "font/woff2",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 16388,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/js/js_jaDT-srZMzBdPydiTscq9DaoL3lYKrj989Q8-FUmY80.js?scope=footer&delta=0&language=en&theme=groups_chrome&include=eJxLyY9PzijKz03VL8nPzynJLCjWyc_JLEstytdPz8lPSszRLS6pzMnMS4cLF6cmFiVn6JZnpqQCAO9qGAg",
+          "status": 200,
+          "type": "js",
+          "contentType": "application/javascript",
+          "contentEncoding": "zstd",
+          "cacheControl": "max-age=315360000, public",
+          "size": 72314,
+          "minified": true
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-Regular.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-Bold.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/metropolis/Metropolis-SemiBold.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        },
+        {
+          "url": "https://groups.performantlabs.com/sites/default/files/css/core/themes/olivero/fonts/lora/lora-v14-latin-regular.woff2",
+          "status": 404,
+          "type": "font",
+          "contentType": "text/html; charset=utf-8",
+          "contentEncoding": "zstd",
+          "cacheControl": "must-revalidate, no-cache, private",
+          "size": null,
+          "minified": null
+        }
+      ],
+      "coverage": {
+        "js": [
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/js/js_jaDT-srZMzBdPydiTscq9DaoL3lYKrj989Q8-FUmY80.js?scope=footer&delta=0&language=en&theme=groups_chrome&include=eJxLyY9PzijKz03VL8nPzynJLCjWyc_JLEstytdPz8lPSszRLS6pzMnMS4cLF6cmFiVn6JZnpqQCAO9qGAg",
+            "total": 72310,
+            "used": 155576,
+            "unused": -83266
+          }
+        ],
+        "css": [
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/css/css_Wi1OGSaVw9cbJRlUVRU9zJHzNnPQmoov_NxlEBMmklo.css?delta=0&language=en&theme=groups_chrome&include=eJxdi-EKwyAQg19I5yOVUw97zBq5sxXffmOwMvYnJF-SjC3tioPDAOqQbi5jK4qzb11a-A3u4-x7UC6CZg5VLlaEUhGpehurSis3bnRJofGeeuOElknXXXZMVs4-Lh8r0vMujEnT7hupYv7TKZmdLRt8hEjG7hKeFj76OJDPyi9FClTq",
+            "total": 4942,
+            "used": 150,
+            "unused": 4792
+          },
+          {
+            "url": "https://groups.performantlabs.com/sites/default/files/css/css_3qOSPOrlAM4oW9T6bBgyJU09D3AhD-4cHenL8f5Ybao.css?delta=1&language=en&theme=groups_chrome&include=eJxdi-EKwyAQg19I5yOVUw97zBq5sxXffmOwMvYnJF-SjC3tioPDAOqQbi5jK4qzb11a-A3u4-x7UC6CZg5VLlaEUhGpehurSis3bnRJofGeeuOElknXXXZMVs4-Lh8r0vMujEnT7hupYv7TKZmdLRt8hEjG7hKeFj76OJDPyi9FClTq",
+            "total": 77365,
+            "used": 36508,
+            "unused": 40857
+          }
+        ]
+      },
+      "cdnHits": []
+    }
+  ]
+}
