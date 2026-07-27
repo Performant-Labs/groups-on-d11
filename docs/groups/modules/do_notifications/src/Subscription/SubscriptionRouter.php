@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Drupal\do_notifications\Subscription;
 
 use Drupal\Component\Datetime\TimeInterface;
-use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\State\StateInterface;
+use Drupal\do_notifications\Frequency\FrequencyResolver;
 use Drupal\do_notifications\Queue\QueueBackendInterface;
 use Drupal\flag\FlagServiceInterface;
 use Drupal\message\MessageInterface;
@@ -31,6 +31,12 @@ use Drupal\node\NodeInterface;
  * unloadable reference or flag lookup failure is logged and treated as "no
  * candidates from that source", so a single bad Message can never break
  * routing for every other Message.
+ *
+ * N-5 (#233): each recipient's `frequency`/`send_at` payload keys are now
+ * resolved PER RECIPIENT via the injected {@see FrequencyResolver}, rather
+ * than a single site-wide frequency stamped on every entry. See
+ * docs/planning/handoffs/233-n5-frequency-queue/brief.md ("Design —
+ * SubscriptionRouter change").
  */
 class SubscriptionRouter {
 
@@ -40,7 +46,7 @@ class SubscriptionRouter {
     private readonly QueueBackendInterface $queue,
     private readonly TimeInterface $time,
     private readonly StateInterface $state,
-    private readonly ConfigFactoryInterface $configFactory,
+    private readonly FrequencyResolver $frequencyResolver,
   ) {}
 
   /**
@@ -131,20 +137,23 @@ class SubscriptionRouter {
       return 0;
     }
 
-    // Step 7: enqueue one entry per remaining recipient.
-    $frequency = $this->configFactory->get('do_notifications.settings')->get('default_frequency') ?? 'immediately';
+    // Step 7: enqueue one entry per remaining recipient. Frequency and
+    // send_at are resolved PER UID (N-5, #233) via FrequencyResolver, rather
+    // than a single site-wide value stamped on every entry.
     $day = date('Y-m-d', $this->time->getRequestTime());
     $mid = (int) $message->id();
     $template = $message->getTemplate()->id();
 
     $count = 0;
     foreach (array_keys($candidate_uids) as $uid) {
+      $resolved = $this->frequencyResolver->resolve($uid);
       $this->queue->enqueue([
         'uid' => $uid,
         'mid' => $mid,
         'template' => $template,
-        'frequency' => $frequency,
+        'frequency' => $resolved['frequency'],
         'day' => $day,
+        'send_at' => $resolved['send_at'],
       ]);
       $count++;
     }

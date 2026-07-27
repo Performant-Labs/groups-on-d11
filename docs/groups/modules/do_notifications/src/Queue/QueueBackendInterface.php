@@ -48,6 +48,15 @@ interface QueueBackendInterface {
    *     the dedup key, so an overlapping subscription on the SAME day
    *     collapses, while a genuinely later day's routing for the same
    *     (uid, mid, frequency) is a distinct entry.
+   *   - send_at: (int, optional) unix timestamp at which the delivery/digest
+   *     worker should include this entry (e.g. request time for
+   *     'immediately', next 2 AM UTC for 'daily', next Sunday 19:00 UTC for
+   *     'weekly' — see `Drupal\do_notifications\Frequency\FrequencyResolver`,
+   *     N-5 #233). `send_at` is NOT part of the (uid, mid, frequency, day)
+   *     dedup tuple — implementations MUST NOT include it in a UNIQUE key.
+   *     `MockQueueBackend` stores it verbatim; `DatabaseQueueBackend` (N-1)
+   *     MUST persist it as an indexed column so digest workers can query
+   *     `WHERE frequency = 'daily' AND send_at <= NOW()`.
    */
   public function enqueue(array $item): void;
 
