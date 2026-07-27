@@ -27,6 +27,16 @@ namespace Drupal\do_notifications\Queue;
  * `MockQueueBackend` (this story) is the shippable default;
  * `DatabaseQueueBackend` (N-1, #229) implements this SAME interface against a
  * real DB table — see `do_notifications.services.yml` for the swap point.
+ *
+ * #234 (N-6) adds `claimDaily()` and `deleteByIds()`: the daily digest
+ * command claims every 'daily' row older than a configurable window,
+ * renders/enqueues one aggregated digest per recipient, and only THEN
+ * deletes the consumed source rows via a separate `deleteByIds()` call. The
+ * claim and delete are deliberately two calls, not one combined
+ * "claim-and-delete": if the command fails partway through rendering (e.g.
+ * one user's digest render throws), the un-deleted rows are simply claimed
+ * again on the next run — a combined claim-and-delete would instead lose
+ * those rows on a partial failure with nothing left to retry.
  */
 interface QueueBackendInterface {
 
@@ -95,5 +105,44 @@ interface QueueBackendInterface {
    *   The queue's current entry count.
    */
   public function count(): int;
+
+  /**
+   * Returns every 'daily'-frequency entry older than a given threshold.
+   *
+   * Part of #234 (N-6). Applies `frequency = 'daily' AND created < $olderThan`
+   * as an AND — a row that is 'daily' but within the window, or a row outside
+   * the window but a different frequency, is excluded either way. Does NOT
+   * delete the returned rows; the caller must explicitly call
+   * {@see self::deleteByIds()} once it has successfully consumed them (see
+   * class docblock for why the two are separate calls).
+   *
+   * Named `claimDaily`, not `claimByFrequency`, because a future N-7 weekly
+   * digest worker will add its own `claimWeekly()` in the same idiom — one
+   * explicit, grep-able method per frequency rather than a single method
+   * with a `$frequency` parameter that would obscure which frequencies this
+   * codebase actually schedules.
+   *
+   * @param int $olderThan
+   *   A UNIX timestamp; only rows with `created < $olderThan` are returned.
+   *
+   * @return array<int, array>
+   *   Every matching row, each shaped `['id', 'uid', 'mid', 'template',
+   *   'frequency', 'day', 'created']`, ordered by (uid, created). Empty when
+   *   nothing matches.
+   */
+  public function claimDaily(int $olderThan): array;
+
+  /**
+   * Deletes the queue entries with the given ids.
+   *
+   * Part of #234 (N-6). Pairs with {@see self::claimDaily()}: a caller
+   * claims rows, does its (potentially fallible) work, and only then deletes
+   * the ids it successfully consumed. Passing an empty array is a safe
+   * no-op — it must never delete every row in the table.
+   *
+   * @param array<int, int> $ids
+   *   The `id` column values to delete. An empty array deletes nothing.
+   */
+  public function deleteByIds(array $ids): void;
 
 }

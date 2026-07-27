@@ -29,6 +29,16 @@
  * key), not an update to an existing row's `send_at`. The composite
  * `frequency_send_at` index supports the digest workers' anticipated query
  * pattern `WHERE frequency = ? AND send_at <= NOW()`.
+ *
+ * Also defines `do_notifications_digest_queue` (#234, N-6): the destination
+ * table for the daily/weekly digest worker's aggregated, per-recipient
+ * output — see
+ * {@see \Drupal\do_notifications\Queue\DigestQueueBackendInterface} and
+ * `Drupal\do_notifications\Commands\DigestCommands::digestDaily()`. This is
+ * a deliberately separate table from `do_notifications_queue`: a digest row
+ * has no single `mid` (it aggregates N source rows) and carries the fully
+ * rendered `subject`/`body_text`/`body_html` payload, which the per-message
+ * queue's `(uid, mid, frequency, day)` dedup contract cannot express.
  */
 function do_notifications_schema() {
   $schema['do_notifications_queue'] = [
@@ -99,6 +109,66 @@ function do_notifications_schema() {
     ],
   ];
 
+  $schema['do_notifications_digest_queue'] = [
+    'description' => 'Aggregated per-recipient digest emails awaiting delivery by the (not-yet-merged) N-3 delivery worker. Populated by the N-6 daily digest command (and, later, N-7 weekly) via DatabaseDigestQueueBackend; each row is one fully rendered digest for one user, distinct from do_notifications_queue which holds the per-message entries a digest aggregates and consumes.',
+    'fields' => [
+      'id' => [
+        'description' => 'Primary key: unique digest queue entry ID.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'uid' => [
+        'description' => 'The recipient user ID.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'window' => [
+        'description' => "The digest window this row was aggregated for: 'daily' or 'weekly'.",
+        'type' => 'varchar',
+        'length' => 16,
+        'not null' => TRUE,
+      ],
+      'subject' => [
+        'description' => 'The rendered digest email subject line.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ],
+      'body_text' => [
+        'description' => 'The rendered plain-text digest email body.',
+        'type' => 'text',
+        'size' => 'big',
+        'not null' => TRUE,
+      ],
+      'body_html' => [
+        'description' => 'The rendered HTML digest email body.',
+        'type' => 'text',
+        'size' => 'big',
+        'not null' => TRUE,
+      ],
+      'send_at' => [
+        'description' => 'UNIX timestamp: the earliest time this digest may be sent.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'created' => [
+        'description' => 'The UNIX timestamp this digest row was enqueued.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+    ],
+    'primary key' => ['id'],
+    'indexes' => [
+      // The N-3 delivery worker's query pattern: "find everything due for
+      // delivery" is `WHERE send_at <= NOW()`.
+      'send_at' => ['send_at'],
+    ],
+  ];
+
   return $schema;
 }
 
@@ -142,4 +212,21 @@ function do_notifications_update_10001(): string {
   return $added
     ? 'Added send_at column and (frequency, send_at) index to do_notifications_queue.'
     : 'send_at column already present; ensured (frequency, send_at) index exists.';
+}
+
+/**
+ * Adds the `do_notifications_digest_queue` table for existing sites.
+ *
+ * Part of the Notifications epic #237, N-6 (#234). Sites that installed
+ * `do_notifications` before this update only have `do_notifications_queue`
+ * (defined by `do_notifications_schema()` at N-1); this brings their schema
+ * up to date with the new digest-queue table a fresh install already gets
+ * via `hook_schema()`.
+ */
+function do_notifications_update_11001() {
+  $schema = \Drupal::database()->schema();
+  if (!$schema->tableExists('do_notifications_digest_queue')) {
+    $full_schema = do_notifications_schema();
+    $schema->createTable('do_notifications_digest_queue', $full_schema['do_notifications_digest_queue']);
+  }
 }

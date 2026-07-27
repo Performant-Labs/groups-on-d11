@@ -66,6 +66,43 @@ services:
       - '@extension.list.module'
       - '@date.formatter'
 
+  # #234 (N-6): persists aggregated, per-recipient digest email payloads
+  # into the `do_notifications_digest_queue` table (see
+  # `do_notifications.install`), populated by DigestCommands::digestDaily()
+  # and — later — N-3's delivery worker. See
+  # src/Queue/DigestQueueBackendInterface.php's class docblock for why this
+  # is a separate contract from `do_notifications.queue`.
+  do_notifications.digest_queue:
+    class: Drupal\do_notifications\Queue\DatabaseDigestQueueBackend
+    arguments: ['@database', '@datetime.time']
+
+  # #234 (N-6): the daily digest worker's command class. Registered HERE
+  # (Drupal's own container), not only in `drush.services.yml`, because
+  # Drush's `drush.services.yml` mechanism instantiates services into a
+  # SEPARATE, Drush-internal registry
+  # (\Drush\Runtime\LegacyServiceInstantiator::$instantiatedDrushServices)
+  # that is never merged into \Drupal::getContainer() — confirmed by
+  # reading vendor/drush/drush/src/Runtime/LegacyServiceInstantiator.php: a
+  # service registered ONLY in drush.services.yml cannot be resolved via
+  # `\Drupal::service()`, which is exactly how DailyDigestCommandTest (and
+  # any future non-CLI caller) looks the command up. Registering it here
+  # makes it a normal, container-resolvable service; `drush.services.yml`
+  # separately tags it `drush.command` so `drush
+  # do_notifications:digest-daily` also works from the CLI (Drush's
+  # LegacyServiceInstantiator constructs its own short-lived instance for
+  # that dispatch path only — a harmless artifact of the legacy mechanism,
+  # not a functional duplication, since the two instances are stateless and
+  # only one is ever invoked per process).
+  do_notifications.digest_command:
+    class: Drupal\do_notifications\Commands\DigestCommands
+    arguments:
+      - '@do_notifications.queue'
+      - '@do_notifications.digest_queue'
+      - '@do_notifications.digest_renderer'
+      - '@entity_type.manager'
+      - '@state'
+      - '@datetime.time'
+
   # #232 (N-4): the [message:uid] / [message:field_group_id] /
   # [message:field_referenced_entity_type] /
   # [message:field_referenced_entity_id] token provider the activity_*

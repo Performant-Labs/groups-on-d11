@@ -29,6 +29,11 @@ use Drupal\Core\Database\Connection;
  * docblock), a repeat enqueue of the same tuple with a DIFFERENT send_at
  * updates the row's send_at via merge()->fields() — the last writer wins,
  * matching the "silent no-op" contract's intent (nothing new is added).
+ *
+ * #234 (N-6) adds `claimDaily()` (read-only SELECT filtered on frequency +
+ * created) and `deleteByIds()` (a plain `DELETE ... WHERE id IN (...)`) —
+ * see {@see QueueBackendInterface}'s class docblock for why these are two
+ * separate calls rather than one combined claim-and-delete.
  */
 class DatabaseQueueBackend implements QueueBackendInterface {
 
@@ -135,6 +140,51 @@ class DatabaseQueueBackend implements QueueBackendInterface {
       ->countQuery()
       ->execute()
       ->fetchField();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function claimDaily(int $olderThan): array {
+    $rows = $this->database->select(self::TABLE, 'q')
+      ->fields('q', ['id', 'uid', 'mid', 'template', 'frequency', 'day', 'created'])
+      ->condition('frequency', 'daily')
+      ->condition('created', $olderThan, '<')
+      ->orderBy('uid', 'ASC')
+      ->orderBy('created', 'ASC')
+      ->execute()
+      ->fetchAll(\PDO::FETCH_ASSOC);
+
+    $items = [];
+    foreach ($rows as $row) {
+      $items[] = [
+        'id' => (int) $row['id'],
+        'uid' => (int) $row['uid'],
+        'mid' => (int) $row['mid'],
+        'template' => $row['template'],
+        'frequency' => $row['frequency'],
+        'day' => $row['day'],
+        'created' => (int) $row['created'],
+      ];
+    }
+
+    return $items;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function deleteByIds(array $ids): void {
+    if (empty($ids)) {
+      // Guard against a bare `DELETE FROM do_notifications_queue` with no
+      // WHERE clause — an empty IN-clause must delete nothing, not
+      // everything.
+      return;
+    }
+
+    $this->database->delete(self::TABLE)
+      ->condition('id', $ids, 'IN')
+      ->execute();
   }
 
 }
