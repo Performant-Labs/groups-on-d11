@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+
+## Description: Fresh-install + fully seed the demo site (mirrors deploy/entrypoint.sh's install+seed flow, used for local dev)
+## Usage: bootstrap [--force]
+## Example: "ddev bootstrap" or "ddev bootstrap --force" (drops the DB and reinstalls even if already installed)
+
+set -euo pipefail
+cd /var/www/html
+
+FORCE=0
+[ "${1:-}" = "--force" ] && FORCE=1
+
+echo "==> bootstrap: assembling config + custom modules from docs/groups/ (source of truth)"
+bash scripts/ci/assemble-config.sh
+
+if [ "$FORCE" -eq 1 ] || ! drush status --field=bootstrap 2>/dev/null | grep -qi 'successful'; then
+  if [ "$FORCE" -eq 1 ]; then
+    echo "==> bootstrap: --force — dropping existing database"
+    drush sql:drop -y || true
+  fi
+
+  echo "==> bootstrap: site:install standard"
+  drush site:install standard --account-name=admin --account-pass=admin --site-name='Groups on D11' -y
+
+  echo "==> bootstrap: pointing config_sync_directory at config/sync (idempotent)"
+  SETTINGS="web/sites/default/settings.php"
+  if ! grep -q "config_sync_directory" "$SETTINGS" 2>/dev/null; then
+    echo '$settings["config_sync_directory"] = "/var/www/html/config/sync";' >> "$SETTINGS"
+    echo "    appended override to $SETTINGS"
+  else
+    echo "    already present in $SETTINGS"
+  fi
+  drush cr
+
+  echo "==> bootstrap: adopting config/sync's site UUID (required before config:import, or it rejects with a UUID mismatch)"
+  CFG_UUID="$(awk '/^uuid:/{print $2; exit}' config/sync/system.site.yml)"
+  drush config:set system.site uuid "$CFG_UUID" -y
+
+  echo "==> bootstrap: config:import"
+  drush config:import -y
+
+  echo "==> bootstrap: enabling custom + dependency modules (belt-and-suspenders)"
+  drush en -y \
+    message message_notify flag \
+    do_group_extras do_group_language do_group_membership do_group_mission do_group_pin \
+    do_multigroup do_notifications do_profile_stats do_discovery \
+    do_chrome do_showcase do_streams do_activity do_activity_feed do_ops
+
+  echo "==> bootstrap: seeding demo data"
+  for script in step_700_demo_data step_720_group_types step_7xx_backfill_activity step_795_activity_feed_e2e_fixture step_780_nav_menu; do
+    SEED_SCRIPT="/var/www/html/docs/groups/scripts/${script}.php"
+    if [ -f "$SEED_SCRIPT" ]; then
+      echo "    running $script (as uid 1)"
+      drush php:eval "
+        \$admin = \Drupal\user\Entity\User::load(1);
+        if (\$admin) { \Drupal::currentUser()->setAccount(\$admin); }
+        require '${SEED_SCRIPT}';
+      " || echo "    WARNING: $script returned non-zero (continuing)"
+    else
+      echo "    WARNING: $SEED_SCRIPT not found — skipping"
+    fi
+  done
+
+  drush cr
+  echo "==> bootstrap: install + seed complete"
+else
+  echo "==> bootstrap: site already installed — skipping install/seed (use --force to reinstall)"
+fi
+
+echo
+echo "==> bootstrap: sanity counts"
+drush php:eval 'echo \Drupal::entityQuery("group")->accessCheck(FALSE)->count()->execute() . " groups\n";'
+drush php:eval 'echo \Drupal::entityQuery("node")->accessCheck(FALSE)->count()->execute() . " nodes\n";'
+drush php:eval 'echo \Drupal::entityQuery("user")->accessCheck(FALSE)->count()->execute() . " users\n";'
+
+echo
+echo "==> bootstrap: done — admin login:"
+drush uli
