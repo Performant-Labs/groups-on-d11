@@ -1,4 +1,4 @@
-name: gm145-wcag
+name: groups-on-d11
 type: drupal10
 docroot: web
 php_version: "8.4"
