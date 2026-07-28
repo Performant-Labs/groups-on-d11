@@ -5,19 +5,22 @@ This overrides the generic Node/npm/vitest assumptions baked into the playbook r
 groups-on-d11 is a **Drupal 11 / DDEV** project. Read this + the target GitHub issue +
 `docs/planning/handoffs/WAVE-EXECUTION-HANDOFF.md` §6 before opening any phase.
 
-> To be visible inside per-story worktrees (which check out `origin/main`), this file must be
-> **committed**. Until then, the same facts are embedded in each agent def under
-> `~/.claude/agents/*.md` (the "Project override" block), which is always in scope.
+> Committed to `main`, so it is visible inside per-story worktrees (which check out `origin/main`).
+> **This file is the source of truth.** Where a user-scoped agent definition carries a conflicting
+> "Project override" block, this file wins — those blocks predate this document and were only ever
+> a stand-in for it.
 
 ---
 
 ## Repo & isolation
 - **Repo:** `Performant-Labs/groups-on-d11` (the deployable DEMO site — a POC to play with; favor
   visible/demo-credible over production hardening). NOT the drupalcode contrib module — leave that alone.
-- **Primary checkout** `~/Projects/groups-on-d11` is a **read-only reference**. Never mutate it.
-- **Per-story worktree:**
+- **Your primary checkout** of this repo is a **read-only reference**. Never mutate it — do every
+  story in its own worktree.
+- **Per-story worktree** (paths below are illustrative; substitute your own checkout location):
   ```bash
-  git -C ~/Projects/groups-on-d11 worktree add ~/Projects/_worktrees/groups-<slug> -b <n>-<slug> origin/main
+  REPO=~/Projects/groups-on-d11                       # wherever your checkout lives
+  git -C "$REPO" worktree add ~/Projects/_worktrees/groups-<slug> -b <n>-<slug> origin/main
   git -C ~/Projects/_worktrees/groups-<slug> remote get-url origin   # must contain "groups-on-d11"
   ```
 - Multiple Claude sessions may touch this repo — don't assume exclusive ownership of worktrees/containers.
@@ -84,7 +87,8 @@ visibility (public/unlisted/private) + join_policy (open/request).
   WCAG 2.2 AA on every UI story.
 
 ## Spawn fallback
-Some sessions on this workstation do not expose a subagent-spawn tool (the SDK agent registry is fixed at
-session start and may not load `~/.claude/agents/`). If spawning genuinely fails, use the orchestrator's
-**Human-Relay Mode**: emit paste-ready prompts for the operator and wait for completion reports. State
-explicitly that you're falling back, and why.
+Some sessions do not expose a subagent-spawn tool — an agent registry can be fixed at session start and
+may not pick up user-scoped agent definitions. This is a property of the environment you happen to be
+running in, not of this repo, so check rather than assume. If spawning genuinely fails, use the
+orchestrator's **Human-Relay Mode**: emit paste-ready prompts for the operator and wait for completion
+reports. State explicitly that you are falling back, and why.
