@@ -39,3 +39,4 @@ node_modules/
 
 # Local secrets (pipeline review keys) — never commit
 .env
+/.ddev/traefik/
