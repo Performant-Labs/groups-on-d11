@@ -10,14 +10,21 @@ import { test, expect, Page } from '@playwright/test';
  *
  *   Groups        -> /all-groups
  *   Activity      -> /stream
- *   My Groups     -> /user   (current user's page)
+ *   My Feed       -> /my-feed                (added by #110)
+ *   My Groups     -> /my-groups              (real page since #295)
  *   Create Group  -> /group/add/community_group
  *
  * Drupal hides a menu link when the current user cannot access its target, so:
  *   - Anonymous visitors see the publicly-accessible links (Groups, Activity).
- *   - Authenticated members additionally see My Groups and Create Group.
+ *   - Authenticated members additionally see My Feed, My Groups, Create Group.
  * This access-aware filtering is expected behaviour, not a regression — the
  * tests assert each state explicitly.
+ *
+ * The `standard` install profile's plugin-derived "Home" link is deliberately
+ * NOT part of this nav: the site logo and site name already link to the front
+ * page, and the duplicate cost 84px of a header that has none to spare (see
+ * do_chrome's PrimaryNavLinks hook and the "Desktop nav fit" rules in
+ * groups_chrome/css/chrome.css). The anonymous test asserts its absence.
  *
  * Auth uses the real /user/login form with admin/admin (matches phase1.spec).
  */
@@ -61,9 +68,15 @@ test.describe('CH-A1 — Header navigation (#83)', () => {
     const activity = nav.getByRole('link', { name: 'Activity', exact: true });
     await expect(activity).toBeVisible();
     await expect(activity).toHaveAttribute('href', '/stream');
+
+    // The profile-default "Home" link is suppressed — the branding block
+    // already links to the front page twice (logo + site name).
+    await expect(nav.getByRole('link', { name: 'Home', exact: true })).toHaveCount(
+      0,
+    );
   });
 
-  test('authenticated member sees all four community links', async ({ page }) => {
+  test('authenticated member sees all the community links', async ({ page }) => {
     await login(page);
     await page.goto('/');
     const nav = page.locator(NAV);
@@ -71,7 +84,8 @@ test.describe('CH-A1 — Header navigation (#83)', () => {
     const expected: Array<[string, string]> = [
       ['Groups', '/all-groups'],
       ['Activity', '/stream'],
-      ['My Groups', '/user'],
+      ['My Feed', '/my-feed'],
+      ['My Groups', '/my-groups'],
       ['Create Group', '/group/add/community_group'],
     ];
     for (const [name, href] of expected) {
