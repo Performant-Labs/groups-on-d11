@@ -216,3 +216,18 @@ body:not(.is-always-mobile-nav) .block-do-chrome-plain-search-form {
     display: none;
   }
 }
+
+/* Directory map marker tooltip (group name + short description). */
+.do-showcase-map-tip {
+  display: block;
+  max-width: 16rem;
+}
+
+.do-showcase-map-tip__text {
+  display: block;
+  margin-block-start: var(--gc-space-xs);
+  font-weight: var(--gc-font-weight-normal);
+  line-height: var(--gc-leading-normal);
+  color: var(--gc-color-text-muted);
+  white-space: normal;
+}

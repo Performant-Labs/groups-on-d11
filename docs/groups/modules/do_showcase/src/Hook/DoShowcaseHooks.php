@@ -697,11 +697,26 @@ class DoShowcaseHooks {
     }
     $name = $city !== '' ? $group->label() . ' — ' . $city : (string) $group->label();
 
+    // Short description for the marker's hover/focus tooltip. Plain text
+    // only: the value is rendered into a Leaflet tooltip client-side, so any
+    // markup in the source field is stripped here rather than trusted
+    // downstream. Trimmed to keep a tooltip a tooltip — the group page is
+    // one click away for the full text.
+    $description = '';
+    if ($group->hasField('field_group_description') && !$group->get('field_group_description')->isEmpty()) {
+      $raw = (string) $group->get('field_group_description')->value;
+      $plain = trim(preg_replace('/\s+/', ' ', strip_tags($raw)) ?? '');
+      if ($plain !== '') {
+        $description = mb_strimwidth($plain, 0, 160, '…');
+      }
+    }
+
     return [
       'data-do-location-lat' => (string) $lat,
       'data-do-location-lng' => (string) $lng,
       'data-do-location-url' => $group->toUrl()->toString(),
       'data-do-location-name' => $name,
+      'data-do-location-description' => $description,
     ];
   }
 

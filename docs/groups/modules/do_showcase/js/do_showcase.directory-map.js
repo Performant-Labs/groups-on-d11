@@ -110,10 +110,12 @@
       }
       const url = row.getAttribute('data-do-location-url') || '';
       const name = row.getAttribute('data-do-location-name') || '';
+      const description =
+        row.getAttribute('data-do-location-description') || '';
       if (!url) {
         return;
       }
-      locations.push({ lat, lng, url, name });
+      locations.push({ lat, lng, url, name, description });
     });
     return locations;
   }
@@ -300,11 +302,32 @@
     const markers = [];
     locations.forEach((location) => {
       const marker = L.marker([location.lat, location.lng], {
-        // Native `title` attribute (browser-native hover tooltip, zero extra
-        // library/DOM cost) — wireframe.md Open Question 1, D-gate
-        // APPROVED: "F adds a native title attribute on each marker".
-        title: location.name,
+        // `alt` (not `title`) carries the accessible name onto the marker
+        // img. The native `title` tooltip this previously used is replaced
+        // by the richer Leaflet tooltip bound below — keeping both would
+        // double-render on hover (Leaflet's immediately, the browser's
+        // again after its own delay).
+        alt: location.name,
       });
+
+      // Hover/focus tooltip: group name plus its short description.
+      //
+      // Built as DOM nodes with textContent rather than an HTML string, so
+      // the group-supplied description cannot inject markup — the server
+      // side already strips tags, this is the second half of that same
+      // guarantee (never assemble untrusted text into innerHTML).
+      const tip = document.createElement('div');
+      tip.className = 'do-showcase-map-tip';
+      const tipName = document.createElement('strong');
+      tipName.textContent = location.name;
+      tip.appendChild(tipName);
+      if (location.description) {
+        const tipText = document.createElement('span');
+        tipText.className = 'do-showcase-map-tip__text';
+        tipText.textContent = location.description;
+        tip.appendChild(tipText);
+      }
+      marker.bindTooltip(tip, { direction: 'top', offset: [0, -36] });
       marker.on('click', () => {
         window.location.assign(location.url);
       });
