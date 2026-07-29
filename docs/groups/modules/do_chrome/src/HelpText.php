@@ -429,7 +429,7 @@ final class HelpText {
       // explicit, already-planned backstop that sweeps EVERY #108 surface's
       // element-level tooltips, including wiring a consumer for this key —
       // see handoff-F.md for the deferred-wiring note.
-      'chrome.stream_switcher' => 'Global, My Feed, Following, and Trending are views over the same underlying content, switched by scope — one engine, not four separate systems.',
+      'chrome.stream_switcher' => 'Four scopes over the same content — one engine, not four separate systems. Global: everything on the site. My Feed: posts from groups you have JOINED — membership decides what appears. Following: posts you follow INDIVIDUALLY — a specific post, anything by a person you follow, or anything tagged with a tag you follow — regardless of which group it is in, or whether you joined that group at all. Trending: what is getting the most activity right now.',
       // --- #129 ST-7 (Activity feed): page.activity key. -------------------
       // Appended per the append-only HelpText contract. Follows the SAME
       // 'page.*' naming/shape #126 established (page.stream, page.all_groups,
