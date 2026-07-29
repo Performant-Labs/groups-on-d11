@@ -59,6 +59,7 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
+          --tmpfs /var/lib/mysql
 
     env:
       SIMPLETEST_DB: 'mysql://root:root@mysql:3306/drupal'
@@ -191,6 +192,7 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
+          --tmpfs /var/lib/mysql
 
     env:
       SIMPLETEST_DB: 'mysql://root:root@mysql:3306/drupal'
@@ -411,6 +413,7 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
+          --tmpfs /var/lib/mysql
 
     env:
       DRUPAL_DB_URL: 'mysql://root:root@mysql:3306/drupal'
