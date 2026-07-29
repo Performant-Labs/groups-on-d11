@@ -277,14 +277,10 @@ body:not(.is-always-mobile-nav) .block-do-chrome-plain-search-form {
  * width from 1200-1440px (fits on one line). See the MR description for the
  * full before/after measurement table.
  *
- * Known residual gap: authenticated users see a larger 6-item primary nav
- * (Groups/Home/Activity/My Feed/My Groups/Create Group, ~617px of content).
- * That cannot be made to fit in a <=1440px header without either hiding the
- * site name text entirely or shrinking nav text to an illegible size — both
- * rejected as worse than the flicker they'd avoid. This rule set still
- * measurably reduces (does not eliminate) the wrap margin for that case; the
- * remaining flicker for logged-in users at 1200-1440px is a real, disclosed
- * limitation, not a regression introduced here.
+ * Authenticated users need more than this: their primary nav is a 6-item list
+ * (Groups/Home/Activity/My Feed/My Groups/Create Group, 617px of content) and
+ * is still starved. The rule set immediately below this one closes that gap —
+ * see "Desktop nav fit, part 2".
  * ------------------------------------------------------------------------ */
 body:not(.is-always-mobile-nav) .site-branding__slogan {
   @media (min-width: 75rem) {
@@ -302,5 +298,150 @@ body:not(.is-always-mobile-nav) .site-branding__logo img {
 .region--secondary-menu .form-search {
   @media (min-width: 75rem) {
     width: 8rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Desktop nav fit, part 2 — make the AUTHENTICATED primary nav fit too.
+ *
+ * #300 (the rule set above) fixed the anonymous case. Logged-in visitors were
+ * still flickering at every desktop width, because their primary nav carries
+ * three extra links. Measured on a real seeded member (elena_garcia), with
+ * Olivero's own collapse test (`ul.clientHeight > navItem.clientHeight`):
+ *
+ *   viewport   nav needs   nav gets    result
+ *   1440px       617px       536px     wraps -> collapses
+ *   1366px       617px       504px     wraps -> collapses
+ *   1280px       617px       450px     wraps -> collapses
+ *   1200px       617px       385px     wraps -> collapses
+ *
+ * Olivero's `.container` caps out around 1440px, so widening the browser never
+ * helped: the logged-in nav collapsed at EVERY desktop width, not just
+ * 1200-1440.
+ *
+ * The important structural finding — and the reason the obvious fixes do not
+ * work — is that `.header-nav` is a flex row in which `.primary-nav` and
+ * `.region--secondary-menu` (wide search + account menu) both size to content.
+ * The secondary region reaches its max-content width first and does not
+ * shrink, so it takes what it wants and the primary nav is handed whatever is
+ * left. Consequence: *removing primary-nav links barely helps*, because the
+ * secondary region immediately absorbs the freed space. Measured:
+ *
+ *   - Moving "My Groups" out of the primary nav into the account menu changes
+ *     the shortfall by 0px (232px short at 1200px before AND after) — the
+ *     width simply moves from one side of the same flex row to the other. At
+ *     1200px it actually made the primary nav wrap to THREE rows instead of
+ *     two. It is a defensible information-architecture change on its own
+ *     merits, but it is not a fit fix, so it is deliberately NOT done here.
+ *   - Likewise, trimming the nav alone (fewer links, tighter gutters) only
+ *     moved the "fits from" width from ~1400px to ~1350px.
+ *
+ * What actually fixes it is reclaiming width from the header furniture that
+ * is starving the nav. Four changes, all of them whitespace or redundancy —
+ * no link text is shrunk, no nav item is hidden, the site name stays:
+ *
+ *   1. Primary-nav gutter 36px (`--sp2`) -> 20px at desktop nav widths. Pure
+ *      inter-item whitespace; 6 items were spending 180px on gaps alone.
+ *   2. `.site-branding` drops Olivero's "span at least 2 grid columns"
+ *      min-width floor and its 36px end padding. The floor was padding the
+ *      branding block out to 258px to hold content that measures 185px.
+ *   3. `.secondary-nav` (both header blocks carry this class) trims the
+ *      18px margin + 36px padding that offsets each block from its separator
+ *      rule, and the 36px gap between "My account" and "Log out".
+ *   4. The wide search field becomes a magnifier-icon control that expands to
+ *      a full field on focus. This is the single biggest win (~120px) and is
+ *      what Olivero's OWN desktop search does — its `.block-search-wide` is an
+ *      icon button that opens a search overlay. This theme's search is a
+ *      custom block (#252, `do_chrome_plain_search_form`) so Olivero's rules
+ *      never matched it and the raw input sat there at full width.
+ *      The expanded state is absolutely positioned, so focusing the field
+ *      never reflows the header (a reflow would re-trigger the very collapse
+ *      this is preventing). Below 1200px the mobile drawer keeps the full
+ *      inline form, submit button and all.
+ *
+ * Measured after (same member, same method): the nav needs 470px and is given
+ * 518px at 1200px — it fits on one line at every width from 1200px up, so
+ * `nav-resize.js` never adds `is-always-mobile-nav` and there is nothing to
+ * flicker. See the PR description for the full before/after table.
+ * ------------------------------------------------------------------------ */
+
+/* 1. Primary-nav inter-item gutter. */
+body:not(.is-always-mobile-nav) .primary-nav__menu-item--level-1:not(:last-child) {
+  @media (min-width: 75rem) {
+    margin-inline-end: 20px;
+  }
+}
+
+/* 2. Site branding: drop the 2-grid-column min-width floor and the oversized
+ *    end gutter. The logo, site name and their spacing are untouched. */
+body:not(.is-always-mobile-nav) .site-branding {
+  @media (min-width: 75rem) {
+    min-width: 0;
+    margin-inline-end: 8px;
+    padding-inline-end: 12px;
+  }
+}
+
+/* 3. Secondary-menu blocks: tighten the separator gutter and the gap between
+ *    the account links. Both remain fully visible. */
+body:not(.is-always-mobile-nav) .secondary-nav {
+  @media (min-width: 75rem) {
+    margin-inline-start: 8px;
+    padding-inline-start: 12px;
+  }
+}
+
+body:not(.is-always-mobile-nav) .secondary-nav__menu-item:not(:last-child) {
+  @media (min-width: 75rem) {
+    margin-inline-end: 16px;
+  }
+}
+
+/* 4. Wide header search -> magnifier icon that expands on focus.
+ *    Scoped to the wide block only; the narrow (drawer) block is untouched. */
+body:not(.is-always-mobile-nav) #block-groups-chrome-search-form-wide {
+  @media (min-width: 75rem) {
+    & .search-block-form {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 2.5rem;
+    }
+
+    /* Resting state: a 40px magnifier. Clicking or tabbing to it focuses the
+     * real input, so there is no separate toggle control to keep in sync. */
+    & .form-search {
+      width: 2.5rem;
+      min-width: 0;
+      padding-inline: 0;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23545560' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-4.7-4.7'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 1.25rem 1.25rem;
+    }
+
+    /* Expanded state: absolutely positioned so the header never reflows. */
+    & .form-search:focus {
+      position: absolute;
+      z-index: 501;
+      inset-inline-end: 0;
+      width: 16rem;
+      /* Olivero caps form controls at `max-width: 100%`; the containing block
+       * here is the 2.5rem collapsed form, which would clamp the expanded
+       * field straight back to icon width. */
+      max-width: none;
+      padding-inline-start: 2.5rem;
+      cursor: text;
+      background-color: var(--color--white, #fff);
+      background-position: 0.75rem center;
+    }
+
+    /* The submit button is the widest thing in this block (119px) and is
+     * redundant for a single-field search form — pressing Enter submits it.
+     * It is desktop-only suppression: the drawer form keeps its button. */
+    & .search-block-form .button {
+      display: none;
+    }
   }
 }

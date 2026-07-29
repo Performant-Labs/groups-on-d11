@@ -146,10 +146,17 @@ foreach ($links as $link) {
 // menu. It is not a `menu_link_content` entity, so the idempotent loop above
 // never sees or manages it — left alone, it renders as a 6th, unintended
 // "Home" item alongside the five links this script curates. Disabling it via
-// the menu-link plugin manager is durable (persisted in Drupal's key/value
-// override store, survives cache rebuilds) and, being idempotent itself
-// (setting `enabled => FALSE` on an already-disabled definition is a no-op),
-// safe to run on every seed.
+// the menu-link plugin manager is idempotent (setting `enabled => FALSE` on an
+// already-disabled definition is a no-op), so it is safe to run on every seed.
+//
+// It is NOT durable, though: the override it writes can be discarded by a
+// menu-link rebuild, after which "Home" silently reappears — which is exactly
+// what happened, leaving a sixth item in a primary nav that then no longer fit
+// on one line for logged-in visitors (the collapse-to-hamburger flicker).
+// `Drupal\do_chrome\Hook\PrimaryNavLinks` now re-asserts the same intent in
+// `hook_menu_links_discovered_alter()`, where a rebuild cannot undo it, and is
+// the durable source of truth. The call below is kept as a belt-and-suspenders
+// no-op for sites that were seeded before that hook existed.
 $menu_link_manager = \Drupal::service('plugin.manager.menu.link');
 $front_page_definition = $menu_link_manager->getDefinition('standard.front_page', FALSE);
 if ($front_page_definition && !empty($front_page_definition['enabled'])) {
