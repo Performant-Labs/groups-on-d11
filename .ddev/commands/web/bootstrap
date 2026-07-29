@@ -12,6 +12,7 @@ FORCE=0
 
 echo "==> bootstrap: assembling config + custom modules from docs/groups/ (source of truth)"
 bash scripts/ci/assemble-config.sh
+bash scripts/ci/assemble-libraries.sh
 
 if [ "$FORCE" -eq 1 ] || ! drush status --field=bootstrap 2>/dev/null | grep -qi 'successful'; then
   if [ "$FORCE" -eq 1 ]; then
