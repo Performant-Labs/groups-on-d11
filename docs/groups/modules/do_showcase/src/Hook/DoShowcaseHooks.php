@@ -550,6 +550,59 @@ class DoShowcaseHooks {
     $switcher['#wrapper_attributes']['data-do-showcase-mirror-selector'] = '.views-element-container';
 
     $variables['header']['switcher'] = $switcher;
+    $this->nameTheSearchInEmptyState($variables, $view);
+  }
+
+  /**
+   * Names the actual search term when a search returned nothing.
+   *
+   * The view's own empty area is a static Views "global: text" area, so it
+   * cannot see what the visitor typed — the best it can say generically is
+   * "No groups found ... try different terms". Echoing the term back
+   * ("No groups match "frankfurt"") confirms what was actually searched for,
+   * which is the difference between a dead end and an obvious next step.
+   *
+   * Only replaces the empty area when there IS a search term: filters-only
+   * and genuinely-empty cases keep the view's static copy, which is already
+   * accurate for them, so this hook owns exactly one case.
+   *
+   * The term is passed as a `@search` placeholder through t(), so it is
+   * escaped by the translation/render layer — never concatenated into markup.
+   */
+  private function nameTheSearchInEmptyState(array &$variables, ViewExecutable $view): void {
+    if (!empty($view->result)) {
+      return;
+    }
+
+    $search = trim((string) ($view->getExposedInput()['search'] ?? ''));
+    if ($search === '') {
+      return;
+    }
+
+    $variables['empty'] = [
+      'do_showcase_no_match' => [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['gc-empty']],
+        'title' => [
+          '#type' => 'html_tag',
+          '#tag' => 'p',
+          '#attributes' => ['class' => ['gc-empty__title']],
+          '#value' => t('No groups match "@search"', ['@search' => $search]),
+        ],
+        'text' => [
+          '#type' => 'html_tag',
+          '#tag' => 'p',
+          '#attributes' => ['class' => ['gc-empty__text']],
+          '#value' => t('Try a different term, or clear the filters to see every group.'),
+        ],
+        'reset' => [
+          '#type' => 'link',
+          '#title' => t('Clear filters'),
+          '#url' => Url::fromRoute('view.all_groups.page_1'),
+          '#attributes' => ['class' => ['gc-button', 'gc-button--primary']],
+        ],
+      ],
+    ];
   }
 
   /**
