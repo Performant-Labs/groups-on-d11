@@ -217,6 +217,21 @@ body:not(.is-always-mobile-nav) .block-do-chrome-plain-search-form {
   }
 }
 
+/* Directory map marker tooltip (group name + short description). */
+.do-showcase-map-tip {
+  display: block;
+  max-width: 16rem;
+}
+
+.do-showcase-map-tip__text {
+  display: block;
+  margin-block-start: var(--gc-space-xs);
+  font-weight: var(--gc-font-weight-normal);
+  line-height: var(--gc-leading-normal);
+  color: var(--gc-color-text-muted);
+  white-space: normal;
+}
+
 /* ---------------------------------------------------------------------------
  * Desktop nav fit — shrink header furniture so the primary nav <ul> genuinely
  * fits on one line at >=1200px, instead of wrapping and being force-collapsed
