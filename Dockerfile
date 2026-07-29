@@ -22,7 +22,8 @@ COPY docs/groups/ docs/groups/
 # (.github/workflows/test.yml). Without it the image ships only the Phase-1
 # baseline config and an empty web/modules/custom, so the seeded site cannot be
 # reconstructed on a fresh database.
-RUN bash scripts/ci/assemble-config.sh
+RUN bash scripts/ci/assemble-config.sh \
+ && bash scripts/ci/assemble-libraries.sh
 
 RUN mkdir -p web/sites/default/files web/sites/default/private private \
     && chown -R www-data:www-data web/sites web/sites/default/files web/sites/default/private private \
