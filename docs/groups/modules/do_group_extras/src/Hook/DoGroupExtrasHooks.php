@@ -308,6 +308,27 @@ class DoGroupExtrasHooks {
     if ($group->get('field_group_privacy')->value !== 'private') {
       return FALSE;
     }
+    // Site administrators are exempt (issue #280).
+    //
+    // `administer group` is the Group module's own site-wide administrative
+    // permission, and this build ALREADY treats it as sufficient to reach a
+    // private group's roster: do_group_membership's Manage-members access
+    // callback grants on `administer group` OR the per-group `administer
+    // members` permission, with no privacy check. Without this exemption a
+    // site admin can administer a private group's members while being
+    // hard-forbidden from the group's own canonical page — an
+    // inconsistency, not a deliberate policy.
+    //
+    // The check is required rather than incidental: a `forbidden()` result
+    // from hook_group_access outranks every other access signal in core's
+    // merge order, including uid 1's superuser bypass, so without testing
+    // the permission here an admin bypass simply cannot apply.
+    //
+    // Privacy is unchanged for everyone else — a non-member WITHOUT
+    // `administer group` is still forbidden exactly as before.
+    if ($account->hasPermission('administer group')) {
+      return FALSE;
+    }
     return $group->getMember($account) === FALSE;
   }
 
