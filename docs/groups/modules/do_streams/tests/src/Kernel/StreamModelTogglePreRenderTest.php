@@ -191,34 +191,37 @@ class StreamModelTogglePreRenderTest extends GroupsKernelTestBase {
   }
 
   /**
-   * The switcher is injected into the rendered view's header region with
-   * exactly two options in order (Content view / Activity view), Content
-   * view carrying `available: false` — observed via a FULL render pass.
+   * The switcher is ABSENT while only one model option is available (#285).
+   *
+   * This test previously asserted a two-option switcher (Content view /
+   * Activity view) with Content carrying `available: false` and a "(soon)"
+   * suffix. #285 changed `VariantSwitcher::build()` to render nothing at all
+   * when fewer than TWO options are available: a comparison control whose
+   * other half does not exist reads as broken rather than forthcoming, and
+   * contradicted the demo's own honesty rule (#133 SD-6 — never imply
+   * availability that is not there). `stream.model` has exactly one
+   * available option today, because #129 has not shipped a real Content view
+   * display, so the control is intentionally gone.
+   *
+   * When #129 ships and flips that option's `available` flag to TRUE, the
+   * switcher returns automatically and this assertion should be re-inverted
+   * to the two-option form this test carried before PR #285 (recoverable
+   * from git history).
    */
-  public function testSwitcherInjectedWithTwoOptionsInOrder(): void {
+  public function testSwitcherAbsentWhileOnlyOneOptionAvailable(): void {
     $view = $this->buildActivityStreamView();
     $html = $this->renderViewToHtml($view);
 
-    $this->assertStringContainsString(
+    $this->assertStringNotContainsString(
       'data-do-showcase-instance="stream.model"',
       $html,
-      'The rendered view header carries the stream.model switcher instance (VariantSwitcher::build() via ModelToggleHooks::preprocessViewsView()).'
+      'With only one available option, VariantSwitcher::build() returns an empty render array, so no stream.model switcher is emitted.'
     );
-
-    // Exactly two options, in order: content, activity.
-    preg_match_all('/data-do-showcase-id="([^"]+)"/', $html, $matches);
-    $this->assertSame(['content', 'activity'], $matches[1] ?? [], 'Exactly two options, in order: content, activity.');
-
-    // The content option is unavailable: aria-disabled + "(soon)" suffix.
-    preg_match('#<a\b[^>]*data-do-showcase-id="content"[^>]*>#s', $html, $content_tag_match);
-    $this->assertNotEmpty($content_tag_match, 'The content option\'s opening <a> tag must be found in the rendered HTML.');
-    $this->assertStringContainsString(
-      'aria-disabled="true"',
-      $content_tag_match[0] ?? '',
-      'The content option\'s <a> tag must carry aria-disabled="true" (available: false).'
+    $this->assertStringNotContainsString(
+      'Content view (soon)',
+      $html,
+      'A visitor must never be offered a control for a view that does not exist (#285).'
     );
-    $this->assertStringContainsString('Content view (soon)', $html, 'The content option\'s visible label must carry the truthful "(soon)" suffix.');
-    $this->assertStringContainsString('Activity view', $html, 'The activity option\'s visible label must read "Activity view".');
   }
 
   /**

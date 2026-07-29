@@ -53,38 +53,6 @@ class DoChromeHooks {
       HelpText::get('demo.foundation');
   }
 
-  /**
-   * Declares mobile-style navigation up front, killing a ~200ms nav flicker.
-   *
-   * Olivero's `nav-resize.js` watches the primary nav with a ResizeObserver
-   * and force-switches to the mobile (hamburger) navigation whenever the
-   * desktop nav wraps to a second line, by adding `is-always-mobile-nav` to
-   * `<body>`. On this site that check ALWAYS ends up true at desktop widths:
-   * the header carries site branding plus a secondary community menu and an
-   * account menu, leaving the primary-nav <ul> narrower than its own items
-   * need, so it wraps and Olivero collapses it.
-   *
-   * The problem is purely one of TIMING, not of final appearance: that
-   * observer cannot run until the footer-aggregated JS has loaded, so the
-   * desktop nav paints, sits visible for ~200ms, and then vanishes — the
-   * user-reported "menu flickers on refresh". Measured at 1440px/1280px/
-   * 1200px: visible from ~54-101ms, collapsed by ~256-317ms.
-   *
-   * Adding the class server-side means the mobile nav is what CSS renders
-   * from the very first paint. The settled appearance is byte-identical to
-   * what the JS produced anyway — this only removes the visible intermediate
-   * state. Olivero's own JS is unaffected and idempotent here: its
-   * `transitionToDesktopNavigation()` re-adds the class after its own wrap
-   * re-check, so behaviour on resize is unchanged.
-   *
-   * If a future story slims the header enough for the desktop nav to
-   * genuinely fit on one line, delete this hook — the flicker it works
-   * around only exists while the nav is guaranteed to collapse.
-   */
-  #[Hook('preprocess_html')]
-  public function preprocessHtml(array &$variables): void {
-    $variables['attributes']['class'][] = 'is-always-mobile-nav';
-  }
 
   // ---------------------------------------------------------------------------
   // B-story tooltip surfaces (#88-#92) are added below, one #[Hook] method each.

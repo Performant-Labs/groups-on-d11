@@ -109,11 +109,15 @@ function fallbackListLocator(page: Page) {
 const FORBIDDEN_HOST_PATTERNS = [
   /unpkg\.com/i,
   /cdnjs\.cloudflare\.com/i,
-  /tile\.openstreetmap\.org/i,
   /\.mapbox\.com/i,
   /googleapis\.com\/maps/i,
 ];
 
+// NOTE: openstreetmap.org tiles were REMOVED from this deny-list in #289,
+// which deliberately reversed the story's original "zero external network
+// requests for map assets" AC — the map now fetches an OSM basemap so pins
+// have geographic context. Leaflet itself and its marker sprites are still
+// required to be first-party (vendored), which is what this check now pins.
 function isForbiddenRequest(request: Request): boolean {
   const url = request.url();
   if (url.startsWith('data:') || url.startsWith('blob:')) {
@@ -123,6 +127,13 @@ function isForbiddenRequest(request: Request): boolean {
   try {
     hostname = new URL(url).hostname;
   } catch {
+    return false;
+  }
+  // OSM basemap tiles are EXPECTED external requests since #289 reversed the
+  // original "zero external requests for map assets" AC — pins on blank grey
+  // conveyed no geography. Leaflet itself and its marker sprites must still
+  // be first-party (vendored), which is what the rest of this check pins.
+  if (/(^|\.)tile\.openstreetmap\.org$/i.test(hostname)) {
     return false;
   }
   // First-party: same origin as the page itself.
@@ -278,7 +289,7 @@ test.describe('#125 SC-6 — Directory map view (/all-groups)', () => {
     expect((box?.height ?? 0)).toBeGreaterThan(1);
   });
 
-  test('zero external network requests during the map page load — every Leaflet asset comes from /libraries/leaflet/', async ({
+  test('every Leaflet asset comes from /libraries/leaflet/ — only OSM basemap tiles are external (#289)', async ({
     page,
   }) => {
     const offenders: string[] = [];
