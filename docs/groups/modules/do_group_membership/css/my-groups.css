@@ -1,0 +1,68 @@
+/**
+ * @file
+ * "My Groups" page styling (do_group_membership).
+ *
+ * Module-owned CSS, attached only on the /my-groups route (#attached
+ * library), per every existing UI-bearing do_* module (do_chrome,
+ * do_group_extras, do_multigroup, do_profile_stats).
+ *
+ * Uses ONLY tokens.css custom properties + groups_chrome's `.gc-` primitives
+ * (.gc-badge, .gc-empty, .gc-button) — no hard-coded colors/spacing here.
+ *
+ * WCAG 2.2 AA: the role badge and the "only groups I created" filter both
+ * convey their state via visible TEXT (the badge's own word "Organizer"/
+ * "Member"; the filter's ☑/☐ glyph + label), never color alone — the
+ * .gc-badge modifier color is a secondary reinforcement, not the only
+ * signal. The filter toggle gets an explicit :focus-visible outline since
+ * browser UA defaults are not consistently visible enough across this
+ * codebase's supported browsers.
+ */
+
+.do-my-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gc-space-md);
+}
+
+.do-my-groups__filter {
+  margin-bottom: var(--gc-space-sm);
+}
+
+.do-my-groups__filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gc-space-2xs);
+  padding: var(--gc-space-2xs) var(--gc-space-sm);
+  border: 1px solid var(--gc-color-border);
+  border-radius: var(--gc-radius-md);
+  color: var(--gc-color-text);
+  text-decoration: none;
+  font-size: var(--gc-font-size-sm);
+}
+
+.do-my-groups__filter-toggle:hover {
+  background-color: var(--gc-color-bg-subtle);
+}
+
+.do-my-groups__filter-toggle:focus-visible {
+  outline: 2px solid var(--gc-color-primary-700);
+  outline-offset: 2px;
+}
+
+/* Visual "checked" reinforcement when the filter is active — the ☑ glyph in
+   the link's own text already carries the meaning; this is a secondary,
+   non-load-bearing tint. */
+.do-my-groups__filter-toggle--active {
+  background-color: var(--gc-color-primary-050);
+  border-color: var(--gc-color-primary-700);
+  color: var(--gc-color-primary-700);
+  font-weight: var(--gc-font-weight-semibold);
+}
+
+.do-my-groups__card {
+  position: relative;
+}
+
+.do-my-groups__role-badge {
+  margin-bottom: var(--gc-space-2xs);
+}
