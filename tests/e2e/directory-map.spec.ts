@@ -129,6 +129,13 @@ function isForbiddenRequest(request: Request): boolean {
   } catch {
     return false;
   }
+  // OSM basemap tiles are EXPECTED external requests since #289 reversed the
+  // original "zero external requests for map assets" AC — pins on blank grey
+  // conveyed no geography. Leaflet itself and its marker sprites must still
+  // be first-party (vendored), which is what the rest of this check pins.
+  if (/(^|\.)tile\.openstreetmap\.org$/i.test(hostname)) {
+    return false;
+  }
   // First-party: same origin as the page itself.
   const isFirstParty = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.ddev.site');
   if (!isFirstParty) {
@@ -282,7 +289,7 @@ test.describe('#125 SC-6 — Directory map view (/all-groups)', () => {
     expect((box?.height ?? 0)).toBeGreaterThan(1);
   });
 
-  test('zero external network requests during the map page load — every Leaflet asset comes from /libraries/leaflet/', async ({
+  test('every Leaflet asset comes from /libraries/leaflet/ — only OSM basemap tiles are external (#289)', async ({
     page,
   }) => {
     const offenders: string[] = [];
