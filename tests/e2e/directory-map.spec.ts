@@ -109,11 +109,15 @@ function fallbackListLocator(page: Page) {
 const FORBIDDEN_HOST_PATTERNS = [
   /unpkg\.com/i,
   /cdnjs\.cloudflare\.com/i,
-  /tile\.openstreetmap\.org/i,
   /\.mapbox\.com/i,
   /googleapis\.com\/maps/i,
 ];
 
+// NOTE: openstreetmap.org tiles were REMOVED from this deny-list in #289,
+// which deliberately reversed the story's original "zero external network
+// requests for map assets" AC — the map now fetches an OSM basemap so pins
+// have geographic context. Leaflet itself and its marker sprites are still
+// required to be first-party (vendored), which is what this check now pins.
 function isForbiddenRequest(request: Request): boolean {
   const url = request.url();
   if (url.startsWith('data:') || url.startsWith('blob:')) {
