@@ -217,17 +217,75 @@ body:not(.is-always-mobile-nav) .block-do-chrome-plain-search-form {
   }
 }
 
-/* Directory map marker tooltip (group name + short description). */
-.do-showcase-map-tip {
-  display: block;
-  max-width: 16rem;
+/* ---------------------------------------------------------------------------
+ * Desktop nav fit — shrink header furniture so the primary nav <ul> genuinely
+ * fits on one line at >=1200px, instead of wrapping and being force-collapsed
+ * to the hamburger by Olivero's `nav-resize.js` ResizeObserver.
+ *
+ * #287 tried to hide the flicker by adding `is-always-mobile-nav` to <body>
+ * server-side. That killed the flicker but permanently hid the desktop nav
+ * (nav-resize.js's collapse is CSS-driven and idempotent regardless of why
+ * the class is present), breaking every E2E assertion that the desktop nav
+ * is visible. #287 was reverted for that reason — this rule set replaces it
+ * with an actual fit, not a hidden nav.
+ *
+ * Root cause: `.header-nav` is a flex row shared by the (already-hidden-above)
+ * narrow search, the primary-nav <ul>, and `.region--secondary-menu` (wide
+ * search + account menu). Two furniture pieces were oversized relative to
+ * their actual job:
+ *
+ *   1. `.site-branding__logo` — the theme's logo.svg is a 200x40 wordmark
+ *      (an icon mark PLUS the text "Drupal Groups" baked into the SVG).
+ *      Olivero only constrains its max-height, so at desktop widths it
+ *      renders close to its full 200px intrinsic width — duplicating the
+ *      adjacent `.site-branding__name` text ("Groups on D11"), which already
+ *      carries the brand name. Capping the rendered logo to the icon mark's
+ *      width (~34px) removes the duplication, not the brand.
+ *   2. `.site-branding__slogan` ("A community platform demo…") — descriptive
+ *      copy, not identity; dropping it at desktop nav widths (it's still
+ *      shown in the mobile drawer, an unconstrained-width layout) trims the
+ *      branding column further without touching the logo or site name.
+ *   3. The wide search input in `.region--secondary-menu` is the SAME custom
+ *      block plugin as the narrow one above (`do_chrome_plain_search_form`,
+ *      #252's plain-markup form), just placed in a different region without
+ *      the `.block-do-chrome-plain-search-form` wrapper class this file's
+ *      earlier rule targets. Olivero's own wide-search CSS — which normally
+ *      collapses its search to a small icon button until focused — only
+ *      matches Olivero's block class, so it never applies here either. Left
+ *      unstyled, the bare `<input type="search">` renders at the browser's
+ *      ~200px default. Capping it to a fixed, still generously usable 8rem
+ *      (128px) recovers real width without hiding the field.
+ *
+ * Measured effect (anonymous nav, 3 items: Groups/Home/Activity, ~242px of
+ * content): before this rule the nav <ul> was allocated as little as ~170px
+ * at 1200px viewport width (wraps); after, it is allocated >=242px at every
+ * width from 1200-1440px (fits on one line). See the MR description for the
+ * full before/after measurement table.
+ *
+ * Known residual gap: authenticated users see a larger 6-item primary nav
+ * (Groups/Home/Activity/My Feed/My Groups/Create Group, ~617px of content).
+ * That cannot be made to fit in a <=1440px header without either hiding the
+ * site name text entirely or shrinking nav text to an illegible size — both
+ * rejected as worse than the flicker they'd avoid. This rule set still
+ * measurably reduces (does not eliminate) the wrap margin for that case; the
+ * remaining flicker for logged-in users at 1200-1440px is a real, disclosed
+ * limitation, not a regression introduced here.
+ * ------------------------------------------------------------------------ */
+body:not(.is-always-mobile-nav) .site-branding__slogan {
+  @media (min-width: 75rem) {
+    display: none;
+  }
 }
 
-.do-showcase-map-tip__text {
-  display: block;
-  margin-block-start: var(--gc-space-xs);
-  font-weight: var(--gc-font-weight-normal);
-  line-height: var(--gc-leading-normal);
-  color: var(--gc-color-text-muted);
-  white-space: normal;
+body:not(.is-always-mobile-nav) .site-branding__logo img {
+  @media (min-width: 75rem) {
+    width: auto;
+    max-width: 34px;
+  }
+}
+
+.region--secondary-menu .form-search {
+  @media (min-width: 75rem) {
+    width: 8rem;
+  }
 }

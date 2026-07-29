@@ -53,7 +53,6 @@ class DoChromeHooks {
       HelpText::get('demo.foundation');
   }
 
-
   // ---------------------------------------------------------------------------
   // B-story tooltip surfaces (#88-#92) are added below, one #[Hook] method each.
   // Template:
