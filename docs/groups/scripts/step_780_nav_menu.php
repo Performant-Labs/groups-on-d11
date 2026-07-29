@@ -14,10 +14,10 @@
  *   Activity      -> /stream                          (activity_stream view)
  *   My Feed       -> /my-feed                          (do_streams.my_feed
  *                                                       route, issue #110)
- *   My Groups     -> /user                             (current user's page;
- *                                                       shows their group
- *                                                       memberships via
- *                                                       do_profile_stats)
+ *   My Groups     -> /my-groups                        (do_group_membership
+ *                                                       .my_groups route —
+ *                                                       lists the groups the
+ *                                                       visitor belongs to)
  *   Create Group  -> /group/add/community_group       (group add form)
  *
  * The account menu (Log in / My account / Log out) is provided by core's
@@ -89,7 +89,7 @@ $links = [
   [
     'key' => 'ch83-nav-my-groups',
     'title' => 'My Groups',
-    'uri' => 'internal:/user',
+    'uri' => 'internal:/my-groups',
     // Surgically re-weighted from 2 -> 3 (handoff-A.md Finding #8) to make
     // room for My Feed at weight 2. Title/uri/description are unchanged.
     'weight' => 3,

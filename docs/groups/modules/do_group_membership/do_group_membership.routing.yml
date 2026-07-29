@@ -73,3 +73,17 @@ do_group_membership.group_created_preview:
     parameters:
       group:
         type: entity:group
+
+# "My Groups" — the groups the CURRENT user belongs to.
+#
+# The main-menu "My Groups" link previously pointed at /user, i.e. the
+# visitor's own profile, which shows a group COUNT via do_profile_stats but
+# never lists the groups themselves — a link promising a list that delivered
+# a number. This route is that missing destination.
+do_group_membership.my_groups:
+  path: '/my-groups'
+  defaults:
+    _controller: '\Drupal\do_group_membership\Controller\MyGroupsController::page'
+    _title: 'My groups'
+  requirements:
+    _user_is_logged_in: 'TRUE'
