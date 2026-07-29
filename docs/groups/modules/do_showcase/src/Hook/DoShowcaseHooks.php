@@ -221,6 +221,28 @@ class DoShowcaseHooks {
         ],
       ],
     ];
+
+    // Synchronous inline anti-flash script, rendered as a sibling of the
+    // ribbon markup above (source order = execution order for a parser-
+    // blocking inline <script>, so this always runs immediately after the
+    // ribbon element it targets has been parsed into the DOM). Fixes a real
+    // FOUC: `do_showcase/ribbon`'s own behavior JS is aggregated into the
+    // page's single footer <script>, loaded and executed only after the
+    // full page has been parsed — for a returning visitor who already
+    // dismissed the ribbon this session, that left a visible gap where the
+    // ribbon was painted, then removed, producing a "flickers then
+    // disappears" flash on refresh. This duplicates the same
+    // sessionStorage-per-session check the library performs (kept in sync
+    // deliberately — see do_showcase.ribbon.js), but hides via inline style
+    // BEFORE first paint rather than removing after full-page JS execution.
+    // No user input is interpolated; this is a fixed, module-authored
+    // constant, so raw #value (unescaped, required for valid inline JS) is
+    // safe.
+    $page_top['do_showcase_ribbon_antiflash'] = [
+      '#type' => 'html_tag',
+      '#tag' => 'script',
+      '#value' => "(function(){try{if(window.sessionStorage.getItem('doShowcase.ribbonDismissed')==='1'){var r=document.getElementById('do-showcase-ribbon');if(r){r.style.display='none';}}}catch(e){}})();",
+    ];
   }
 
   /**
