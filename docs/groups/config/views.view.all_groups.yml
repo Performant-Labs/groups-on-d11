@@ -193,7 +193,7 @@ display:
           plugin_id: text_custom
           label: ''
           empty: true
-          content: '<div class="gc-empty"><p class="gc-empty__title">No groups yet</p><p class="gc-empty__text">Be the first to start a community.</p><a class="gc-button gc-button--primary" href="/group/add">Create a group</a></div>'
+          content: '<div class="gc-empty"><p class="gc-empty__title">No groups found</p><p class="gc-empty__text">If you searched or filtered, try different terms or clear the filters. Otherwise, be the first to start a community.</p><a class="gc-button gc-button--primary" href="/group/add">Create a group</a></div>'
           tokenize: false
       style:
         type: default
