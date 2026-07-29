@@ -1,0 +1,92 @@
+uuid: 9d7afe48-fc91-48bf-b60a-857fdce80e25
+langcode: en
+status: true
+dependencies:
+  module:
+    - group
+id: all_groups
+label: 'All Groups'
+module: views
+description: 'Group directory with exposed filters'
+tag: ''
+base_table: groups_field_data
+base_field: id
+display:
+  default:
+    id: default
+    display_title: Default
+    display_plugin: default
+    position: 0
+    display_options:
+      title: 'All Groups'
+      fields:
+        label:
+          id: label
+          table: groups_field_data
+          field: label
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: group
+          entity_field: label
+          plugin_id: field
+          label: 'Group Name'
+      pager:
+        type: full
+        options:
+          pagination_heading_level: h4
+          items_per_page: 25
+      exposed_form:
+        type: basic
+        options:
+          submit_button: Filter
+          reset_button: true
+          reset_button_label: Reset
+      sorts:
+        created:
+          id: created
+          table: groups_field_data
+          field: created
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: group
+          entity_field: created
+          plugin_id: date
+          order: DESC
+      filters:
+        status:
+          id: status
+          table: groups_field_data
+          field: status
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: group
+          entity_field: status
+          plugin_id: boolean
+          value: '1'
+      empty:
+        area_text_custom:
+          id: area_text_custom
+          table: views
+          field: area_text_custom
+          relationship: none
+          group_type: group
+          admin_label: ''
+          plugin_id: text_custom
+          label: ''
+          empty: true
+          content: '<div class="gc-empty"><p class="gc-empty__title">No groups yet</p><p class="gc-empty__text">Be the first to start a community.</p><a class="gc-button gc-button--primary" href="/group/add">Create a group</a></div>'
+          tokenize: false
+      style:
+        type: default
+      row:
+        type: fields
+  page_1:
+    id: page_1
+    display_title: Page
+    display_plugin: page
+    position: 1
+    display_options:
+      path: all-groups
