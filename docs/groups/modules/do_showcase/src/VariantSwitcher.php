@@ -224,6 +224,32 @@ final class VariantSwitcher {
    */
   public function build(string $instance_id, array $options, string $current, string $query_key = 'variant'): array {
     $normalized = $this->normalizeOptions($options);
+
+    // A variant switcher exists to let a visitor COMPARE alternatives. If
+    // fewer than two of its options are actually available there is nothing
+    // to compare, and rendering the control anyway shows the visitor a
+    // toggle whose other half does not exist (e.g. the `stream.model`
+    // toggle's "Content view (soon)" while #129 has not shipped a real
+    // Content view display). That reads as broken rather than forthcoming,
+    // and it cuts against the demo's own honesty rule (#133 SD-6: never
+    // imply availability that is not there). Render nothing until a real
+    // second option exists. Self-healing: the moment a story flips an
+    // option's `available` flag to TRUE, its switcher starts rendering with
+    // no further change needed here. The "(soon)" affordance below is
+    // retained for the case where a switcher has >=2 available options PLUS
+    // a not-yet-shipped third (e.g. directory.layout before `map` shipped),
+    // where the control is genuinely useful and the extra option is
+    // legitimately forthcoming rather than the entire point of the control.
+    $available_count = 0;
+    foreach ($normalized as $option) {
+      if ($option['available']) {
+        $available_count++;
+      }
+    }
+    if ($available_count < 2) {
+      return [];
+    }
+
     $selected_id = $this->resolveSelection($normalized, $current);
 
     $items = [];
