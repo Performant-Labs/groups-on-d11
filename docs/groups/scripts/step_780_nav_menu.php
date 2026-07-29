@@ -141,4 +141,23 @@ foreach ($links as $link) {
   echo "Created: {$link['title']} -> {$link['uri']}\n";
 }
 
+// Drupal's `standard` install profile registers its own plugin-derived
+// "Home" link (plugin id `standard.front_page`) directly into the `main`
+// menu. It is not a `menu_link_content` entity, so the idempotent loop above
+// never sees or manages it — left alone, it renders as a 6th, unintended
+// "Home" item alongside the five links this script curates. Disabling it via
+// the menu-link plugin manager is durable (persisted in Drupal's key/value
+// override store, survives cache rebuilds) and, being idempotent itself
+// (setting `enabled => FALSE` on an already-disabled definition is a no-op),
+// safe to run on every seed.
+$menu_link_manager = \Drupal::service('plugin.manager.menu.link');
+$front_page_definition = $menu_link_manager->getDefinition('standard.front_page', FALSE);
+if ($front_page_definition && !empty($front_page_definition['enabled'])) {
+  $menu_link_manager->updateDefinition('standard.front_page', ['enabled' => FALSE]);
+  echo "Disabled: standard.front_page (profile-default \"Home\" link)\n";
+}
+else {
+  echo "Exists: standard.front_page already disabled\n";
+}
+
 echo "=== Step 780 complete ===\n";
