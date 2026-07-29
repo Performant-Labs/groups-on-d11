@@ -9,12 +9,17 @@
  * wrapper's `data-do-directory-variant` isn't `"map"`, so Cards/Compact mode
  * pays zero cost for this library being attached.
  *
- * No tile layer (brief.md "Design note — tiles": zero external network
- * requests for map assets is a hard AC; even OpenStreetMap tiles are
- * external). The map renders with Leaflet's stock default marker sprites
- * plotted via Leaflet's own Mercator projection over the plain grey
- * `.leaflet-container` background `directory-map.css` supplies — no
- * `L.tileLayer(...)` call anywhere in this file.
+ * Tiles: OpenStreetMap, via an `L.tileLayer(...)` call in `renderMap()`.
+ *
+ * This REVERSES brief.md's original "Design note — tiles" AC (zero external
+ * network requests for map assets, even OSM). That rule was reversed by
+ * product decision on 2026-07-29 because it defeated the surface's purpose:
+ * with no basemap, markers plotted onto a blank grey rectangle with no
+ * coastlines, borders or place names, leaving a viewer unable to tell that
+ * the pins were Portland, Brussels and Germany. Leaflet's stock default
+ * marker sprites are still served locally from the vendored library; only
+ * the basemap tiles are external, and OSM attribution is rendered as the
+ * tile licence requires.
  *
  * Data source (survey.md's resolved seam): each `.views-row` wrapper inside
  * `.view-content` carries `data-do-location-lat` / `data-do-location-lng` /
@@ -350,14 +355,37 @@
       L.Icon.Default.imagePath = '/libraries/leaflet/images/';
       map = new L.Map(mapContainer, {
         zoomControl: true,
-        // No tile provider to attribute to (brief's "no tile layer" design
-        // note) — attribution control would otherwise render an empty/
-        // misleading credit strip.
-        attributionControl: false,
+        // Attribution control ON: the OpenStreetMap tile layer added below
+        // REQUIRES visible credit under the ODbL / OSM tile usage policy.
+        // That is a licensing obligation, not a stylistic choice.
+        attributionControl: true,
         // Accessibility: no accidental zoom-trap on page-scroll for a
         // keyboard/trackpad user scrolling past the map region.
         scrollWheelZoom: false,
       });
+
+      // Basemap tiles from OpenStreetMap.
+      //
+      // This REVERSES the story's original "no tile layer / zero external
+      // network requests for map assets" acceptance criterion (product
+      // decision, 2026-07-29). That rule produced a technically-pure result
+      // that failed at the surface's actual job: markers floated on a blank
+      // grey rectangle with no coastlines, borders or place names, so a
+      // viewer could not tell the pins were Portland, Brussels and Germany
+      // — a geographic directory conveying no geography.
+      //
+      // Consequences accepted with that decision, recorded so they are not
+      // rediscovered as surprises:
+      //  - The map now makes external requests, and degrades to grey (with
+      //    still-correctly-positioned markers) without internet access.
+      //  - PERF-5's "verify Leaflet CDN-free under load" finding no longer
+      //    describes this surface.
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+
       mapContainer.doShowcaseLeafletMap = map;
     }
     else {
