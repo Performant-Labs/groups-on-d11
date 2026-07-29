@@ -7,3 +7,8 @@ group_created_preview:
   css:
     theme:
       css/create-group.css: {}
+
+my_groups:
+  css:
+    theme:
+      css/my-groups.css: {}
