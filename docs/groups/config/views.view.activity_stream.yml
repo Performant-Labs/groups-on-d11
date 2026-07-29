@@ -128,11 +128,7 @@ display:
     display_options:
       path: stream
       menu:
-        type: normal
-        title: Stream
-        description: 'Sitewide activity stream'
-        weight: 5
-        menu_name: main
+        type: none
   block_1:
     id: block_1
     display_title: 'Stream Block'
