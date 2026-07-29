@@ -185,3 +185,34 @@ nav.breadcrumb li:last-child {
   line-height: var(--gc-leading-normal);
   color: var(--gc-color-text-muted);
 }
+
+/* ---------------------------------------------------------------------------
+ * Narrow (mobile-drawer) search form — hide at desktop nav widths.
+ *
+ * Olivero places TWO search blocks: a "wide" one in `secondary_menu` (the
+ * desktop search) and a "narrow" one in `primary_menu` (the one that appears
+ * inside the mobile nav drawer). Olivero hides its own narrow block at
+ * desktop widths via `body:not(.is-always-mobile-nav) .block-search-narrow`
+ * (header-search-narrow.css) — but that selector only matches Olivero's OWN
+ * `search_form_block`. This theme's narrow search is a custom block
+ * (`do_chrome_plain_search_form`, class `block-do-chrome-plain-search-form`,
+ * introduced by #252 to avoid core's session-forcing search block), so
+ * Olivero's rule never matched it and it stayed visible at desktop.
+ *
+ * Consequence — a real, user-visible bug, not just dead weight: the unhidden
+ * narrow form consumed 271px INSIDE `.header-nav`, squeezing the primary-nav
+ * <ul> to 115px while its items need 123px. The nav therefore wrapped to two
+ * lines, and Olivero's `nav-resize.js` ResizeObserver — which force-switches
+ * to mobile nav whenever the desktop nav wraps — collapsed it. Because that
+ * observer only runs once the footer JS has loaded, the desktop nav painted
+ * for ~200ms first and then vanished: the "menu flickers on refresh" report.
+ *
+ * Mirrors Olivero's own rule and breakpoint exactly (75rem / 1200px), scoped
+ * to this theme's block class, so the narrow form keeps doing its real job
+ * inside the mobile drawer below that width.
+ * ------------------------------------------------------------------------ */
+body:not(.is-always-mobile-nav) .block-do-chrome-plain-search-form {
+  @media (min-width: 75rem) {
+    display: none;
+  }
+}
