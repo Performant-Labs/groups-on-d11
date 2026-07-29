@@ -5,6 +5,30 @@ FROM drupal:11-php8.3-fpm-alpine AS base
 # mariadb-client provides the `mysql` binary used for the DB-readiness wait.
 RUN apk add --no-cache nginx bash git unzip mariadb-client
 
+# Raise PHP's memory limit above the 128M default (issue #284).
+#
+# The upstream drupal:*-fpm-alpine images ship NO active php.ini at all (only
+# the unused php.ini-development / php.ini-production templates), so PHP runs
+# on its hardcoded 128M default. That is not enough for this project's
+# `drush config:import`: config/sync carries 239+ objects (custom fields,
+# views, group roles, message templates, flags), and the import exhausted the
+# limit partway through with
+#   Fatal error: Allowed memory size of 134217728 bytes exhausted
+#       ... in Drupal/Component/Serialization/PhpSerialize.php
+# on a fresh-database production deploy (2026-07-29).
+#
+# That failure was silent in the worst way: deploy/entrypoint.sh decides
+# whether to install/seed by checking `drush status --field=bootstrap`, which
+# still reports success after a partially-applied config:import — so the
+# container came up serving a half-configured site with no retry. Baking the
+# limit into the image is what makes a fresh deploy reproducible; the
+# hand-patched conf.d file used to recover that incident lived only in the
+# running container and would not survive the next redeploy.
+#
+# 256M is headroom over the 160M that proved empirically sufficient. The `zz-`
+# prefix sorts last in conf.d so this wins over anything set earlier.
+RUN printf 'memory_limit = 256M\n' > /usr/local/etc/php/conf.d/zz-groups-on-d11.ini
+
 WORKDIR /var/www/html
 
 # Install PHP dependencies first for better layer caching.
