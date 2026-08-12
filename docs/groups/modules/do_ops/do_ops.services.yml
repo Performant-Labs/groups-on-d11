@@ -1,0 +1,19 @@
+services:
+  do_ops.erd_generator:
+    class: Drupal\do_ops\Erd\ErdGenerator
+    autowire: false
+    arguments:
+      - '@entity_type.manager'
+      - '@entity_type.bundle.info'
+      - '@entity_field.manager'
+
+  # Registered here (Drupal's own container), not only in drush.services.yml,
+  # so \Drupal::service() and Kernel tests can resolve it — Drush's
+  # drush.services.yml mechanism instantiates its own separate, one-way-read
+  # registry that never merges into \Drupal::getContainer() (mirrors the
+  # do_notifications.deliver_commands precedent).
+  do_ops.erd_commands:
+    class: Drupal\do_ops\Drush\Commands\ErdCommands
+    autowire: false
+    arguments:
+      - '@do_ops.erd_generator'

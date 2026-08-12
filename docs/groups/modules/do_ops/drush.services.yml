@@ -1,0 +1,7 @@
+services:
+  do_ops.erd_commands:
+    class: Drupal\do_ops\Drush\Commands\ErdCommands
+    arguments:
+      - '@do_ops.erd_generator'
+    tags:
+      - { name: drush.command }
