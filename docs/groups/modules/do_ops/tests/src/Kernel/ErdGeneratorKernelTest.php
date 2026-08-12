@@ -5,30 +5,48 @@ declare(strict_types=1);
 namespace Drupal\Tests\do_ops\Kernel;
 
 use Drupal\do_ops\Erd\ErdGenerator;
-use Drupal\Tests\do_tests\Kernel\GroupsKernelTestBase;
+use Drupal\Tests\do_activity\Kernel\ActivityKernelTestBase;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Verifies the entity-metadata walk and the determinism of its output.
  *
- * Uses {@see GroupsKernelTestBase}'s `community_group` fixture (a real
- * `group_membership` relationship type plus `group_node:*` relationship
- * types for every bundle in `NODE_BUNDLES`) so the assertions below exercise
- * genuine, installed `group_relationship_type` config — not a hand-written
- * stand-in — for both edges the brief calls out as the ones a diagram must
- * not miss: Group<->User via membership, Group<->content via
- * group_relationship.
+ * Extends {@see ActivityKernelTestBase} (do_activity), not the plain
+ * `do_tests` `GroupsKernelTestBase` it itself extends, so this suite gets
+ * BOTH fixture layers for free: the `community_group` `group_membership` +
+ * `group_node:*` relationship types (Group<->User, Group<->content), and
+ * do_activity's own real `flag`/`message`/`comment` fixtures — three real
+ * `flag.flag.*` config entities (`follow_user`->user, `pin_in_group`->node,
+ * `rsvp_event`->node), do_activity's six shipped `message.template.*` (each
+ * with a real `field_group_id`->group field), and a real `comment_type`
+ * attached to the `post` node bundle. All genuine, installed config — not
+ * hand-written stand-ins — for every edge asserted below.
  *
  * @group do_ops
  * @group group
  */
 #[RunTestsInSeparateProcesses]
-class ErdGeneratorKernelTest extends GroupsKernelTestBase {
+class ErdGeneratorKernelTest extends ActivityKernelTestBase {
 
   /**
    * {@inheritdoc}
    */
-  protected static $modules = ['group', 'gnode', 'options', 'node', 'do_ops'];
+  protected static $modules = [
+    'system',
+    'user',
+    'node',
+    'comment',
+    'field',
+    'text',
+    'filter',
+    'group',
+    'gnode',
+    'flag',
+    'message',
+    'message_notify',
+    'do_activity',
+    'do_ops',
+  ];
 
   private ErdGenerator $generator;
 
@@ -119,6 +137,57 @@ class ErdGeneratorKernelTest extends GroupsKernelTestBase {
   public function testGroupRelationshipToGroupEdgeIsDerived(): void {
     $diagram = $this->generator->generate('group');
     $this->assertMatchesRegularExpression('/group_relationship \}o--\|\| group : "gid"/', $diagram);
+  }
+
+  /**
+   * A leaf entity discovered via a reference field gets its own bundle-of
+   * edge as a single extra hop — `node` -> `node_type` — so the diagram
+   * shows which Drupal-core bundles actually plug into the group platform,
+   * not just the bare entity type. (The same generic `addBundleOfEdge()`
+   * code path also produces `taxonomy_term` -> `taxonomy_vocabulary` on a
+   * real site — see docs/architecture/groups-erd.md — but this fixture has
+   * no taxonomy-referencing field on `group` to exercise that specific
+   * pair, so only the `node` case, which the fixture genuinely reaches, is
+   * asserted here.)
+   */
+  public function testLeafEntityShowsItsBundleOfEdge(): void {
+    $diagram = $this->generator->generate('group');
+    $this->assertStringContainsString('  node }o--|| node_type : "type"', $diagram);
+  }
+
+  /**
+   * `flagging` is walked (not just added as a leaf), surfacing its real
+   * fixture edges: `follow_user` (user), `pin_in_group` + `rsvp_event`
+   * (node) via the dynamic `flagged_entity` field, plus `flag_id` -> `flag`
+   * and `uid` -> `user` from flagging's own base fields.
+   */
+  public function testFlaggingEdgesAreDerived(): void {
+    $diagram = $this->generator->generate('group');
+    $this->assertMatchesRegularExpression('/flagging \}o--(\|\||o\{) flag : "flag_id"/', $diagram);
+    $this->assertMatchesRegularExpression('/flagging \}o--(\|\||o\{) user : "flagged_entity"/', $diagram);
+    $this->assertMatchesRegularExpression('/flagging \}o--(\|\||o\{) node : "flagged_entity"/', $diagram);
+    $this->assertMatchesRegularExpression('/flagging \}o--(\|\||o\{) user : "uid"/', $diagram);
+  }
+
+  /**
+   * `message` is walked, surfacing do_activity's real `field_group_id`
+   * field (present on the `activity_post_created` / `activity_membership_
+   * created` templates) resolving to `group`.
+   */
+  public function testMessageEdgeToGroupIsDerived(): void {
+    $diagram = $this->generator->generate('group');
+    $this->assertMatchesRegularExpression('/message \}o--(\|\||o\{) group : "field_group_id"/', $diagram);
+    $this->assertMatchesRegularExpression('/message \}o--(\|\||o\{) user : "uid"/', $diagram);
+  }
+
+  /**
+   * `comment` is walked, surfacing its dynamic `entity_id` field resolving
+   * to `node` for the real `comment` comment_type attached to the `post`
+   * bundle by the do_activity fixture.
+   */
+  public function testCommentEdgeToNodeIsDerived(): void {
+    $diagram = $this->generator->generate('group');
+    $this->assertMatchesRegularExpression('/comment \}o--(\|\||o\{) node : "entity_id"/', $diagram);
   }
 
   /**

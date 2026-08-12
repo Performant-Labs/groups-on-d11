@@ -6,8 +6,20 @@ docblock for why). Do not hand-edit; regenerate and commit the diff instead.
 
 ```mermaid
 erDiagram
+  comment {
+    string label "Comment"
+  }
+  comment_type {
+    string label "Comment type"
+  }
   file {
     string label "File"
+  }
+  flag {
+    string label "Flag"
+  }
+  flagging {
+    string label "Flagging"
   }
   group {
     string label "Group"
@@ -24,15 +36,39 @@ erDiagram
   group_type {
     string label "Group type"
   }
+  message {
+    string label "Message"
+  }
+  message_template {
+    string label "Message template"
+  }
   node {
     string label "Content"
+  }
+  node_type {
+    string label "Content type"
   }
   taxonomy_term {
     string label "Taxonomy term"
   }
+  taxonomy_vocabulary {
+    string label "Taxonomy vocabulary"
+  }
   user {
     string label "User"
   }
+  comment }o--|| comment : "pid"
+  comment }o--|| comment_type : "comment_type"
+  comment }o--|| comment_type : "type"
+  comment }o--|| node : "entity_id"
+  comment }o--|| user : "uid"
+  flagging }o--|| flag : "flag_id"
+  flagging }o--|| flag : "type"
+  flagging }o--|| group : "flagged_entity"
+  flagging }o--|| node : "flagged_entity"
+  flagging }o--|| taxonomy_term : "flagged_entity"
+  flagging }o--|| user : "flagged_entity"
+  flagging }o--|| user : "uid"
   group }o--|| file : "field_group_image"
   group }o--|| group_type : "type"
   group }o--|| taxonomy_term : "field_group_type"
@@ -45,4 +81,10 @@ erDiagram
   group_relationship }o--|| node : "entity_id"
   group_relationship }o--|| user : "entity_id"
   group_relationship }o--|| user : "uid"
+  message }o--|| group : "field_group_id"
+  message }o--|| message_template : "template"
+  message }o--|| message_template : "type"
+  message }o--|| user : "uid"
+  node }o--|| node_type : "type"
+  taxonomy_term }o--|| taxonomy_vocabulary : "type"
 ```
