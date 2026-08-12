@@ -19,9 +19,9 @@ ghcr.io/performant-labs/groups-on-d11:latest
       │
       ▼  (manual redeploy in Coolify, or Coolify API call)
 Coolify on Uranus (100.66.126.125 via Tailscale)
-      │  application uuid rt7xfshm01tvw4locfxb8f6t
+      │  application uuid u1k87oxg3pfrzocb80qov4mh
       ▼
-Container: rt7xfshm01tvw4locfxb8f6t-<build-number>
+Container: u1k87oxg3pfrzocb80qov4mh-<build-number>
       │  (attached to docker network `coolify`)
       ├─ Traefik → https://groups.performantlabs.com  (Let's Encrypt)
       └─ MariaDB container ypgqgn9pnaxj1q93rigs878t   (database uuid, name groups-on-d11-db)
@@ -33,24 +33,30 @@ host-nginx or DDEV involved in the Coolify path.
 
 ## 2. Coolify app configuration
 
-Values captured from the live container on 2026-07-24. Source of truth is
-Coolify's UI, not this document — if these drift, Coolify wins.
+Values captured from the live container on 2026-08-12. Source of truth is
+Coolify's UI, not this document — if these drift, Coolify wins. (The
+Application UUID below changed from a 2026-07-24 snapshot's
+`rt7xfshm01tvw4locfxb8f6t` — that app was re-registered in Coolify at some
+point after that date. Its old compose directory is still on disk at
+`/data/coolify/applications/rt7xfshm01tvw4locfxb8f6t` on Uranus but is
+orphaned from Coolify's own DB/API; confirmed via `GET /api/v1/applications`
+against the live token.)
 
 | Setting | Value |
 |---|---|
 | Coolify project | `uranus` |
 | Coolify environment | `production` |
 | Application name | `groups-on-d11` |
-| Application UUID | `rt7xfshm01tvw4locfxb8f6t` |
-| Application ID | `9` |
-| Container name (currently) | `rt7xfshm01tvw4locfxb8f6t-170440508175` |
+| Application UUID | `u1k87oxg3pfrzocb80qov4mh` |
+| Application ID | not exposed by the current Coolify API response — use the UUID |
+| Container name (currently) | `u1k87oxg3pfrzocb80qov4mh-184001464161` |
 | Image | `ghcr.io/performant-labs/groups-on-d11:latest` |
 | Internal port | `8080` |
 | Public URL | `https://groups.performantlabs.com` |
 | TLS resolver | Traefik + Let's Encrypt (`certresolver=letsencrypt`) |
 | Docker network | `coolify` (external, shared with other Uranus apps) |
-| Coolify compose file on disk | `/data/coolify/applications/rt7xfshm01tvw4locfxb8f6t/docker-compose.yaml` |
-| Env file on disk | `/data/coolify/applications/rt7xfshm01tvw4locfxb8f6t/.env` |
+| Coolify compose file on disk | `/data/coolify/applications/u1k87oxg3pfrzocb80qov4mh/docker-compose.yaml` |
+| Env file on disk | `/data/coolify/applications/u1k87oxg3pfrzocb80qov4mh/.env` |
 | Restart policy | `unless-stopped` |
 | Mem / CPU limits | Unset (`0`) |
 
@@ -71,7 +77,7 @@ app compose):
 ## 3. Environment variables
 
 Set in the Coolify UI (Application → Environment). Coolify materialises them
-into `/data/coolify/applications/rt7xfshm01tvw4locfxb8f6t/.env`, mounted as
+into `/data/coolify/applications/u1k87oxg3pfrzocb80qov4mh/.env`, mounted as
 `env_file` in the generated compose. Verified from a live `docker inspect`
 2026-07-24:
 
@@ -153,7 +159,7 @@ without this repo checked out):
 COOLIFY_TOKEN=$(op read "op://Security/k2xnfs4rjmldr77666gwuez3l4/notesPlain" \
   | grep -oE '^[0-9]+\|[A-Za-z0-9]+' | head -n 1)
 curl -sS -X POST \
-  "https://coolify.performantlabs.com/api/v1/deploy?uuid=rt7xfshm01tvw4locfxb8f6t" \
+  "https://coolify.performantlabs.com/api/v1/deploy?uuid=u1k87oxg3pfrzocb80qov4mh" \
   -H "Authorization: Bearer $COOLIFY_TOKEN" \
   -H 'Accept: application/json'
 ```
@@ -166,7 +172,7 @@ exist in Coolify v4 and was never correct.)
 
 ```bash
 ssh aangel@100.66.126.125
-cd /data/coolify/applications/rt7xfshm01tvw4locfxb8f6t
+cd /data/coolify/applications/u1k87oxg3pfrzocb80qov4mh
 sudo docker compose pull
 sudo docker compose up -d --force-recreate
 ```
@@ -199,8 +205,8 @@ curl -sI https://groups.performantlabs.com/ | head -5
 
 # From Uranus, deeper checks:
 ssh aangel@100.66.126.125
-docker exec rt7xfshm01tvw4locfxb8f6t-<build> drush status
-docker exec rt7xfshm01tvw4locfxb8f6t-<build> drush cr
+docker exec u1k87oxg3pfrzocb80qov4mh-<build> drush status
+docker exec u1k87oxg3pfrzocb80qov4mh-<build> drush cr
 ```
 
 The exact container name changes on every deploy (`-<build-number>` suffix).

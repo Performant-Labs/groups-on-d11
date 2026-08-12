@@ -22,7 +22,14 @@
 set -Eeuo pipefail
 
 # --- Configuration (safe to print / commit) ---------------------------------
-readonly APP_UUID='rt7xfshm01tvw4locfxb8f6t'
+# UUID as of 2026-08-12 — the app was re-registered in Coolify at some point
+# after docs/ops/deploy.md's 2026-07-24 snapshot (the old UUID's compose dir
+# is still on disk at /data/coolify/applications/rt7xfshm01tvw4locfxb8f6t on
+# Uranus, but Coolify's own DB / API no longer knows it — GET /api/v1/deploy
+# for that UUID now 404s "No resources found"). Confirmed current via
+# GET /api/v1/applications (lists it as "groups-on-d11",
+# fqdn https://groups.performantlabs.com, status running).
+readonly APP_UUID='u1k87oxg3pfrzocb80qov4mh'
 readonly COOLIFY_HOST='https://coolify.performantlabs.com'
 readonly COOLIFY_UI="${COOLIFY_HOST}/project/uranus/environment/production/application/${APP_UUID}"
 readonly OP_SECRET_REF='op://Security/k2xnfs4rjmldr77666gwuez3l4/notesPlain'
