@@ -242,8 +242,15 @@ jobs:
       - name: Regenerate the ER diagram and diff against the committed copy
         run: |
           set -euxo pipefail
+          # --out must be an ABSOLUTE path: Drush's bootstrap chdir()s into
+          # the discovered Drupal root (web/) before the command runs, so a
+          # relative --out here resolved to web/docs/architecture/... (which
+          # doesn't exist) rather than the repo root's docs/architecture/ —
+          # caught by this job's own first CI run, not local testing (which
+          # always used an absolute --out path against ddev).
+          REPO_ROOT="$(pwd)"
           php vendor/drush/drush/drush.php groups:erd --scope=group \
-            --out=docs/architecture/groups-erd.md
+            --out="${REPO_ROOT}/docs/architecture/groups-erd.md"
           if ! git diff --exit-code -- docs/architecture/groups-erd.md; then
             echo "::error::docs/architecture/groups-erd.md is stale. Run 'drush groups:erd --scope=group --out=docs/architecture/groups-erd.md' and commit the diff."
             exit 1
