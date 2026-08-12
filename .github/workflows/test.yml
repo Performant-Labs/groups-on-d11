@@ -31,7 +31,16 @@ jobs:
   # assemble-config.sh / assemble-libraries.sh write BUILD OUTPUT into the
   # working tree (config/sync, web/modules/custom, web/libraries). None of it is
   # tracked, so a clean checkout followed by a build must leave `git status`
-  # completely clean. This job asserts exactly that.
+  # clean. This job asserts that assembly adds NOTHING to `git status` relative
+  # to the post-`composer install` baseline, and that the three assembled paths
+  # are absolutely clean.
+  #
+  # Why a delta rather than a bare "porcelain is empty": `composer install`
+  # itself rewrites five stale tracked scaffold files, which predates this job
+  # and is unrelated to assembly (see the baseline step). Measuring the delta
+  # keeps the guard strict about the thing it governs without being held hostage
+  # by that drift — and it is the stronger assertion anyway, since it fails on
+  # any new dirt anywhere in the tree, not just under config/sync.
   #
   # It exists because the opposite used to be true: the scripts wrote over 240
   # tracked config/sync files, so every local run, Docker build and CI run left
@@ -87,15 +96,22 @@ jobs:
       - name: Trust the workspace for git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      # Baseline: composer install itself must not dirty the tree either, so if
-      # this fails the assertion after assembly would be reporting the wrong
-      # culprit. Report and fail here instead.
-      - name: Assert the tree is clean before assembly
+      # Record the post-composer baseline. This is NOT required to be empty:
+      # drupal/core-composer-scaffold rewrites five tracked scaffold files
+      # (web/.htaccess, web/example.gitignore, web/index.php, web/robots.txt,
+      # web/update.php) on every `composer install`, because the copies committed
+      # to this repo are from an older core than the one composer.lock resolves.
+      # That drift predates this job and is unrelated to assembly — it is not
+      # something the assemble scripts cause or can fix. Snapshotting it here is
+      # what lets the assertions below attribute dirt to the right culprit.
+      - name: Record post-composer baseline
         run: |
-          if [[ -n "$(git status --porcelain)" ]]; then
-            echo "::error::Working tree is dirty after 'composer install', before assembly ran."
-            git status --porcelain
-            exit 1
+          git status --porcelain | sort > /tmp/tree-baseline.txt
+          if [[ -s /tmp/tree-baseline.txt ]]; then
+            echo "::notice::Pre-existing drift from 'composer install' (not caused by assembly):"
+            cat /tmp/tree-baseline.txt
+          else
+            echo "Tree clean after composer install."
           fi
 
       - name: Assemble config/sync + custom modules (shared with RUNBOOK)
@@ -104,16 +120,38 @@ jobs:
       - name: Assemble libraries (Leaflet 1.9.4, #125 SC-6 — shared with RUNBOOK)
         run: bash scripts/ci/assemble-libraries.sh
 
-      - name: Assert the tree is still clean after assembly
+      # THE guard. Two assertions, because either alone has a hole:
+      #
+      #   (a) Delta — assembly must add nothing at all to `git status`. Stronger
+      #       than "is config/sync clean", since it also catches an assemble
+      #       script that starts writing somewhere new, or that modifies a
+      #       tracked file anywhere else in the tree.
+      #   (b) Absolute — the paths the assemble scripts own must be completely
+      #       clean, so (a) can never be satisfied by dirt that was already
+      #       present in those paths before assembly ran.
+      - name: Assert assembly added nothing to the working tree
         run: |
-          if [[ -n "$(git status --porcelain)" ]]; then
+          git status --porcelain | sort > /tmp/tree-after.txt
+          if ! diff -u /tmp/tree-baseline.txt /tmp/tree-after.txt > /tmp/tree-delta.txt; then
             echo "::error::assemble-config.sh / assemble-libraries.sh dirtied the working tree. All build output must be gitignored — see the header comment in scripts/ci/assemble-config.sh."
-            git status --porcelain
+            echo "--- what assembly added (- baseline / + after) ---"
+            cat /tmp/tree-delta.txt
             echo "--- diff of tracked files ---"
             git --no-pager diff
             exit 1
           fi
-          echo "Working tree clean after assembly."
+          echo "Assembly added nothing to the working tree."
+
+      - name: Assert the assembled paths are clean
+        run: |
+          # Everything under these paths is build output and must be gitignored.
+          status="$(git status --porcelain -- config/sync web/modules/custom web/libraries)"
+          if [[ -n "$status" ]]; then
+            echo "::error::Build output is tracked under config/sync / web/modules/custom / web/libraries. A file added to docs/groups/config/ probably collides with a still-tracked Phase-1 baseline entry — untrack it with 'git rm --cached'."
+            echo "$status"
+            exit 1
+          fi
+          echo "config/sync, web/modules/custom and web/libraries are clean."
 
       # Idempotence: a second run must also be a no-op, or repeated local runs
       # (and Docker layer rebuilds) re-dirty the tree even though the first was
@@ -122,9 +160,10 @@ jobs:
         run: |
           bash scripts/ci/assemble-config.sh
           bash scripts/ci/assemble-libraries.sh
-          if [[ -n "$(git status --porcelain)" ]]; then
+          git status --porcelain | sort > /tmp/tree-after2.txt
+          if ! diff -u /tmp/tree-baseline.txt /tmp/tree-after2.txt > /tmp/tree-delta2.txt; then
             echo "::error::A second assemble run dirtied the working tree — assembly is not idempotent."
-            git status --porcelain
+            cat /tmp/tree-delta2.txt
             git --no-pager diff
             exit 1
           fi

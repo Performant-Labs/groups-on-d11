@@ -32,8 +32,9 @@
 #     baseline lives in `docs/groups/config/core.extension.yml` (source of
 #     truth) and only the patched copy lands in the untracked `config/sync/`.
 #
-# The `assemble-clean` job in .github/workflows/test.yml asserts
-# `git status --porcelain` is empty after running this script, so any drift
+# The `assemble-clean` job in .github/workflows/test.yml asserts that running
+# this script adds NOTHING to `git status --porcelain`, and that config/sync,
+# web/modules/custom and web/libraries are outright clean afterwards. So drift
 # (e.g. a new `docs/groups/config/` file colliding with a still-tracked
 # baseline entry, which needs a one-off `git rm --cached`) fails CI loudly
 # instead of quietly re-dirtying every working tree.
