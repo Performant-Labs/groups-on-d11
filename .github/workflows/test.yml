@@ -143,6 +143,120 @@ jobs:
             $KERNEL_DIRS
 
   # ---------------------------------------------------------------------------
+  # ERD diagram guard — same spirit as the assemble-clean guard: regenerate a
+  # committed artifact and fail if it drifts from what's tracked. Here the
+  # artifact is docs/architecture/groups-erd.md (`drush groups:erd`, do_ops).
+  #
+  # `--scope=group`'s edges are entirely config-derived (group types, their
+  # relationship types, and referenced entity/field definitions all come from
+  # config/sync via `config:import` — see config/sync/group.type.* and
+  # group.relationship_type.*), so this job only needs a plain `site:install`
+  # + `config:import`, not the e2e job's full demo-data seed.
+  # ---------------------------------------------------------------------------
+  erd-diagram:
+    name: Groups ER diagram is up to date
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    defaults:
+      run:
+        shell: bash
+    container:
+      image: harbor.performantlabs.com/performantlabs/pl-runner:1.64.0
+      credentials:
+        username: ${{ secrets.HARBOR_USERNAME }}
+        password: ${{ secrets.HARBOR_PASSWORD }}
+      options: --user root
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_DATABASE: drupal
+          MYSQL_ROOT_PASSWORD: root
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+          --tmpfs /var/lib/mysql
+
+    env:
+      DRUPAL_DB_URL: 'mysql://root:root@mysql:3306/drupal'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ env.PHP_VERSION }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: gd, pdo_mysql, mysqli, mbstring, xml, dom, curl, gmp, bcmath, intl, opcache, zip
+          coverage: none
+          ini-values: memory_limit=-1
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Assemble config/sync + custom modules (shared with RUNBOOK)
+        run: bash scripts/ci/assemble-config.sh
+
+      - name: Wait for MySQL
+        run: |
+          for i in $(seq 1 30); do
+            if bash -c 'echo > /dev/tcp/mysql/3306' 2>/dev/null; then
+              echo "MySQL is up"; exit 0
+            fi
+            echo "waiting for mysql ($i)..."; sleep 2
+          done
+          echo "MySQL did not become ready" >&2; exit 1
+
+      - name: Install Drupal + import assembled config
+        run: |
+          set -euxo pipefail
+          mkdir -p web/sites/default
+          chmod -R u+w web/sites/default
+          php vendor/drush/drush/drush.php site:install standard \
+            --db-url="$DRUPAL_DB_URL" \
+            --account-name=admin --account-pass=admin \
+            --site-name='Groups on D11' -y
+          chmod u+w web/sites/default web/sites/default/settings.php
+          SRC_UUID="$(grep '^uuid:' config/sync/system.site.yml | awk '{print $2}')"
+          php vendor/drush/drush/drush.php config:set system.site uuid "$SRC_UUID" -y
+          printf "\n\$settings['config_sync_directory'] = '../config/sync';\n" \
+            >> web/sites/default/settings.php
+          php vendor/drush/drush/drush.php config:import -y
+          php vendor/drush/drush/drush.php cache:rebuild -y
+
+      - name: Regenerate the ER diagram and diff against the committed copy
+        run: |
+          set -euxo pipefail
+          # --out must be an ABSOLUTE path: Drush's bootstrap chdir()s into
+          # the discovered Drupal root (web/) before the command runs, so a
+          # relative --out here resolved to web/docs/architecture/... (which
+          # doesn't exist) rather than the repo root's docs/architecture/ —
+          # caught by this job's own first CI run, not local testing (which
+          # always used an absolute --out path against ddev).
+          REPO_ROOT="$(pwd)"
+          php vendor/drush/drush/drush.php groups:erd --scope=group \
+            --out="${REPO_ROOT}/docs/architecture/groups-erd.md"
+          if ! git diff --exit-code -- docs/architecture/groups-erd.md; then
+            echo "::error::docs/architecture/groups-erd.md is stale. Run 'drush groups:erd --scope=group --out=docs/architecture/groups-erd.md' and commit the diff."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
   # Functional job — every custom module's BrowserTestBase suite (#35/#36/#44).
   #
   # Unlike the E2E job, BrowserTestBase does NOT need a pre-installed, assembled

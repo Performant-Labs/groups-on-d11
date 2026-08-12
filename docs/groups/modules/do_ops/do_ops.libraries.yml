@@ -1,0 +1,24 @@
+# Locally-vendored Mermaid renderer for the /er-diagram page (no external CDN
+# — same constraint do_chrome's tooltip library follows).
+#
+# mermaid.min.js is the pinned UMD/browser build committed under this
+# module's js/ directory (js/mermaid.LICENSE.txt carries its MIT license).
+# Upstream version recorded here so a refresh is auditable:
+#   - mermaid 11.16.0 (js/mermaid.min.js)
+#
+# mermaid.min.js is marked `preprocess: false`: at ~3.5MB it silently
+# vanished from the site's aggregated JS bundle with `system.performance.
+# js.preprocess` on (confirmed by comparing the rendered #attached — which
+# correctly listed do_ops/erd_diagram — against the actual <script> tags
+# emitted; disabling preprocess site-wide made it reappear, isolating the
+# aggregator, not the attachment, as the failure point). `preprocess: false`
+# serves it as its own unaggregated <script> tag regardless of the site-wide
+# setting, which is the standard fix for a large vendored library and avoids
+# bloating the aggregate the SITE's other, legitimately small JS shares.
+erd_diagram:
+  version: '11.16.0'
+  js:
+    js/mermaid.min.js: { minified: true, weight: -1, preprocess: false }
+    js/do_ops.erd-diagram.js: {}
+  dependencies:
+    - core/once

@@ -1,0 +1,38 @@
+services:
+  do_ops.erd_generator:
+    class: Drupal\do_ops\Erd\ErdGenerator
+    autowire: false
+    arguments:
+      - '@entity_type.manager'
+      - '@entity_type.bundle.info'
+      - '@entity_field.manager'
+
+  # Drupal's Hook 2.0 collector pass tries to autowire EVERY class carrying a
+  # #[Hook] attribute by its constructor's type-hints, even when that class is
+  # already registered as a service elsewhere — so ErdDiagramPageHook's
+  # `ErdGenerator $erdGenerator` parameter needs this class-name alias (a
+  # concrete class, not an interface, so there is no automatic one) or
+  # `drush cr` fails container compilation with "no such service exists. You
+  # should maybe alias this class to the existing do_ops.erd_generator
+  # service" — which is exactly what this line does.
+  Drupal\do_ops\Erd\ErdGenerator: '@do_ops.erd_generator'
+
+  # Registered here (Drupal's own container), not only in drush.services.yml,
+  # so \Drupal::service() and Kernel tests can resolve it — Drush's
+  # drush.services.yml mechanism instantiates its own separate, one-way-read
+  # registry that never merges into \Drupal::getContainer() (mirrors the
+  # do_notifications.deliver_commands precedent).
+  do_ops.erd_commands:
+    class: Drupal\do_ops\Drush\Commands\ErdCommands
+    autowire: false
+    arguments:
+      - '@do_ops.erd_generator'
+
+  do_ops.erd_diagram_page_hook:
+    class: Drupal\do_ops\Hook\ErdDiagramPageHook
+    autowire: false
+    arguments:
+      - '@do_ops.erd_generator'
+      - '@state'
+    tags:
+      - { name: 'hook_implementations' }
