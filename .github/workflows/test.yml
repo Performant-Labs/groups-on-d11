@@ -26,6 +26,111 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Build-cleanliness guard.
+  #
+  # assemble-config.sh / assemble-libraries.sh write BUILD OUTPUT into the
+  # working tree (config/sync, web/modules/custom, web/libraries). None of it is
+  # tracked, so a clean checkout followed by a build must leave `git status`
+  # completely clean. This job asserts exactly that.
+  #
+  # It exists because the opposite used to be true: the scripts wrote over 240
+  # tracked config/sync files, so every local run, Docker build and CI run left
+  # the tree permanently dirty (12 modified + 95 untracked), which hid genuine
+  # config changes in the artifact noise. Keep this job GREEN — a failure here
+  # means new build output is being tracked (usually: a file was added to
+  # docs/groups/config/ whose name collides with a still-tracked Phase-1
+  # baseline entry in config/sync/, which needs a one-off `git rm --cached`).
+  # ---------------------------------------------------------------------------
+  assemble-clean:
+    name: Assemble leaves the tree clean
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    defaults:
+      run:
+        shell: bash
+    container:
+      image: harbor.performantlabs.com/performantlabs/pl-runner:1.64.0
+      credentials:
+        username: ${{ secrets.HARBOR_USERNAME }}
+        password: ${{ secrets.HARBOR_PASSWORD }}
+      options: --user root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ env.PHP_VERSION }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: gd, pdo_mysql, mysqli, mbstring, xml, dom, curl, gmp, bcmath, intl, opcache, zip
+          coverage: none
+          ini-values: memory_limit=-1
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-
+
+      - name: Install Composer dependencies (incl. drupal/core-dev)
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      # actions/checkout leaves the workspace owned by a different uid than the
+      # root user this container runs as; without this, every `git` call below
+      # dies with "detected dubious ownership".
+      - name: Trust the workspace for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Baseline: composer install itself must not dirty the tree either, so if
+      # this fails the assertion after assembly would be reporting the wrong
+      # culprit. Report and fail here instead.
+      - name: Assert the tree is clean before assembly
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::Working tree is dirty after 'composer install', before assembly ran."
+            git status --porcelain
+            exit 1
+          fi
+
+      - name: Assemble config/sync + custom modules (shared with RUNBOOK)
+        run: bash scripts/ci/assemble-config.sh
+
+      - name: Assemble libraries (Leaflet 1.9.4, #125 SC-6 — shared with RUNBOOK)
+        run: bash scripts/ci/assemble-libraries.sh
+
+      - name: Assert the tree is still clean after assembly
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::assemble-config.sh / assemble-libraries.sh dirtied the working tree. All build output must be gitignored — see the header comment in scripts/ci/assemble-config.sh."
+            git status --porcelain
+            echo "--- diff of tracked files ---"
+            git --no-pager diff
+            exit 1
+          fi
+          echo "Working tree clean after assembly."
+
+      # Idempotence: a second run must also be a no-op, or repeated local runs
+      # (and Docker layer rebuilds) re-dirty the tree even though the first was
+      # clean — e.g. an in-place patch that is not a fixed point.
+      - name: Assert assembly is idempotent
+        run: |
+          bash scripts/ci/assemble-config.sh
+          bash scripts/ci/assemble-libraries.sh
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::A second assemble run dirtied the working tree — assembly is not idempotent."
+            git status --porcelain
+            git --no-pager diff
+            exit 1
+          fi
+          echo "Assembly is idempotent."
+
+  # ---------------------------------------------------------------------------
   # Kernel job — the core deliverable. Must be GREEN.
   #
   # The do_tests kernel suite (Phase1/2/3, 20 tests) reads the assembled

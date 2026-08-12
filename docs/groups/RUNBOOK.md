@@ -40,6 +40,27 @@
 > Each phase notes which module to copy. Do this before the `ddev drush en` command for that module.
 
 > [!IMPORTANT]
+> **`config/sync/` is mostly build output — commit your config to `docs/groups/config/`.**
+> `scripts/ci/assemble-config.sh` copies every `docs/groups/config/*.yml` into `config/sync/`
+> (and `docs/groups/modules/*` into `web/modules/custom/`). Those copies are **gitignored**, via a
+> `config/sync/.gitignore` that the script regenerates on every run — the same source-then-assemble
+> pattern `assemble-libraries.sh` already uses for `web/libraries/`. Only the genuine Phase-1
+> baseline entries — the ones with no counterpart in `docs/groups/config/` — stay tracked in
+> `config/sync/`. That is what lets a clean checkout plus a build leave `git status` clean; the
+> `assemble-clean` job in `.github/workflows/test.yml` enforces it.
+>
+> Practical consequence: after `ddev drush config:export -y` writes a phase-2..7 change into
+> `config/sync/`, **copy the changed file back into `docs/groups/config/` and commit it there** —
+> `git status` will not show it otherwise:
+> ```bash
+> cp config/sync/views.view.all_groups.yml docs/groups/config/
+> ```
+> `core.extension.yml` is a special case: its pristine baseline lives at
+> `docs/groups/config/core.extension.yml`, and the assemble script patches the *copy* in
+> `config/sync/` to register the `do_*` modules plus `flag`/`geofield`/`language`/`message`/
+> `message_notify`. Edit the baseline in `docs/groups/config/`, never the generated copy.
+
+> [!IMPORTANT]
 > **All custom modules must follow the Services over Hooks pattern.** Before writing or porting any custom module, read [`playbook/frameworks/drupal/best-practices.md`](../playbook/frameworks/drupal/best-practices.md). Procedural hook-based modules are not acceptable in this project.
 
 This runbook documents the step-by-step process for adding groups functionality to the standard Drupal 11 codebase (pl-drupalorg).
