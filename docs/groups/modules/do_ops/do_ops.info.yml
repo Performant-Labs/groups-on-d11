@@ -1,7 +1,8 @@
 name: 'DO Ops'
 type: module
-description: 'Operational observability endpoints for the demo fleet — /healthz probe (DB + cache + modules checksum), consumed by Coolify healthchecks and Grafana (Uranus). Part of REL-4 (#213). Also ships `drush groups:erd`, a Mermaid ER diagram generator over Groups entity/field metadata.'
+description: 'Operational observability endpoints for the demo fleet — /healthz probe (DB + cache + modules checksum), consumed by Coolify healthchecks and Grafana (Uranus). Part of REL-4 (#213). Also ships `drush groups:erd`, a Mermaid ER diagram generator over Groups entity/field metadata, and the /er-diagram page that renders it live.'
 core_version_requirement: ^10 || ^11
 package: 'Custom'
 dependencies:
   - drupal:group
+  - drupal:node

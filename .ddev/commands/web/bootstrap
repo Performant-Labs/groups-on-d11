@@ -48,7 +48,7 @@ if [ "$FORCE" -eq 1 ] || ! drush status --field=bootstrap 2>/dev/null | grep -qi
     do_chrome do_showcase do_streams do_activity do_activity_feed do_ops
 
   echo "==> bootstrap: seeding demo data"
-  for script in step_700_demo_data step_720_group_types step_7xx_backfill_activity step_795_activity_feed_e2e_fixture step_780_nav_menu; do
+  for script in step_700_demo_data step_720_group_types step_7xx_backfill_activity step_795_activity_feed_e2e_fixture step_780_nav_menu step_800_er_diagram_page; do
     SEED_SCRIPT="/var/www/html/docs/groups/scripts/${script}.php"
     if [ -f "$SEED_SCRIPT" ]; then
       echo "    running $script (as uid 1)"

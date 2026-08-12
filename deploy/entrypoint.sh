@@ -193,6 +193,17 @@ PHP
     echo "[entrypoint] WARNING: activity-feed fixture script not found at $FEED_FIXTURE_SCRIPT" >&2
   fi
   # --- do_activity_feed step_795 END ---
+  # --- do_ops step_800 BEGIN ---
+  # do_ops: the "ER Diagram" page at /er-diagram. No admin-account wrapper
+  # needed (the script sets uid 1 directly). Also re-run unconditionally on
+  # every boot below (section 3b) — see that block's comment for why.
+  ERD_PAGE_SCRIPT="${APP_DIR}/docs/groups/scripts/step_800_er_diagram_page.php"
+  if [ -f "$ERD_PAGE_SCRIPT" ]; then
+    $DRUSH php:script "$ERD_PAGE_SCRIPT" || echo "[entrypoint] WARNING: ER diagram page script returned non-zero (continuing)"
+  else
+    echo "[entrypoint] WARNING: ER diagram page script not found at $ERD_PAGE_SCRIPT" >&2
+  fi
+  # --- do_ops step_800 END ---
 
   $DRUSH cr
 
@@ -223,6 +234,18 @@ if $DRUSH status --field=bootstrap 2>/dev/null | grep -qi 'successful'; then
     do_multigroup do_notifications do_profile_stats do_discovery \
     do_chrome do_showcase do_streams do_activity do_activity_feed do_ops \
     || echo "[entrypoint] WARNING: always-on module-enable belt returned non-zero (continuing)"
+
+  # Same #250 reasoning, applied to content: an already-deployed environment's
+  # fresh-DB block (section 3) already ran once and will never run again, so a
+  # seed step added after that first deploy — like step_800's /er-diagram page
+  # — would otherwise never get created on it. This belt's own script is
+  # idempotent (a no-op once the page exists), so running it on every boot is
+  # safe.
+  ERD_PAGE_SCRIPT="${APP_DIR}/docs/groups/scripts/step_800_er_diagram_page.php"
+  if [ -f "$ERD_PAGE_SCRIPT" ]; then
+    $DRUSH php:script "$ERD_PAGE_SCRIPT" || echo "[entrypoint] WARNING: ER diagram page script returned non-zero (continuing)"
+  fi
+
   $DRUSH cr || true
 fi
 
