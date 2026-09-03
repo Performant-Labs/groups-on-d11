@@ -2,8 +2,10 @@ FROM drupal:11-php8.3-fpm-alpine AS base
 
 # nginx serves the docroot; bash runs the assemble/seed shell scripts;
 # git + unzip let composer fetch/extract packages (some betas are source-only);
-# mariadb-client provides the `mysql` binary used for the DB-readiness wait.
-RUN apk add --no-cache nginx bash git unzip mariadb-client
+# mariadb-client provides the `mysql`/`mariadb` binary and postgresql-client
+# provides `psql`, used for the DB-readiness wait against whichever engine
+# DB_DRIVER selects at runtime (see deploy/entrypoint.sh; pl-ops-handbook#105).
+RUN apk add --no-cache nginx bash git unzip mariadb-client postgresql-client
 
 # Raise PHP's memory limit above the 128M default (issue #284).
 #

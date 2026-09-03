@@ -4,7 +4,11 @@ set -e
 # ---------------------------------------------------------------------------
 # entrypoint.sh — boot the groups-on-d11 demo container.
 #
-# 1. Generate settings.php from the MYSQL_* / DRUPAL_* environment variables.
+# 1. Generate settings.php from the DB_*/MYSQL_* / DRUPAL_* environment
+#    variables. DB_DRIVER selects the engine (defaults to 'mysql', unchanged
+#    behavior for every environment that does not set it explicitly — see
+#    pl-ops-handbook#105, same pattern as AlmondTTS's DB_DRIVER addition in
+#    Performant-Labs/AlmondTTS#143).
 # 2. On a FRESH database, install Drupal, import the assembled config, enable
 #    the custom do_* modules, and seed the drupal.org-themed demo data. On a
 #    database that already carries an installed site, this is skipped — so the
@@ -25,6 +29,23 @@ SEED_SCRIPT="${APP_DIR}/docs/groups/scripts/step_700_demo_data.php"
 DRUSH="${APP_DIR}/vendor/bin/drush"
 ADMIN_PASS="${DRUPAL_ADMIN_PASS:-admin}"
 
+# --- DB connection settings, driver-selectable via DB_DRIVER ----------------
+# Default 'mysql' preserves existing behavior for every environment that does
+# not set DB_DRIVER. DB_HOST/DB_DATABASE/DB_USER/DB_PASSWORD fall back to the
+# legacy MYSQL_* names so existing MariaDB environments need no env changes.
+DB_DRIVER="${DB_DRIVER:-mysql}"
+DB_HOST="${DB_HOST:-${MYSQL_HOST}}"
+DB_DATABASE="${DB_DATABASE:-${MYSQL_DATABASE}}"
+DB_USER="${DB_USER:-${MYSQL_USER}}"
+DB_PASSWORD="${DB_PASSWORD:-${MYSQL_PASSWORD}}"
+if [ "$DB_DRIVER" = "pgsql" ]; then
+  DB_PORT="${DB_PORT:-5432}"
+  DB_COLLATION_LINE=""
+else
+  DB_PORT="${DB_PORT:-3306}"
+  DB_COLLATION_LINE="  'collation' => 'utf8mb4_general_ci',"
+fi
+
 cd "${APP_DIR}"
 
 # --- 1. Generate settings.php from environment variables --------------------
@@ -33,14 +54,14 @@ chmod 755 "${APP_DIR}/web/sites/default" 2>/dev/null || true
 cat > "$SETTINGS" <<PHPEOF
 <?php
 \$databases['default']['default'] = [
-  'database'  => '${MYSQL_DATABASE}',
-  'username'  => '${MYSQL_USER}',
-  'password'  => '${MYSQL_PASSWORD}',
-  'host'      => '${MYSQL_HOST}',
-  'port'      => '3306',
-  'driver'    => 'mysql',
+  'database'  => '${DB_DATABASE}',
+  'username'  => '${DB_USER}',
+  'password'  => '${DB_PASSWORD}',
+  'host'      => '${DB_HOST}',
+  'port'      => '${DB_PORT}',
+  'driver'    => '${DB_DRIVER}',
   'prefix'    => '',
-  'collation' => 'utf8mb4_general_ci',
+${DB_COLLATION_LINE}
 ];
 \$settings['hash_salt'] = '${DRUPAL_HASH_SALT}';
 \$settings['trusted_host_patterns'] = [
@@ -53,19 +74,29 @@ cat > "$SETTINGS" <<PHPEOF
 \$settings['reverse_proxy_addresses'] = ['127.0.0.1'];
 PHPEOF
 
-echo "[entrypoint] Generated settings.php from environment variables"
+echo "[entrypoint] Generated settings.php from environment variables (driver=${DB_DRIVER})"
 
 # --- 2. Wait for the database ----------------------------------------------
-# Use the mysql client (PDO-independent) so this works before the site exists.
-echo "[entrypoint] Waiting for database at ${MYSQL_HOST}..."
+# Use each engine's own CLI client (PDO-independent) so this works before the
+# site exists.
+echo "[entrypoint] Waiting for database at ${DB_HOST} (driver=${DB_DRIVER})..."
 db_ready=0
 i=0
 while [ "$i" -lt 60 ]; do
-  if mariadb --skip-ssl -h"${MYSQL_HOST}" -u"${MYSQL_USER}" -p"${MYSQL_PASSWORD}" \
-       "${MYSQL_DATABASE}" -e 'SELECT 1' >/dev/null 2>&1; then
-    db_ready=1
-    echo "[entrypoint] Database reachable"
-    break
+  if [ "$DB_DRIVER" = "pgsql" ]; then
+    if PGPASSWORD="${DB_PASSWORD}" psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" \
+         -d "${DB_DATABASE}" -tAc 'SELECT 1' >/dev/null 2>&1; then
+      db_ready=1
+      echo "[entrypoint] Database reachable"
+      break
+    fi
+  else
+    if mariadb --skip-ssl -h"${DB_HOST}" -u"${DB_USER}" -p"${DB_PASSWORD}" \
+         "${DB_DATABASE}" -e 'SELECT 1' >/dev/null 2>&1; then
+      db_ready=1
+      echo "[entrypoint] Database reachable"
+      break
+    fi
   fi
   i=$((i + 1))
   sleep 2
@@ -80,6 +111,22 @@ if $DRUSH status --field=bootstrap 2>/dev/null | grep -qi 'successful'; then
   echo "[entrypoint] Existing installed site detected — skipping install/seed"
 else
   echo "[entrypoint] Fresh database — installing site, importing config, seeding demo data"
+
+  # The committed config/sync/core.extension.yml (assembled from a MySQL-only
+  # environment) hardcodes the 'mysql' driver-provider module as enabled.
+  # `site:install` with DB_DRIVER=pgsql auto-enables Drupal core's 'pgsql'
+  # module instead (it provides the active DB driver and cannot be
+  # uninstalled), so an unmodified config:import against that baseline fails
+  # with "Unable to uninstall the PostgreSQL module because: The module
+  # 'PostgreSQL' is providing the database driver 'pgsql'." Swap the
+  # driver-provider module entry in the on-disk assembled config (never the
+  # committed file — this only touches the container's local copy) to match
+  # DB_DRIVER before importing. pl-ops-handbook#105.
+  EXT_CONFIG="${APP_DIR}/config/sync/core.extension.yml"
+  if [ "$DB_DRIVER" = "pgsql" ] && [ -f "$EXT_CONFIG" ]; then
+    sed -i 's/^  mysql: 0$/  pgsql: 0/' "$EXT_CONFIG"
+    echo "[entrypoint] Patched core.extension.yml: mysql -> pgsql driver-provider module"
+  fi
 
   $DRUSH site:install standard \
     --account-name=admin --account-pass="${ADMIN_PASS}" \
