@@ -44,7 +44,7 @@ jobs:
     # ubuntu-latest (free for this public repo); so does everything when
     # CI_RUNNER is unset. A fork's pull request gets no secrets, so it cannot
     # pull the private Harbor image and fails at container start.
-    runs-on: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON(vars.TRUSTED_CI_AUTHORS || '[]'), 'some-untrusted-user'))) && (vars.CI_RUNNER || 'ubuntu-latest') || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON(vars.TRUSTED_CI_AUTHORS || '[]'), github.event.pull_request.user.login))) && (vars.CI_RUNNER || 'ubuntu-latest') || 'ubuntu-latest' }}
     defaults:
       run:
         shell: bash
@@ -163,7 +163,7 @@ jobs:
   erd-diagram:
     name: Groups ER diagram is up to date
     # Runner rule: see the kernel job.
-    runs-on: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON(vars.TRUSTED_CI_AUTHORS || '[]'), 'some-untrusted-user'))) && (vars.CI_RUNNER || 'ubuntu-latest') || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON(vars.TRUSTED_CI_AUTHORS || '[]'), github.event.pull_request.user.login))) && (vars.CI_RUNNER || 'ubuntu-latest') || 'ubuntu-latest' }}
     defaults:
       run:
         shell: bash
@@ -293,7 +293,7 @@ jobs:
   functional:
     name: Functional tests (BrowserTestBase)
     # Runner rule: see the kernel job.
-    runs-on: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON(vars.TRUSTED_CI_AUTHORS || '[]'), 'some-untrusted-user'))) && (vars.CI_RUNNER || 'ubuntu-latest') || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON(vars.TRUSTED_CI_AUTHORS || '[]'), github.event.pull_request.user.login))) && (vars.CI_RUNNER || 'ubuntu-latest') || 'ubuntu-latest' }}
     defaults:
       run:
         shell: bash
@@ -515,7 +515,7 @@ jobs:
   e2e:
     name: E2E (Playwright)
     # Runner rule: see the kernel job.
-    runs-on: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON(vars.TRUSTED_CI_AUTHORS || '[]'), 'some-untrusted-user'))) && (vars.CI_RUNNER || 'ubuntu-latest') || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON(vars.TRUSTED_CI_AUTHORS || '[]'), github.event.pull_request.user.login))) && (vars.CI_RUNNER || 'ubuntu-latest') || 'ubuntu-latest' }}
     defaults:
       run:
         shell: bash
